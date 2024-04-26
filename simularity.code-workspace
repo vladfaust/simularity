@@ -1,0 +1,25 @@
+{
+  "folders": [
+    {
+      "name": "simularity",
+      "path": "."
+    },
+    {
+      "name": "core",
+      "path": "packages/core"
+    },
+    {
+      "name": "tauri",
+      "path": "packages/tauri"
+    },
+    {
+      "name": "client",
+      "path": "packages/client"
+    },
+    {
+      "name": "server",
+      "path": "packages/server"
+    }
+  ],
+  "settings": {}
+}
