@@ -1,5 +1,11 @@
 {
   "tabWidth": 2,
   "useTabs": false,
-  "plugins": ["prettier-plugin-organize-imports"]
+  "pugAttributeSeparator": "none",
+  "tailwindConfig": "./tailwind.config.cjs",
+  "plugins": [
+    "@prettier/plugin-pug",
+    "prettier-plugin-tailwindcss",
+    "prettier-plugin-organize-imports"
+  ]
 }
