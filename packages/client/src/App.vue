@@ -1,5 +1,9 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { useRoute } from "vue-router";
+const route = useRoute();
+</script>
 
 <template lang="pug">
-button New game
+RouterView(v-slot="{ Component }")
+  component(:is="Component" :key="route.path")
 </template>

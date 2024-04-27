@@ -1,8 +1,12 @@
-import { invoke } from "@tauri-apps/api";
 import { createApp } from "vue";
 import App from "./App.vue";
+import router from "./lib/router";
 import "./style.scss";
 
-invoke("greet", { name: "Tauri" }).then((response) => console.log(response));
+const app = createApp(App);
 
-createApp(App).mount("#app");
+app.use(router);
+
+router.isReady().then(() => {
+  app.mount("#app");
+});
