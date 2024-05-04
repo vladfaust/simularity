@@ -1,18 +1,30 @@
 <script setup lang="ts">
 import Phaser from "phaser";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
-import { onMounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { readTextFile } from "@tauri-apps/api/fs";
 import { type Scenario } from "@/lib/types";
 import { Scene } from "./GameScreen/Scene";
 import { LuaEngine, LuaFactory } from "wasmoon";
+import Console from "./GameScreen/Console.vue";
 
 const { gameId } = defineProps<{ gameId: string }>();
 let game: Phaser.Game;
 let scene: Scene;
 let scenario: Scenario;
+const consoleModal = ref(false);
+
+function consoleEventListener(event: KeyboardEvent) {
+  // Detect tilda key press on different keyboard layouts.
+  if (["~", "§", "`", ">", "]"].includes(event.key)) {
+    consoleModal.value = !consoleModal.value;
+    event.preventDefault();
+  }
+}
 
 onMounted(async () => {
+  window.addEventListener("keypress", consoleEventListener);
+
   const gameDirPath = await join(
     await appLocalDataDir(),
     "simulations",
@@ -64,10 +76,12 @@ onMounted(async () => {
   }, 100);
 });
 
-const text = ref<string | undefined>();
 let currentEpisode: Scenario["episodes"][0] | null = null;
 let currentEpisodeChunkIndex = 0;
 let lua: LuaEngine;
+
+const sceneText = ref("");
+const sceneCode = ref("");
 
 // Called once the Phaser scene is ready.
 async function startGame() {
@@ -77,20 +91,24 @@ async function startGame() {
     lua = _lua;
 
     lua.global.set("set_scene", (locationId: string, sceneId: string) => {
+      sceneCode.value += `set_scene("${locationId}", "${sceneId}")\n`;
       scene.setScene(locationId, sceneId);
     });
 
     lua.global.set("add_character", (characterId: string) => {
+      sceneCode.value += `add_character("${characterId}")\n`;
       scene.addCharacter(characterId);
     });
 
     lua.global.set("set_outfit", (characterId: string, outfitId: string) => {
+      sceneCode.value += `set_outfit("${characterId}", "${outfitId}")\n`;
       scene.setOutfit(characterId, outfitId);
     });
 
     lua.global.set(
       "set_expression",
       (characterId: string, expressionId: string) => {
+        sceneCode.value += `set_expression("${characterId}", "${expressionId}")\n`;
         scene.setExpression(characterId, expressionId);
       },
     );
@@ -111,8 +129,9 @@ const busy = ref(false);
 
 async function advance() {
   if (currentEpisode) {
-    text.value = currentEpisode.chunks[currentEpisodeChunkIndex].text;
+    sceneText.value = currentEpisode.chunks[currentEpisodeChunkIndex].text;
 
+    sceneCode.value = "";
     for (const line of currentEpisode.chunks[currentEpisodeChunkIndex].code) {
       await lua.doString(line);
 
@@ -130,6 +149,10 @@ async function advance() {
     alert("End of episode");
   }
 }
+
+onUnmounted(() => {
+  window.removeEventListener("keypress", consoleEventListener);
+});
 </script>
 
 <template lang="pug">
@@ -137,10 +160,17 @@ async function advance() {
   #game-screen
   .absolute.top-0.w-full.bg-white.bg-opacity-50.p-1 {{ scenario?.name }}: {{ gameId }}
   .absolute.bottom-0.flex.h-32.w-full.flex-col.bg-yellow-500.bg-opacity-90.p-3
-    p.grow {{ text }}
+    p.grow {{ sceneText }}
     .flex.justify-end
-      button.pressable.rounded.border.px-3.py-2(
+      button.rounded.border.px-3.py-2.pressable(
         @click="advance"
         :disabled="busy"
       ) Next
+
+  Console(
+    :open="consoleModal"
+    :scene-code="sceneCode"
+    :scene-text="sceneText"
+    @close="consoleModal = false"
+  )
 </template>
