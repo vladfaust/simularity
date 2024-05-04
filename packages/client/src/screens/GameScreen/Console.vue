@@ -17,6 +17,13 @@ const props = defineProps<{
   open: boolean;
   sceneCode: string;
   sceneText: string;
+  episode: {
+    id: string;
+    chunks: {
+      current: number;
+      total: number;
+    };
+  } | null;
 }>();
 
 const consoleRef = ref<HTMLInputElement | null>(null);
@@ -110,10 +117,23 @@ Dialog.relative.z-50(
         leave-from="opacity-100 translate-y-0"
         leave-to="opacity-0 -translate-y-full"
       )
-        DialogPanel.flex.h-full.w-full.flex-col(class="bg-black/50")
+        DialogPanel.flex.w-full.flex-col(class="h-5/6 bg-black/50")
           .grid.grow.gap-2.p-2(class="sm:grid-cols-2")
             //- Text.
-            .flex.flex-col.overflow-hidden.rounded-lg.shadow-lg(class="bg-black/50")
+            .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
+              .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
+                span.font-bold.uppercase.tracking-wide Info
+
+              .flex.flex-col.p-2.text-white
+                span
+                  b Episode:&nbsp;
+                  code {{ episode?.id || "none" }}
+                span(v-if="episode")
+                  b Chunk:&nbsp;
+                  | {{ episode.chunks.current }}/{{ episode.chunks.total }}
+
+            //- Text.
+            .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
               .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
                 span.font-bold.uppercase.tracking-wide Text
                 .flex.gap-1
@@ -132,7 +152,7 @@ Dialog.relative.z-50(
               )
 
             //- Code.
-            .flex.flex-col.overflow-hidden.rounded-lg.shadow-lg(class="bg-black/50")
+            .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
               .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
                 span.font-bold.uppercase.tracking-wide Code
                 .flex.gap-1

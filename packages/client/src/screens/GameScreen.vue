@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Phaser from "phaser";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { readTextFile } from "@tauri-apps/api/fs";
 import { type Scenario } from "@/lib/types";
 import { Scene } from "./GameScreen/Scene";
@@ -76,12 +76,23 @@ onMounted(async () => {
   }, 100);
 });
 
-let currentEpisode: Scenario["episodes"][0] | null = null;
-let currentEpisodeChunkIndex = 0;
+let currentEpisode = ref<Scenario["episodes"][0] | null>(null);
+let currentEpisodeChunkIndex = ref(0);
 let lua: LuaEngine;
 
 const sceneText = ref("");
 const sceneCode = ref("");
+const currentEpisodeConsoleObject = computed(() =>
+  currentEpisode.value
+    ? {
+        id: currentEpisode.value.id,
+        chunks: {
+          current: currentEpisodeChunkIndex.value,
+          total: currentEpisode.value.chunks.length,
+        },
+      }
+    : null,
+);
 
 // Called once the Phaser scene is ready.
 async function startGame() {
@@ -119,7 +130,7 @@ async function startGame() {
   );
 
   if (!startEpisode) throw new Error("Start episode not found");
-  currentEpisode = startEpisode;
+  currentEpisode.value = startEpisode;
 
   await luaPromise;
   advance();
@@ -128,11 +139,17 @@ async function startGame() {
 const busy = ref(false);
 
 async function advance() {
-  if (currentEpisode) {
-    sceneText.value = currentEpisode.chunks[currentEpisodeChunkIndex].text;
+  if (
+    currentEpisode.value &&
+    currentEpisodeChunkIndex.value < currentEpisode.value.chunks.length
+  ) {
+    sceneText.value =
+      currentEpisode.value.chunks[currentEpisodeChunkIndex.value].text;
 
     sceneCode.value = "";
-    for (const line of currentEpisode.chunks[currentEpisodeChunkIndex].code) {
+    for (const line of currentEpisode.value.chunks[
+      currentEpisodeChunkIndex.value
+    ].code) {
       await lua.doString(line);
 
       if (scene.busy) {
@@ -142,10 +159,9 @@ async function advance() {
       }
     }
 
-    if (++currentEpisodeChunkIndex >= currentEpisode.chunks.length) {
-      currentEpisode = null;
-    }
+    currentEpisodeChunkIndex.value++;
   } else {
+    currentEpisode.value = null;
     alert("End of episode");
   }
 }
@@ -171,6 +187,7 @@ onUnmounted(() => {
     :open="consoleModal"
     :scene-code="sceneCode"
     :scene-text="sceneText"
+    :episode="currentEpisodeConsoleObject"
     @close="consoleModal = false"
   )
 </template>
