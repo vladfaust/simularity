@@ -2,7 +2,7 @@
 import Phaser from "phaser";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { readTextFile } from "@tauri-apps/api/fs";
+import { readTextFile, writeTextFile } from "@tauri-apps/api/fs";
 import { type Scenario } from "@/lib/types";
 import { Scene } from "./GameScreen/Scene";
 import { LuaEngine, LuaFactory } from "wasmoon";
@@ -11,6 +11,7 @@ import { gptPredict } from "@/lib/tauri";
 
 const { gameId } = defineProps<{ gameId: string }>();
 
+let gameDirPath: string;
 let game: Phaser.Game;
 let lua: LuaEngine;
 let scene: Scene;
@@ -42,11 +43,7 @@ function consoleEventListener(event: KeyboardEvent) {
 }
 
 async function initGame() {
-  const gameDirPath = await join(
-    await appLocalDataDir(),
-    "simulations",
-    gameId,
-  );
+  gameDirPath = await join(await appLocalDataDir(), "simulations", gameId);
 
   const manifest: { scenarioId: string } = await readTextFile(
     await join(gameDirPath, "manifest.json"),
@@ -139,7 +136,82 @@ async function startGame() {
   advance();
 }
 
+function buildPrompt(history: string[]) {
+  if (!scenario.value) {
+    throw new Error("Scenario not loaded");
+  }
+
+  const locations = scenario.value.locations.map((location) => {
+    const scenes = location.scenes.map((scene) =>
+      `
+##### ${scene.id}
+${scene.prompt}
+`.trim(),
+    );
+
+    return `
+### ${location.id}
+[Name]: ${location.name}
+${location.prompt}
+#### Scenes
+${scenes.join("\n")}
+`.trim();
+  });
+
+  const characters = scenario.value.characters.map((character) => {
+    const outfits = character.outfits.map((outfit) =>
+      `
+##### ${outfit.id}
+${outfit.prompt}
+`.trim(),
+    );
+
+    return `
+### ${character.id}
+[Name]: ${character.displayName}
+[Personality]: ${character.personalityPrompt}
+[Appearance]: ${character.appearancePrompt}
+${character.scenarioPrompt}
+#### Outfits
+${outfits.join("\n")}
+  `.trim();
+  });
+
+  return (
+    `
+# ${scenario.value.name}
+${scenario.value.globalPrompt}
+## Locations
+${locations.join("\n")}
+## Characters
+${characters.join("\n")}
+## Script
+${history.join("\n")}
+`.trim() + "\n"
+  );
+}
+
 async function advance() {
+  // 1. Append the current scene to the script and code files.
+  //
+
+  await writeTextFile(
+    await join(gameDirPath, "script.txt"),
+    sceneText.value + "\n",
+    { append: true },
+  );
+
+  await writeTextFile(
+    await join(gameDirPath, "code.txt"),
+    sceneCode.value + "\f",
+    { append: true },
+  );
+
+  // TODO: Commit to Git.
+
+  // 2. Advance the scene.
+  //
+
   if (
     currentEpisode.value &&
     currentEpisodeChunkIndex.value < currentEpisode.value.chunks.length
@@ -158,6 +230,8 @@ async function advance() {
         await scene.busy;
         busy.value = false;
       }
+
+      sceneCode.value += line + "\n";
     }
 
     if (
@@ -168,9 +242,19 @@ async function advance() {
       console.log("Episode finished");
     }
   } else {
-    currentEpisode.value = null;
-    const response = await gptPredict(sceneText.value);
-    console.log("GPT response", response);
+    busy.value = true;
+
+    try {
+      const script = await readTextFile(await join(gameDirPath, "script.txt"));
+      const prompt = buildPrompt(script.split("\n").filter(Boolean));
+      currentEpisode.value = null;
+      console.log("Prompt", prompt);
+      const response = await gptPredict(prompt, 128, { stopSequences: ["\n"] });
+      sceneText.value = response;
+      sceneCode.value = "";
+    } finally {
+      busy.value = false;
+    }
   }
 }
 

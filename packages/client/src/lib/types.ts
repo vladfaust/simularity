@@ -1,6 +1,6 @@
 export type Scenario = {
   name: string;
-  global_prompt: string;
+  globalPrompt: string;
   locations: [
     {
       id: string;
@@ -36,6 +36,7 @@ export type Scenario = {
       outfits: [
         {
           id: string;
+          prompt: string;
           /** Outfit files, with index matching the body's. */
           files: [string];
         },

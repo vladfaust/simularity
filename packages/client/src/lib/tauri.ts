@@ -12,11 +12,17 @@ export async function gitInitRepository(
 
 export async function gptPredict(
   prompt: string,
-  nLen: number = 256,
+  numEval: number,
+  options: {
+    stopSequences?: string[];
+    temperature?: number;
+  } = {},
 ): Promise<string> {
   return await invoke("gpt_predict", {
     modelPath: import.meta.env.VITE_MODEL_PATH,
     prompt,
-    nLen,
+    nEval: numEval,
+    stopSequences: options.stopSequences,
+    temperature: options.temperature,
   });
 }
