@@ -6,7 +6,7 @@ import {
   TransitionRoot,
 } from "@headlessui/vue";
 import { computed, ref, watch } from "vue";
-import { SaveIcon, RotateCcwIcon } from "lucide-vue-next";
+import { ArrowUpToLineIcon, Undo2Icon } from "lucide-vue-next";
 import { Codemirror } from "vue-codemirror";
 import { StreamLanguage } from "@codemirror/language";
 import { lua } from "@codemirror/legacy-modes/mode/lua";
@@ -141,12 +141,12 @@ Dialog.relative.z-50(
                     @click="resetSceneText"
                     :disabled="!sceneTextChanged"
                   )
-                    RotateCcwIcon(:size="20")
+                    Undo2Icon(:size="20")
                   button.btn.transition-transform.pressable(
                     @click="applySceneText"
                     :disabled="!sceneTextChanged"
                   )
-                    SaveIcon(:size="20")
+                    ArrowUpToLineIcon(:size="20")
               textarea.h-full.resize-none.overflow-scroll.bg-transparent.p-2.text-white(
                 v-model="sceneText"
               )
@@ -160,12 +160,12 @@ Dialog.relative.z-50(
                     @click="resetSceneCode"
                     :disabled="!sceneCodeChanged"
                   )
-                    RotateCcwIcon(:size="20")
+                    Undo2Icon(:size="20")
                   button.btn.transition-transform.pressable(
                     @click="applySceneCode"
                     :disabled="!sceneCodeChanged"
                   )
-                    SaveIcon(:size="20")
+                    ArrowUpToLineIcon(:size="20")
               Codemirror.h-full.text-sm(
                 v-model="sceneCode"
                 :extensions="codemirrorExtensions"
