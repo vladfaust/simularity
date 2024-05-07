@@ -1,6 +1,6 @@
-use std::borrow::BorrowMut;
-
 use crate::{AppState, GptInstance};
+use app::static_box;
+use std::borrow::BorrowMut;
 
 /// Initialize a GPT model.
 #[tauri::command]
@@ -10,25 +10,20 @@ pub async fn gpt_init(
 ) -> Result<(), tauri::InvokeError> {
     let mut locked = state.gpt_instance.lock().await;
 
-    if locked.borrow_mut().is_some() {
-        // TODO: Replace with a new model instead of returning an error.
-        return Err(tauri::InvokeError::from("GPT already initialized"));
-    } else {
-        // See https://stackoverflow.com/a/69889137/3645337 for the leak hack.
-        let model = Box::new(
+    let (model_box, model_ref) = unsafe {
+        static_box(
             simularity_core::init_model(&state.gpt_backend, model_path)
                 .map_err(tauri::InvokeError::from_anyhow)?,
-        );
-        let model = std::boxed::Box::<simularity_core::GptModel>::leak(model);
+        )
+    };
 
-        let instance = GptInstance {
-            model,
-            context: simularity_core::init_ctx(&state.gpt_backend, model, 2048, None)
-                .map_err(tauri::InvokeError::from_anyhow)?,
-        };
+    let instance = GptInstance {
+        model: model_box,
+        context: simularity_core::init_ctx(&state.gpt_backend, model_ref, 2048, None)
+            .map_err(tauri::InvokeError::from_anyhow)?,
+    };
 
-        locked.replace(instance);
-    }
+    locked.replace(instance);
 
     Ok(())
 }

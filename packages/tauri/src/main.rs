@@ -9,7 +9,7 @@ use tauri::async_runtime::Mutex;
 mod commands;
 
 struct GptInstance {
-    model: &'static GptModel,
+    model: Box<GptModel>,
     pub context: GptContext<'static>,
 }
 
