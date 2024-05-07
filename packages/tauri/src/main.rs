@@ -7,7 +7,10 @@ mod commands;
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![commands::git::git_init_repository])
+        .invoke_handler(tauri::generate_handler![
+            commands::git::git_init_repository,
+            commands::gpt::gpt_predict
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

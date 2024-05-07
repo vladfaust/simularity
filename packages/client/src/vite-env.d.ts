@@ -9,6 +9,9 @@ declare module "*.vue" {
 interface ImportMetaEnv {
   /** The default scenario ID, to be found at /public/scenarios/:id.  */
   readonly VITE_DEFAULT_SCENARIO_ID: string;
+
+  /** Path to GGUF model for GPT inference. */
+  readonly VITE_MODEL_PATH: string;
 }
 
 interface ImportMeta {

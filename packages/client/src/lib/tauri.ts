@@ -9,3 +9,14 @@ export async function gitInitRepository(
     filePaths,
   });
 }
+
+export async function gptPredict(
+  prompt: string,
+  nLen: number = 256,
+): Promise<string> {
+  return await invoke("gpt_predict", {
+    modelPath: import.meta.env.VITE_MODEL_PATH,
+    prompt,
+    nLen,
+  });
+}

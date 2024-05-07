@@ -7,6 +7,7 @@ import { type Scenario } from "@/lib/types";
 import { Scene } from "./GameScreen/Scene";
 import { LuaEngine, LuaFactory } from "wasmoon";
 import Console from "./GameScreen/Console.vue";
+import { gptPredict } from "@/lib/tauri";
 
 const { gameId } = defineProps<{ gameId: string }>();
 let game: Phaser.Game;
@@ -159,10 +160,17 @@ async function advance() {
       }
     }
 
-    currentEpisodeChunkIndex.value++;
+    if (
+      ++currentEpisodeChunkIndex.value >= currentEpisode.value.chunks.length
+    ) {
+      // NOTE: We're not setting currentEpisode to null here,
+      // because we want to keep the last episode for debugging purposes.
+      console.log("Episode finished");
+    }
   } else {
     currentEpisode.value = null;
-    alert("End of episode");
+    const response = await gptPredict(sceneText.value);
+    console.log("GPT response", response);
   }
 }
 
