@@ -10,6 +10,10 @@ export async function gitInitRepository(
   });
 }
 
+export async function gptInit(modelPath: string): Promise<string> {
+  return await invoke("gpt_init", { modelPath });
+}
+
 export async function gptPredict(
   prompt: string,
   numEval: number,
@@ -19,7 +23,6 @@ export async function gptPredict(
   } = {},
 ): Promise<string> {
   return await invoke("gpt_predict", {
-    modelPath: import.meta.env.VITE_MODEL_PATH,
     prompt,
     nEval: numEval,
     stopSequences: options.stopSequences,

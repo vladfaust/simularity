@@ -1,8 +1,8 @@
 use anyhow::{bail, Context, Result};
-use std::{io::Write, num::NonZeroU32, pin::pin, time::Duration};
+use std::{io::Write, num::NonZeroU32, time::Duration};
 
 use llama_cpp_2::{
-    context::params::LlamaContextParams,
+    context::{params::LlamaContextParams, LlamaContext},
     ggml_time_us,
     llama_backend::LlamaBackend,
     llama_batch::LlamaBatch,
@@ -10,60 +10,65 @@ use llama_cpp_2::{
     token::data_array::LlamaTokenDataArray,
 };
 
+pub struct GptBackend(LlamaBackend);
+
+pub fn init_backend() -> Result<GptBackend> {
+    Ok(GptBackend(
+        LlamaBackend::init().with_context(|| "unable to create the llama backend")?,
+    ))
+}
+
+pub struct GptModel(LlamaModel);
+
+pub fn init_model(backend: &GptBackend, model_path: &str) -> Result<GptModel> {
+    let model_params = LlamaModelParams::default();
+
+    Ok(GptModel(
+        LlamaModel::load_from_file(&backend.0, model_path, &model_params)
+            .with_context(|| format!("unable to load model from {0}", model_path))?,
+    ))
+}
+
+pub struct GptContext<'model>(LlamaContext<'model>);
+unsafe impl Send for GptContext<'_> {}
+
+pub fn init_ctx<'model>(
+    backend: &GptBackend,
+    model: &'model GptModel,
+    n_ctx: u32,
+    seed: Option<u32>,
+) -> Result<GptContext<'model>> {
+    let mut ctx_params = LlamaContextParams::default();
+
+    ctx_params = ctx_params.with_n_ctx(NonZeroU32::new(n_ctx));
+    if let Some(seed) = seed {
+        ctx_params = ctx_params.with_seed(seed);
+    }
+
+    Ok(GptContext(
+        model
+            .0
+            .new_context(&backend.0, ctx_params)
+            .with_context(|| "unable to create llama context")?,
+    ))
+}
+
 pub struct InferOptions {
-    pub seed: Option<u32>,
-    pub n_ctx: u32,
     pub stop_sequences: Vec<String>,
-    pub threads: Option<u32>,
-    pub threads_batch: Option<u32>,
     pub temperature: f32,
     pub batch_size: usize,
 }
 
 pub fn infer(
-    model_path: String,
+    ctx: &mut GptContext,
     prompt: String,
     n_eval: u32,
     options: InferOptions,
 ) -> Result<String> {
-    // init LLM
-    let backend = LlamaBackend::init()?;
+    let ctx = &mut ctx.0;
 
-    let model_params = {
-        #[cfg(feature = "cublas")]
-        if disable_gpu {
-            LlamaModelParams::default()
-        } else {
-            LlamaModelParams::default().with_n_gpu_layers(1000)
-        }
-
-        #[cfg(not(feature = "cublas"))]
-        LlamaModelParams::default()
-    };
-
-    let mut model_params = pin!(model_params);
-
-    let model = LlamaModel::load_from_file(&backend, model_path, &model_params)?;
-
-    let mut ctx_params = LlamaContextParams::default().with_n_ctx(NonZeroU32::new(options.n_ctx));
-
-    if let Some(seed) = options.seed {
-        ctx_params = ctx_params.with_seed(seed);
-    }
-
-    if let Some(threads) = options.threads {
-        ctx_params = ctx_params.with_n_threads(threads);
-    }
-
-    if let Some(threads_batch) = options.threads_batch.or(options.threads) {
-        ctx_params = ctx_params.with_n_threads_batch(threads_batch);
-    }
-
-    let mut ctx = model
-        .new_context(&backend, ctx_params)
-        .with_context(|| "unable to create the llama_context")?;
-
-    let prompt_tokens = model
+    let prompt_tokens = ctx
+        .model
         .str_to_token(&prompt, AddBos::Always)
         .with_context(|| format!("failed to tokenize {0}", prompt))?;
 
@@ -82,12 +87,12 @@ pub fn infer(
         )
     }
 
-    // print the prompt token-by-token
-    eprintln!();
-    for token in &prompt_tokens {
-        eprint!("{}", model.token_to_str(*token, Special::Tokenize)?);
-    }
-    std::io::stderr().flush()?;
+    // // print the prompt token-by-token
+    // eprintln!();
+    // for token in &prompt_tokens {
+    //     eprint!("{}", ctx.model.token_to_str(*token, Special::Tokenize)?);
+    // }
+    // std::io::stderr().flush()?;
 
     let mut batch = LlamaBatch::new(options.batch_size, 1);
 
@@ -98,6 +103,7 @@ pub fn infer(
         batch.add(token, i, &[0], is_last)?;
     }
 
+    ctx.clear_kv_cache();
     ctx.decode(&mut batch)
         .with_context(|| "llama_decode() failed")?;
 
@@ -121,15 +127,15 @@ pub fn infer(
             let mut candidates_p = LlamaTokenDataArray::from_iter(candidates, false);
             ctx.sample_temp(&mut candidates_p, options.temperature);
 
-            let new_token_id = candidates_p.sample_token(&mut ctx);
+            let new_token_id = candidates_p.sample_token(ctx);
 
             // is it an end of stream?
-            if new_token_id == model.token_eos() {
+            if new_token_id == ctx.model.token_eos() {
                 eprintln!();
                 break;
             }
 
-            let output_bytes = model.token_to_bytes(new_token_id, Special::Tokenize)?;
+            let output_bytes = ctx.model.token_to_bytes(new_token_id, Special::Tokenize)?;
 
             let mut output_string = String::with_capacity(32);
             let _decode_result = decoder.decode_to_string(&output_bytes, &mut output_string, false);
