@@ -10,10 +10,28 @@ import Console from "./GameScreen/Console.vue";
 import { gptPredict } from "@/lib/tauri";
 
 const { gameId } = defineProps<{ gameId: string }>();
+
 let game: Phaser.Game;
+let lua: LuaEngine;
 let scene: Scene;
-let scenario: Scenario;
+let scenario = ref<Scenario | undefined>();
 const consoleModal = ref(false);
+const busy = ref(false);
+let currentEpisode = ref<Scenario["episodes"][0] | null>(null);
+let currentEpisodeChunkIndex = ref(0);
+const sceneText = ref("");
+const sceneCode = ref("");
+const currentEpisodeConsoleObject = computed(() =>
+  currentEpisode.value
+    ? {
+        id: currentEpisode.value.id,
+        chunks: {
+          current: currentEpisodeChunkIndex.value,
+          total: currentEpisode.value.chunks.length,
+        },
+      }
+    : null,
+);
 
 function consoleEventListener(event: KeyboardEvent) {
   // Detect tilda key press on different keyboard layouts.
@@ -23,9 +41,7 @@ function consoleEventListener(event: KeyboardEvent) {
   }
 }
 
-onMounted(async () => {
-  window.addEventListener("keypress", consoleEventListener);
-
+async function initGame() {
   const gameDirPath = await join(
     await appLocalDataDir(),
     "simulations",
@@ -38,11 +54,15 @@ onMounted(async () => {
 
   console.log("Loaded manifest.json", manifest);
 
-  scenario = await fetch(
+  scenario.value = await fetch(
     `/scenarios/${manifest.scenarioId}/manifest.json`,
   ).then((response) => response.json());
 
-  console.log("Loaded scenario", scenario.name);
+  if (!scenario.value) {
+    throw new Error(`Scenario not found: ${manifest.scenarioId}`);
+  }
+
+  console.log("Loaded scenario", scenario.value.name);
 
   game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -61,7 +81,7 @@ onMounted(async () => {
 
   game.scene.add(
     "default",
-    new Scene(scenario, "/scenarios/" + manifest.scenarioId),
+    new Scene(scenario.value, "/scenarios/" + manifest.scenarioId),
     true,
   );
 
@@ -75,25 +95,7 @@ onMounted(async () => {
       clearInterval(interval);
     }
   }, 100);
-});
-
-let currentEpisode = ref<Scenario["episodes"][0] | null>(null);
-let currentEpisodeChunkIndex = ref(0);
-let lua: LuaEngine;
-
-const sceneText = ref("");
-const sceneCode = ref("");
-const currentEpisodeConsoleObject = computed(() =>
-  currentEpisode.value
-    ? {
-        id: currentEpisode.value.id,
-        chunks: {
-          current: currentEpisodeChunkIndex.value,
-          total: currentEpisode.value.chunks.length,
-        },
-      }
-    : null,
-);
+}
 
 // Called once the Phaser scene is ready.
 async function startGame() {
@@ -126,8 +128,8 @@ async function startGame() {
     );
   });
 
-  const startEpisode = scenario.episodes.find(
-    (episode) => episode.id === scenario.startEpisodeId,
+  const startEpisode = scenario.value!.episodes.find(
+    (episode) => episode.id === scenario.value!.startEpisodeId,
   );
 
   if (!startEpisode) throw new Error("Start episode not found");
@@ -136,8 +138,6 @@ async function startGame() {
   await luaPromise;
   advance();
 }
-
-const busy = ref(false);
 
 async function advance() {
   if (
@@ -173,6 +173,11 @@ async function advance() {
     console.log("GPT response", response);
   }
 }
+
+onMounted(() => {
+  window.addEventListener("keypress", consoleEventListener);
+  initGame();
+});
 
 onUnmounted(() => {
   window.removeEventListener("keypress", consoleEventListener);
