@@ -13,7 +13,9 @@ import {
   gitHead as gitGetHead,
   gptPredict,
 } from "@/lib/tauri";
-import { splitCode } from "@/lib/utils";
+import { splitCode, zip } from "@/lib/utils";
+import { buildWriterPrompt } from "@/lib/ai/writer";
+import { buildDirectorPrompt, buildGnbf } from "@/lib/ai/director";
 
 const { gameId } = defineProps<{ gameId: string }>();
 
@@ -153,68 +155,6 @@ async function startGame() {
   advance();
 }
 
-function buildPrompt(history: string[]) {
-  if (!scenario.value) {
-    throw new Error("Scenario not loaded");
-  }
-
-  const locations = scenario.value.locations.map((location) => {
-    const scenes = location.scenes.map((scene) =>
-      `
-##### ${scene.id}
-${scene.prompt}
-`.trim(),
-    );
-
-    return `
-### ${location.id}
-[Name]: ${location.name}
-${location.prompt}
-#### Scenes
-${scenes.join("\n")}
-`.trim();
-  });
-
-  const characters = scenario.value.characters.map((character) => {
-    const outfits = character.outfits.map((outfit) =>
-      `
-##### ${outfit.id}
-${outfit.prompt}
-`.trim(),
-    );
-
-    return `
-### ${character.id}
-[Name]: ${character.displayName}
-[Personality]: ${character.personalityPrompt}
-[Appearance]: ${character.appearancePrompt}
-[Expressions]: ${character.expressions.map((e) => e.id).join(", ")}
-${character.scenarioPrompt}
-#### Outfits
-${outfits.join("\n")}
-  `.trim();
-  });
-
-  return (
-    `
-# ${scenario.value.name}
-${scenario.value.globalPrompt}
-## Locations
-${locations.join("\n")}
-## Characters
-${characters.join("\n")}
-## Functions
-### set_scene(locationId, sceneId)
-### add_character(characterId)
-### set_outfit(characterId, outfitId)
-### set_expression(characterId, expressionId)
-## Script
-<!-- Script is divided into chunks, where text is terminated with a newline, and code is terminated with a form feed. -->
-${history.join("\n")}
-`.trim() + "\n"
-  );
-}
-
 async function advance() {
   // 1. Advance the scenario.
   //
@@ -244,29 +184,78 @@ async function advance() {
     busy.value = true;
 
     try {
-      const script = await readTextFile(await join(gameDirPath, "script.txt"));
-      const prompt = buildPrompt(script.split("\n").filter(Boolean));
+      const scriptHistory = (
+        await readTextFile(await join(gameDirPath, "script.txt"))
+      )
+        .split("\n")
+        .filter(Boolean);
+
+      const writerPrompt = buildWriterPrompt(scenario.value!, scriptHistory);
+      console.log("Writer prompt", writerPrompt);
+
+      const writerResponse = await gptPredict(writerPrompt, 128, {
+        stopSequences: ["\n"],
+      });
+      console.log("Writer response", writerResponse);
+
+      const codeHistory = (
+        await readTextFile(await join(gameDirPath, "code.lua"))
+      )
+        .split("\n")
+        .filter(Boolean);
+
+      const directorPrompt = buildDirectorPrompt(
+        scenario.value!,
+        zip(scriptHistory, codeHistory).map(([text, code]) => ({
+          code,
+          text,
+        })),
+        writerResponse,
+      );
+      console.log("Director prompt", directorPrompt);
+      const grammar = buildGnbf(scenario.value!);
+      console.log("Director grammar", grammar);
+      const directorResponse = await gptPredict(directorPrompt, 128, {
+        stopSequences: ["\n"],
+        grammar,
+        temperature: 1.0,
+      });
+      console.log("Director response", directorResponse);
+      busy.value = false;
+
       currentEpisode.value = null;
-      console.log("GPT prompt", prompt);
-      const response = await gptPredict(prompt, 128, { stopSequences: ["\n"] });
-      console.log("GPT response", response);
-      sceneText.value = response;
-      sceneCode.value = "";
+      sceneText.value = writerResponse;
+
+      for (const line of splitCode(directorResponse)) {
+        await lua.doString(line);
+
+        if (scene.busy) {
+          busy.value = true;
+          await scene.busy;
+          busy.value = false;
+        }
+      }
     } finally {
       busy.value = false;
     }
   }
 
-  // 2. Commit the changes to the script.
-  // NOTE: `\n` terminates text. `\f` terminates code.
-  const newLines =
-    sceneText.value + "\n" + splitCode(sceneCode.value).join(";") + "\f";
-  await writeTextFile(await join(gameDirPath, "script.txt"), newLines, {
+  // 2. Commit the updates.
+  //
+
+  const newText = sceneText.value + "\n";
+  await writeTextFile(await join(gameDirPath, "script.txt"), newText, {
     append: true,
   });
-  console.log("Appended to script.txt", newLines);
+  console.log("Appended to script.txt", newText);
 
-  await gitAdd(gameDirPath, ["script.txt"]);
+  const newCode = splitCode(sceneCode.value).join(";") + "\n";
+  await writeTextFile(await join(gameDirPath, "code.lua"), newCode, {
+    append: true,
+  });
+  console.log("Appended to code.lua", newCode);
+
+  await gitAdd(gameDirPath, ["script.txt", "code.lua"]);
   gitHead.value = await gitCommit(
     gameDirPath,
     gitHead.value!,

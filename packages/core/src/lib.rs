@@ -1,9 +1,10 @@
 use anyhow::{bail, Context, Result};
-use std::{io::Write, num::NonZeroU32, time::Duration};
+use std::{io::Write, num::NonZeroU32, str::FromStr, time::Duration};
 
 use llama_cpp_2::{
     context::{params::LlamaContextParams, LlamaContext},
     ggml_time_us,
+    grammar::LlamaGrammar,
     llama_backend::LlamaBackend,
     llama_batch::LlamaBatch,
     model::{params::LlamaModelParams, AddBos, LlamaModel, Special},
@@ -41,6 +42,8 @@ pub fn init_ctx<'model>(
     let mut ctx_params = LlamaContextParams::default();
 
     ctx_params = ctx_params.with_n_ctx(NonZeroU32::new(n_ctx));
+    ctx_params = ctx_params.with_n_batch(n_ctx);
+
     if let Some(seed) = seed {
         ctx_params = ctx_params.with_seed(seed);
     }
@@ -54,9 +57,9 @@ pub fn init_ctx<'model>(
 }
 
 pub struct InferOptions {
-    pub stop_sequences: Vec<String>,
-    pub temperature: f32,
-    pub batch_size: usize,
+    pub stop_sequences: Option<Vec<String>>,
+    pub temperature: Option<f32>,
+    pub grammar: Option<String>,
 }
 
 pub fn infer(
@@ -87,14 +90,22 @@ pub fn infer(
         )
     }
 
-    // // print the prompt token-by-token
-    // eprintln!();
-    // for token in &prompt_tokens {
-    //     eprint!("{}", ctx.model.token_to_str(*token, Special::Tokenize)?);
-    // }
-    // std::io::stderr().flush()?;
+    let mut grammar = match &options.grammar {
+        Some(grammar) => Some(
+            LlamaGrammar::from_str(grammar)
+                .with_context(|| format!("failed to parse grammar {0}", grammar))?,
+        ),
+        None => None,
+    };
 
-    let mut batch = LlamaBatch::new(options.batch_size, 1);
+    // print the prompt token-by-token
+    eprintln!();
+    for token in &prompt_tokens {
+        eprint!("{}", ctx.model.token_to_str(*token, Special::Tokenize)?);
+    }
+    std::io::stderr().flush()?;
+
+    let mut batch = LlamaBatch::new(ctx.n_batch().try_into().unwrap(), 1);
 
     let last_index: i32 = (prompt_tokens.len() - 1) as i32;
     for (i, token) in (0_i32..).zip(prompt_tokens.into_iter()) {
@@ -120,14 +131,24 @@ pub fn infer(
     // The output string
     let mut decoded = String::new();
 
+    let temperature = options.temperature.unwrap_or(1.0);
+
     'main: while n_cur <= n_len {
         // sample the next token
         {
             let candidates = ctx.candidates_ith(batch.n_tokens() - 1);
             let mut candidates_p = LlamaTokenDataArray::from_iter(candidates, false);
-            ctx.sample_temp(&mut candidates_p, options.temperature);
 
-            let new_token_id = candidates_p.sample_token(ctx);
+            if let Some(grammar) = &grammar {
+                ctx.sample_grammar(&mut candidates_p, grammar);
+            }
+
+            let new_token_id = if temperature < 0.0 {
+                ctx.sample_token_greedy(candidates_p)
+            } else {
+                ctx.sample_temp(&mut candidates_p, temperature);
+                candidates_p.sample_token(ctx)
+            };
 
             // is it an end of stream?
             if new_token_id == ctx.model.token_eos() {
@@ -135,8 +156,11 @@ pub fn infer(
                 break;
             }
 
-            let output_bytes = ctx.model.token_to_bytes(new_token_id, Special::Tokenize)?;
+            if let Some(grammar) = &mut grammar {
+                ctx.grammar_accept_token(grammar, new_token_id);
+            }
 
+            let output_bytes = ctx.model.token_to_bytes(new_token_id, Special::Tokenize)?;
             let mut output_string = String::with_capacity(32);
             let _decode_result = decoder.decode_to_string(&output_bytes, &mut output_string, false);
 
@@ -147,9 +171,11 @@ pub fn infer(
             decoded += &output_string;
 
             // Is it a stop sequence?
-            for stop_sequence in &options.stop_sequences {
-                if decoded.ends_with(stop_sequence) {
-                    break 'main;
+            if let Some(stop_sequences) = &options.stop_sequences {
+                for stop_sequence in stop_sequences {
+                    if decoded.ends_with(stop_sequence) {
+                        break 'main;
+                    }
                 }
             }
 

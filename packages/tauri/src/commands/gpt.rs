@@ -35,12 +35,13 @@ pub async fn gpt_predict(
     n_eval: u32,
     stop_sequences: Option<Vec<String>>,
     temperature: Option<f32>,
+    grammar: Option<String>,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, tauri::InvokeError> {
     let options = simularity_core::InferOptions {
-        stop_sequences: stop_sequences.unwrap_or_default(),
-        temperature: temperature.unwrap_or(0.7),
-        batch_size: 2048,
+        stop_sequences,
+        temperature,
+        grammar,
     };
 
     let mut locked = state.gpt_instance.lock().await;

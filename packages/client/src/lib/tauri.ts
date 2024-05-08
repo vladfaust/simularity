@@ -37,6 +37,7 @@ export async function gptPredict(
   options: {
     stopSequences?: string[];
     temperature?: number;
+    grammar?: string;
   } = {},
 ): Promise<string> {
   return await invoke("gpt_predict", {
@@ -44,5 +45,6 @@ export async function gptPredict(
     nEval: numEval,
     stopSequences: options.stopSequences,
     temperature: options.temperature,
+    grammar: options.grammar,
   });
 }

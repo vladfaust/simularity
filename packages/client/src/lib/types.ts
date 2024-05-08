@@ -9,6 +9,7 @@ export type Scenario = {
       scenes: [
         {
           id: string;
+          name: string;
           bg: string;
           prompt?: string;
         },
@@ -36,6 +37,7 @@ export type Scenario = {
       outfits: [
         {
           id: string;
+          name: string;
           prompt: string;
           /** Outfit files, with index matching the body's. */
           files: [string];
