@@ -7,7 +7,13 @@ import { type Scenario } from "@/lib/types";
 import { Scene } from "./GameScreen/Scene";
 import { LuaEngine, LuaFactory } from "wasmoon";
 import Console from "./GameScreen/Console.vue";
-import { gptPredict } from "@/lib/tauri";
+import {
+  gitAdd,
+  gitCommit,
+  gitHead as gitGetHead,
+  gptPredict,
+} from "@/lib/tauri";
+import { splitCode } from "@/lib/utils";
 
 const { gameId } = defineProps<{ gameId: string }>();
 
@@ -18,17 +24,25 @@ let scene: Scene;
 let scenario = ref<Scenario | undefined>();
 const consoleModal = ref(false);
 const busy = ref(false);
-let currentEpisode = ref<Scenario["episodes"][0] | null>(null);
-let currentEpisodeChunkIndex = ref(0);
+
+const gitHead = ref<string | undefined>();
+const currentEpisode = ref<{
+  def: Scenario["episodes"][0];
+  chunkIndex: number;
+} | null>(null);
+
 const sceneText = ref("");
+
+/** Scene code, stored as a human-readable, multiline string. */
 const sceneCode = ref("");
+
 const currentEpisodeConsoleObject = computed(() =>
   currentEpisode.value
     ? {
-        id: currentEpisode.value.id,
+        id: currentEpisode.value.def.id,
         chunks: {
-          current: currentEpisodeChunkIndex.value,
-          total: currentEpisode.value.chunks.length,
+          current: currentEpisode.value.chunkIndex + 1,
+          total: currentEpisode.value.def.chunks.length,
         },
       }
     : null,
@@ -44,6 +58,9 @@ function consoleEventListener(event: KeyboardEvent) {
 
 async function initGame() {
   gameDirPath = await join(await appLocalDataDir(), "simulations", gameId);
+
+  gitHead.value = await gitGetHead(gameDirPath);
+  console.log("Game directory", gameDirPath, "HEAD", gitHead.value);
 
   const manifest: { scenarioId: string } = await readTextFile(
     await join(gameDirPath, "manifest.json"),
@@ -130,7 +147,7 @@ async function startGame() {
   );
 
   if (!startEpisode) throw new Error("Start episode not found");
-  currentEpisode.value = startEpisode;
+  currentEpisode.value = { def: startEpisode, chunkIndex: 0 };
 
   await luaPromise;
   advance();
@@ -171,6 +188,7 @@ ${outfit.prompt}
 [Name]: ${character.displayName}
 [Personality]: ${character.personalityPrompt}
 [Appearance]: ${character.appearancePrompt}
+[Expressions]: ${character.expressions.map((e) => e.id).join(", ")}
 ${character.scenarioPrompt}
 #### Outfits
 ${outfits.join("\n")}
@@ -185,43 +203,32 @@ ${scenario.value.globalPrompt}
 ${locations.join("\n")}
 ## Characters
 ${characters.join("\n")}
+## Functions
+### set_scene(locationId, sceneId)
+### add_character(characterId)
+### set_outfit(characterId, outfitId)
+### set_expression(characterId, expressionId)
 ## Script
+<!-- Script is divided into chunks, where text is terminated with a newline, and code is terminated with a form feed. -->
 ${history.join("\n")}
 `.trim() + "\n"
   );
 }
 
 async function advance() {
-  // 1. Append the current scene to the script and code files.
-  //
-
-  await writeTextFile(
-    await join(gameDirPath, "script.txt"),
-    sceneText.value + "\n",
-    { append: true },
-  );
-
-  await writeTextFile(
-    await join(gameDirPath, "code.txt"),
-    sceneCode.value + "\f",
-    { append: true },
-  );
-
-  // TODO: Commit to Git.
-
-  // 2. Advance the scene.
+  // 1. Advance the scenario.
   //
 
   if (
     currentEpisode.value &&
-    currentEpisodeChunkIndex.value < currentEpisode.value.chunks.length
+    currentEpisode.value.chunkIndex < currentEpisode.value.def.chunks.length
   ) {
     sceneText.value =
-      currentEpisode.value.chunks[currentEpisodeChunkIndex.value].text;
+      currentEpisode.value.def.chunks[currentEpisode.value.chunkIndex].text;
 
     sceneCode.value = "";
-    for (const line of currentEpisode.value.chunks[
-      currentEpisodeChunkIndex.value
+    for (const line of currentEpisode.value.def.chunks[
+      currentEpisode.value.chunkIndex
     ].code) {
       await lua.doString(line);
 
@@ -230,17 +237,9 @@ async function advance() {
         await scene.busy;
         busy.value = false;
       }
-
-      sceneCode.value += line + "\n";
     }
 
-    if (
-      ++currentEpisodeChunkIndex.value >= currentEpisode.value.chunks.length
-    ) {
-      // NOTE: We're not setting currentEpisode to null here,
-      // because we want to keep the last episode for debugging purposes.
-      console.log("Episode finished");
-    }
+    currentEpisode.value.chunkIndex++;
   } else {
     busy.value = true;
 
@@ -248,14 +247,32 @@ async function advance() {
       const script = await readTextFile(await join(gameDirPath, "script.txt"));
       const prompt = buildPrompt(script.split("\n").filter(Boolean));
       currentEpisode.value = null;
-      console.log("Prompt", prompt);
+      console.log("GPT prompt", prompt);
       const response = await gptPredict(prompt, 128, { stopSequences: ["\n"] });
+      console.log("GPT response", response);
       sceneText.value = response;
       sceneCode.value = "";
     } finally {
       busy.value = false;
     }
   }
+
+  // 2. Commit the changes to the script.
+  // NOTE: `\n` terminates text. `\f` terminates code.
+  const newLines =
+    sceneText.value + "\n" + splitCode(sceneCode.value).join(";") + "\f";
+  await writeTextFile(await join(gameDirPath, "script.txt"), newLines, {
+    append: true,
+  });
+  console.log("Appended to script.txt", newLines);
+
+  await gitAdd(gameDirPath, ["script.txt"]);
+  gitHead.value = await gitCommit(
+    gameDirPath,
+    gitHead.value!,
+    "Advance scenario",
+  );
+  console.log("Committed", gitHead.value);
 }
 
 onMounted(() => {

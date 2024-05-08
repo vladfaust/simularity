@@ -38,10 +38,7 @@ function resetSceneCode() {
 function applySceneCode() {}
 watch(
   () => props.sceneCode,
-  (value) => {
-    console.debug(`Updated sceneCode prop`);
-    sceneCode.value = value;
-  },
+  (value) => (sceneCode.value = value),
 );
 
 const sceneText = ref(props.sceneText);
@@ -54,10 +51,7 @@ function resetSceneText() {
 function applySceneText() {}
 watch(
   () => props.sceneText,
-  (value) => {
-    console.debug(`Updated sceneText prop`);
-    sceneText.value = value;
-  },
+  (value) => (sceneText.value = value),
 );
 
 const emit = defineEmits<{

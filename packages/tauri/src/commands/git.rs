@@ -1,47 +1,69 @@
-use git2::{Error, Repository};
-use tauri::InvokeError;
+pub struct GitError(git2::Error);
 
-pub struct GitErrorWrapper(Error);
-
-impl std::convert::From<GitErrorWrapper> for InvokeError {
-    fn from(val: GitErrorWrapper) -> Self {
+impl std::convert::From<GitError> for tauri::InvokeError {
+    fn from(val: GitError) -> Self {
         tauri::InvokeError::from(format!("{}", val.0))
     }
 }
 
 #[tauri::command]
-/// Initialize a git repository in the specified directory with the specified files.
-pub fn git_init_repository(repo_path: &str, file_paths: Vec<&str>) -> Result<(), GitErrorWrapper> {
-    let repo = Repository::init(repo_path).map_err(GitErrorWrapper)?;
-    create_initial_commit(&repo, file_paths).map_err(GitErrorWrapper)?;
+/// Initialize a git repository.
+pub fn git_init(repo_path: &str) -> Result<(), GitError> {
+    git2::Repository::init(repo_path).map_err(GitError)?;
     Ok(())
 }
 
-fn create_initial_commit(repo: &Repository, file_paths: Vec<&str>) -> Result<(), Error> {
-    // First use the config to initialize a commit signature for the user.
-    // FIXME: When user has not configured their git, use default values.
+#[tauri::command]
+/// Get the HEAD commit hash of a git repository.
+pub fn git_head(repo_path: &str) -> Result<String, GitError> {
+    let repo = git2::Repository::open(repo_path).map_err(GitError)?;
+    let head = repo.head().map_err(GitError)?;
+    Ok(head.target().unwrap().to_string())
+}
+
+#[tauri::command]
+/// Add files to the git index.
+pub fn git_add(repo_path: &str, file_paths: Vec<&str>) -> Result<(), GitError> {
+    let repo = git2::Repository::open(repo_path).map_err(GitError)?;
+    let mut index = repo.index().map_err(GitError)?;
+    for file_path in file_paths {
+        index
+            .add_path(std::path::Path::new(file_path))
+            .map_err(GitError)?;
+    }
+    index.write().map_err(GitError)?;
+    Ok(())
+}
+
+#[tauri::command]
+/// Commit changes to a git repository.
+/// Returns the commit hash.
+pub fn git_commit(
+    repo_path: &str,
+    parent_commit_hash: Option<&str>,
+    commit_message: &str,
+) -> Result<String, GitError> {
+    git_commit_impl(repo_path, parent_commit_hash, commit_message).map_err(GitError)
+}
+fn git_commit_impl(
+    repo_path: &str,
+    parent_commit_hash: Option<&str>,
+    commit_message: &str,
+) -> Result<String, git2::Error> {
+    let repo = git2::Repository::open(repo_path)?;
     let sig = repo.signature()?;
 
-    // Now let's create a tree for this commit.
-    let tree_id = {
-        let mut index = repo.index()?;
-
-        // Call index.add_path() for each file that should be in the commit.
-        for file_path in file_paths {
-            index.add_path(std::path::Path::new(file_path))?;
-        }
-
-        index.write_tree()?
-    };
-
+    let mut index = repo.index()?;
+    let tree_id = index.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
 
-    // Ready to create the initial commit.
-    //
-    // Normally creating a commit would involve looking up the current HEAD
-    // commit and making that be the parent of the initial commit, but here this
-    // is the first commit so there will be no parent.
-    repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])?;
+    let oid = match parent_commit_hash {
+        Some(oid) => {
+            let parent = repo.find_commit(git2::Oid::from_str(oid)?)?;
+            repo.commit(Some("HEAD"), &sig, &sig, commit_message, &tree, &[&parent])?
+        }
+        None => repo.commit(Some("HEAD"), &sig, &sig, commit_message, &tree, &[])?,
+    };
 
-    Ok(())
+    Ok(oid.to_string())
 }

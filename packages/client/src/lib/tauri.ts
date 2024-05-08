@@ -1,12 +1,29 @@
 import { invoke } from "@tauri-apps/api";
 
-export async function gitInitRepository(
+export async function gitInit(repoPath: string): Promise<void> {
+  return invoke("git_init", { repoPath });
+}
+
+export async function gitHead(repoPath: string): Promise<string> {
+  return invoke("git_head", { repoPath });
+}
+
+export async function gitAdd(
   repoPath: string,
   filePaths: string[],
 ): Promise<void> {
-  await invoke("git_init_repository", {
+  return invoke("git_add", { repoPath, filePaths });
+}
+
+export async function gitCommit(
+  repoPath: string,
+  parentCommitHash: string | null,
+  commitMessage: string,
+): Promise<string> {
+  return invoke("git_commit", {
     repoPath,
-    filePaths,
+    parentCommitHash,
+    commitMessage,
   });
 }
 

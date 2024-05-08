@@ -32,7 +32,10 @@ fn main() {
     tauri::Builder::default()
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
-            commands::git::git_init_repository,
+            commands::git::git_init,
+            commands::git::git_head,
+            commands::git::git_add,
+            commands::git::git_commit,
             commands::gpt::gpt_init,
             commands::gpt::gpt_predict
         ])
