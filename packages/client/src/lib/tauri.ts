@@ -31,20 +31,29 @@ export async function gptInit(modelPath: string): Promise<string> {
   return await invoke("gpt_init", { modelPath });
 }
 
+type InferOptions = {
+  stopSequences?: string[];
+  grammar?: string;
+  temp?: number;
+  topK?: number;
+  minP?: number;
+  topP?: number;
+  tfsZ?: number;
+  typicalP?: number;
+  mirostat?: {
+    tau: number;
+    eta: number;
+  };
+};
+
 export async function gptPredict(
   prompt: string,
   numEval: number,
-  options: {
-    stopSequences?: string[];
-    temperature?: number;
-    grammar?: string;
-  } = {},
+  options: InferOptions = {},
 ): Promise<string> {
   return await invoke("gpt_predict", {
     prompt,
     nEval: numEval,
-    stopSequences: options.stopSequences,
-    temperature: options.temperature,
-    grammar: options.grammar,
+    options,
   });
 }

@@ -7,3 +7,4 @@ edition = "2021"
 anyhow = "1.0.83"
 encoding_rs = "0.8.34"
 llama-cpp-2 = { version = "0.1.51", features = ["metal"] }
+serde = { version = "1.0.201", features = ["serde_derive"] }

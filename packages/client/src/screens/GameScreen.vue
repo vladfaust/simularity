@@ -218,7 +218,7 @@ async function advance() {
       const directorResponse = await gptPredict(directorPrompt, 128, {
         stopSequences: ["\n"],
         grammar,
-        temperature: 1.0,
+        temp: 0,
       });
       console.log("Director response", directorResponse);
       busy.value = false;

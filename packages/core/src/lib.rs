@@ -56,10 +56,25 @@ pub fn init_ctx<'model>(
     ))
 }
 
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MirostatV2 {
+    pub tau: f32,
+    pub eta: f32,
+}
+
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct InferOptions {
     pub stop_sequences: Option<Vec<String>>,
-    pub temperature: Option<f32>,
     pub grammar: Option<String>,
+    pub temp: Option<f32>,
+    pub top_k: Option<i32>,
+    pub min_p: Option<f32>,
+    pub top_p: Option<f32>,
+    pub tfs_z: Option<f32>,
+    pub typical_p: Option<f32>,
+    pub mirostat: Option<MirostatV2>,
 }
 
 pub fn infer(
@@ -131,7 +146,14 @@ pub fn infer(
     // The output string
     let mut decoded = String::new();
 
-    let temperature = options.temperature.unwrap_or(1.0);
+    let n_probs = 0; // Number of probabilities to keep - 0 = disabled
+    let min_keep = std::cmp::max(1, n_probs);
+
+    let mut mirostat_mu = if let Some(ref mirostat) = &options.mirostat {
+        2.0 * mirostat.tau
+    } else {
+        0.0
+    };
 
     'main: while n_cur <= n_len {
         // sample the next token
@@ -143,10 +165,47 @@ pub fn infer(
                 ctx.sample_grammar(&mut candidates_p, grammar);
             }
 
-            let new_token_id = if temperature < 0.0 {
+            // See https://github.com/withcatai/node-llama-cpp/blob/29e8c67c01abe4b20afc441ce9cebb25d18eb37e/llama/addon.cpp
+            // See https://github.com/ggerganov/llama.cpp/blob/acdce3cdef6fc2f0b7b5623231fd7762c0884d1c/common/sampling.cpp#L199
+            let new_token_id = if options.temp.unwrap_or(1.0) < 0.0 {
+                ctx.sample_token_softmax(&mut candidates_p);
+                candidates_p.data[0].id()
+            } else if options.temp.unwrap_or(1.0) == 0.0 {
                 ctx.sample_token_greedy(candidates_p)
             } else {
-                ctx.sample_temp(&mut candidates_p, temperature);
+                if let Some(top_k) = options.top_k {
+                    ctx.sample_top_k(&mut candidates_p, top_k, min_keep);
+                }
+
+                if let Some(tfs_z) = options.tfs_z {
+                    ctx.sample_tail_free(&mut candidates_p, tfs_z, min_keep);
+                }
+
+                if let Some(typical_p) = options.typical_p {
+                    ctx.sample_typical(&mut candidates_p, typical_p, min_keep);
+                }
+
+                if let Some(top_p) = options.top_p {
+                    ctx.sample_top_p(&mut candidates_p, top_p, min_keep);
+                }
+
+                if let Some(min_p) = options.min_p {
+                    ctx.sample_min_p(&mut candidates_p, min_p, min_keep);
+                }
+
+                if let Some(temp) = options.temp {
+                    ctx.sample_temp(&mut candidates_p, temp);
+                }
+
+                if let Some(ref mirostat) = options.mirostat {
+                    candidates_p.sample_token_mirostat_v2(
+                        ctx,
+                        mirostat.tau,
+                        mirostat.eta,
+                        &mut mirostat_mu,
+                    );
+                }
+
                 candidates_p.sample_token(ctx)
             };
 

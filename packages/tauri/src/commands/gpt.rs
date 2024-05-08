@@ -33,23 +33,17 @@ pub async fn gpt_init(
 pub async fn gpt_predict(
     prompt: String,
     n_eval: u32,
-    stop_sequences: Option<Vec<String>>,
-    temperature: Option<f32>,
-    grammar: Option<String>,
+    options: simularity_core::InferOptions,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, tauri::InvokeError> {
-    let options = simularity_core::InferOptions {
-        stop_sequences,
-        temperature,
-        grammar,
-    };
-
     let mut locked = state.gpt_instance.lock().await;
 
     let instance: &mut GptInstance = locked
         .borrow_mut()
         .as_mut()
         .ok_or_else(|| tauri::InvokeError::from("GPT not initialized"))?;
+
+    println!("Options: {:?}", options);
 
     simularity_core::infer(&mut instance.context, prompt, n_eval, options)
         .map_err(tauri::InvokeError::from_anyhow)
