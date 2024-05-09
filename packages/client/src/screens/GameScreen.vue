@@ -185,9 +185,11 @@ async function startGame() {
     await scene.setScene(stage.scene.locationId, stage.scene.sceneId);
 
     for (const character of stage.characters) {
-      await scene.addCharacter(character.id);
-      scene.setOutfit(character.id, character.outfitId);
-      scene.setExpression(character.id, character.expressionId);
+      await scene.addCharacter(
+        character.id,
+        character.outfitId,
+        character.expressionId,
+      );
     }
 
     await scene.busy;
@@ -207,10 +209,13 @@ async function startGame() {
       scene.setScene(locationId, sceneId);
     });
 
-    lua.global.set("add_character", (characterId: string) => {
-      sceneCode.value += `add_character("${characterId}")\n`;
-      scene.addCharacter(characterId);
-    });
+    lua.global.set(
+      "add_character",
+      (characterId: string, outfitId: string, expressionId: string) => {
+        sceneCode.value += `add_character("${characterId}", "${outfitId}", "${expressionId}")\n`;
+        scene.addCharacter(characterId, outfitId, expressionId);
+      },
+    );
 
     lua.global.set("set_outfit", (characterId: string, outfitId: string) => {
       sceneCode.value += `set_outfit("${characterId}", "${outfitId}")\n`;

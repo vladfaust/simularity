@@ -32,8 +32,6 @@ export type Scenario = {
           file: string;
         },
       ];
-      defaultOutfitId: string;
-      defaultExpressionId: string;
       outfits: [
         {
           id: string;

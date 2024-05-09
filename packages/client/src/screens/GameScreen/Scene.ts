@@ -109,8 +109,12 @@ export class Scene extends Phaser.Scene {
     }
   }
 
-  async addCharacter(characterId: string) {
-    console.log("addCharacter", characterId);
+  async addCharacter(
+    characterId: string,
+    outfitId: string,
+    expressionId: string,
+  ) {
+    console.log("addCharacter", characterId, outfitId, expressionId);
 
     if (this.stageCharacters.has(characterId)) {
       throw new ScriptError(`Character already on scene: ${characterId}`);
@@ -152,23 +156,21 @@ export class Scene extends Phaser.Scene {
       loadPromises.push(this._lazyLoadImage(imageName, imageUrl));
     }
 
-    const defaultOutfit =
-      characterConfig.outfits.find(
-        (o) => o.id === characterConfig.defaultOutfitId,
-      ) ||
-      throwError(`Default outfit not found`, {
-        characterId,
-        defaultOutfitId: characterConfig.defaultOutfitId,
-      });
+    const outfit = characterConfig.outfits.find((o) => o.id === outfitId);
+    if (!outfit) {
+      throw new ScriptError(
+        `Outfit not found for character ${characterId}: ${outfitId}`,
+      );
+    }
 
-    const defaultExpression =
-      characterConfig.expressions.find(
-        (e) => e.id === characterConfig.defaultExpressionId,
-      ) ||
-      throwError(`Default expression not found`, {
-        characterId,
-        defaultExpressionId: characterConfig.defaultExpressionId,
-      });
+    const expression = characterConfig.expressions.find(
+      (e) => e.id === expressionId,
+    );
+    if (!expression) {
+      throw new ScriptError(
+        `Expression not found for character ${characterId}: ${expressionId}`,
+      );
+    }
 
     this._busy = Promise.all(loadPromises).then(() => {});
     await this._busy;
@@ -180,30 +182,27 @@ export class Scene extends Phaser.Scene {
         sprite: this.add.sprite(
           this.game.canvas.width / 2,
           this.game.canvas.height / 2,
-          this._characterBodyTextureKey(characterId, defaultExpression.bodyId),
+          this._characterBodyTextureKey(characterId, expression.bodyId),
         ),
       },
       outfit: {
-        id: defaultOutfit.id,
+        id: outfit.id,
         sprite: this.add.sprite(
           this.game.canvas.width / 2,
           this.game.canvas.height / 2,
           this._characterOutfitTextureKey(
             characterId,
-            defaultOutfit.id,
-            defaultExpression.bodyId,
+            outfit.id,
+            expression.bodyId,
           ),
         ),
       },
       expression: {
-        id: defaultExpression.id,
+        id: expression.id,
         sprite: this.add.sprite(
           this.game.canvas.width / 2,
           this.game.canvas.height / 2,
-          this._characterExpressionTextureKey(
-            characterId,
-            defaultExpression.id,
-          ),
+          this._characterExpressionTextureKey(characterId, expression.id),
         ),
       },
     });

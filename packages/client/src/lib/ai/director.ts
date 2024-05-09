@@ -82,7 +82,8 @@ ${characters.join("\n")}
 ### noop()
 Do nothing.
 ### set_scene(locationId, sceneId)
-### add_character(characterId)
+### add_character(characterId, outfitId, expressionId)
+Add a character to the scene, with the specified outfit and expression.
 ### set_outfit(characterId, outfitId)
 ### set_expression(characterId, expressionId)
 ## Script
