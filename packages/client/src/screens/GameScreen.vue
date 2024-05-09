@@ -198,6 +198,10 @@ async function startGame() {
   const luaPromise = factory.createEngine().then((_lua) => {
     lua = _lua;
 
+    lua.global.set("noop", () => {
+      sceneCode.value += `noop()\n`;
+    });
+
     lua.global.set("set_scene", (locationId: string, sceneId: string) => {
       sceneCode.value += `set_scene("${locationId}", "${sceneId}")\n`;
       scene.setScene(locationId, sceneId);

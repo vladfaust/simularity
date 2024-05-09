@@ -9,6 +9,7 @@ export function buildGnbf(scenario: Scenario): string {
 root ::= function_call (";"function_call)* "\\n"
 
 function_call ::=
+  "noop()" |
   "set_scene(" (${scenario.locations
     .flatMap((l) => l.scenes.map((s) => `"\\"${l.id}\\", \\"${s.id}\\""`))
     .join(" | ")}) ")" |
@@ -78,6 +79,8 @@ ${locations.join("\n")}
 ## Characters
 ${characters.join("\n")}
 ## Functions
+### noop()
+Do nothing.
 ### set_scene(locationId, sceneId)
 ### add_character(characterId)
 ### set_outfit(characterId, outfitId)
