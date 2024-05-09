@@ -1,14 +1,14 @@
 import { Scenario, Stage } from "@/lib/types";
 import { Deferred, throwError } from "@/lib/utils";
+import Phaser from "phaser";
+import { LuaEngine, LuaFactory } from "wasmoon";
 
 /**
  * A Lua script error.
  */
 export class ScriptError extends Error {}
 
-export class Scene extends Phaser.Scene {
-  private loader!: Phaser.Loader.LoaderPlugin;
-
+export class DefaultScene extends Phaser.Scene {
   private stageScene: {
     locationId: string;
     sceneId: string;
@@ -33,23 +33,119 @@ export class Scene extends Phaser.Scene {
     }
   > = new Map();
 
+  // NOTE: May be used in the future.
   private _busy: Promise<void> | null = null;
+  get busy() {
+    return this._busy;
+  }
+
+  private _lua = new Deferred<LuaEngine>();
 
   constructor(
     readonly scenario: Scenario,
-    readonly scenarioPath: string,
+    readonly scenarioRootPath: string,
+    private readonly initialStage: Stage | undefined,
   ) {
     super();
   }
 
   create() {
-    this.loader = new Phaser.Loader.LoaderPlugin(this);
+    if (this.initialStage) {
+      this.setScene(
+        this.initialStage.scene.locationId +
+          "/" +
+          this.initialStage.scene.sceneId,
+        false,
+      );
+
+      for (const { id, outfitId, expressionId } of this.initialStage
+        .characters) {
+        this.addCharacter(id, outfitId, expressionId);
+      }
+    }
+
+    new LuaFactory()
+      .createEngine()
+      .then((lua) => {
+        lua.global.set("noop", () => {});
+
+        lua.global.set("set_scene", (sceneId: string, clear: boolean) => {
+          this.setScene(sceneId, clear);
+        });
+
+        lua.global.set(
+          "add_character",
+          (characterId: string, outfitId: string, expressionId: string) => {
+            this.addCharacter(characterId, outfitId, expressionId);
+          },
+        );
+
+        lua.global.set(
+          "set_outfit",
+          (characterId: string, outfitId: string) => {
+            this.setOutfit(characterId, outfitId);
+          },
+        );
+
+        lua.global.set(
+          "set_expression",
+          (characterId: string, expressionId: string) => {
+            this.setExpression(characterId, expressionId);
+          },
+        );
+
+        lua.global.set("remove_character", (characterId: string) => {
+          this.removeCharacter(characterId);
+        });
+
+        return lua;
+      })
+      .then((lua) => this._lua.resolve(lua));
   }
 
-  preload() {}
+  /**
+   * Evaluate Lua code, returning the result.
+   */
+  async eval(code: string): Promise<any> {
+    const lua = await this._lua.promise;
+    return lua.doString(code);
+  }
 
-  get busy() {
-    return this._busy;
+  preload() {
+    this.load.setBaseURL(this.scenarioRootPath);
+
+    for (const location of this.scenario.locations) {
+      for (const scene of location.scenes) {
+        this.load.image(this._sceneTextureKey(location.id, scene.id), scene.bg);
+      }
+    }
+
+    for (const character of this.scenario.characters) {
+      let bodyId = 0;
+      for (const file of character.bodies) {
+        this.load.image(
+          this._characterBodyTextureKey(character.id, bodyId++),
+          file,
+        );
+      }
+
+      for (const outfit of character.outfits) {
+        bodyId = 0;
+        for (const file of outfit.files) {
+          this.load.image(
+            this._characterOutfitTextureKey(character.id, outfit.id, bodyId++),
+            file,
+          );
+        }
+      }
+
+      for (const expression of character.expressions) {
+        this.load.image(
+          this._characterExpressionTextureKey(character.id, expression.id),
+          expression.file,
+        );
+      }
+    }
   }
 
   dumpStage(): Stage {
@@ -81,7 +177,7 @@ export class Scene extends Phaser.Scene {
    * @param id A combination of location and scene IDs, e.g. `"home/bedroom"`.
    * @param clear Whether to clear the scene.
    */
-  async setScene(id: string, clear: boolean) {
+  setScene(id: string, clear: boolean) {
     console.debug("setScene", { id, clear });
 
     const [locationId, sceneId] = id.split("/");
@@ -92,27 +188,23 @@ export class Scene extends Phaser.Scene {
     const scene = location.scenes.find((s) => s.id === sceneId);
     if (!scene) throw new ScriptError(`Scene not found: ${sceneId}`);
 
-    const imageName = `scene:${location.id}/${scene.id}`;
-    const imageUrl = this.scenarioPath + "/" + scene.bg;
-
-    this._busy = this._lazyLoadImage(imageName, imageUrl);
-    await this._busy;
-
     if (clear) {
       for (const characterId of this.stageCharacters.keys()) {
         this.removeCharacter(characterId);
       }
     }
 
+    const texture = this._sceneTextureKey(locationId, sceneId);
+
     if (this.stageScene) {
-      this.stageScene.bg.setTexture(imageName);
+      this.stageScene.bg.setTexture(texture);
       this.stageScene.locationId = locationId;
       this.stageScene.sceneId = sceneId;
     } else {
       const bg = this.add.image(
         this.game.canvas.width / 2,
         this.game.canvas.height / 2,
-        imageName,
+        texture,
       );
 
       this.stageScene = {
@@ -123,11 +215,7 @@ export class Scene extends Phaser.Scene {
     }
   }
 
-  async addCharacter(
-    characterId: string,
-    outfitId: string,
-    expressionId: string,
-  ) {
+  addCharacter(characterId: string, outfitId: string, expressionId: string) {
     console.log("addCharacter", characterId, outfitId, expressionId);
 
     if (this.stageCharacters.has(characterId)) {
@@ -137,38 +225,6 @@ export class Scene extends Phaser.Scene {
     const characterConfig =
       this.scenario.characters.find((c) => c.id === characterId) ||
       throwError(`Character not found`, { characterId });
-
-    const loadPromises: Promise<void>[] = [];
-
-    for (const [index, filePath] of characterConfig.bodies.entries()) {
-      const imageName = this._characterBodyTextureKey(characterId, index);
-      const imageUrl = this.scenarioPath + "/" + filePath;
-
-      loadPromises.push(this._lazyLoadImage(imageName, imageUrl));
-    }
-
-    for (const outfit of characterConfig.outfits) {
-      for (const [index, filePath] of outfit.files.entries()) {
-        const imageName = this._characterOutfitTextureKey(
-          characterId,
-          outfit.id,
-          index,
-        );
-        const imageUrl = this.scenarioPath + "/" + filePath;
-
-        loadPromises.push(this._lazyLoadImage(imageName, imageUrl));
-      }
-    }
-
-    for (const expression of characterConfig.expressions) {
-      const imageName = this._characterExpressionTextureKey(
-        characterId,
-        expression.id,
-      );
-      const imageUrl = this.scenarioPath + "/" + expression.file;
-
-      loadPromises.push(this._lazyLoadImage(imageName, imageUrl));
-    }
 
     const outfit = characterConfig.outfits.find((o) => o.id === outfitId);
     if (!outfit) {
@@ -185,9 +241,6 @@ export class Scene extends Phaser.Scene {
         `Expression not found for character ${characterId}: ${expressionId}`,
       );
     }
-
-    this._busy = Promise.all(loadPromises).then(() => {});
-    await this._busy;
 
     this.stageCharacters.set(characterId, {
       body: {
@@ -309,26 +362,8 @@ export class Scene extends Phaser.Scene {
     this.stageCharacters.delete(characterId);
   }
 
-  private async _lazyLoadImage(name: string, url: string): Promise<void> {
-    if (
-      this.loader.keyExists(
-        new Phaser.Loader.File(this.loader, {
-          key: name,
-          type: "image",
-        }),
-      )
-    ) {
-      console.debug("Image already loaded", name);
-      return;
-    }
-
-    const deferred = new Deferred<void>();
-
-    this.loader.image(name, url);
-    this.loader.once(Phaser.Loader.Events.COMPLETE, () => deferred.resolve());
-    this.loader.start();
-
-    return deferred.promise;
+  private _sceneTextureKey(locationId: string, sceneId: string) {
+    return `scene:${locationId}/${sceneId}`;
   }
 
   private _characterBodyTextureKey(characterId: string, bodyIndex: number) {
