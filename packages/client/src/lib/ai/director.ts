@@ -80,12 +80,15 @@ ${locations.join("\n")}
 ${characters.join("\n")}
 ## Functions
 ### noop()
-Do nothing.
+Do nothing (do not update scene or characters).
 ### set_scene(locationId, sceneId)
+Set the scene to specified location and scene.
 ### add_character(characterId, outfitId, expressionId)
-Add a character to the scene, with the specified outfit and expression.
+Add a character to the scene, with specified outfit and expression.
 ### set_outfit(characterId, outfitId)
+Set outfit of a character.
 ### set_expression(characterId, expressionId)
+Set expression of a character.
 ## Script
 ${history.map((h) => h.text + "\n" + h.code).join("\n\n")}
 
