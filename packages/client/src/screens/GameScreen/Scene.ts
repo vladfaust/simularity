@@ -75,8 +75,16 @@ export class Scene extends Phaser.Scene {
     };
   }
 
-  async setScene(locationId: string, sceneId: string) {
-    console.log("setScene", locationId, sceneId);
+  /**
+   * Set the scene, clearing it if necessary.
+   *
+   * @param id A combination of location and scene IDs, e.g. `"home/bedroom"`.
+   * @param clear Whether to clear the scene.
+   */
+  async setScene(id: string, clear: boolean) {
+    console.debug("setScene", { id, clear });
+
+    const [locationId, sceneId] = id.split("/");
 
     const location = this.scenario.locations.find((l) => l.id === locationId);
     if (!location) throw new ScriptError(`Location not found: ${locationId}`);
@@ -89,6 +97,12 @@ export class Scene extends Phaser.Scene {
 
     this._busy = this._lazyLoadImage(imageName, imageUrl);
     await this._busy;
+
+    if (clear) {
+      for (const characterId of this.stageCharacters.keys()) {
+        this.removeCharacter(characterId);
+      }
+    }
 
     if (this.stageScene) {
       this.stageScene.bg.setTexture(imageName);
@@ -275,6 +289,24 @@ export class Scene extends Phaser.Scene {
         expression.bodyId,
       ),
     );
+  }
+
+  /**
+   * Remove a character from the stage.
+   */
+  removeCharacter(characterId: string) {
+    console.debug("removeCharacter", { characterId });
+
+    const character = this.stageCharacters.get(characterId);
+    if (!character) {
+      throw new ScriptError(`Character not on stage: ${characterId}`);
+    }
+
+    character.body.sprite.destroy();
+    character.outfit.sprite.destroy();
+    character.expression.sprite.destroy();
+
+    this.stageCharacters.delete(characterId);
   }
 
   private async _lazyLoadImage(name: string, url: string): Promise<void> {

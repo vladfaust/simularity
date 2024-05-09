@@ -4,6 +4,7 @@ import { Scenario } from "../types";
  * Build a GNBF grammar to constrain director output.
  * @see https://github.com/ggerganov/llama.cpp/blob/master/grammars/README.md.
  */
+// TODO: Pass some context to further restrict arguments.
 export function buildGnbf(scenario: Scenario): string {
   return `
 root ::= function_call ";" (function_call ";")* "\\n"
@@ -11,8 +12,8 @@ root ::= function_call ";" (function_call ";")* "\\n"
 function_call ::=
   "noop()" |
   "set_scene(" (${scenario.locations
-    .flatMap((l) => l.scenes.map((s) => `"\\"${l.id}\\", \\"${s.id}\\""`))
-    .join(" | ")}) ")" |
+    .flatMap((l) => l.scenes.map((s) => `"\\"${l.id}/${s.id}\\""`))
+    .join(" | ")}) ", " ("true" | "false") ")" |
   "add_character(" (${scenario.characters
     .map((c) => `"\\"${c.id}\\""`)
     .join(" | ")}) ")" |
@@ -21,6 +22,9 @@ function_call ::=
     .join(" | ")}) ")" |
   "set_expression(" (${scenario.characters
     .flatMap((c) => c.expressions.map((e) => `"\\"${c.id}\\", \\"${e.id}\\""`))
+    .join(" | ")}) ")" |
+  "remove_character(" (${scenario.characters
+    .map((c) => `"\\"${c.id}\\""`)
     .join(" | ")}) ")"
 `.trim();
 }
@@ -37,14 +41,13 @@ export function buildDirectorPrompt(
     const scenes = location.scenes.map((scene) =>
       `
 ##### ${scene.name}
-ID: ${scene.id}
+ID: ${location.id}/${scene.id}
 ${scene.prompt}
 `.trim(),
     );
 
     return `
 ### ${location.name}
-ID: ${location.id}
 ${location.prompt}
 #### Scenes
 ${scenes.join("\n")}
@@ -81,14 +84,17 @@ ${characters.join("\n")}
 ## Functions
 ### noop()
 Do nothing (do not update scene or characters).
-### set_scene(locationId, sceneId)
-Set the scene to specified location and scene.
-### add_character(characterId, outfitId, expressionId)
+### set_scene(sceneId: string, clear: boolean)
+Set the scene to specified sceneId.
+If clear is true, remove all characters from the scene, otherwise keep them in place.
+### add_character(characterId: string, outfitId: string, expressionId: string)
 Add a character to the scene, with specified outfit and expression.
-### set_outfit(characterId, outfitId)
+### set_outfit(characterId: string, outfitId: string)
 Set outfit of a character.
-### set_expression(characterId, expressionId)
+### set_expression(characterId: string, expressionId: string)
 Set expression of a character.
+### remove_character(characterId: string)
+Remove a character from the scene.
 ## Script
 ${history.map((h) => h.text + "\n" + h.code).join("\n\n")}
 

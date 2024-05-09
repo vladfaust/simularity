@@ -182,7 +182,10 @@ async function startGame() {
   if (stage) {
     console.debug("Will set stage", stage);
 
-    await scene.setScene(stage.scene.locationId, stage.scene.sceneId);
+    await scene.setScene(
+      `${stage.scene.locationId}/${stage.scene.sceneId}`,
+      false,
+    );
 
     for (const character of stage.characters) {
       await scene.addCharacter(
@@ -204,9 +207,9 @@ async function startGame() {
       sceneCode.value += `noop()\n`;
     });
 
-    lua.global.set("set_scene", (locationId: string, sceneId: string) => {
-      sceneCode.value += `set_scene("${locationId}", "${sceneId}")\n`;
-      scene.setScene(locationId, sceneId);
+    lua.global.set("set_scene", (sceneId: string, clear: boolean) => {
+      sceneCode.value += `set_scene("${sceneId}", "${clear}")\n`;
+      scene.setScene(sceneId, clear);
     });
 
     lua.global.set(
@@ -229,6 +232,11 @@ async function startGame() {
         scene.setExpression(characterId, expressionId);
       },
     );
+
+    lua.global.set("remove_character", (characterId: string) => {
+      sceneCode.value += `remove_character("${characterId}")\n`;
+      scene.removeCharacter(characterId);
+    });
   });
 
   // OPTIMIZE: This chunk of code is suboptimal.
