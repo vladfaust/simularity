@@ -6,7 +6,7 @@ import { Scenario } from "../types";
  */
 export function buildGnbf(scenario: Scenario): string {
   return `
-root ::= function_call (";"function_call)* "\\n"
+root ::= function_call ";" (function_call ";")* "\\n"
 
 function_call ::=
   "noop()" |

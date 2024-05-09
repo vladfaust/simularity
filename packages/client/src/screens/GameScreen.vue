@@ -359,7 +359,7 @@ async function advance() {
     ),
   );
 
-  const newCode = splitCode(sceneCode.value).join(";") + "\n";
+  const newCode = splitCode(sceneCode.value).join(";") + ";\n";
   filePromises.push(
     writeGameTextFile(GameFilePath.Code, newCode, { append: true }).then(() =>
       console.log("Appended", GameFilePath.Code, newCode),
