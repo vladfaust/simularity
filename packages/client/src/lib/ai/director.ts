@@ -15,8 +15,15 @@ function_call ::=
     .flatMap((l) => l.scenes.map((s) => `"\\"${l.id}/${s.id}\\""`))
     .join(" | ")}) ", " ("true" | "false") ")" |
   "add_character(" (${scenario.characters
-    .map((c) => `"\\"${c.id}\\""`)
-    .join(" | ")}) ")" |
+    .map(
+      (c) =>
+        `("\\"${c.id}\\", " ${c.outfits
+          .map((o) => `"\\"${o.id}\\""`)
+          .join(" | ")} ", " ${c.expressions
+          .map((e) => `"\\"${e.id}\\""`)
+          .join(" | ")})`,
+    )
+    .join(" |\n")}) ")" |
   "set_outfit(" (${scenario.characters
     .flatMap((c) => c.outfits.map((o) => `"\\"${c.id}\\", \\"${o.id}\\""`))
     .join(" | ")}) ")" |
