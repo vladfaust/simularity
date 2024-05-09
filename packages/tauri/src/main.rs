@@ -5,6 +5,7 @@
 
 use simularity_core::{GptBackend, GptContext, GptModel};
 use tauri::async_runtime::Mutex;
+use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod commands;
 
@@ -29,8 +30,28 @@ impl AppState {
 }
 
 fn main() {
+    let migrations = vec![Migration {
+        version: 1,
+        description: "create games table",
+        sql: r#"
+                CREATE TABLE games (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    head TEXT NOT NULL,
+                    screenshot TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+            "#,
+        kind: MigrationKind::Up,
+    }];
+
     tauri::Builder::default()
         .manage(AppState::new())
+        .plugin(
+            tauri_plugin_sql::Builder::default()
+                .add_migrations("sqlite:test.db", migrations)
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             commands::git::git_init,
             commands::git::git_head,

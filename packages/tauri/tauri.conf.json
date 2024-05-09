@@ -29,7 +29,8 @@
         "scope": [
           "$APPLOCALDATA/**/*"
         ],
-        "writeFile": true
+        "writeFile": true,
+        "exists": true
       },
       "path": {
         "all": true

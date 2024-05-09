@@ -14,11 +14,12 @@ pub fn git_init(repo_path: &str) -> Result<(), GitError> {
 }
 
 #[tauri::command]
-/// Get the HEAD commit hash of a git repository.
-pub fn git_head(repo_path: &str) -> Result<String, GitError> {
+/// Get the HEAD commit hash along with the commit time (UTC seconds).
+pub fn git_head(repo_path: &str) -> Result<(String, u64), GitError> {
     let repo = git2::Repository::open(repo_path).map_err(GitError)?;
     let head = repo.head().map_err(GitError)?;
-    Ok(head.target().unwrap().to_string())
+    let commit = head.peel_to_commit().map_err(GitError)?;
+    Ok((commit.id().to_string(), commit.time().seconds() as u64))
 }
 
 #[tauri::command]

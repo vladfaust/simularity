@@ -4,8 +4,16 @@ export async function gitInit(repoPath: string): Promise<void> {
   return invoke("git_init", { repoPath });
 }
 
-export async function gitHead(repoPath: string): Promise<string> {
-  return invoke("git_head", { repoPath });
+export async function gitHead(repoPath: string): Promise<{
+  hash: string;
+  time: Date;
+}> {
+  const [hash, time] = (await invoke("git_head", { repoPath })) as [
+    string,
+    number,
+  ];
+
+  return { hash, time: new Date(time * 1000) };
 }
 
 export async function gitAdd(

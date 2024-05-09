@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import Phaser from "phaser";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
-import { computed, onMounted, onUnmounted, ref } from "vue";
-import { readTextFile, writeTextFile } from "@tauri-apps/api/fs";
-import { type Scenario } from "@/lib/types";
+import { computed, onMounted, onUnmounted, ref, toRaw } from "vue";
+import {
+  type FsOptions,
+  exists,
+  readTextFile,
+  writeTextFile,
+} from "@tauri-apps/api/fs";
+import { type Stage, type Scenario } from "@/lib/types";
 import { Scene } from "./GameScreen/Scene";
 import { LuaEngine, LuaFactory } from "wasmoon";
 import Console from "./GameScreen/Console.vue";
@@ -16,6 +21,28 @@ import {
 import { splitCode, zip } from "@/lib/utils";
 import { buildWriterPrompt } from "@/lib/ai/writer";
 import { buildDirectorPrompt, buildGnbf } from "@/lib/ai/director";
+import { updateGame } from "@/lib/db";
+import * as ini from "ini";
+
+/**
+ * Game state, serialized to `state.ini`.
+ */
+type State = {
+  episode: {
+    id: string;
+    chunkIndex: number;
+  } | null;
+};
+
+const FILE_SCENARIO_MANIFEST = "manifest.json";
+
+enum GameFilePath {
+  Manifest = "manifest.json",
+  State = "state.ini",
+  Script = "script.txt",
+  Code = "code.lua",
+  Stage = "stage.json",
+}
 
 const { gameId } = defineProps<{ gameId: string }>();
 
@@ -28,10 +55,13 @@ const consoleModal = ref(false);
 const busy = ref(false);
 
 const gitHead = ref<string | undefined>();
-const currentEpisode = ref<{
-  def: Scenario["episodes"][0];
-  chunkIndex: number;
-} | null>(null);
+
+const state = ref<State>({ episode: null });
+const currentEpisode = computed(() =>
+  state.value.episode
+    ? scenario.value?.episodes.find((e) => e.id === state.value.episode!.id)
+    : null,
+);
 
 const sceneText = ref("");
 
@@ -39,12 +69,12 @@ const sceneText = ref("");
 const sceneCode = ref("");
 
 const currentEpisodeConsoleObject = computed(() =>
-  currentEpisode.value
+  state.value.episode && currentEpisode.value
     ? {
-        id: currentEpisode.value.def.id,
+        id: currentEpisode.value.id,
         chunks: {
-          current: currentEpisode.value.chunkIndex + 1,
-          total: currentEpisode.value.def.chunks.length,
+          current: state.value.episode.chunkIndex + 1,
+          total: currentEpisode.value.chunks.length,
         },
       }
     : null,
@@ -58,27 +88,55 @@ function consoleEventListener(event: KeyboardEvent) {
   }
 }
 
+async function readGameTextFile(fileName: string): Promise<string | undefined> {
+  if (!(await exists(await join(gameDirPath, fileName)))) {
+    return undefined;
+  }
+
+  return readTextFile(await join(gameDirPath, fileName));
+}
+
+async function writeGameTextFile(
+  fileName: string,
+  text: string,
+  options?: FsOptions,
+): Promise<void> {
+  return writeTextFile(await join(gameDirPath, fileName), text, options);
+}
+
 async function initGame() {
   gameDirPath = await join(await appLocalDataDir(), "simulations", gameId);
 
-  gitHead.value = await gitGetHead(gameDirPath);
+  gitHead.value = (await gitGetHead(gameDirPath)).hash;
   console.log("Game directory", gameDirPath, "HEAD", gitHead.value);
 
-  const manifest: { scenarioId: string } = await readTextFile(
-    await join(gameDirPath, "manifest.json"),
-  ).then((text) => JSON.parse(text));
-
-  console.log("Loaded manifest.json", manifest);
+  const gameManifest: { scenarioId: string } = await readGameTextFile(
+    GameFilePath.Manifest,
+  ).then((text) => {
+    if (text) return JSON.parse(text);
+    else throw new Error("Game manifest not found");
+  });
+  console.log("Read", GameFilePath.Manifest, gameManifest);
 
   scenario.value = await fetch(
-    `/scenarios/${manifest.scenarioId}/manifest.json`,
+    `/scenarios/${gameManifest.scenarioId}/${FILE_SCENARIO_MANIFEST}`,
   ).then((response) => response.json());
-
   if (!scenario.value) {
-    throw new Error(`Scenario not found: ${manifest.scenarioId}`);
+    throw new Error(`Scenario not found: ${gameManifest.scenarioId}`);
+  } else {
+    console.log("Read scenario", scenario.value.name);
   }
 
-  console.log("Loaded scenario", scenario.value.name);
+  // Read state.
+  //
+
+  const stateText = await readGameTextFile(GameFilePath.State);
+  if (stateText) {
+    state.value = ini.parse(stateText) as State;
+    console.log("Read", GameFilePath.State, state.value);
+  } else {
+    console.log("Empty", GameFilePath.State);
+  }
 
   game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -93,11 +151,13 @@ async function initGame() {
       // // Center vertically and horizontally
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
+
+    preserveDrawingBuffer: true,
   });
 
   game.scene.add(
     "default",
-    new Scene(scenario.value, "/scenarios/" + manifest.scenarioId),
+    new Scene(scenario.value, "/scenarios/" + gameManifest.scenarioId),
     true,
   );
 
@@ -115,8 +175,26 @@ async function initGame() {
 
 // Called once the Phaser scene is ready.
 async function startGame() {
-  const factory = new LuaFactory();
+  // IDEA: Move this logic to the Scene class, pass the stage as a prop.
+  const stage: Stage | undefined = await readGameTextFile(
+    GameFilePath.Stage,
+  ).then((text) => (text ? JSON.parse(text) : undefined));
+  if (stage) {
+    console.debug("Will set stage", stage);
 
+    await scene.setScene(stage.scene.locationId, stage.scene.sceneId);
+
+    for (const character of stage.characters) {
+      await scene.addCharacter(character.id);
+      scene.setOutfit(character.id, character.outfitId);
+      scene.setExpression(character.id, character.expressionId);
+    }
+
+    await scene.busy;
+    console.log("Set stage", stage);
+  }
+
+  const factory = new LuaFactory();
   const luaPromise = factory.createEngine().then((_lua) => {
     lua = _lua;
 
@@ -144,15 +222,38 @@ async function startGame() {
     );
   });
 
-  const startEpisode = scenario.value!.episodes.find(
-    (episode) => episode.id === scenario.value!.startEpisodeId,
+  // OPTIMIZE: This chunk of code is suboptimal.
+  //
+
+  const latestScriptLine = await readGameTextFile(GameFilePath.Script).then(
+    (text) => text?.split("\n").filter(Boolean).pop(),
   );
 
-  if (!startEpisode) throw new Error("Start episode not found");
-  currentEpisode.value = { def: startEpisode, chunkIndex: 0 };
+  const latestCodeLine = await readGameTextFile(GameFilePath.Code).then(
+    (text) => text?.split("\n").filter(Boolean).pop(),
+  );
+
+  if (state.value.episode) {
+    // There is an episode in progress.
+    sceneText.value = latestScriptLine!;
+    sceneCode.value = splitCode(latestCodeLine || "").join("\n");
+  } else if (stage) {
+    // There is no episode, but the stage is set already,
+    // therefore the game has already begun.
+    sceneText.value = latestScriptLine!;
+    sceneCode.value = splitCode(latestCodeLine || "").join("\n");
+  } else {
+    // Start the game from the beginning.
+    state.value.episode = {
+      id: scenario.value!.startEpisodeId,
+      chunkIndex: 0,
+    };
+
+    // Advance the scenario once Lua is ready.
+    luaPromise.then(() => advance());
+  }
 
   await luaPromise;
-  advance();
 }
 
 async function advance() {
@@ -160,15 +261,16 @@ async function advance() {
   //
 
   if (
+    state.value.episode &&
     currentEpisode.value &&
-    currentEpisode.value.chunkIndex < currentEpisode.value.def.chunks.length
+    state.value.episode.chunkIndex < currentEpisode.value.chunks.length
   ) {
     sceneText.value =
-      currentEpisode.value.def.chunks[currentEpisode.value.chunkIndex].text;
+      currentEpisode.value.chunks[state.value.episode.chunkIndex].text;
 
     sceneCode.value = "";
-    for (const line of currentEpisode.value.def.chunks[
-      currentEpisode.value.chunkIndex
+    for (const line of currentEpisode.value.chunks[
+      state.value.episode.chunkIndex
     ].code) {
       await lua.doString(line);
 
@@ -179,16 +281,18 @@ async function advance() {
       }
     }
 
-    currentEpisode.value.chunkIndex++;
+    state.value.episode.chunkIndex++;
   } else {
     busy.value = true;
+    state.value.episode = null;
 
     try {
-      const scriptHistory = (
-        await readTextFile(await join(gameDirPath, "script.txt"))
-      )
-        .split("\n")
+      const scriptHistory = (await readGameTextFile(GameFilePath.Script))
+        ?.split("\n")
         .filter(Boolean);
+      if (!scriptHistory) {
+        throw new Error("Script history not found");
+      }
 
       const writerPrompt = buildWriterPrompt(scenario.value!, scriptHistory);
       console.log("Writer prompt", writerPrompt);
@@ -198,11 +302,12 @@ async function advance() {
       });
       console.log("Writer response", writerResponse);
 
-      const codeHistory = (
-        await readTextFile(await join(gameDirPath, "code.lua"))
-      )
-        .split("\n")
+      const codeHistory = (await readGameTextFile(GameFilePath.Code))
+        ?.split("\n")
         .filter(Boolean);
+      if (!codeHistory) {
+        throw new Error("Code history not found");
+      }
 
       const directorPrompt = buildDirectorPrompt(
         scenario.value!,
@@ -223,9 +328,7 @@ async function advance() {
       console.log("Director response", directorResponse);
       busy.value = false;
 
-      currentEpisode.value = null;
       sceneText.value = writerResponse;
-
       for (const line of splitCode(directorResponse)) {
         await lua.doString(line);
 
@@ -243,25 +346,63 @@ async function advance() {
   // 2. Commit the updates.
   //
 
+  const filePromises = [];
+
   const newText = sceneText.value + "\n";
-  await writeTextFile(await join(gameDirPath, "script.txt"), newText, {
-    append: true,
-  });
-  console.log("Appended to script.txt", newText);
+  filePromises.push(
+    writeGameTextFile(GameFilePath.Script, newText, { append: true }).then(() =>
+      console.log("Appended", GameFilePath.Script, newText),
+    ),
+  );
 
   const newCode = splitCode(sceneCode.value).join(";") + "\n";
-  await writeTextFile(await join(gameDirPath, "code.lua"), newCode, {
-    append: true,
-  });
-  console.log("Appended to code.lua", newCode);
+  filePromises.push(
+    writeGameTextFile(GameFilePath.Code, newCode, { append: true }).then(() =>
+      console.log("Appended", GameFilePath.Code, newCode),
+    ),
+  );
 
-  await gitAdd(gameDirPath, ["script.txt", "code.lua"]);
+  // Update the stage.
+  const newStage = scene.dumpStage();
+  filePromises.push(
+    writeGameTextFile(GameFilePath.Stage, JSON.stringify(newStage), {
+      append: false,
+    }).then(() => console.log("Replaced", GameFilePath.Stage, newStage)),
+  );
+
+  // Update the state.
+  filePromises.push(
+    writeGameTextFile(GameFilePath.State, ini.stringify(state.value), {
+      append: false,
+    }).then(() =>
+      console.log("Replaced", GameFilePath.State, toRaw(state.value)),
+    ),
+  );
+
+  await Promise.all(filePromises);
+
+  await gitAdd(gameDirPath, [
+    GameFilePath.Script,
+    GameFilePath.Code,
+    GameFilePath.Stage,
+  ]);
   gitHead.value = await gitCommit(
     gameDirPath,
     gitHead.value!,
     "Advance scenario",
   );
   console.log("Committed", gitHead.value);
+
+  await updateGame(gameId, gitHead.value!, screenshot());
+  console.log("Updated game in DB", gameId);
+}
+
+/**
+ * Takes a screenshot of the game and returns the data URL.
+ */
+// TODO: Also screenshot UI elements.
+function screenshot(mime = "image/jpeg", quality = 0.8) {
+  return game.canvas.toDataURL(mime, quality);
 }
 
 onMounted(() => {

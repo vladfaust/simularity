@@ -58,3 +58,15 @@ export type Scenario = {
   ];
   startEpisodeId: string;
 };
+
+export type Stage = {
+  scene: {
+    locationId: string;
+    sceneId: string;
+  };
+  characters: {
+    id: string;
+    outfitId: string;
+    expressionId: string;
+  }[];
+};

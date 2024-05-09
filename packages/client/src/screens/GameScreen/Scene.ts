@@ -1,4 +1,4 @@
-import { Scenario } from "@/lib/types";
+import { Scenario, Stage } from "@/lib/types";
 import { Deferred, throwError } from "@/lib/utils";
 
 /**
@@ -8,7 +8,14 @@ export class ScriptError extends Error {}
 
 export class Scene extends Phaser.Scene {
   private loader!: Phaser.Loader.LoaderPlugin;
-  private characters: Map<
+
+  private stageScene: {
+    locationId: string;
+    sceneId: string;
+    bg: Phaser.GameObjects.Image;
+  } | null = null;
+
+  private stageCharacters: Map<
     string, // Character ID.
     {
       body: {
@@ -25,6 +32,7 @@ export class Scene extends Phaser.Scene {
       };
     }
   > = new Map();
+
   private _busy: Promise<void> | null = null;
 
   constructor(
@@ -44,6 +52,29 @@ export class Scene extends Phaser.Scene {
     return this._busy;
   }
 
+  dumpStage(): Stage {
+    if (!this.stageScene) {
+      throw new ScriptError("No scene set");
+    }
+
+    const characters: Stage["characters"] = [];
+    for (const [id, character] of this.stageCharacters) {
+      characters.push({
+        id,
+        outfitId: character.outfit.id,
+        expressionId: character.expression.id,
+      });
+    }
+
+    return {
+      scene: {
+        locationId: this.stageScene.locationId,
+        sceneId: this.stageScene.sceneId,
+      },
+      characters,
+    };
+  }
+
   async setScene(locationId: string, sceneId: string) {
     console.log("setScene", locationId, sceneId);
 
@@ -59,17 +90,29 @@ export class Scene extends Phaser.Scene {
     this._busy = this._lazyLoadImage(imageName, imageUrl);
     await this._busy;
 
-    this.add.image(
-      this.game.canvas.width / 2,
-      this.game.canvas.height / 2,
-      imageName,
-    );
+    if (this.stageScene) {
+      this.stageScene.bg.setTexture(imageName);
+      this.stageScene.locationId = locationId;
+      this.stageScene.sceneId = sceneId;
+    } else {
+      const bg = this.add.image(
+        this.game.canvas.width / 2,
+        this.game.canvas.height / 2,
+        imageName,
+      );
+
+      this.stageScene = {
+        locationId,
+        sceneId,
+        bg,
+      };
+    }
   }
 
   async addCharacter(characterId: string) {
     console.log("addCharacter", characterId);
 
-    if (this.characters.has(characterId)) {
+    if (this.stageCharacters.has(characterId)) {
       throw new ScriptError(`Character already on scene: ${characterId}`);
     }
 
@@ -130,7 +173,7 @@ export class Scene extends Phaser.Scene {
     this._busy = Promise.all(loadPromises).then(() => {});
     await this._busy;
 
-    this.characters.set(characterId, {
+    this.stageCharacters.set(characterId, {
       body: {
         index: 0,
         // Position in the center of the screen.
@@ -169,7 +212,7 @@ export class Scene extends Phaser.Scene {
   setOutfit(characterId: string, outfitId: string) {
     console.log("setOutfit", characterId, outfitId);
 
-    const character = this.characters.get(characterId);
+    const character = this.stageCharacters.get(characterId);
     if (!character) {
       throw new ScriptError(`Character not on scene: ${characterId}`);
     }
@@ -198,7 +241,7 @@ export class Scene extends Phaser.Scene {
   setExpression(characterId: string, expressionId: string) {
     console.log("setExpression", characterId, expressionId);
 
-    const character = this.characters.get(characterId);
+    const character = this.stageCharacters.get(characterId);
     if (!character) {
       throw new ScriptError(`Character not on scene: ${characterId}`);
     }
