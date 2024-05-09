@@ -346,6 +346,7 @@ async function advance() {
       busy.value = false;
 
       sceneText.value = writerResponse;
+      sceneCode.value = "";
       for (const line of splitCode(directorResponse)) {
         await lua.doString(line);
 
