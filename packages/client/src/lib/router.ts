@@ -8,13 +8,14 @@ import GameScreen from "../screens/GameScreen.vue";
 import LoadGame from "../screens/LoadGame.vue";
 import MainMenu from "../screens/MainMenuScreen.vue";
 
-export type RouteName = "MainMenu" | "LoadGame" | "Game";
+export type RouteName = "MainMenu" | "LoadGame" | "Game" | "GnbfTester";
 
 export function routeLocation(
   args:
     | { name: "MainMenu" }
     | { name: "LoadGame" }
-    | { name: "Game"; params: { gameId: string } },
+    | { name: "Game"; params: { gameId: string } }
+    | { name: "GnbfTester" },
 ): RouteLocationNamedRaw & { name: RouteName } {
   return args;
 }
@@ -34,6 +35,12 @@ const routes: Array<RouteRecordRaw> = [
     path: "/games/:gameId",
     name: "Game" satisfies RouteName,
     component: GameScreen,
+    props: true,
+  },
+  {
+    path: "/gnbf-tester",
+    name: "GnbfTester" satisfies RouteName,
+    component: () => import("../screens/GnbfTester.vue"),
     props: true,
   },
 ];

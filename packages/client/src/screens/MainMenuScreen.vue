@@ -53,4 +53,7 @@ async function newGame() {
     RouterLink.btn-md.btn.transition-transform.pressable(
       :to="routeLocation({ name: 'LoadGame' })"
     ) Load game
+    RouterLink.btn-md.btn.transition-transform.pressable(
+      :to="routeLocation({ name: 'GnbfTester' })"
+    ) GNBF tester
 </template>

@@ -5,7 +5,23 @@ import { Scenario } from "../types";
  * @see https://github.com/ggerganov/llama.cpp/blob/master/grammars/README.md.
  */
 // TODO: Pass some context to further restrict arguments.
-export function buildGnbf(scenario: Scenario): string {
+export function buildGnbf(scenario: {
+  locations: {
+    id: string;
+    scenes: {
+      id: string;
+    }[];
+  }[];
+  characters: {
+    id: string;
+    outfits: {
+      id: string;
+    }[];
+    expressions: {
+      id: string;
+    }[];
+  }[];
+}): string {
   return `
 root ::= function_call ";" (function_call ";")* "\\n"
 
