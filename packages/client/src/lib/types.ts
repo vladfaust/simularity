@@ -48,7 +48,7 @@ export type Scenario = {
       id: string;
       chunks: [
         {
-          novelScript: string;
+          storyText: string;
           stageCode: string;
         },
       ];

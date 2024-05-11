@@ -47,7 +47,7 @@ fn migrate_up(sqlite_uri: &str) {
     let migrations = rusqlite_migration::Migrations::new(vec![
         migration!("001_create_simulations"),
         migration!("002_create_llama_inferences"),
-        migration!("003_create_script_updates"),
+        migration!("003_create_story_updates"),
         migration!("004_create_code_updates"),
     ]);
 

@@ -2,7 +2,7 @@ import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
 import { sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
-import { scriptUpdates } from "./scriptUpdates";
+import { storyUpdates } from "./storyUpdates";
 
 export const simulations = sqliteTable(
   "simulations",
@@ -25,5 +25,5 @@ export const simulations = sqliteTable(
 );
 
 export const simulationRelatiosn = relations(simulations, ({ many }) => ({
-  scriptUpdates: many(scriptUpdates),
+  storyUpdates: many(storyUpdates),
 }));

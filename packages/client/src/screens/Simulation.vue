@@ -17,8 +17,8 @@ const { simulationId } = defineProps<{ simulationId: string }>();
 let gameInstance: Game;
 let stage: Stage;
 let scene: DefaultScene;
-const updates = ref<
-  (typeof d.scriptUpdates.$inferSelect & {
+const storyUpdates = ref<
+  (typeof d.storyUpdates.$inferSelect & {
     codeUpdates: (typeof d.codeUpdates.$inferSelect & {})[];
   })[]
 >([]);
@@ -34,8 +34,8 @@ const state = ref<{
   currentEpisode: (Scenario["episodes"][0] & { nextChunkIndex: number }) | null;
 }>({ currentEpisode: null });
 
-const novelScript = ref("");
-const stageCode = ref("");
+const storyUpdateText = ref("");
+const stageUpdateCode = ref("");
 
 const consoleModal = ref(false);
 const currentEpisodeConsoleObject = computed(() =>
@@ -75,16 +75,16 @@ async function advance() {
     // Advance the episode.
     //
 
-    novelScript.value =
-      currentEpisode.chunks[currentEpisode.nextChunkIndex].novelScript;
+    storyUpdateText.value =
+      currentEpisode.chunks[currentEpisode.nextChunkIndex].storyText;
 
-    stageCode.value = "";
+    stageUpdateCode.value = "";
     for (const line of splitCode(
       currentEpisode.chunks[currentEpisode.nextChunkIndex].stageCode,
     )) {
-      console.debug("Evaluating code", line);
+      console.debug("Evaluating stage code", line);
       await stage.eval(line);
-      stageCode.value += line + "\n";
+      stageUpdateCode.value += line + "\n";
 
       if (scene.busy) {
         busy.value = true;
@@ -102,8 +102,8 @@ async function advance() {
 
     busy.value = true;
     try {
-      const scriptHistory = updates.value.map((u) => u.text);
-      const writerPrompt = buildWriterPrompt(scenario.value!, scriptHistory);
+      const textHistory = storyUpdates.value.map((u) => u.text);
+      const writerPrompt = buildWriterPrompt(scenario.value!, textHistory);
       console.log("Writer prompt", writerPrompt);
 
       // TODO: Llama inference object.
@@ -112,14 +112,14 @@ async function advance() {
       });
       console.log("Writer response", writerResponse);
 
-      const codeHistory = updates.value.map((u) =>
+      const codeHistory = storyUpdates.value.map((u) =>
         splitCode(u.codeUpdates.at(0)?.code || ""),
       );
 
       // TODO: Llama inference object.
       const directorPrompt = buildDirectorPrompt(
         scenario.value!,
-        zip(scriptHistory, codeHistory).map(([text, code]) => ({
+        zip(textHistory, codeHistory).map(([text, code]) => ({
           code: code.join(";") + ";",
           text,
         })),
@@ -136,11 +136,11 @@ async function advance() {
       console.log("Director response", directorResponse);
       busy.value = false;
 
-      novelScript.value = writerResponse;
-      stageCode.value = "";
+      storyUpdateText.value = writerResponse;
+      stageUpdateCode.value = "";
       for (const line of splitCode(directorResponse)) {
         await stage.eval(line);
-        stageCode.value += line + "\n";
+        stageUpdateCode.value += line + "\n";
 
         if (scene.busy) {
           busy.value = true;
@@ -154,12 +154,12 @@ async function advance() {
   }
 
   const incoming = await d.db.transaction(async (tx) => {
-    const scriptUpdate = (
+    const storyUpdate = (
       await tx
-        .insert(d.scriptUpdates)
+        .insert(d.storyUpdates)
         .values({
           simulationId: simulationId,
-          text: novelScript.value,
+          text: storyUpdateText.value,
           episodeId: storyUpdateEpisodeId,
           episodeChunkIndex: storyUpdateEpisodeChunkIndex,
         })
@@ -170,8 +170,8 @@ async function advance() {
       await tx
         .insert(d.codeUpdates)
         .values({
-          scriptUpdateId: scriptUpdate.id,
-          code: splitCode(stageCode.value).join(";") + ";",
+          storyUpdateId: storyUpdate.id,
+          code: splitCode(stageUpdateCode.value).join(";") + ";",
         })
         .returning()
     )[0];
@@ -181,10 +181,10 @@ async function advance() {
       .set({ updatedAt: new Date().valueOf().toString() })
       .where(eq(d.simulations.id, simulationId));
 
-    return { scriptUpdate, codeUpdate };
+    return { scriptUpdate: storyUpdate, codeUpdate };
   });
 
-  updates.value.push({
+  storyUpdates.value.push({
     ...incoming.scriptUpdate,
     codeUpdates: [{ ...incoming.codeUpdate }],
   });
@@ -211,15 +211,15 @@ onMounted(async () => {
   }
 
   // TODO: Fetch until `simulation.latestSnapshotId`.
-  updates.value = await d.db.query.scriptUpdates.findMany({
-    where: eq(d.scriptUpdates.simulationId, simulationId),
+  storyUpdates.value = await d.db.query.storyUpdates.findMany({
+    where: eq(d.storyUpdates.simulationId, simulationId),
     with: {
       codeUpdates: {
         orderBy: desc(d.codeUpdates.createdAt),
         limit: 1,
       },
     },
-    orderBy: asc(d.scriptUpdates.createdAt),
+    orderBy: asc(d.storyUpdates.createdAt),
 
     // ADHOC: See https://github.com/tdwesten/tauri-drizzle-sqlite-proxy-demo/issues/1.
     extras: {
@@ -232,9 +232,9 @@ onMounted(async () => {
   await stage.init();
   let initialStage: StageDto | undefined;
 
-  if (updates.value.length) {
+  if (storyUpdates.value.length) {
     // Apply existing code updates to the stage.
-    for (const update of updates.value) {
+    for (const update of storyUpdates.value) {
       const codeUpdate = update.codeUpdates.at(0);
       if (!codeUpdate) continue;
       await stage.eval(codeUpdate.code);
@@ -243,19 +243,19 @@ onMounted(async () => {
     initialStage = stage.dump();
 
     // If the last update has an episode ID, resume from there.
-    const latestUpdate = updates.value.at(-1);
-    if (latestUpdate?.episodeId) {
+    const latestStoryUpdate = storyUpdates.value.at(-1);
+    if (latestStoryUpdate?.episodeId) {
       const episode = scenario.value.episodes.find(
-        (e) => e.id === latestUpdate.episodeId,
+        (e) => e.id === latestStoryUpdate.episodeId,
       );
 
       if (!episode) {
-        throw new Error(`Episode not found: ${latestUpdate.episodeId}`);
+        throw new Error(`Episode not found: ${latestStoryUpdate.episodeId}`);
       }
 
       state.value.currentEpisode = {
         ...episode,
-        nextChunkIndex: latestUpdate.episodeChunkIndex! + 1,
+        nextChunkIndex: latestStoryUpdate.episodeChunkIndex! + 1,
       };
     }
   }
@@ -273,9 +273,9 @@ onMounted(async () => {
   // Register a console event listener.
   window.addEventListener("keypress", consoleEventListener);
 
-  novelScript.value = updates.value.at(-1)?.text || "";
-  stageCode.value = splitCode(
-    updates.value.at(-1)?.codeUpdates.at(0)?.code || "",
+  storyUpdateText.value = storyUpdates.value.at(-1)?.text || "";
+  stageUpdateCode.value = splitCode(
+    storyUpdates.value.at(-1)?.codeUpdates.at(0)?.code || "",
   ).join("\n");
 });
 
@@ -289,7 +289,7 @@ onUnmounted(() => {
   #game-screen
   .absolute.top-0.w-full.bg-white.bg-opacity-50.p-1 {{ scenario?.name }}: {{ simulationId }}
   .absolute.bottom-0.flex.h-32.w-full.flex-col.bg-yellow-500.bg-opacity-90.p-3
-    p.grow {{ novelScript }}
+    p.grow {{ storyUpdateText }}
     .flex.justify-end
       button.rounded.border.px-3.py-2.pressable(
         @click="advance"
@@ -298,8 +298,8 @@ onUnmounted(() => {
 
   Console(
     :open="consoleModal"
-    :scene-code="stageCode"
-    :scene-text="novelScript"
+    :scene-code="stageUpdateCode"
+    :scene-text="storyUpdateText"
     :episode="currentEpisodeConsoleObject"
     @close="consoleModal = false"
   )

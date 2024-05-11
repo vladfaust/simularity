@@ -70,7 +70,7 @@ const d = {
   db,
   ...pick(schema, [
     "simulations",
-    "scriptUpdates",
+    "storyUpdates",
     "codeUpdates",
     "llamaInferences",
   ]),

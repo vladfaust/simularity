@@ -2,7 +2,7 @@ import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
 import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { codeUpdates } from "./codeUpdates";
-import { scriptUpdates } from "./scriptUpdates";
+import { storyUpdates } from "./storyUpdates";
 
 export const llamaInferences = sqliteTable(
   "llama_inferences",
@@ -32,8 +32,8 @@ export const llamaInferences = sqliteTable(
 export const llamaInferenceRelatiosn = relations(
   llamaInferences,
   ({ many }) => ({
-    scriptUpdates: many(scriptUpdates, {
-      relationName: "script_updates",
+    storyUpdates: many(storyUpdates, {
+      relationName: "story_updates",
     }),
     codeUpdates: many(codeUpdates, {
       relationName: "code_updates",

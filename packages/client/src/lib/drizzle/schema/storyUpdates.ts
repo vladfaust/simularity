@@ -6,10 +6,8 @@ import { codeUpdates } from "./codeUpdates";
 import { llamaInferences } from "./llamaInferences";
 import { simulations } from "./simulations";
 
-// TODO: Constrain: episodeId & episodeChunkIndex must be set together.
-// If they're set, llamaInferenceId must be NULL.
-export const scriptUpdates = sqliteTable(
-  "script_updates",
+export const storyUpdates = sqliteTable(
+  "story_updates",
   sortByKey({
     id: text("id")
       .primaryKey()
@@ -37,17 +35,17 @@ export const scriptUpdates = sqliteTable(
   }),
 );
 
-export const scriptUpdateRelatiosn = relations(
-  scriptUpdates,
+export const storyUpdateRelatiosn = relations(
+  storyUpdates,
   ({ one, many }) => ({
     simulation: one(simulations, {
-      fields: [scriptUpdates.simulationId],
+      fields: [storyUpdates.simulationId],
       references: [simulations.id],
     }),
     llamaInference: one(llamaInferences, {
-      fields: [scriptUpdates.llamaInferenceId],
+      fields: [storyUpdates.llamaInferenceId],
       references: [llamaInferences.id],
-      relationName: "script_updates",
+      relationName: "story_updates",
     }),
     codeUpdates: many(codeUpdates),
   }),

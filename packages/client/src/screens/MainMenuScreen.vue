@@ -34,22 +34,22 @@ async function newSimulation() {
         .returning({ id: d.simulations.id })
     )[0];
 
-    const scriptUpdate = (
+    const storyUpdate = (
       await tx
-        .insert(d.scriptUpdates)
+        .insert(d.storyUpdates)
         .values({
           simulationId: simulation.id,
-          text: chunk.novelScript,
+          text: chunk.storyText,
           episodeId: startEpisode.id,
           episodeChunkIndex: 0,
         })
         .returning({
-          id: d.scriptUpdates.id,
+          id: d.storyUpdates.id,
         })
     )[0];
 
     await tx.insert(d.codeUpdates).values({
-      scriptUpdateId: scriptUpdate.id,
+      storyUpdateId: storyUpdate.id,
       code: chunk.stageCode,
     });
 

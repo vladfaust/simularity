@@ -1,4 +1,4 @@
-CREATE TABLE script_updates (
+CREATE TABLE story_updates (
   id TEXT PRIMARY KEY NOT NULL,
   simulation_id TEXT NOT NULL,
   episode_id TEXT,
@@ -20,5 +20,5 @@ CREATE TABLE script_updates (
   )
 );
 --
-CREATE INDEX script_updates_simulation_id_index ON script_updates (simulation_id);
-CREATE INDEX script_updates_created_at_index ON script_updates (created_at);
+CREATE INDEX story_updates_simulation_id_index ON story_updates (simulation_id);
+CREATE INDEX story_updates_created_at_index ON story_updates (created_at);

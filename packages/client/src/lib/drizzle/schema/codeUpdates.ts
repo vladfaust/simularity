@@ -3,7 +3,7 @@ import { relations, sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 import { llamaInferences } from "./llamaInferences";
-import { scriptUpdates } from "./scriptUpdates";
+import { storyUpdates } from "./storyUpdates";
 
 export const codeUpdates = sqliteTable(
   "code_updates",
@@ -13,8 +13,8 @@ export const codeUpdates = sqliteTable(
       .notNull()
       .$defaultFn(() => nanoid()),
 
-    scriptUpdateId: text("script_update_id")
-      .references(() => scriptUpdates.id, { onDelete: "cascade" })
+    storyUpdateId: text("story_update_id")
+      .references(() => storyUpdates.id, { onDelete: "cascade" })
       .notNull(),
 
     llamaInferenceId: integer("llama_inference_id").references(
@@ -31,9 +31,9 @@ export const codeUpdates = sqliteTable(
 );
 
 export const codeUpdateRelatiosn = relations(codeUpdates, ({ one }) => ({
-  scriptUpdate: one(scriptUpdates, {
-    fields: [codeUpdates.scriptUpdateId],
-    references: [scriptUpdates.id],
+  storyUpdate: one(storyUpdates, {
+    fields: [codeUpdates.storyUpdateId],
+    references: [storyUpdates.id],
   }),
   llamaInference: one(llamaInferences, {
     fields: [codeUpdates.llamaInferenceId],
