@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Context, Ok, Result};
 use std::{io::Write, num::NonZeroU32, str::FromStr, time::Duration};
 
 use llama_cpp_2::{
@@ -107,7 +107,7 @@ pub fn infer(
 
     let mut grammar = match &options.grammar {
         Some(grammar) => Some(
-            LlamaGrammar::from_str(grammar)
+            measure("grammar parsing", || LlamaGrammar::from_str(grammar))
                 .with_context(|| format!("failed to parse grammar {0}", grammar))?,
         ),
         None => None,
@@ -120,18 +120,21 @@ pub fn infer(
     }
     std::io::stderr().flush()?;
 
-    let mut batch = LlamaBatch::new(ctx.n_batch().try_into().unwrap(), 1);
+    let mut batch = measure("batch creation", || {
+        LlamaBatch::new(ctx.n_batch().try_into().unwrap(), 1)
+    });
 
     let last_index: i32 = (prompt_tokens.len() - 1) as i32;
-    for (i, token) in (0_i32..).zip(prompt_tokens.into_iter()) {
-        // llama_decode will output logits only for the last token of the prompt
-        let is_last = i == last_index;
-        batch.add(token, i, &[0], is_last)?;
-    }
+    measure("batch add", || {
+        for (i, token) in (0_i32..).zip(prompt_tokens.into_iter()) {
+            batch.add(token, i, &[0], i == last_index)?;
+        }
 
-    ctx.clear_kv_cache();
-    ctx.decode(&mut batch)
-        .with_context(|| "llama_decode() failed")?;
+        Ok(())
+    })?;
+
+    measure("clear kv cache", || ctx.clear_kv_cache());
+    measure("decode", || ctx.decode(&mut batch))?;
 
     // main loop
 
@@ -262,4 +265,12 @@ pub fn infer(
     println!("{}", ctx.timings());
 
     Ok(decoded)
+}
+
+fn measure<T, F: FnOnce() -> T>(name: &str, f: F) -> T {
+    let start = ggml_time_us();
+    let result = f();
+    let end = ggml_time_us();
+    eprintln!("{}: {:.2} ms", name, (end - start) as f32 / 1000.0);
+    result
 }
