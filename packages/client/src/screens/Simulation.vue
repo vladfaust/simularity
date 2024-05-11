@@ -62,9 +62,15 @@ async function advance() {
   // 1. Advance the scenario.
   //
 
+  let storyUpdateEpisodeId: string | null = null;
+  let storyUpdateEpisodeChunkIndex: number | null = null;
+
   if (state.value.currentEpisode) {
     console.debug("Advancing episode", state.value.currentEpisode);
+
     const currentEpisode = state.value.currentEpisode;
+    storyUpdateEpisodeId = currentEpisode.id;
+    storyUpdateEpisodeChunkIndex = currentEpisode.nextChunkIndex;
 
     // Advance the episode.
     //
@@ -154,12 +160,8 @@ async function advance() {
         .values({
           simulationId: simulationId,
           text: novelScript.value,
-          episodeId: state.value.currentEpisode
-            ? state.value.currentEpisode.id
-            : null,
-          episodeChunkIndex: state.value.currentEpisode
-            ? state.value.currentEpisode.nextChunkIndex
-            : null,
+          episodeId: storyUpdateEpisodeId,
+          episodeChunkIndex: storyUpdateEpisodeChunkIndex,
         })
         .returning()
     )[0];
