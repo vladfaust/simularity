@@ -12,6 +12,9 @@ interface ImportMetaEnv {
 
   /** Path to GGUF model for GPT inference. */
   readonly VITE_MODEL_PATH: string;
+
+  /** SQLite database path, relative to $APPLOCALDATA. */
+  readonly VITE_DATABASE_PATH: string;
 }
 
 interface ImportMeta {

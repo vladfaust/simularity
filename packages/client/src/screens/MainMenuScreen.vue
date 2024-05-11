@@ -1,57 +1,78 @@
 <script setup lang="ts">
-import { v4 as uuidv4 } from "uuid";
-import { appLocalDataDir, join } from "@tauri-apps/api/path";
-import { createDir, writeTextFile } from "@tauri-apps/api/fs";
 import { RouterLink, useRouter } from "vue-router";
 import { routeLocation } from "../lib/router";
-import { gitAdd, gitCommit, gitInit } from "@/lib/tauri";
-import { createGame } from "@/lib/db";
+import { d } from "@/lib/drizzle";
+import { type Scenario } from "@/lib/types";
 
 const router = useRouter();
 
-async function newGame() {
-  const gameId = uuidv4();
+async function newSimulation() {
+  const scenarioId = import.meta.env.VITE_DEFAULT_SCENARIO_ID;
 
-  const gameDirPath = await join(
-    await appLocalDataDir(),
-    "simulations",
-    gameId,
+  const scenario: Scenario | undefined = await fetch(
+    `/scenarios/${scenarioId}/manifest.json`,
+  ).then((response) => response.json());
+  if (!scenario) {
+    throw new Error(`Scenario not found: ${scenarioId}`);
+  }
+
+  const startEpisode = scenario.episodes.at(0);
+  if (!startEpisode) {
+    throw new Error(`Scenario has no episodes: ${scenarioId}`);
+  }
+
+  const chunk = startEpisode.chunks.at(0);
+  if (!chunk) {
+    throw new Error(`Episode has no chunks: ${startEpisode.id}`);
+  }
+
+  const simulationId = await d.db.transaction(async (tx) => {
+    const simulation = (
+      await tx
+        .insert(d.simulations)
+        .values({ scenarioId })
+        .returning({ id: d.simulations.id })
+    )[0];
+
+    const scriptUpdate = (
+      await tx
+        .insert(d.scriptUpdates)
+        .values({
+          simulationId: simulation.id,
+          text: chunk.novelScript,
+          episodeId: startEpisode.id,
+          episodeChunkIndex: 0,
+        })
+        .returning({
+          id: d.scriptUpdates.id,
+        })
+    )[0];
+
+    await tx.insert(d.codeUpdates).values({
+      scriptUpdateId: scriptUpdate.id,
+      code: chunk.stageCode,
+    });
+
+    return simulation.id;
+  });
+
+  console.log("Created simulation", simulationId);
+
+  router.push(
+    routeLocation({
+      name: "Simulation",
+      params: { simulationId },
+    }),
   );
-
-  // Create the game directory.
-  await createDir(gameDirPath, { recursive: true });
-
-  // Initialize a Git repository.
-  await gitInit(gameDirPath).then(() =>
-    console.log("Initialized repository", gameDirPath),
-  );
-
-  // Create a manifest.json file.
-  await writeTextFile(
-    await join(gameDirPath, "manifest.json"),
-    JSON.stringify({ scenarioId: import.meta.env.VITE_DEFAULT_SCENARIO_ID }),
-  ).then(() => console.log("Created manifest.json"));
-
-  await gitAdd(gameDirPath, ["manifest.json"]).then(() =>
-    console.log("Added files"),
-  );
-
-  const head = await gitCommit(gameDirPath, null, "Initial commit");
-  console.log("Committed", head);
-
-  await createGame(gameId, head);
-  console.log("Created game", gameId);
-
-  router.push(routeLocation({ name: "Game", params: { gameId } }));
 }
 </script>
 
 <template lang="pug">
 .grid.h-screen.place-items-center
   .flex.flex-col.gap-2
-    button.btn.btn-md.transition-transform.pressable(@click="newGame") New game
+    button.btn.btn-md.transition-transform.pressable(@click="newSimulation") New game
     RouterLink.btn-md.btn.transition-transform.pressable(
-      :to="routeLocation({ name: 'LoadGame' })"
+      :to="routeLocation({ name: 'LoadSimulations' })"
     ) Load game
     RouterLink.btn-md.btn.transition-transform.pressable(
       :to="routeLocation({ name: 'GnbfTester' })"

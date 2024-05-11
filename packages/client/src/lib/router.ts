@@ -4,17 +4,21 @@ import {
   createRouter,
   createWebHistory,
 } from "vue-router";
-import GameScreen from "../screens/GameScreen.vue";
-import LoadGame from "../screens/LoadGame.vue";
+import LoadSimulations from "../screens/LoadSimulations.vue";
 import MainMenu from "../screens/MainMenuScreen.vue";
+import Simulation from "../screens/Simulation.vue";
 
-export type RouteName = "MainMenu" | "LoadGame" | "Game" | "GnbfTester";
+export type RouteName =
+  | "MainMenu"
+  | "LoadSimulations"
+  | "Simulation"
+  | "GnbfTester";
 
 export function routeLocation(
   args:
     | { name: "MainMenu" }
-    | { name: "LoadGame" }
-    | { name: "Game"; params: { gameId: string } }
+    | { name: "LoadSimulations" }
+    | { name: "Simulation"; params: { simulationId: string } }
     | { name: "GnbfTester" },
 ): RouteLocationNamedRaw & { name: RouteName } {
   return args;
@@ -27,14 +31,14 @@ const routes: Array<RouteRecordRaw> = [
     component: MainMenu,
   },
   {
-    path: "/load",
-    name: "LoadGame" satisfies RouteName,
-    component: LoadGame,
+    path: "/simulations/load",
+    name: "LoadSimulations" satisfies RouteName,
+    component: LoadSimulations,
   },
   {
-    path: "/games/:gameId",
-    name: "Game" satisfies RouteName,
-    component: GameScreen,
+    path: "/simulations/:simulationId",
+    name: "Simulation" satisfies RouteName,
+    component: Simulation,
     props: true,
   },
   {

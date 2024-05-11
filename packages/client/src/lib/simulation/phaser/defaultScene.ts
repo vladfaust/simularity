@@ -1,14 +1,15 @@
-import { Scenario, Stage } from "@/lib/types";
-import { Deferred, throwError } from "@/lib/utils";
+import { Scenario } from "@/lib/types";
+import { throwError } from "@/lib/utils";
 import Phaser from "phaser";
-import { LuaEngine, LuaFactory } from "wasmoon";
+import { Scene } from "../scene";
+import { StageDto } from "../stage";
 
 /**
- * A Lua script error.
+ * An unexpected scene error.
  */
-export class ScriptError extends Error {}
+export class SceneError extends Error {}
 
-export class DefaultScene extends Phaser.Scene {
+export class DefaultScene extends Phaser.Scene implements Scene {
   private stageScene: {
     locationId: string;
     sceneId: string;
@@ -39,12 +40,10 @@ export class DefaultScene extends Phaser.Scene {
     return this._busy;
   }
 
-  private _lua = new Deferred<LuaEngine>();
-
   constructor(
     readonly scenario: Scenario,
-    readonly scenarioRootPath: string,
-    private readonly initialStage: Stage | undefined,
+    private readonly assetBasePath: string,
+    private readonly initialStage: StageDto | undefined,
   ) {
     super();
   }
@@ -63,56 +62,10 @@ export class DefaultScene extends Phaser.Scene {
         this.addCharacter(id, outfitId, expressionId);
       }
     }
-
-    new LuaFactory()
-      .createEngine()
-      .then((lua) => {
-        lua.global.set("noop", () => {});
-
-        lua.global.set("set_scene", (sceneId: string, clear: boolean) => {
-          this.setScene(sceneId, clear);
-        });
-
-        lua.global.set(
-          "add_character",
-          (characterId: string, outfitId: string, expressionId: string) => {
-            this.addCharacter(characterId, outfitId, expressionId);
-          },
-        );
-
-        lua.global.set(
-          "set_outfit",
-          (characterId: string, outfitId: string) => {
-            this.setOutfit(characterId, outfitId);
-          },
-        );
-
-        lua.global.set(
-          "set_expression",
-          (characterId: string, expressionId: string) => {
-            this.setExpression(characterId, expressionId);
-          },
-        );
-
-        lua.global.set("remove_character", (characterId: string) => {
-          this.removeCharacter(characterId);
-        });
-
-        return lua;
-      })
-      .then((lua) => this._lua.resolve(lua));
-  }
-
-  /**
-   * Evaluate Lua code, returning the result.
-   */
-  async eval(code: string): Promise<any> {
-    const lua = await this._lua.promise;
-    return lua.doString(code);
   }
 
   preload() {
-    this.load.setBaseURL(this.scenarioRootPath);
+    this.load.setBaseURL(this.assetBasePath);
 
     for (const location of this.scenario.locations) {
       for (const scene of location.scenes) {
@@ -148,29 +101,6 @@ export class DefaultScene extends Phaser.Scene {
     }
   }
 
-  dumpStage(): Stage {
-    if (!this.stageScene) {
-      throw new ScriptError("No scene set");
-    }
-
-    const characters: Stage["characters"] = [];
-    for (const [id, character] of this.stageCharacters) {
-      characters.push({
-        id,
-        outfitId: character.outfit.id,
-        expressionId: character.expression.id,
-      });
-    }
-
-    return {
-      scene: {
-        locationId: this.stageScene.locationId,
-        sceneId: this.stageScene.sceneId,
-      },
-      characters,
-    };
-  }
-
   /**
    * Set the scene, clearing it if necessary.
    *
@@ -183,10 +113,10 @@ export class DefaultScene extends Phaser.Scene {
     const [locationId, sceneId] = id.split("/");
 
     const location = this.scenario.locations.find((l) => l.id === locationId);
-    if (!location) throw new ScriptError(`Location not found: ${locationId}`);
+    if (!location) throw new SceneError(`Location not found: ${locationId}`);
 
     const scene = location.scenes.find((s) => s.id === sceneId);
-    if (!scene) throw new ScriptError(`Scene not found: ${sceneId}`);
+    if (!scene) throw new SceneError(`Scene not found: ${sceneId}`);
 
     if (clear) {
       for (const characterId of this.stageCharacters.keys()) {
@@ -219,7 +149,7 @@ export class DefaultScene extends Phaser.Scene {
     console.log("addCharacter", characterId, outfitId, expressionId);
 
     if (this.stageCharacters.has(characterId)) {
-      throw new ScriptError(`Character already on scene: ${characterId}`);
+      throw new SceneError(`Character already on scene: ${characterId}`);
     }
 
     const characterConfig =
@@ -228,7 +158,7 @@ export class DefaultScene extends Phaser.Scene {
 
     const outfit = characterConfig.outfits.find((o) => o.id === outfitId);
     if (!outfit) {
-      throw new ScriptError(
+      throw new SceneError(
         `Outfit not found for character ${characterId}: ${outfitId}`,
       );
     }
@@ -237,7 +167,7 @@ export class DefaultScene extends Phaser.Scene {
       (e) => e.id === expressionId,
     );
     if (!expression) {
-      throw new ScriptError(
+      throw new SceneError(
         `Expression not found for character ${characterId}: ${expressionId}`,
       );
     }
@@ -280,7 +210,7 @@ export class DefaultScene extends Phaser.Scene {
 
     const character = this.stageCharacters.get(characterId);
     if (!character) {
-      throw new ScriptError(`Character not on scene: ${characterId}`);
+      throw new SceneError(`Character not on scene: ${characterId}`);
     }
 
     const characterConfig =
@@ -289,7 +219,7 @@ export class DefaultScene extends Phaser.Scene {
 
     const outfit = characterConfig.outfits.find((o) => o.id === outfitId);
     if (!outfit) {
-      throw new ScriptError(
+      throw new SceneError(
         `Outfit not found for character ${characterId}: ${outfitId}`,
       );
     }
@@ -309,7 +239,7 @@ export class DefaultScene extends Phaser.Scene {
 
     const character = this.stageCharacters.get(characterId);
     if (!character) {
-      throw new ScriptError(`Character not on scene: ${characterId}`);
+      throw new SceneError(`Character not on scene: ${characterId}`);
     }
 
     const characterConfig =
@@ -320,7 +250,7 @@ export class DefaultScene extends Phaser.Scene {
       (e) => e.id === expressionId,
     );
     if (!expression) {
-      throw new ScriptError(
+      throw new SceneError(
         `Expression not found for character ${characterId}: ${expressionId}`,
       );
     }
@@ -352,7 +282,7 @@ export class DefaultScene extends Phaser.Scene {
 
     const character = this.stageCharacters.get(characterId);
     if (!character) {
-      throw new ScriptError(`Character not on stage: ${characterId}`);
+      throw new SceneError(`Character not on stage: ${characterId}`);
     }
 
     character.body.sprite.destroy();
