@@ -10,11 +10,6 @@ import {
 } from "./tauri";
 import { Deferred, sleep } from "./utils";
 
-export enum GptId {
-  Writer = "writer",
-  Director = "director",
-}
-
 abstract class Job<T> {
   abstract name: string;
   readonly deferred = new Deferred<T>();
@@ -58,7 +53,7 @@ export class Gpt {
   readonly willClear = ref(false);
 
   constructor(
-    readonly id: GptId,
+    readonly id: string,
     readonly modelPath: string,
     readonly contextSize: number,
     readonly batchSize: number,
@@ -156,14 +151,14 @@ export class Gpt {
 }
 
 export const writer = new Gpt(
-  GptId.Writer,
+  "writer",
   GPT_WRITER.modelPath,
   GPT_WRITER.contextSize,
   GPT_WRITER.batchSize,
 );
 
 export const director = new Gpt(
-  GptId.Director,
+  "director",
   GPT_DIRECTOR.modelPath,
   GPT_DIRECTOR.contextSize,
   GPT_DIRECTOR.batchSize,

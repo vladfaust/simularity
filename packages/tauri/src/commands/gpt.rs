@@ -4,7 +4,7 @@ use simularity_core::GptModel;
 use crate::{AppState, GptInstance};
 
 #[tauri::command]
-/// Initialize a GPT instance of `gpt_type`, replacing the current instance.
+/// Initialize a new GPT instance, replacing the current, if any.
 pub async fn gpt_init(
     gpt_id: &str,
     model_path: String,
