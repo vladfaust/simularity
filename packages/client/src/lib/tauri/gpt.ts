@@ -14,14 +14,11 @@ export async function gptInit(
   });
 }
 
-export async function gptClear(gptId: string): Promise<string> {
+export async function gptClear(gptId: string): Promise<void> {
   return await invoke("gpt_clear", { gptId });
 }
 
-export async function gptDecode(
-  gptId: string,
-  prompt: string,
-): Promise<string> {
+export async function gptDecode(gptId: string, prompt: string): Promise<void> {
   return await invoke("gpt_decode", {
     gptId,
     prompt,

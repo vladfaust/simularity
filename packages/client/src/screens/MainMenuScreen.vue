@@ -3,11 +3,12 @@ import { RouterLink, useRouter } from "vue-router";
 import { routeLocation } from "../lib/router";
 import { d } from "@/lib/drizzle";
 import { type Scenario } from "@/lib/types";
+import { DEFAULT_SCENARIO_ID } from "@/env";
 
 const router = useRouter();
 
 async function newSimulation() {
-  const scenarioId = import.meta.env.VITE_DEFAULT_SCENARIO_ID;
+  const scenarioId = DEFAULT_SCENARIO_ID;
 
   const scenario: Scenario | undefined = await fetch(
     `/scenarios/${scenarioId}/manifest.json`,

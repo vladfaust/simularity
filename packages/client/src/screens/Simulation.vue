@@ -10,8 +10,7 @@ import { Game } from "../lib/simulation/phaser/game";
 import { d } from "@/lib/drizzle";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { Stage, type StageDto } from "@/lib/simulation/stage";
-import { gptInfer, gptDecode, gptClear } from "@/lib/tauri";
-import { GptId } from "@/lib/ai";
+import { director, writer, Gpt } from "@/lib/ai";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -96,17 +95,14 @@ async function advance() {
     // Predict the next update.
     //
 
-    const writerResponse = await gptInfer(GptId.Writer, undefined, 128, {
-      stopSequences: ["\n"],
-    });
+    const writerResponse = await writer.infer(128, { stopSequences: ["\n"] });
     console.log("Writer response", writerResponse);
 
     const grammar = buildGnbf(scenario.value!);
     console.log("Director grammar", grammar);
 
     // Append the writer response to the director prompt to generate code for.
-    const directorResponse = await gptInfer(
-      GptId.Director,
+    const directorResponse = await director.inferPrompt(
       `${writerResponse}\n`,
       128,
       {
@@ -126,12 +122,12 @@ async function advance() {
   }
 
   const newWriterPrompt = `${storyUpdateText.value}\n`;
-  gptDecode(GptId.Writer, newWriterPrompt).then(() => {
+  writer.decode(newWriterPrompt).then(() => {
     console.log("Writer decoded", newWriterPrompt);
   });
 
   const newDirectorPrompt = `${splitCode(stageUpdateCode.value).join(";")};\n`;
-  gptDecode(GptId.Director, newDirectorPrompt).then(() => {
+  director.decode(newDirectorPrompt).then(() => {
     console.log("Director decoded", newDirectorPrompt);
   });
 
@@ -262,32 +258,29 @@ onMounted(async () => {
     splitCode(u.codeUpdates.at(0)?.code || ""),
   );
 
-  gptClear(GptId.Writer)
-    .then(() => {
-      const writerPrePrompt =
-        buildWriterPrompt(scenario.value!, textHistory) + "\n";
+  writer.clear().then(async () => {
+    const writerPrePrompt =
+      buildWriterPrompt(scenario.value!, textHistory) + "\n";
+    console.log("Writer pre-prompt", writerPrePrompt);
 
-      console.log("Writer pre-prompt", writerPrePrompt);
-      return gptDecode(GptId.Writer, writerPrePrompt).then(() => {
-        console.log("Writer pre-prompt decoded");
-      });
-    })
-    .then(() => gptClear(GptId.Director))
-    .then(() => {
-      const directorPrePrompt =
-        buildDirectorPrompt(
-          scenario.value!,
-          zip(textHistory, codeHistory).map(([text, code]) => ({
-            code: code.join(";") + ";",
-            text,
-          })),
-        ) + "\n";
+    await writer.decode(writerPrePrompt);
+    console.log("Writer pre-prompt decoded");
+  });
 
-      console.log("Director pre-prompt", directorPrePrompt);
-      return gptDecode(GptId.Director, directorPrePrompt).then(() => {
-        console.log("Director pre-prompt decoded");
-      });
-    });
+  director.clear().then(async () => {
+    const directorPrePrompt =
+      buildDirectorPrompt(
+        scenario.value!,
+        zip(textHistory, codeHistory).map(([text, code]) => ({
+          code: code.join(";") + ";",
+          text,
+        })),
+      ) + "\n";
+    console.log("Director pre-prompt", directorPrePrompt);
+
+    await director.decode(directorPrePrompt);
+    console.log("Director pre-prompt decoded");
+  });
 
   // Register a console event listener.
   window.addEventListener("keypress", consoleEventListener);
@@ -301,12 +294,33 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener("keypress", consoleEventListener);
 });
+
+function gptStatus(gpt: Gpt) {
+  return computed(() => {
+    if (gpt.initialized) {
+      if (gpt.currentJob.value) {
+        return gpt.currentJob.value.name;
+      } else {
+        return "Ready";
+      }
+    } else {
+      return "Loading";
+    }
+  });
+}
+
+const writerStatus = gptStatus(writer);
+const directorStatus = gptStatus(director);
 </script>
 
 <template lang="pug">
 .relative.h-screen.w-screen.bg-red-400
   #game-screen
-  .absolute.top-0.w-full.bg-white.bg-opacity-50.p-1 {{ scenario?.name }}: {{ simulationId }}
+  .absolute.top-0.flex.w-full.justify-between.bg-white.bg-opacity-50.p-1
+    span {{ scenario?.name }}: {{ simulationId }}
+    .flex.gap-2
+      span W: {{ writerStatus }} ({{ writer.jobs.value.length + (writer.currentJob.value ? 1 : 0) }})
+      span D: {{ directorStatus }} ({{ director.jobs.value.length + (director.currentJob.value ? 1 : 0) }})
   .absolute.bottom-0.flex.h-32.w-full.flex-col.bg-yellow-500.bg-opacity-90.p-3
     p.grow {{ storyUpdateText }}
     .flex.justify-end
