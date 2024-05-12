@@ -31,6 +31,8 @@ ${scenes.join("\n")}
 ${character.scenarioPrompt}
 #### Personality
 ${character.personalityPrompt}
+#### Traits
+* ${character.traits.join("\n* ")}
 #### Appearance
 ${character.appearancePrompt}
 #### Outfits

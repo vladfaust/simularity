@@ -22,6 +22,7 @@ export type Scenario = {
       displayName: string;
       displayColor: string;
       personalityPrompt: string;
+      traits: string[];
       appearancePrompt: string;
       scenarioPrompt: string;
       bodies: [string];
