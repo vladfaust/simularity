@@ -53,3 +53,10 @@ export async function gptInfer(
     options,
   });
 }
+
+export async function gptTokenCount(
+  modelPath: string,
+  prompt: string,
+): Promise<number> {
+  return await invoke("gpt_token_count", { modelPath, prompt });
+}

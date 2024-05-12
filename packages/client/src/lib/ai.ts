@@ -1,6 +1,13 @@
 import { GPT_DIRECTOR, GPT_WRITER } from "@/env";
 import { ref } from "vue";
-import { InferOptions, gptClear, gptDecode, gptInfer, gptInit } from "./tauri";
+import {
+  InferOptions,
+  gptClear,
+  gptDecode,
+  gptInfer,
+  gptInit,
+  gptTokenCount,
+} from "./tauri";
 import { Deferred, sleep } from "./utils";
 
 export enum GptId {
@@ -102,6 +109,10 @@ export class Gpt {
 
     this.willClear.value = false;
     return gptClear(this.id);
+  }
+
+  async tokenCount(prompt: string): Promise<number> {
+    return await gptTokenCount(this.modelPath, prompt);
   }
 
   private async init() {

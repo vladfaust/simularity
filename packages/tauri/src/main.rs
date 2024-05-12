@@ -91,6 +91,7 @@ fn main() {
             commands::gpt::gpt_clear,
             commands::gpt::gpt_decode,
             commands::gpt::gpt_infer,
+            commands::gpt::gpt_token_count,
             commands::sqlite::sqlite_open,
             commands::sqlite::sqlite_execute,
             commands::sqlite::sqlite_query,

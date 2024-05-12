@@ -103,6 +103,17 @@ pub async fn gpt_infer(
         .map_err(tauri::InvokeError::from_anyhow)
 }
 
+#[tauri::command]
+/// Tokenize prompt and return the token count.
+pub async fn gpt_token_count(
+    model_path: String,
+    prompt: &str,
+    state: tauri::State<'_, AppState>,
+) -> Result<usize, tauri::InvokeError> {
+    let model_ref = get_or_create_model_ref(model_path, &state).await?;
+    Ok(simularity_core::token_count(model_ref, prompt))
+}
+
 async fn get_or_create_model_ref(
     model_path: String,
     state: &AppState,
@@ -120,7 +131,7 @@ async fn get_or_create_model_ref(
         )
     };
 
-    locked.insert(model_path.to_string(), (model_box, model_ref));
+    locked.insert(model_path, (model_box, model_ref));
 
     Ok(model_ref)
 }

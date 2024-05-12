@@ -12,9 +12,13 @@ import { StreamLanguage } from "@codemirror/language";
 import { lua } from "@codemirror/legacy-modes/mode/lua";
 import { dracula } from "thememirror";
 import { autocompletion } from "@codemirror/autocomplete";
+import Prompt from "./Console/Prompt.vue";
+import { writer, director } from "@/lib/ai";
 
 const props = defineProps<{
   open: boolean;
+  writerPrompt: string;
+  directorPrompt: string;
   sceneCode: string;
   sceneText: string;
   episode: {
@@ -111,64 +115,75 @@ Dialog.relative.z-50(
         leave-from="opacity-100 translate-y-0"
         leave-to="opacity-0 -translate-y-full"
       )
-        DialogPanel.flex.w-full.flex-col(class="h-5/6 bg-black/50")
-          .grid.grow.gap-2.p-2(class="sm:grid-cols-2")
-            //- Text.
-            .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
-              .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
-                span.font-bold.uppercase.tracking-wide Info
+        DialogPanel.flex.h-full.flex-col(class="bg-black/50")
+          .grid.h-full.grow.gap-2.overflow-hidden.p-2(class="sm:grid-cols-3")
+            //- Info.
+            .flex.flex-col
+              //- Info.
+              .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
+                .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
+                  span.font-bold.uppercase.tracking-wide Info
 
-              .flex.flex-col.p-2.text-white
-                span
-                  b Episode:&nbsp;
-                  code {{ episode?.id || "none" }}
-                span(v-if="episode")
-                  b Chunk:&nbsp;
-                  | {{ episode.chunks.current }}/{{ episode.chunks.total }}
+                .flex.flex-col.p-2.text-white
+                  span
+                    b Episode:&nbsp;
+                    code {{ episode?.id || "none" }}
+                  span(v-if="episode")
+                    b Chunk:&nbsp;
+                    | {{ episode.chunks.current }}/{{ episode.chunks.total }}
 
-            //- Text.
-            .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
-              .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
-                span.font-bold.uppercase.tracking-wide Text
-                .flex.gap-1
-                  button.btn.transition-transform.pressable(
-                    @click="resetSceneText"
-                    :disabled="!sceneTextChanged"
-                  )
-                    Undo2Icon(:size="20")
-                  button.btn.transition-transform.pressable(
-                    @click="applySceneText"
-                    :disabled="!sceneTextChanged"
-                  )
-                    ArrowUpToLineIcon(:size="20")
-              textarea.h-full.resize-none.overflow-scroll.bg-transparent.p-2.text-white(
-                v-model="sceneText"
-              )
+              //- Text.
+              .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
+                .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
+                  span.font-bold.uppercase.tracking-wide Text
+                  .flex.gap-1
+                    button.btn.transition-transform.pressable(
+                      @click="resetSceneText"
+                      :disabled="!sceneTextChanged"
+                    )
+                      Undo2Icon(:size="20")
+                    button.btn.transition-transform.pressable(
+                      @click="applySceneText"
+                      :disabled="!sceneTextChanged"
+                    )
+                      ArrowUpToLineIcon(:size="20")
+                textarea.h-full.resize-none.overflow-scroll.bg-transparent.p-2.text-white(
+                  v-model="sceneText"
+                )
 
-            //- Code.
-            .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
-              .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
-                span.font-bold.uppercase.tracking-wide Code
-                .flex.gap-1
-                  button.btn.transition-transform.pressable(
-                    @click="resetSceneCode"
-                    :disabled="!sceneCodeChanged"
-                  )
-                    Undo2Icon(:size="20")
-                  button.btn.transition-transform.pressable(
-                    @click="applySceneCode"
-                    :disabled="!sceneCodeChanged"
-                  )
-                    ArrowUpToLineIcon(:size="20")
-              Codemirror.h-full.text-sm(
-                v-model="sceneCode"
-                :extensions="codemirrorExtensions"
-              )
+              //- Code.
+              .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
+                .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
+                  span.font-bold.uppercase.tracking-wide Code
+                  .flex.gap-1
+                    button.btn.transition-transform.pressable(
+                      @click="resetSceneCode"
+                      :disabled="!sceneCodeChanged"
+                    )
+                      Undo2Icon(:size="20")
+                    button.btn.transition-transform.pressable(
+                      @click="applySceneCode"
+                      :disabled="!sceneCodeChanged"
+                    )
+                      ArrowUpToLineIcon(:size="20")
+                Codemirror.h-full.text-sm(
+                  v-model="sceneCode"
+                  :extensions="codemirrorExtensions"
+                )
 
-          //- Console input.
-          .flex.w-full.gap-1.p-1.font-mono.text-sm.text-white(class="bg-black/50")
-            span.shrink-0.opacity-50 $
-            input.w-full.bg-transparent(ref="consoleRef")
+            //- Writer prompt.
+            Prompt.rounded-lg(
+              :gpt="writer"
+              :content="writerPrompt"
+              class="bg-black/50"
+            )
+
+            //- Director prompt.
+            Prompt.rounded-lg(
+              :gpt="director"
+              :content="directorPrompt"
+              class="bg-black/50"
+            )
 </template>
 
 <style lang="scss" scoped>

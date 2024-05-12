@@ -355,6 +355,16 @@ pub fn infer(
     Ok(decoded_string)
 }
 
+/// Get the number of tokens in a prompt.
+pub fn token_count(model: &GptModel, prompt: &str) -> usize {
+    let prompt_tokens = model
+        .0
+        .str_to_token(prompt, AddBos::Never)
+        .expect("failed to tokenize prompt");
+
+    prompt_tokens.len()
+}
+
 fn measure<T, F: FnOnce() -> T>(name: &str, f: F) -> T {
     let start = ggml_time_us();
     let result = f();

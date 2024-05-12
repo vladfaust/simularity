@@ -37,7 +37,11 @@ const state = ref<{
 const storyUpdateText = ref("");
 const stageUpdateCode = ref("");
 
+const writerPrompt = ref("");
+const directorPrompt = ref("");
+
 const consoleModal = ref(false);
+// FIXME: Proper episode display.
 const currentEpisodeConsoleObject = computed(() =>
   state.value.currentEpisode
     ? {
@@ -102,12 +106,22 @@ async function advance() {
       if (++currentEpisode.nextChunkIndex >= currentEpisode.chunks.length) {
         state.value.currentEpisode = null;
       }
+
+      const newWriterPrompt = `${storyUpdateText.value}\n`;
+      writerPrompt.value += newWriterPrompt;
+      writer.decode(newWriterPrompt);
+
+      const newDirectorPrompt = `${storyUpdateText.value}\n${splitCode(stageUpdateCode.value).join(";")};\n`;
+      directorPrompt.value += newDirectorPrompt;
+      director.decode(newDirectorPrompt);
     } else {
       if (playerInput_) {
         // If the player input is not empty, display & decode it.
         //
 
         storyUpdateText.value = playerInput_;
+        writerPrompt.value += playerInput_ + "\n";
+        directorPrompt.value += playerInput_ + "\n";
         writer.decode(playerInput_ + "\n");
         director.decode(playerInput_ + "\n");
       }
@@ -117,11 +131,13 @@ async function advance() {
 
       const writerResponse = await writer.infer(128, { stopSequences: ["\n"] });
       console.log("Writer response", writerResponse);
+      writerPrompt.value += writerResponse + "\n";
+      writer.decode(writerResponse + "\n");
 
       const grammar = buildGnbf(scenario.value!);
       console.log("Director grammar", grammar);
-
       // Append the writer response to the director prompt to generate code for.
+      directorPrompt.value += `${writerResponse}\n`;
       const directorResponse = await director.inferPrompt(
         `${writerResponse}\n`,
         128,
@@ -132,23 +148,18 @@ async function advance() {
         },
       );
       console.log("Director response", directorResponse);
+      directorPrompt.value += directorResponse + "\n";
+      director.decode(directorResponse + "\n");
 
       storyUpdateText.value = writerResponse;
+      stageUpdateCode.value = "";
       for (const line of splitCode(directorResponse)) {
+        console.debug("Evaluating stage code", line);
         await stage.eval(line);
         stageUpdateCode.value += line + "\n";
         if (scene.busy) await scene.busy;
       }
     }
-
-    // Decode the updates.
-    //
-
-    const newWriterPrompt = `${storyUpdateText.value}\n`;
-    writer.decode(newWriterPrompt);
-
-    const newDirectorPrompt = `${splitCode(stageUpdateCode.value).join(";")};\n`;
-    director.decode(newDirectorPrompt);
 
     // Save updates to DB.
     //
@@ -302,6 +313,7 @@ onMounted(async () => {
     const writerPrePrompt =
       buildWriterPrompt(scenario.value!, textHistory) + "\n";
     console.log("Writer pre-prompt", writerPrePrompt);
+    writerPrompt.value += writerPrePrompt;
 
     await writer.decode(writerPrePrompt);
     console.log("Writer pre-prompt decoded");
@@ -317,6 +329,7 @@ onMounted(async () => {
         })),
       ) + "\n";
     console.log("Director pre-prompt", directorPrePrompt);
+    directorPrompt.value += directorPrePrompt;
 
     await director.decode(directorPrePrompt);
     console.log("Director pre-prompt decoded");
@@ -382,6 +395,8 @@ const directorStatus = gptStatus(director);
 
   Console(
     :open="consoleModal"
+    :writer-prompt="writerPrompt"
+    :director-prompt="directorPrompt"
     :scene-code="stageUpdateCode"
     :scene-text="storyUpdateText"
     :episode="currentEpisodeConsoleObject"
