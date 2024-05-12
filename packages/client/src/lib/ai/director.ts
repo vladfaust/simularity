@@ -58,7 +58,6 @@ export function buildDirectorPrompt(
     text: string;
     code: string;
   }[],
-  latestText: string,
 ) {
   const locations = scenario.locations.map((location) => {
     const scenes = location.scenes.map((scene) =>
@@ -96,8 +95,7 @@ ${outfits.join("\n")}
   `.trim();
   });
 
-  return (
-    `
+  return `
 The following script synchronises scenario text with simulation engine code calls.
 A list of predefined functions is used to manipulate scene and characters on scene.
 ## Locations
@@ -119,9 +117,6 @@ Set expression of a character.
 ### remove_character(characterId: string)
 Remove a character from the scene.
 ## Script
-${history.map((h) => h.text + "\n" + h.code).join("\n\n")}
-
-${latestText}
-`.trim() + "\n"
-  );
+${history.map((h) => h.text + "\n" + h.code).join("\n")}
+`.trim();
 }

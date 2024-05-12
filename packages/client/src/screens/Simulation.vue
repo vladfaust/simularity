@@ -10,7 +10,7 @@ import { Game } from "../lib/simulation/phaser/game";
 import { d } from "@/lib/drizzle";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { Stage, type StageDto } from "@/lib/simulation/stage";
-import { gptPredict } from "@/lib/tauri";
+import { gptInfer, gptDecode, gptClear } from "@/lib/tauri";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -85,12 +85,7 @@ async function advance() {
       console.debug("Evaluating stage code", line);
       await stage.eval(line);
       stageUpdateCode.value += line + "\n";
-
-      if (scene.busy) {
-        busy.value = true;
-        await scene.busy;
-        busy.value = false;
-      }
+      if (scene.busy) await scene.busy;
     }
 
     if (++currentEpisode.nextChunkIndex >= currentEpisode.chunks.length) {
@@ -100,58 +95,42 @@ async function advance() {
     // Predict the next update.
     //
 
-    busy.value = true;
-    try {
-      const textHistory = storyUpdates.value.map((u) => u.text);
-      const writerPrompt = buildWriterPrompt(scenario.value!, textHistory);
-      console.log("Writer prompt", writerPrompt);
+    const writerResponse = await gptInfer("Writer", 128, {
+      stopSequences: ["\n"],
+    });
+    console.log("Writer response", writerResponse);
 
-      // TODO: Llama inference object.
-      const writerResponse = await gptPredict(writerPrompt, 128, {
-        stopSequences: ["\n"],
-      });
-      console.log("Writer response", writerResponse);
+    const grammar = buildGnbf(scenario.value!);
+    console.log("Director grammar", grammar);
 
-      const codeHistory = storyUpdates.value.map((u) =>
-        splitCode(u.codeUpdates.at(0)?.code || ""),
-      );
+    // Append the writer response to the director prompt to generate code for.
+    const newDirectorPrompt = `${writerResponse}\n`;
+    await gptDecode("Director", newDirectorPrompt);
 
-      // TODO: Llama inference object.
-      const directorPrompt = buildDirectorPrompt(
-        scenario.value!,
-        zip(textHistory, codeHistory).map(([text, code]) => ({
-          code: code.join(";") + ";",
-          text,
-        })),
-        writerResponse,
-      );
-      console.log("Director prompt", directorPrompt);
-      const grammar = buildGnbf(scenario.value!);
-      console.log("Director grammar", grammar);
-      const directorResponse = await gptPredict(directorPrompt, 128, {
-        stopSequences: ["\n"],
-        grammar,
-        temp: 0,
-      });
-      console.log("Director response", directorResponse);
-      busy.value = false;
+    const directorResponse = await gptInfer("Director", 128, {
+      stopSequences: ["\n"],
+      grammar,
+      temp: 0,
+    });
+    console.log("Director response", directorResponse);
 
-      storyUpdateText.value = writerResponse;
-      stageUpdateCode.value = "";
-      for (const line of splitCode(directorResponse)) {
-        await stage.eval(line);
-        stageUpdateCode.value += line + "\n";
-
-        if (scene.busy) {
-          busy.value = true;
-          await scene.busy;
-          busy.value = false;
-        }
-      }
-    } finally {
-      busy.value = false;
+    storyUpdateText.value = writerResponse;
+    for (const line of splitCode(directorResponse)) {
+      await stage.eval(line);
+      stageUpdateCode.value += line + "\n";
+      if (scene.busy) await scene.busy;
     }
   }
+
+  const newWriterPrompt = `${storyUpdateText.value}\n`;
+  gptDecode("Writer", newWriterPrompt).then(() => {
+    console.log("Writer decoded", newWriterPrompt);
+  });
+
+  const newDirectorPrompt = `${splitCode(stageUpdateCode.value).join(";")};\n`;
+  gptDecode("Director", newDirectorPrompt).then(() => {
+    console.log("Director decoded", newDirectorPrompt);
+  });
 
   const incoming = await d.db.transaction(async (tx) => {
     const storyUpdate = (
@@ -253,10 +232,12 @@ onMounted(async () => {
         throw new Error(`Episode not found: ${latestStoryUpdate.episodeId}`);
       }
 
-      state.value.currentEpisode = {
-        ...episode,
-        nextChunkIndex: latestStoryUpdate.episodeChunkIndex! + 1,
-      };
+      if (latestStoryUpdate.episodeChunkIndex! < episode.chunks.length - 1) {
+        state.value.currentEpisode = {
+          ...episode,
+          nextChunkIndex: latestStoryUpdate.episodeChunkIndex! + 1,
+        };
+      }
     }
   }
 
@@ -269,6 +250,41 @@ onMounted(async () => {
 
   // Connect the stage to the scene.
   stage.connectScene(scene);
+
+  // Decode pre-prompts.
+  //
+
+  const textHistory = storyUpdates.value.map((u) => u.text);
+  const codeHistory = storyUpdates.value.map((u) =>
+    splitCode(u.codeUpdates.at(0)?.code || ""),
+  );
+
+  gptClear("Writer")
+    .then(() => {
+      const writerPrePrompt =
+        buildWriterPrompt(scenario.value!, textHistory) + "\n";
+
+      console.log("Writer pre-prompt", writerPrePrompt);
+      return gptDecode("Writer", writerPrePrompt).then(() => {
+        console.log("Writer pre-prompt decoded");
+      });
+    })
+    .then(() => gptClear("Director"))
+    .then(() => {
+      const directorPrePrompt =
+        buildDirectorPrompt(
+          scenario.value!,
+          zip(textHistory, codeHistory).map(([text, code]) => ({
+            code: code.join(";") + ";",
+            text,
+          })),
+        ) + "\n";
+
+      console.log("Director pre-prompt", directorPrePrompt);
+      return gptDecode("Director", directorPrePrompt).then(() => {
+        console.log("Director pre-prompt decoded");
+      });
+    });
 
   // Register a console event listener.
   window.addEventListener("keypress", consoleEventListener);

@@ -11,13 +11,25 @@ mod commands;
 mod sqlite;
 
 struct GptInstance {
-    model: Box<GptModel>,
     pub context: GptContext<'static>,
+}
+
+// TODO: A GPT instance may have arbitrary name (use hashmap).
+#[derive(serde::Deserialize, Debug)]
+pub enum GptType {
+    Writer,
+    Director,
 }
 
 struct AppState {
     gpt_backend: GptBackend,
-    pub gpt_instance: Mutex<Option<GptInstance>>,
+
+    /// {model_path => model tuple}.
+    /// TODO: Hash by actual model hash (e.g. sha256 of the model file).
+    pub gpt_models: Mutex<HashMap<String, (Box<GptModel>, &'static GptModel)>>,
+
+    pub writer: Mutex<Option<GptInstance>>,
+    pub director: Mutex<Option<GptInstance>>,
 
     /// { uri => connection }. A connection will be held until it is closed.
     pub sqlite_connections: Mutex<HashMap<String, Box<rusqlite::Connection>>>,
@@ -61,7 +73,9 @@ impl AppState {
         Self {
             gpt_backend: simularity_core::init_backend()
                 .expect("unable to create the llama backend"),
-            gpt_instance: Mutex::new(None),
+            gpt_models: Mutex::new(HashMap::new()),
+            writer: Mutex::new(None),
+            director: Mutex::new(None),
             sqlite_connections: Mutex::new(HashMap::new()),
         }
     }
@@ -81,7 +95,9 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::gpt::gpt_init,
-            commands::gpt::gpt_predict,
+            commands::gpt::gpt_clear,
+            commands::gpt::gpt_decode,
+            commands::gpt::gpt_infer,
             commands::sqlite::sqlite_open,
             commands::sqlite::sqlite_execute,
             commands::sqlite::sqlite_query,

@@ -38,8 +38,7 @@ ${outfits.join("\n")}
   `.trim();
   });
 
-  return (
-    `
+  return `
 # ${scenario.name}
 ${scenario.globalPrompt}
 ## Locations
@@ -48,6 +47,5 @@ ${locations.join("\n")}
 ${characters.join("\n")}
 ## Script
 ${historyText.join("\n")}
-`.trim() + "\n"
-  );
+`.trim();
 }
