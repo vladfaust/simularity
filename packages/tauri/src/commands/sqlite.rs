@@ -30,7 +30,7 @@ pub async fn sqlite_execute(
     params: Vec<SqliteValue>,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), tauri::InvokeError> {
-    println!("sqlite_execute: {} {:?}", sql, params);
+    // println!("sqlite_execute: {} {:?}", sql, params);
 
     let lock = state.sqlite_connections.lock().await;
     let conn = lock
@@ -64,7 +64,7 @@ pub async fn sqlite_query(
     params: Vec<SqliteValue>,
     state: tauri::State<'_, AppState>,
 ) -> Result<QueryResult, tauri::InvokeError> {
-    println!("sqlite_query: {} {:?}", sql, params);
+    // println!("sqlite_query: {} {:?}", sql, params);
 
     let lock = state.sqlite_connections.lock().await;
     let conn = lock

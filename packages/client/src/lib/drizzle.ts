@@ -20,13 +20,13 @@ export const sqlite = await Sqlite.open(databaseUrl);
  */
 const db = drizzle<typeof schema>(
   async (sql, params, method) => {
-    console.debug({ sql, params, method });
+    // console.debug({ sql, params, method });
 
     let rows: any = [];
 
     if (method === "all" || method === "get") {
       const queryResult = await sqlite.query(sql, params);
-      console.debug({ queryResult });
+      // console.debug({ queryResult });
 
       // ADHOC: Relational columns must be moved to the end of the array.
       let relCols: string[] | undefined;
@@ -48,7 +48,7 @@ const db = drizzle<typeof schema>(
           .map((key) => row[key]);
       });
 
-      console.debug({ rows });
+      // console.debug({ rows });
 
       // If the method is "all", return all rows,
       // otherwise return the first row.
