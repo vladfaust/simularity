@@ -1,28 +1,23 @@
-use std::borrow::BorrowMut;
-
 use app::static_box;
 use simularity_core::GptModel;
 
-use crate::{AppState, GptInstance, GptType};
+use crate::{AppState, GptInstance};
 
 #[tauri::command]
 /// Initialize a GPT instance of `gpt_type`, replacing the current instance.
 pub async fn gpt_init(
-    gpt_type: GptType,
+    gpt_id: &str,
     model_path: String,
     context_size: u32,
     batch_size: usize,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), tauri::InvokeError> {
     println!(
-        "gpt_init(gpt_type: {:?}, model_path: {}, context_size: {})",
-        gpt_type, model_path, context_size
+        "gpt_init(gpt_id: {:?}, model_path: {}, context_size: {})",
+        gpt_id, model_path, context_size
     );
 
-    let mut locked = match gpt_type {
-        GptType::Writer => state.writer.lock().await,
-        GptType::Director => state.director.lock().await,
-    };
+    let mut locked = state.gpt_instances.lock().await;
 
     let model_ref = get_or_create_model_ref(model_path, &state).await?;
 
@@ -37,7 +32,11 @@ pub async fn gpt_init(
         .map_err(tauri::InvokeError::from_anyhow)?,
     };
 
-    locked.replace(instance);
+    let old = locked.insert(gpt_id.to_string(), instance);
+    if let Some(old) = old {
+        println!("replaced gpt with id {}", gpt_id);
+        drop(old);
+    }
 
     Ok(())
 }
@@ -45,20 +44,16 @@ pub async fn gpt_init(
 #[tauri::command]
 /// Clear the GPT context.
 pub async fn gpt_clear(
-    gpt_type: GptType,
+    gpt_id: &str,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), tauri::InvokeError> {
-    println!("gpt_clear(gpt_type: {:?})", gpt_type);
+    println!("gpt_clear(gpt_id: {:?})", gpt_id);
 
-    let mut locked = match gpt_type {
-        GptType::Writer => state.writer.lock().await,
-        GptType::Director => state.director.lock().await,
-    };
+    let mut locked = state.gpt_instances.lock().await;
 
     let gpt: &mut GptInstance = locked
-        .borrow_mut()
-        .as_mut()
-        .ok_or_else(|| tauri::InvokeError::from("GPT not initialized"))?;
+        .get_mut(gpt_id)
+        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?;
 
     simularity_core::clear(&mut gpt.context).map_err(tauri::InvokeError::from_anyhow)
 }
@@ -66,21 +61,17 @@ pub async fn gpt_clear(
 #[tauri::command]
 /// Decode prompt with the writer.
 pub async fn gpt_decode(
-    gpt_type: GptType,
+    gpt_id: &str,
     prompt: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), tauri::InvokeError> {
-    println!("gpt_decode(gpt_type: {:?})", gpt_type);
+    println!("gpt_decode(gpt_id: {:?})", gpt_id);
 
-    let mut locked = match gpt_type {
-        GptType::Writer => state.writer.lock().await,
-        GptType::Director => state.director.lock().await,
-    };
+    let mut locked = state.gpt_instances.lock().await;
 
-    let gpt: &mut GptInstance = locked
-        .borrow_mut()
-        .as_mut()
-        .ok_or_else(|| tauri::InvokeError::from("GPT not initialized"))?;
+    let gpt = locked
+        .get_mut(gpt_id)
+        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?;
 
     simularity_core::decode(&mut gpt.context, prompt).map_err(tauri::InvokeError::from_anyhow)
 }
@@ -88,29 +79,25 @@ pub async fn gpt_decode(
 #[tauri::command]
 /// Predict text.
 pub async fn gpt_infer(
-    gpt_type: GptType,
+    gpt_id: &str,
     prompt: Option<&str>,
     n_eval: usize,
     options: simularity_core::InferOptions,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, tauri::InvokeError> {
     println!(
-        "gpt_infer(gpt_type: {:?}, prompt: {}, n_eval: {}, options: {:?})",
-        gpt_type,
+        "gpt_infer(gpt_id: {:?}, prompt: {}, n_eval: {}, options: {:?})",
+        gpt_id,
         if prompt.is_some() { "Some(_)" } else { "None" },
         n_eval,
         options
     );
 
-    let mut locked = match gpt_type {
-        GptType::Writer => state.writer.lock().await,
-        GptType::Director => state.director.lock().await,
-    };
+    let mut locked = state.gpt_instances.lock().await;
 
-    let gpt: &mut GptInstance = locked
-        .borrow_mut()
-        .as_mut()
-        .ok_or_else(|| tauri::InvokeError::from("GPT not initialized"))?;
+    let gpt = locked
+        .get_mut(gpt_id)
+        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?;
 
     simularity_core::infer(&mut gpt.context, prompt, n_eval, options)
         .map_err(tauri::InvokeError::from_anyhow)

@@ -1,31 +1,29 @@
 import { invoke } from "@tauri-apps/api";
 
-type GptType = "Writer" | "Director";
-
 export async function gptInit(
-  gptType: GptType,
+  gptId: string,
   modelPath: string,
   contextSize: number,
   batchSize: number,
 ): Promise<string> {
   return await invoke("gpt_init", {
-    gptType,
+    gptId,
     modelPath,
     contextSize,
     batchSize,
   });
 }
 
-export async function gptClear(gptType: GptType): Promise<string> {
-  return await invoke("gpt_clear", { gptType });
+export async function gptClear(gptId: string): Promise<string> {
+  return await invoke("gpt_clear", { gptId });
 }
 
 export async function gptDecode(
-  gptType: GptType,
+  gptId: string,
   prompt: string,
 ): Promise<string> {
   return await invoke("gpt_decode", {
-    gptType,
+    gptId,
     prompt,
   });
 }
@@ -46,13 +44,13 @@ export type InferOptions = {
 };
 
 export async function gptInfer(
-  gptType: GptType,
+  gptId: string,
   prompt: string | undefined,
   numEval: number,
   options: InferOptions = {},
 ): Promise<string> {
   return await invoke("gpt_infer", {
-    gptType,
+    gptId,
     prompt,
     nEval: numEval,
     options,

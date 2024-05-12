@@ -2,6 +2,7 @@
 import { onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { gptInit } from "./lib/tauri";
+import { GptId } from "./lib/ai";
 const route = useRoute();
 
 onMounted(() => {
@@ -9,11 +10,11 @@ onMounted(() => {
   const contextSize = 4096;
   const batchSize = 2048;
 
-  gptInit("Writer", modelPath, contextSize, batchSize).then(() => {
+  gptInit(GptId.Writer, modelPath, contextSize, batchSize).then(() => {
     console.log("Writer initialized", modelPath);
   });
 
-  gptInit("Director", modelPath, contextSize, batchSize).then(() => {
+  gptInit(GptId.Director, modelPath, contextSize, batchSize).then(() => {
     console.log("Director initialized", modelPath);
   });
 });

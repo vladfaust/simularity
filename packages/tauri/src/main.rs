@@ -14,13 +14,6 @@ struct GptInstance {
     pub context: GptContext<'static>,
 }
 
-// TODO: A GPT instance may have arbitrary name (use hashmap).
-#[derive(serde::Deserialize, Debug)]
-pub enum GptType {
-    Writer,
-    Director,
-}
-
 struct AppState {
     gpt_backend: GptBackend,
 
@@ -28,8 +21,8 @@ struct AppState {
     /// TODO: Hash by actual model hash (e.g. sha256 of the model file).
     pub gpt_models: Mutex<HashMap<String, (Box<GptModel>, &'static GptModel)>>,
 
-    pub writer: Mutex<Option<GptInstance>>,
-    pub director: Mutex<Option<GptInstance>>,
+    /// {id => GptInstance}.
+    pub gpt_instances: Mutex<HashMap<String, GptInstance>>,
 
     /// { uri => connection }. A connection will be held until it is closed.
     pub sqlite_connections: Mutex<HashMap<String, Box<rusqlite::Connection>>>,
@@ -74,8 +67,7 @@ impl AppState {
             gpt_backend: simularity_core::init_backend()
                 .expect("unable to create the llama backend"),
             gpt_models: Mutex::new(HashMap::new()),
-            writer: Mutex::new(None),
-            director: Mutex::new(None),
+            gpt_instances: Mutex::new(HashMap::new()),
             sqlite_connections: Mutex::new(HashMap::new()),
         }
     }

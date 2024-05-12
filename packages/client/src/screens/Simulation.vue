@@ -11,6 +11,7 @@ import { d } from "@/lib/drizzle";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { Stage, type StageDto } from "@/lib/simulation/stage";
 import { gptInfer, gptDecode, gptClear } from "@/lib/tauri";
+import { GptId } from "@/lib/ai";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -95,7 +96,7 @@ async function advance() {
     // Predict the next update.
     //
 
-    const writerResponse = await gptInfer("Writer", undefined, 128, {
+    const writerResponse = await gptInfer(GptId.Writer, undefined, 128, {
       stopSequences: ["\n"],
     });
     console.log("Writer response", writerResponse);
@@ -105,7 +106,7 @@ async function advance() {
 
     // Append the writer response to the director prompt to generate code for.
     const directorResponse = await gptInfer(
-      "Director",
+      GptId.Director,
       `${writerResponse}\n`,
       128,
       {
@@ -125,12 +126,12 @@ async function advance() {
   }
 
   const newWriterPrompt = `${storyUpdateText.value}\n`;
-  gptDecode("Writer", newWriterPrompt).then(() => {
+  gptDecode(GptId.Writer, newWriterPrompt).then(() => {
     console.log("Writer decoded", newWriterPrompt);
   });
 
   const newDirectorPrompt = `${splitCode(stageUpdateCode.value).join(";")};\n`;
-  gptDecode("Director", newDirectorPrompt).then(() => {
+  gptDecode(GptId.Director, newDirectorPrompt).then(() => {
     console.log("Director decoded", newDirectorPrompt);
   });
 
@@ -261,17 +262,17 @@ onMounted(async () => {
     splitCode(u.codeUpdates.at(0)?.code || ""),
   );
 
-  gptClear("Writer")
+  gptClear(GptId.Writer)
     .then(() => {
       const writerPrePrompt =
         buildWriterPrompt(scenario.value!, textHistory) + "\n";
 
       console.log("Writer pre-prompt", writerPrePrompt);
-      return gptDecode("Writer", writerPrePrompt).then(() => {
+      return gptDecode(GptId.Writer, writerPrePrompt).then(() => {
         console.log("Writer pre-prompt decoded");
       });
     })
-    .then(() => gptClear("Director"))
+    .then(() => gptClear(GptId.Director))
     .then(() => {
       const directorPrePrompt =
         buildDirectorPrompt(
@@ -283,7 +284,7 @@ onMounted(async () => {
         ) + "\n";
 
       console.log("Director pre-prompt", directorPrePrompt);
-      return gptDecode("Director", directorPrePrompt).then(() => {
+      return gptDecode(GptId.Director, directorPrePrompt).then(() => {
         console.log("Director pre-prompt decoded");
       });
     });
