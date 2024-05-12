@@ -95,7 +95,7 @@ async function advance() {
     // Predict the next update.
     //
 
-    const writerResponse = await gptInfer("Writer", 128, {
+    const writerResponse = await gptInfer("Writer", undefined, 128, {
       stopSequences: ["\n"],
     });
     console.log("Writer response", writerResponse);
@@ -104,14 +104,16 @@ async function advance() {
     console.log("Director grammar", grammar);
 
     // Append the writer response to the director prompt to generate code for.
-    const newDirectorPrompt = `${writerResponse}\n`;
-    await gptDecode("Director", newDirectorPrompt);
-
-    const directorResponse = await gptInfer("Director", 128, {
-      stopSequences: ["\n"],
-      grammar,
-      temp: 0,
-    });
+    const directorResponse = await gptInfer(
+      "Director",
+      `${writerResponse}\n`,
+      128,
+      {
+        stopSequences: ["\n"],
+        grammar,
+        temp: 0,
+      },
+    );
     console.log("Director response", directorResponse);
 
     storyUpdateText.value = writerResponse;

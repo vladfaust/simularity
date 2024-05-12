@@ -47,11 +47,13 @@ export type InferOptions = {
 
 export async function gptInfer(
   gptType: GptType,
+  prompt: string | undefined,
   numEval: number,
   options: InferOptions = {},
 ): Promise<string> {
   return await invoke("gpt_infer", {
     gptType,
+    prompt,
     nEval: numEval,
     options,
   });

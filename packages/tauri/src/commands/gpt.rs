@@ -89,13 +89,17 @@ pub async fn gpt_decode(
 /// Predict text.
 pub async fn gpt_infer(
     gpt_type: GptType,
+    prompt: Option<&str>,
     n_eval: usize,
     options: simularity_core::InferOptions,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, tauri::InvokeError> {
     println!(
-        "gpt_infer(gpt_type: {:?}, n_eval: {}, options: {:?})",
-        gpt_type, n_eval, options
+        "gpt_infer(gpt_type: {:?}, prompt: {}, n_eval: {}, options: {:?})",
+        gpt_type,
+        if prompt.is_some() { "Some(_)" } else { "None" },
+        n_eval,
+        options
     );
 
     let mut locked = match gpt_type {
@@ -108,7 +112,7 @@ pub async fn gpt_infer(
         .as_mut()
         .ok_or_else(|| tauri::InvokeError::from("GPT not initialized"))?;
 
-    simularity_core::infer(&mut gpt.context, n_eval, options)
+    simularity_core::infer(&mut gpt.context, prompt, n_eval, options)
         .map_err(tauri::InvokeError::from_anyhow)
 }
 

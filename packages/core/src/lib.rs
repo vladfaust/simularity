@@ -74,7 +74,7 @@ pub fn clear(ctx: &mut GptContext) -> Result<()> {
     Ok(())
 }
 
-/// Decodes a prompt.
+/// Decode a prompt, filling the KV cache.
 pub fn decode(ctx: &mut GptContext, prompt: String) -> Result<()> {
     println!(
         "(before) kv cache token_count: {}, used_cells: {}",
@@ -99,18 +99,20 @@ pub fn decode(ctx: &mut GptContext, prompt: String) -> Result<()> {
                     *prompt_tokens.get(i).unwrap(),
                     i as i32,
                     &[0],
-                    // The last token will become the new logit-ed token.
+                    // The latest token will become the head,
+                    // that is a token with cached logits.
                     i == prompt_tokens.len() - 1,
                 )?;
             }
 
+            // Decode the batch, caching head logits.
             ctx.context
                 .decode(&mut batch)
                 .with_context(|| "failed to decode")?;
 
             ctx.session = prompt_tokens;
         } else {
-            // Add the latest logit-ed session token.
+            // Add the head.
             batch.add(
                 *ctx.session.get(n_session - 1).unwrap(),
                 (n_session - 1) as i32,
@@ -124,11 +126,12 @@ pub fn decode(ctx: &mut GptContext, prompt: String) -> Result<()> {
                     *prompt_tokens.get(i).unwrap(),
                     (n_session + i) as i32,
                     &[0],
-                    // The last token will become the new logit-ed token.
+                    // The latest token will become the new head.
                     i == prompt_tokens.len() - 1,
                 )?;
             }
 
+            // Decode the batch, caching the new head logits.
             ctx.context
                 .decode(&mut batch)
                 .with_context(|| "failed to decode")?;
@@ -170,8 +173,13 @@ pub struct InferOptions {
 }
 
 /// Infer the next tokens.
-/// TODO: Also accept optional prompt to decode in-place.
-pub fn infer(ctx: &mut GptContext, n_eval: usize, options: InferOptions) -> Result<String> {
+/// May pass a prompt to save on decoding.
+pub fn infer(
+    ctx: &mut GptContext,
+    prompt: Option<&str>,
+    n_eval: usize,
+    options: InferOptions,
+) -> Result<String> {
     let mut grammar = match &options.grammar {
         Some(grammar) => Some(
             measure("grammar parsing", || LlamaGrammar::from_str(grammar))
@@ -195,21 +203,47 @@ pub fn infer(ctx: &mut GptContext, n_eval: usize, options: InferOptions) -> Resu
         0.0
     };
 
-    // Create a batch containing the latest logit-ed session token.
     let mut batch = LlamaBatch::new(ctx.context.n_batch().try_into().unwrap(), 1);
+    // Add the head.
     batch.add(
         *ctx.session.get(n_session - 1).unwrap(),
         (n_session - 1) as i32,
         &[0],
         true, // It has logits.
     )?;
-    ctx.context
-        .decode(&mut batch)
-        .with_context(|| "failed to decode")?;
+    if let Some(prompt) = prompt {
+        let prompt_tokens = ctx
+            .context
+            .model
+            .str_to_token(prompt, AddBos::Never)
+            .with_context(|| format!("failed to tokenize {0}", prompt))?;
+
+        // Add the prompt tokens.
+        for i in 0..prompt_tokens.len() {
+            batch.add(
+                *prompt_tokens.get(i).unwrap(),
+                (n_session + i) as i32,
+                &[0],
+                // The latest token will become the new head.
+                i == prompt_tokens.len() - 1,
+            )?;
+        }
+
+        ctx.session.extend(prompt_tokens);
+    }
+    // If the prompt is not provided, the head logits is cached.
+    // Otherwise, the decoding will take some time
+    // to calculate, cache & initialize the new head logits.
+    measure("infer:decoding", || {
+        ctx.context
+            .decode(&mut batch)
+            .with_context(|| "failed to decode")
+    })?;
 
     let start = ggml_time_us();
     'main: while n_session <= n_target {
         {
+            // Get the batch head logits.
             let candidates = ctx.context.candidates_ith(batch.n_tokens() - 1);
             let mut candidates_p = LlamaTokenDataArray::from_iter(candidates, false);
 
@@ -294,14 +328,14 @@ pub fn infer(ctx: &mut GptContext, n_eval: usize, options: InferOptions) -> Resu
                 }
             }
 
-            // Set the batch to contain only the new token.
+            // Set the batch head to the new token.
             batch.clear();
             batch.add(new_token, n_session as i32, &[0], true)?;
         }
 
         n_session += 1;
 
-        // Decode the new token.
+        // Decode the new token, caching & initializing its logits.
         ctx.context
             .decode(&mut batch)
             .with_context(|| "failed to decode")?;
