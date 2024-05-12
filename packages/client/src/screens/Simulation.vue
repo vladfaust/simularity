@@ -65,107 +65,112 @@ async function advance() {
   let storyUpdateEpisodeId: string | null = null;
   let storyUpdateEpisodeChunkIndex: number | null = null;
 
-  if (state.value.currentEpisode) {
-    console.debug("Advancing episode", state.value.currentEpisode);
+  busy.value = true;
+  try {
+    if (state.value.currentEpisode) {
+      console.debug("Advancing episode", state.value.currentEpisode);
 
-    const currentEpisode = state.value.currentEpisode;
-    storyUpdateEpisodeId = currentEpisode.id;
-    storyUpdateEpisodeChunkIndex = currentEpisode.nextChunkIndex;
+      const currentEpisode = state.value.currentEpisode;
+      storyUpdateEpisodeId = currentEpisode.id;
+      storyUpdateEpisodeChunkIndex = currentEpisode.nextChunkIndex;
 
-    // Advance the episode.
-    //
+      // Advance the episode.
+      //
 
-    storyUpdateText.value =
-      currentEpisode.chunks[currentEpisode.nextChunkIndex].storyText;
+      storyUpdateText.value =
+        currentEpisode.chunks[currentEpisode.nextChunkIndex].storyText;
 
-    stageUpdateCode.value = "";
-    for (const line of splitCode(
-      currentEpisode.chunks[currentEpisode.nextChunkIndex].stageCode,
-    )) {
-      console.debug("Evaluating stage code", line);
-      await stage.eval(line);
-      stageUpdateCode.value += line + "\n";
-      if (scene.busy) await scene.busy;
+      stageUpdateCode.value = "";
+      for (const line of splitCode(
+        currentEpisode.chunks[currentEpisode.nextChunkIndex].stageCode,
+      )) {
+        console.debug("Evaluating stage code", line);
+        await stage.eval(line);
+        stageUpdateCode.value += line + "\n";
+        if (scene.busy) await scene.busy;
+      }
+
+      if (++currentEpisode.nextChunkIndex >= currentEpisode.chunks.length) {
+        state.value.currentEpisode = null;
+      }
+    } else {
+      // Predict the next update.
+      //
+
+      const writerResponse = await writer.infer(128, { stopSequences: ["\n"] });
+      console.log("Writer response", writerResponse);
+
+      const grammar = buildGnbf(scenario.value!);
+      console.log("Director grammar", grammar);
+
+      // Append the writer response to the director prompt to generate code for.
+      const directorResponse = await director.inferPrompt(
+        `${writerResponse}\n`,
+        128,
+        {
+          stopSequences: ["\n"],
+          grammar,
+          temp: 0,
+        },
+      );
+      console.log("Director response", directorResponse);
+
+      storyUpdateText.value = writerResponse;
+      for (const line of splitCode(directorResponse)) {
+        await stage.eval(line);
+        stageUpdateCode.value += line + "\n";
+        if (scene.busy) await scene.busy;
+      }
     }
 
-    if (++currentEpisode.nextChunkIndex >= currentEpisode.chunks.length) {
-      state.value.currentEpisode = null;
-    }
-  } else {
-    // Predict the next update.
-    //
+    const newWriterPrompt = `${storyUpdateText.value}\n`;
+    writer.decode(newWriterPrompt).then(() => {
+      console.log("Writer decoded", newWriterPrompt);
+    });
 
-    const writerResponse = await writer.infer(128, { stopSequences: ["\n"] });
-    console.log("Writer response", writerResponse);
+    const newDirectorPrompt = `${splitCode(stageUpdateCode.value).join(";")};\n`;
+    director.decode(newDirectorPrompt).then(() => {
+      console.log("Director decoded", newDirectorPrompt);
+    });
 
-    const grammar = buildGnbf(scenario.value!);
-    console.log("Director grammar", grammar);
+    const incoming = await d.db.transaction(async (tx) => {
+      const storyUpdate = (
+        await tx
+          .insert(d.storyUpdates)
+          .values({
+            simulationId: simulationId,
+            text: storyUpdateText.value,
+            episodeId: storyUpdateEpisodeId,
+            episodeChunkIndex: storyUpdateEpisodeChunkIndex,
+          })
+          .returning()
+      )[0];
 
-    // Append the writer response to the director prompt to generate code for.
-    const directorResponse = await director.inferPrompt(
-      `${writerResponse}\n`,
-      128,
-      {
-        stopSequences: ["\n"],
-        grammar,
-        temp: 0,
-      },
-    );
-    console.log("Director response", directorResponse);
+      const codeUpdate = (
+        await tx
+          .insert(d.codeUpdates)
+          .values({
+            storyUpdateId: storyUpdate.id,
+            code: splitCode(stageUpdateCode.value).join(";") + ";",
+          })
+          .returning()
+      )[0];
 
-    storyUpdateText.value = writerResponse;
-    for (const line of splitCode(directorResponse)) {
-      await stage.eval(line);
-      stageUpdateCode.value += line + "\n";
-      if (scene.busy) await scene.busy;
-    }
+      await tx
+        .update(d.simulations)
+        .set({ updatedAt: new Date().valueOf().toString() })
+        .where(eq(d.simulations.id, simulationId));
+
+      return { scriptUpdate: storyUpdate, codeUpdate };
+    });
+
+    storyUpdates.value.push({
+      ...incoming.scriptUpdate,
+      codeUpdates: [{ ...incoming.codeUpdate }],
+    });
+  } finally {
+    busy.value = false;
   }
-
-  const newWriterPrompt = `${storyUpdateText.value}\n`;
-  writer.decode(newWriterPrompt).then(() => {
-    console.log("Writer decoded", newWriterPrompt);
-  });
-
-  const newDirectorPrompt = `${splitCode(stageUpdateCode.value).join(";")};\n`;
-  director.decode(newDirectorPrompt).then(() => {
-    console.log("Director decoded", newDirectorPrompt);
-  });
-
-  const incoming = await d.db.transaction(async (tx) => {
-    const storyUpdate = (
-      await tx
-        .insert(d.storyUpdates)
-        .values({
-          simulationId: simulationId,
-          text: storyUpdateText.value,
-          episodeId: storyUpdateEpisodeId,
-          episodeChunkIndex: storyUpdateEpisodeChunkIndex,
-        })
-        .returning()
-    )[0];
-
-    const codeUpdate = (
-      await tx
-        .insert(d.codeUpdates)
-        .values({
-          storyUpdateId: storyUpdate.id,
-          code: splitCode(stageUpdateCode.value).join(";") + ";",
-        })
-        .returning()
-    )[0];
-
-    await tx
-      .update(d.simulations)
-      .set({ updatedAt: new Date().valueOf().toString() })
-      .where(eq(d.simulations.id, simulationId));
-
-    return { scriptUpdate: storyUpdate, codeUpdate };
-  });
-
-  storyUpdates.value.push({
-    ...incoming.scriptUpdate,
-    codeUpdates: [{ ...incoming.codeUpdate }],
-  });
 }
 
 onMounted(async () => {
