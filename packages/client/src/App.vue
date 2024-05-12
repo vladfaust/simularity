@@ -5,7 +5,7 @@ import { whenever } from "@vueuse/core";
 import { appWindow } from "@tauri-apps/api/window";
 import { onMounted, onUnmounted } from "vue";
 import { type UnlistenFn } from "@tauri-apps/api/event";
-import { register } from "@tauri-apps/api/globalShortcut";
+import { register, unregister } from "@tauri-apps/api/globalShortcut";
 import { routeLocation } from "./lib/router";
 
 const route = useRoute();
@@ -50,6 +50,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   unlisten?.();
+  unregister("Command+Q");
 });
 </script>
 
