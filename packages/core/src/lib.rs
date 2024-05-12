@@ -174,6 +174,7 @@ pub struct InferOptions {
 
 /// Infer the next tokens.
 /// May pass a prompt to save on decoding.
+/// NOTE: Inferred tokens are not decoded (call `decode` explicitly).
 pub fn infer(
     ctx: &mut GptContext,
     prompt: Option<&str>,
