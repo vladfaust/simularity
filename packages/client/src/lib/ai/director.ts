@@ -63,7 +63,7 @@ export function buildDirectorPrompt(
     const scenes = location.scenes.map((scene) =>
       `
 ##### ${scene.name}
-ID: ${location.id}/${scene.id}
+sceneId: ${location.id}/${scene.id}
 ${scene.prompt}
 `.trim(),
     );
@@ -80,15 +80,15 @@ ${scenes.join("\n")}
     const outfits = character.outfits.map((outfit) =>
       `
 ##### ${outfit.name}
-ID: ${outfit.id}
+outfitId: ${outfit.id}
 ${outfit.prompt}
 `.trim(),
     );
 
     return `
 ### ${character.displayName}
-ID: ${character.id}
-Available expressions: ${character.expressions.map((e) => e.id).join(", ")}
+characterId: ${character.id}
+expressionId: ${character.expressions.map((e) => e.id).join(", ")}
 ${character.scenarioPrompt}
 #### Outfits
 ${outfits.join("\n")}
@@ -107,7 +107,8 @@ ${characters.join("\n")}
 Do nothing (do not update scene or characters).
 ### set_scene(sceneId: string, clear: boolean)
 Set the scene to specified sceneId.
-If clear is true, remove all characters from the scene, otherwise keep them in place.
+If "clear" is \`true\`, remove all characters from the scene.
+If "clear" is \`false\`, keep the characters in the scene and update the scene background only.
 ### add_character(characterId: string, outfitId: string, expressionId: string)
 Add a character to the scene, with specified outfit and expression.
 ### set_outfit(characterId: string, outfitId: string)
@@ -116,7 +117,7 @@ Set outfit of a character.
 Set expression of a character.
 ### remove_character(characterId: string)
 Remove a character from the scene.
-## Script
+## Script (text followed by code)
 ${history.map((h) => h.text + (h.code ? "\n" + h.code : "")).join("\n")}
 `.trim();
 }
