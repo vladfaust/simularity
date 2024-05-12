@@ -10,7 +10,9 @@ import { Game } from "../lib/simulation/phaser/game";
 import { d } from "@/lib/drizzle";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { Stage, type StageDto } from "@/lib/simulation/stage";
-import { director, writer, Gpt } from "@/lib/ai";
+import { director, writer } from "@/lib/ai";
+import GptStatus from "./Simulation/GptStatus.vue";
+import { ClapperboardIcon, ScrollTextIcon } from "lucide-vue-next";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -347,23 +349,6 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener("keypress", consoleEventListener);
 });
-
-function gptStatus(gpt: Gpt) {
-  return computed(() => {
-    if (gpt.initialized) {
-      if (gpt.currentJob.value) {
-        return gpt.currentJob.value.name;
-      } else {
-        return "Ready";
-      }
-    } else {
-      return "Loading";
-    }
-  });
-}
-
-const writerStatus = gptStatus(writer);
-const directorStatus = gptStatus(director);
 </script>
 
 <template lang="pug">
@@ -373,8 +358,11 @@ const directorStatus = gptStatus(director);
   .absolute.top-0.flex.w-full.justify-between.bg-white.bg-opacity-50.p-1
     span {{ scenario?.name }}: {{ simulationId }}
     .flex.gap-2
-      span W: {{ writerStatus }} ({{ writer.jobs.value.length + (writer.currentJob.value ? 1 : 0) }})
-      span D: {{ directorStatus }} ({{ director.jobs.value.length + (director.currentJob.value ? 1 : 0) }})
+      .flex.items-center.gap-1
+        GptStatus(:gpt="writer" :icon-size="20")
+          ScrollTextIcon(:size="18")
+        GptStatus(:gpt="director" :icon-size="20")
+          ClapperboardIcon(:size="18")
 
   .absolute.bottom-0.flex.h-32.w-full.flex-col.overflow-hidden.bg-yellow-500.bg-opacity-90.p-3
     .grow.overflow-scroll
