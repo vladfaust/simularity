@@ -3,7 +3,6 @@ import { useRoute, useRouter } from "vue-router";
 import { writer, director } from "./lib/ai";
 import { whenever } from "@vueuse/core";
 import { appWindow } from "@tauri-apps/api/window";
-import { dialog } from "@tauri-apps/api";
 import { onMounted, onUnmounted } from "vue";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { register } from "@tauri-apps/api/globalShortcut";
@@ -34,9 +33,7 @@ async function cleanup() {
 
 onMounted(async () => {
   appWindow
-    .onCloseRequested(async (event) => {
-      const confirmed = await dialog.confirm("Are you sure?");
-      if (!confirmed) return event.preventDefault();
+    .onCloseRequested(async (_) => {
       router.push(routeLocation({ name: "Shutdown" }));
       await cleanup();
     })
@@ -45,8 +42,6 @@ onMounted(async () => {
     });
 
   register("Command+Q", async () => {
-    const confirmed = await dialog.confirm("Are you sure?");
-    if (!confirmed) return;
     router.push(routeLocation({ name: "Shutdown" }));
     await cleanup();
     await appWindow.close();
