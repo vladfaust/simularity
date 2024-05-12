@@ -50,6 +50,11 @@ const currentEpisodeConsoleObject = computed(() =>
     : null,
 );
 
+const playerInput = ref("");
+const playerInputEnabled = computed(
+  () => !busy.value && !state.value.currentEpisode,
+);
+
 function consoleEventListener(event: KeyboardEvent) {
   // Detect tilda key press on different keyboard layouts.
   if (["~", "§", "`", ">", "]"].includes(event.key)) {
@@ -59,11 +64,15 @@ function consoleEventListener(event: KeyboardEvent) {
 }
 
 async function advance() {
-  // 1. Advance the scenario.
+  // Advance the story.
   //
 
   let storyUpdateEpisodeId: string | null = null;
   let storyUpdateEpisodeChunkIndex: number | null = null;
+
+  let playerInput_ = playerInput.value;
+  playerInput.value = "";
+  let wouldRestorePlayerInput = true;
 
   busy.value = true;
   try {
@@ -94,6 +103,15 @@ async function advance() {
         state.value.currentEpisode = null;
       }
     } else {
+      if (playerInput_) {
+        // If the player input is not empty, display & decode it.
+        //
+
+        storyUpdateText.value = playerInput_;
+        writer.decode(playerInput_ + "\n");
+        director.decode(playerInput_ + "\n");
+      }
+
       // Predict the next update.
       //
 
@@ -123,17 +141,27 @@ async function advance() {
       }
     }
 
+    // Decode the updates.
+    //
+
     const newWriterPrompt = `${storyUpdateText.value}\n`;
-    writer.decode(newWriterPrompt).then(() => {
-      console.log("Writer decoded", newWriterPrompt);
-    });
+    writer.decode(newWriterPrompt);
 
     const newDirectorPrompt = `${splitCode(stageUpdateCode.value).join(";")};\n`;
-    director.decode(newDirectorPrompt).then(() => {
-      console.log("Director decoded", newDirectorPrompt);
-    });
+    director.decode(newDirectorPrompt);
+
+    // Save updates to DB.
+    //
 
     const incoming = await d.db.transaction(async (tx) => {
+      if (playerInput_) {
+        await tx.insert(d.storyUpdates).values({
+          simulationId: simulationId,
+          createdByPlayer: true,
+          text: storyUpdateText.value,
+        });
+      }
+
       const storyUpdate = (
         await tx
           .insert(d.storyUpdates)
@@ -161,6 +189,7 @@ async function advance() {
         .set({ updatedAt: new Date().valueOf().toString() })
         .where(eq(d.simulations.id, simulationId));
 
+      // TODO: `scriptUpdate` -> `storyUpdate`.
       return { scriptUpdate: storyUpdate, codeUpdate };
     });
 
@@ -168,6 +197,10 @@ async function advance() {
       ...incoming.scriptUpdate,
       codeUpdates: [{ ...incoming.codeUpdate }],
     });
+  } catch (e) {
+    if (wouldRestorePlayerInput) {
+      playerInput.value = playerInput_;
+    }
   } finally {
     busy.value = false;
   }
@@ -259,9 +292,11 @@ onMounted(async () => {
   //
 
   const textHistory = storyUpdates.value.map((u) => u.text);
-  const codeHistory = storyUpdates.value.map((u) =>
-    splitCode(u.codeUpdates.at(0)?.code || ""),
-  );
+  const codeHistory = storyUpdates.value.map((u) => {
+    const codeUpdate = u.codeUpdates.at(0);
+    if (codeUpdate) return splitCode(codeUpdate.code);
+    else return undefined;
+  });
 
   writer.clear().then(async () => {
     const writerPrePrompt =
@@ -277,7 +312,7 @@ onMounted(async () => {
       buildDirectorPrompt(
         scenario.value!,
         zip(textHistory, codeHistory).map(([text, code]) => ({
-          code: code.join(";") + ";",
+          code: code ? code.join(";") + ";" : undefined,
           text,
         })),
       ) + "\n";
@@ -321,18 +356,29 @@ const directorStatus = gptStatus(director);
 <template lang="pug">
 .relative.h-screen.w-screen.bg-red-400
   #game-screen
+
   .absolute.top-0.flex.w-full.justify-between.bg-white.bg-opacity-50.p-1
     span {{ scenario?.name }}: {{ simulationId }}
     .flex.gap-2
       span W: {{ writerStatus }} ({{ writer.jobs.value.length + (writer.currentJob.value ? 1 : 0) }})
       span D: {{ directorStatus }} ({{ director.jobs.value.length + (director.currentJob.value ? 1 : 0) }})
-  .absolute.bottom-0.flex.h-32.w-full.flex-col.bg-yellow-500.bg-opacity-90.p-3
-    p.grow {{ storyUpdateText }}
-    .flex.justify-end
+
+  .absolute.bottom-0.flex.h-32.w-full.flex-col.overflow-hidden.bg-yellow-500.bg-opacity-90.p-3
+    .grow.overflow-scroll
+      p(:class="{ 'animate-pulse': busy }") {{ storyUpdateText }}
+
+    .flex.w-full.gap-2
+      input.w-full.rounded.px-2(
+        v-model="playerInput"
+        placeholder="Player input"
+        :disabled="!playerInputEnabled"
+        class="disabled:opacity-50"
+      )
       button.rounded.border.px-3.py-2.pressable(
         @click="advance"
         :disabled="busy"
-      ) Next
+        class="disabled:cursor-not-allowed disabled:opacity-50"
+      ) {{ playerInput ? "Send" : "Next" }}
 
   Console(
     :open="consoleModal"

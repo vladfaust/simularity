@@ -54,6 +54,7 @@ fn migrate_up(sqlite_uri: &str) {
         migration!("002_create_llama_inferences"),
         migration!("003_create_story_updates"),
         migration!("004_create_code_updates"),
+        migration!("005_add_created_by_player_to_story_updates")
     ]);
 
     assert!(migrations.validate().is_ok());

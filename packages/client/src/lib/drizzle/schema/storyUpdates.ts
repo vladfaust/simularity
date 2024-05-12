@@ -18,6 +18,10 @@ export const storyUpdates = sqliteTable(
       .references(() => simulations.id, { onDelete: "cascade" })
       .notNull(),
 
+    createdByPlayer: integer("created_by_player", { mode: "boolean" })
+      .notNull()
+      .default(false),
+
     // Set if this update is part of an episode.
     episodeId: text("episode_id"),
     episodeChunkIndex: integer("episode_chunk_index"),

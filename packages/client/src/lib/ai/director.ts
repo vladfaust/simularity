@@ -56,7 +56,7 @@ export function buildDirectorPrompt(
   scenario: Scenario,
   history: {
     text: string;
-    code: string;
+    code: string | undefined;
   }[],
 ) {
   const locations = scenario.locations.map((location) => {
@@ -117,6 +117,6 @@ Set expression of a character.
 ### remove_character(characterId: string)
 Remove a character from the scene.
 ## Script
-${history.map((h) => h.text + "\n" + h.code).join("\n")}
+${history.map((h) => h.text + (h.code ? "\n" + h.code : "")).join("\n")}
 `.trim();
 }
