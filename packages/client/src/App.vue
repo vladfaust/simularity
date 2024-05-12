@@ -34,17 +34,22 @@ async function cleanup() {
 onMounted(async () => {
   appWindow
     .onCloseRequested(async (_) => {
+      console.log("Close requested");
       router.push(routeLocation({ name: "Shutdown" }));
       await cleanup();
     })
     .then((unlistenFn) => {
+      console.debug("onCloseRequested listener registered");
       unlisten = unlistenFn;
     });
 
   register("Command+Q", async () => {
+    console.log("Command+Q pressed");
     router.push(routeLocation({ name: "Shutdown" }));
     await cleanup();
     await appWindow.close();
+  }).then(() => {
+    console.debug("Command+Q registered");
   });
 });
 
