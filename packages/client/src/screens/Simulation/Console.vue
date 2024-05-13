@@ -18,7 +18,9 @@ import { writer, director } from "@/lib/ai";
 const props = defineProps<{
   open: boolean;
   writerPrompt: string;
+  uncommitedWriterPrompt: string;
   directorPrompt: string;
+  uncommitedDirectorPrompt: string;
   sceneCode: string;
   sceneText: string;
   episode: {
@@ -175,6 +177,7 @@ Dialog.relative.z-50(
             Prompt.rounded-lg(
               :gpt="writer"
               :content="writerPrompt"
+              :uncommitted-content="uncommitedWriterPrompt"
               class="bg-black/50"
             )
 
@@ -182,6 +185,7 @@ Dialog.relative.z-50(
             Prompt.rounded-lg(
               :gpt="director"
               :content="directorPrompt"
+              :uncommitted-content="uncommitedDirectorPrompt"
               class="bg-black/50"
             )
 </template>

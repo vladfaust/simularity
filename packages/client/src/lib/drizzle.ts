@@ -1,4 +1,6 @@
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
+import { InferSelectModel } from "drizzle-orm";
+import { SQLiteTable, TableConfig } from "drizzle-orm/sqlite-core";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import * as schema from "./drizzle/schema";
 import { Sqlite, queryResultToObjects } from "./tauri/sqlite";
@@ -77,3 +79,40 @@ const d = {
 };
 
 export { d };
+
+/**
+ * Parse a raw SQLite query result into an array of objects.
+ * Would look up the column names in the table schema.
+ */
+export function parseSelectResult<
+  T extends SQLiteTable<U>,
+  U extends TableConfig,
+>(
+  _table: T,
+  result: {
+    columns: string[];
+    rows: any[][];
+  },
+): InferSelectModel<T>[] {
+  return result.rows.map((row) => {
+    const obj: any = {};
+
+    for (const [i, col] of result.columns.entries()) {
+      // Map "user_id" to "userId".
+      const colName = Object.keys(_table).find((key) =>
+        key in _table && "name" in (_table as any)[key]
+          ? (_table as any)[key].name === col
+          : false,
+      );
+
+      if (!colName) {
+        console.warn(`Column "${col}" not found in the table schema`);
+        continue;
+      }
+
+      obj[colName] = row[i];
+    }
+
+    return obj;
+  });
+}

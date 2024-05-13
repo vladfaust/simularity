@@ -48,10 +48,17 @@ export async function gptInfer(
 ): Promise<string> {
   return await invoke("gpt_infer", {
     gptId,
-    prompt,
+
+    // NOTE: Only send the prompt if is truthy.
+    prompt: prompt ? prompt : undefined,
+
     nEval: numEval,
     options,
   });
+}
+
+export async function gptCommit(gptId: string): Promise<number> {
+  return await invoke("gpt_commit", { gptId });
 }
 
 export async function gptTokenCount(

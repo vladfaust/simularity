@@ -13,6 +13,7 @@ const clipboard = useClipboard();
 const props = defineProps<{
   gpt: Gpt;
   content: string;
+  uncommittedContent: string;
 }>();
 
 const textWrap = ref(true);
@@ -33,5 +34,8 @@ const tokenCount = asyncComputed(() => props.gpt.tokenCount(props.content));
   .flex.flex-col.overflow-x-scroll.px-3.py-2.text-white
     code.overflow-x-scroll.text-sm.leading-snug(
       :class="{ 'whitespace-pre': textWrap, 'whitespace-pre-line': !textWrap }"
-    ) {{ content }}
+    )
+      | {{ content }}
+      span.opacity-50(v-if="uncommittedContent")
+        | {{ uncommittedContent }}
 </template>

@@ -13,6 +13,7 @@ export const simulations = sqliteTable(
 
     scenarioId: text("scenario_id").notNull(),
     screenshot: text("screenshot"),
+    headStoryUpdateId: text("head_story_update_id"),
 
     createdAt: text("created_at")
       .notNull()
@@ -24,6 +25,10 @@ export const simulations = sqliteTable(
   }),
 );
 
-export const simulationRelatiosn = relations(simulations, ({ many }) => ({
+export const simulationRelatiosn = relations(simulations, ({ one, many }) => ({
   storyUpdates: many(storyUpdates),
+  headStoryUpdate: one(storyUpdates, {
+    fields: [simulations.headStoryUpdateId],
+    references: [storyUpdates.id],
+  }),
 }));

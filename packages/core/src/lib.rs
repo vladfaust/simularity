@@ -36,6 +36,7 @@ pub fn init_model(backend: &GptBackend, model_path: &str) -> Result<GptModel> {
 pub struct GptContext<'model> {
     context: LlamaContext<'model>,
     session: Vec<LlamaToken>,
+    uncommitted_session: Vec<LlamaToken>,
 }
 
 unsafe impl Send for GptContext<'_> {}
@@ -64,17 +65,19 @@ impl<'model> GptContext<'model> {
         Ok(Self {
             context: ctx,
             session: vec![],
+            uncommitted_session: vec![],
         })
     }
 }
 
+// TODO: Rename to `reset`.
 pub fn clear(ctx: &mut GptContext) -> Result<()> {
     ctx.context.clear_kv_cache();
     ctx.session.clear();
     Ok(())
 }
 
-/// Decode a prompt, filling the KV cache.
+/// Decode a prompt, updating the KV cache.
 pub fn decode(ctx: &mut GptContext, prompt: String) -> Result<()> {
     println!(
         "(before) kv cache token_count: {}, used_cells: {}",
@@ -91,6 +94,7 @@ pub fn decode(ctx: &mut GptContext, prompt: String) -> Result<()> {
         .with_context(|| format!("failed to tokenize {0}", prompt))?;
 
     let mut batch = LlamaBatch::new(ctx.context.n_batch().try_into().unwrap(), 1);
+    cleanup_uncommitted_session(ctx);
 
     measure("decode", || {
         if n_session == 0 {
@@ -117,7 +121,7 @@ pub fn decode(ctx: &mut GptContext, prompt: String) -> Result<()> {
                 *ctx.session.get(n_session - 1).unwrap(),
                 (n_session - 1) as i32,
                 &[0],
-                true, // It has logits.
+                true, // It must have logits.
             )?;
 
             // Add the prompt tokens.
@@ -172,9 +176,12 @@ pub struct InferOptions {
     pub mirostat: Option<MirostatV2>,
 }
 
-/// Infer the next tokens.
-/// May pass a prompt to save on decoding.
-/// NOTE: Inferred tokens are not decoded (call `decode` explicitly).
+/// Predict the next tokens.
+/// May pass a `prompt` argument to save a `decode` call.
+///
+/// NOTE: Neither the `prompt` nor the inferred tokens are committed to the session.
+/// Call `commit` after `infer` to apply both the prompt and the inferred tokens.
+/// This allows to `infer` multiple times from the same point.
 pub fn infer(
     ctx: &mut GptContext,
     prompt: Option<&str>,
@@ -205,12 +212,14 @@ pub fn infer(
     };
 
     let mut batch = LlamaBatch::new(ctx.context.n_batch().try_into().unwrap(), 1);
+    cleanup_uncommitted_session(ctx);
+
     // Add the head.
     batch.add(
         *ctx.session.get(n_session - 1).unwrap(),
         (n_session - 1) as i32,
         &[0],
-        true, // It has logits.
+        true, // It must have logits.
     )?;
     if let Some(prompt) = prompt {
         let prompt_tokens = ctx
@@ -225,13 +234,16 @@ pub fn infer(
                 *prompt_tokens.get(i).unwrap(),
                 (n_session + i) as i32,
                 &[0],
-                // The latest token will become the new head.
+                // The latest token will become the new (temporary) head.
                 i == prompt_tokens.len() - 1,
             )?;
         }
 
-        ctx.session.extend(prompt_tokens);
+        ctx.uncommitted_session = prompt_tokens;
+    } else {
+        ctx.uncommitted_session.clear();
     }
+
     // If the prompt is not provided, the head logits is cached.
     // Otherwise, the decoding will take some time
     // to calculate, cache & initialize the new head logits.
@@ -332,6 +344,7 @@ pub fn infer(
             // Set the batch head to the new token.
             batch.clear();
             batch.add(new_token, n_session as i32, &[0], true)?;
+            ctx.uncommitted_session.push(new_token);
         }
 
         n_session += 1;
@@ -355,6 +368,15 @@ pub fn infer(
     Ok(decoded_string)
 }
 
+/// Commit the latest inferred tokens (along with
+/// their infer prompt, if any) to the session.
+/// Returns the number of tokens committed.
+pub fn commit(ctx: &mut GptContext) -> Result<usize> {
+    let len = ctx.uncommitted_session.len();
+    ctx.session.append(&mut ctx.uncommitted_session);
+    Ok(len)
+}
+
 /// Get the number of tokens in a prompt.
 pub fn token_count(model: &GptModel, prompt: &str) -> usize {
     let prompt_tokens = model
@@ -371,4 +393,17 @@ fn measure<T, F: FnOnce() -> T>(name: &str, f: F) -> T {
     let end = ggml_time_us();
     eprintln!("{}: {:.3} s", name, (end - start) as f32 / 1_000_000.0);
     result
+}
+
+/// Clears the uncommitted session and its KV cache, if any.
+fn cleanup_uncommitted_session(ctx: &mut GptContext) {
+    if !ctx.uncommitted_session.is_empty() {
+        ctx.context.clear_kv_cache_seq(
+            0,
+            Some(ctx.session.len() as u16),
+            Some((ctx.session.len() + ctx.uncommitted_session.len()) as u16),
+        );
+
+        ctx.uncommitted_session.clear();
+    }
 }

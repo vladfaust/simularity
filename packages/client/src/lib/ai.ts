@@ -3,6 +3,7 @@ import { ref } from "vue";
 import {
   InferOptions,
   gptClear,
+  gptCommit,
   gptDecode,
   gptInfer,
   gptInit,
@@ -44,7 +45,15 @@ class GptInferJob extends Job<string> {
   }
 }
 
-export type GptJob = GptDecodeJob | GptInferJob;
+class GptCommitJob extends Job<number> {
+  name = "Committing";
+
+  constructor(gpt: Gpt) {
+    super(() => gptCommit(gpt.id));
+  }
+}
+
+export type GptJob = GptDecodeJob | GptInferJob | GptCommitJob;
 
 export class Gpt {
   readonly jobs = ref<GptJob[]>([]);
@@ -62,28 +71,19 @@ export class Gpt {
   }
 
   async decode(prompt: string): Promise<void> {
-    const job = new GptDecodeJob(this, prompt);
-    this.jobs.value.push(job);
-    this.wakeUp();
-    return job.result;
+    return this.pushJob(new GptDecodeJob(this, prompt));
   }
 
-  async infer(numEval: number, options: InferOptions = {}): Promise<string> {
-    const job = new GptInferJob(this, undefined, numEval, options);
-    this.jobs.value.push(job);
-    this.wakeUp();
-    return job.result;
-  }
-
-  async inferPrompt(
-    prompt: string,
+  async infer(
+    prompt: string | undefined,
     numEval: number,
     options: InferOptions = {},
   ): Promise<string> {
-    const job = new GptInferJob(this, prompt, numEval, options);
-    this.jobs.value.push(job);
-    this.wakeUp();
-    return job.result;
+    return this.pushJob(new GptInferJob(this, prompt, numEval, options));
+  }
+
+  async commit(): Promise<number> {
+    return this.pushJob(new GptCommitJob(this));
   }
 
   async clear(): Promise<void> {
@@ -114,6 +114,12 @@ export class Gpt {
     console.log(this.id, "Initializing...");
     await gptInit(this.id, this.modelPath, this.contextSize, this.batchSize);
     this.initialized.value = true;
+  }
+
+  private async pushJob<T>(job: Job<T>): Promise<T> {
+    this.jobs.value.push(job as unknown as GptJob);
+    this.wakeUp();
+    return job.result;
   }
 
   // Wake up for a single job completion.

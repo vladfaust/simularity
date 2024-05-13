@@ -6,8 +6,11 @@ import { codeUpdates } from "./codeUpdates";
 import { llamaInferences } from "./llamaInferences";
 import { simulations } from "./simulations";
 
+// FIXME: `storyUpdates._` is `undefined` in runtime.
+export const storyUpdatesTableName = "story_updates";
+
 export const storyUpdates = sqliteTable(
-  "story_updates",
+  storyUpdatesTableName,
   sortByKey({
     id: text("id")
       .primaryKey()
@@ -17,6 +20,8 @@ export const storyUpdates = sqliteTable(
     simulationId: text("simulation_id")
       .references(() => simulations.id, { onDelete: "cascade" })
       .notNull(),
+
+    parentUpdateId: text("parent_update_id"),
 
     createdByPlayer: integer("created_by_player", { mode: "boolean" })
       .notNull()
@@ -45,6 +50,10 @@ export const storyUpdateRelatiosn = relations(
     simulation: one(simulations, {
       fields: [storyUpdates.simulationId],
       references: [simulations.id],
+    }),
+    parent: one(storyUpdates, {
+      fields: [storyUpdates.parentUpdateId],
+      references: [storyUpdates.id],
     }),
     llamaInference: one(llamaInferences, {
       fields: [storyUpdates.llamaInferenceId],

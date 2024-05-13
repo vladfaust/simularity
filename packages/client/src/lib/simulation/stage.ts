@@ -7,7 +7,7 @@ import { Scene } from "./scene";
  */
 export class StageScriptError extends Error {}
 
-export type StageDto = {
+export type State = {
   scene: {
     locationId: string;
     sceneId: string;
@@ -38,17 +38,9 @@ export class Stage {
   private _lua?: LuaEngine;
   private _connectedScene?: Scene;
 
-  constructor(
-    readonly scenario: Scenario,
-    initialStage?: StageDto,
-  ) {
-    if (initialStage) {
-      this.scene = initialStage.scene;
-      this.characters = initialStage.characters;
-    }
-  }
+  constructor(readonly scenario: Scenario) {}
 
-  dump(): StageDto {
+  dump(): State {
     return {
       scene: this.scene!,
       characters: this.characters,
@@ -96,6 +88,15 @@ export class Stage {
   eval(luaCode: string): Promise<any> {
     if (!this._lua) throw new Error("Lua engine not initialized");
     return this._lua.doString(luaCode);
+  }
+
+  /**
+   * Reset the stage immediately to the given state.
+   */
+  set(state: State | null = null) {
+    this.scene = state?.scene;
+    this.characters = state?.characters ?? [];
+    this._connectedScene?.set(state);
   }
 
   private setScene(id: string, clear: boolean) {

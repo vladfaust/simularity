@@ -67,6 +67,7 @@ pub async fn gpt_decode(
 ) -> Result<(), tauri::InvokeError> {
     println!("gpt_decode(gpt_id: {:?})", gpt_id);
 
+    // FIXME: A GPT context access exclusivity must differ from the hashmap's.
     let mut locked = state.gpt_instances.lock().await;
 
     let gpt = locked
@@ -86,11 +87,10 @@ pub async fn gpt_infer(
     state: tauri::State<'_, AppState>,
 ) -> Result<String, tauri::InvokeError> {
     println!(
-        "gpt_infer(gpt_id: {:?}, prompt: {}, n_eval: {}, options: {:?})",
+        "gpt_infer(gpt_id: {:?}, prompt: {}, n_eval: {})",
         gpt_id,
         if prompt.is_some() { "Some(_)" } else { "None" },
-        n_eval,
-        options
+        n_eval
     );
 
     let mut locked = state.gpt_instances.lock().await;
@@ -101,6 +101,22 @@ pub async fn gpt_infer(
 
     simularity_core::infer(&mut gpt.context, prompt, n_eval, options)
         .map_err(tauri::InvokeError::from_anyhow)
+}
+
+#[tauri::command]
+/// Commit the latest prediction.
+pub async fn gpt_commit(
+    gpt_id: &str,
+    state: tauri::State<'_, AppState>,
+) -> Result<usize, tauri::InvokeError> {
+    println!("gpt_commit(gpt_id: {:?})", gpt_id,);
+
+    let mut locked = state.gpt_instances.lock().await;
+    let gpt = locked
+        .get_mut(gpt_id)
+        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?;
+
+    simularity_core::commit(&mut gpt.context).map_err(tauri::InvokeError::from_anyhow)
 }
 
 #[tauri::command]

@@ -54,7 +54,8 @@ fn migrate_up(sqlite_uri: &str) {
         migration!("002_create_llama_inferences"),
         migration!("003_create_story_updates"),
         migration!("004_create_code_updates"),
-        migration!("005_add_created_by_player_to_story_updates")
+        migration!("005_add_created_by_player_to_story_updates"),
+        migration!("006_add_simulation_head_tracking"),
     ]);
 
     assert!(migrations.validate().is_ok());
@@ -91,6 +92,7 @@ fn main() {
             commands::gpt::gpt_clear,
             commands::gpt::gpt_decode,
             commands::gpt::gpt_infer,
+            commands::gpt::gpt_commit,
             commands::gpt::gpt_token_count,
             commands::sqlite::sqlite_open,
             commands::sqlite::sqlite_execute,

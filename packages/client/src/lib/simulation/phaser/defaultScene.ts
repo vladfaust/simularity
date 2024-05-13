@@ -2,7 +2,7 @@ import { Scenario } from "@/lib/types";
 import { throwError } from "@/lib/utils";
 import Phaser from "phaser";
 import { Scene } from "../scene";
-import { StageDto } from "../stage";
+import { State as StageState } from "../stage";
 
 /**
  * An unexpected scene error.
@@ -43,7 +43,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
   constructor(
     readonly scenario: Scenario,
     private readonly assetBasePath: string,
-    private readonly initialStage: StageDto | undefined,
+    private readonly initialStage: StageState | undefined,
   ) {
     super();
   }
@@ -98,6 +98,31 @@ export class DefaultScene extends Phaser.Scene implements Scene {
           expression.file,
         );
       }
+    }
+  }
+
+  set(state: StageState | null) {
+    if (state) {
+      this.setScene(
+        state.scene.locationId + "/" + state.scene.sceneId,
+        state.characters.length === 0,
+      );
+
+      for (const { id, outfitId, expressionId } of state.characters) {
+        if (!this.stageCharacters.has(id)) {
+          this.addCharacter(id, outfitId, expressionId);
+        } else {
+          this.setOutfit(id, outfitId);
+          this.setExpression(id, expressionId);
+        }
+      }
+    } else {
+      for (const characterId of this.stageCharacters.keys()) {
+        this.removeCharacter(characterId);
+      }
+
+      this.stageScene?.bg.destroy();
+      this.stageScene = null;
     }
   }
 

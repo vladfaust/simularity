@@ -4,6 +4,7 @@ import { routeLocation } from "../lib/router";
 import { d } from "@/lib/drizzle";
 import { type Scenario } from "@/lib/types";
 import { DEFAULT_SCENARIO_ID } from "@/env";
+import { eq } from "drizzle-orm";
 
 const router = useRouter();
 
@@ -53,6 +54,12 @@ async function newSimulation() {
       storyUpdateId: storyUpdate.id,
       code: chunk.stageCode,
     });
+
+    // Set simulation head.
+    await tx
+      .update(d.simulations)
+      .set({ headStoryUpdateId: storyUpdate.id })
+      .where(eq(d.simulations.id, simulation.id));
 
     return simulation.id;
   });

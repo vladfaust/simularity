@@ -1,3 +1,5 @@
+import { State } from "./stage";
+
 /**
  * An abstract render scene object.
  */
@@ -11,4 +13,9 @@ export interface Scene {
   setOutfit(characterId: string, outfitId: string): void;
   setExpression(characterId: string, expressionId: string): void;
   removeCharacter(characterId: string): void;
+
+  /**
+   * Set the scene to given state.
+   */
+  set(state: State | null): void;
 }
