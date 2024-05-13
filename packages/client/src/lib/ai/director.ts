@@ -89,7 +89,8 @@ ${outfit.prompt}
 ### ${character.displayName}
 characterId: ${character.id}
 expressionId: ${character.expressions.map((e) => e.id).join(", ")}
-${character.scenarioPrompt}
+#### Appearance
+${character.appearancePrompt}
 #### Outfits
 ${outfits.join("\n")}
   `.trim();
