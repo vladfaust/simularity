@@ -651,9 +651,9 @@ onUnmounted(() => {
     span {{ scenario?.name }}: {{ simulationId }}
     .flex.gap-2
       .flex.items-center.gap-1
-        GptStatus(:gpt="writer" :icon-size="20")
+        GptStatus(:gpt="writer" :icon-size="22")
           ScrollTextIcon(:size="18")
-        GptStatus(:gpt="director" :icon-size="20")
+        GptStatus(:gpt="director" :icon-size="22")
           ClapperboardIcon(:size="18")
 
   .absolute.bottom-0.flex.h-32.w-full.flex-col.overflow-hidden.bg-yellow-500.bg-opacity-90.p-3
