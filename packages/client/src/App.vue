@@ -5,7 +5,11 @@ import { whenever } from "@vueuse/core";
 import { appWindow } from "@tauri-apps/api/window";
 import { onMounted, onUnmounted } from "vue";
 import { type UnlistenFn } from "@tauri-apps/api/event";
-import { register, unregister } from "@tauri-apps/api/globalShortcut";
+import {
+  isRegistered,
+  register,
+  unregister,
+} from "@tauri-apps/api/globalShortcut";
 import { routeLocation } from "./lib/router";
 
 const route = useRoute();
@@ -43,13 +47,17 @@ onMounted(async () => {
       unlisten = unlistenFn;
     });
 
-  register("Command+Q", async () => {
-    console.log("Command+Q pressed");
-    router.push(routeLocation({ name: "Shutdown" }));
-    await cleanup();
-    await appWindow.close();
-  }).then(() => {
-    console.debug("Command+Q registered");
+  isRegistered("Command+Q").then((registered) => {
+    if (!registered) {
+      register("Command+Q", async () => {
+        console.log("Command+Q pressed");
+        router.push(routeLocation({ name: "Shutdown" }));
+        await cleanup();
+        await appWindow.close();
+      }).then(() => {
+        console.debug("Command+Q registered");
+      });
+    }
   });
 });
 
