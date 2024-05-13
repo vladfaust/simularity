@@ -26,29 +26,29 @@ export function buildGnbf(scenario: {
 root ::= function_call ";" (function_call ";")* "\\n"
 
 function_call ::=
-  "noop()" |
-  "set_scene(" (${scenario.locations
+  ("noop" "(" ")") |
+  ("set_scene" "(" (${scenario.locations
     .flatMap((l) => l.scenes.map((s) => `"\\"${l.id}/${s.id}\\""`))
-    .join(" | ")}) ", " ("true" | "false") ")" |
-  "add_character(" (${scenario.characters
+    .join(" | ")}) ", " ("true" | "false") ")") |
+  ("add_character" "(" (${scenario.characters
     .map(
       (c) =>
-        `("\\"${c.id}\\", " ${c.outfits
+        `("\\"${c.id}\\"" ", " (${c.outfits
           .map((o) => `"\\"${o.id}\\""`)
-          .join(" | ")} ", " ${c.expressions
+          .join(" | ")}) ", " (${c.expressions
           .map((e) => `"\\"${e.id}\\""`)
-          .join(" | ")})`,
+          .join(" | ")}))`,
     )
-    .join(" |\n")}) ")" |
-  "set_outfit(" (${scenario.characters
+    .join(" | ")}) ")") |
+  ("set_outfit" "(" (${scenario.characters
     .flatMap((c) => c.outfits.map((o) => `"\\"${c.id}\\", \\"${o.id}\\""`))
-    .join(" | ")}) ")" |
-  "set_expression(" (${scenario.characters
+    .join(" | ")}) ")") |
+  ("set_expression" "(" (${scenario.characters
     .flatMap((c) => c.expressions.map((e) => `"\\"${c.id}\\", \\"${e.id}\\""`))
-    .join(" | ")}) ")" |
-  "remove_character(" (${scenario.characters
+    .join(" | ")}) ")") |
+  ("remove_character" "(" (${scenario.characters
     .map((c) => `"\\"${c.id}\\""`)
-    .join(" | ")}) ")"
+    .join(" | ")}) ")")
 `.trim();
 }
 
