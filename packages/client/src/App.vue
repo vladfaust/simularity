@@ -51,6 +51,7 @@ onMounted(async () => {
     if (!registered) {
       register("Command+Q", async () => {
         console.log("Command+Q pressed");
+        unregister("Command+Q");
         router.push(routeLocation({ name: "Shutdown" }));
         await cleanup();
         await appWindow.close();
