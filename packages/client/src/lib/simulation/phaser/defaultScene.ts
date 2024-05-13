@@ -199,7 +199,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
 
     this.stageCharacters.set(characterId, {
       body: {
-        index: 0,
+        index: expression.bodyId,
         // Position in the center of the screen.
         sprite: this.add.sprite(
           this.game.canvas.width / 2,
