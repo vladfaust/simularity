@@ -4,7 +4,7 @@
 )]
 
 use simularity_core::{GptBackend, GptContext, GptModel};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use tauri::async_runtime::Mutex;
 
 mod commands;
@@ -25,7 +25,7 @@ struct AppState {
     pub gpt_instances: Mutex<HashMap<String, GptInstance>>,
 
     /// { uri => connection }. A connection will be held until it is closed.
-    pub sqlite_connections: Mutex<HashMap<String, Box<rusqlite::Connection>>>,
+    pub sqlite_connections: Mutex<HashMap<String, Arc<Mutex<rusqlite::Connection>>>>,
 }
 
 /// Macro for both the up and down migrations.

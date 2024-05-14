@@ -1,6 +1,8 @@
 use crate::sqlite::SqliteValue;
 use crate::AppState;
 use rusqlite::types::FromSql;
+use std::sync::Arc;
+use tauri::async_runtime::Mutex;
 
 struct RusqliteError(rusqlite::Error);
 
@@ -17,8 +19,14 @@ pub async fn sqlite_open(
     uri: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), tauri::InvokeError> {
-    let conn = Box::new(rusqlite::Connection::open(&uri).map_err(RusqliteError)?);
-    state.sqlite_connections.lock().await.insert(uri, conn);
+    let conn = rusqlite::Connection::open(&uri).map_err(RusqliteError)?;
+
+    state
+        .sqlite_connections
+        .lock()
+        .await
+        .insert(uri, Arc::new(Mutex::new(conn)));
+
     Ok(())
 }
 
@@ -32,10 +40,14 @@ pub async fn sqlite_execute(
 ) -> Result<(), tauri::InvokeError> {
     // println!("sqlite_execute: {} {:?}", sql, params);
 
-    let lock = state.sqlite_connections.lock().await;
-    let conn = lock
+    let hash_map_lock = state.sqlite_connections.lock().await;
+    let arc = hash_map_lock
         .get(uri)
-        .ok_or(tauri::InvokeError::from("connection not found"))?;
+        .ok_or(tauri::InvokeError::from("connection not found"))?
+        .clone();
+
+    drop(hash_map_lock);
+    let conn = arc.lock().await;
 
     let params = rusqlite::params_from_iter(params);
     conn.execute(sql, params).map_err(RusqliteError)?;
@@ -66,10 +78,14 @@ pub async fn sqlite_query(
 ) -> Result<QueryResult, tauri::InvokeError> {
     // println!("sqlite_query: {} {:?}", sql, params);
 
-    let lock = state.sqlite_connections.lock().await;
-    let conn = lock
+    let hash_map_lock = state.sqlite_connections.lock().await;
+    let conn_arc = hash_map_lock
         .get(uri)
-        .ok_or(tauri::InvokeError::from("connection not found"))?;
+        .ok_or(tauri::InvokeError::from("connection not found"))?
+        .clone();
+
+    drop(hash_map_lock);
+    let conn = conn_arc.lock().await;
 
     let mut stmt = conn.prepare(sql).map_err(RusqliteError)?;
     let column_count = stmt.column_count();
