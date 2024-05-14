@@ -8,7 +8,6 @@
 
 > After squashing, bugs are removed from this list.
 
-- [ ] fix: simulation screenshots
 - [ ] fix: updatedAt column
       change type to integer?
 - [ ] fix: handle director syntactic errors

@@ -17,7 +17,7 @@ tauri-build = { version = "1.0.4", features = [] }
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "1.1.0", features = [ "global-shortcut-all", "window-close", "dialog-confirm",
+tauri = { version = "1.1.0", features = [ "protocol-asset", "global-shortcut-all", "window-close", "dialog-confirm",
   "dialog-message",
   "fs-create-dir",
   "fs-read-dir",

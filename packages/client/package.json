@@ -20,6 +20,7 @@
     "lucide-vue-next": "^0.378.0",
     "nanoid": "^5.0.7",
     "phaser": "^3.80.1",
+    "pretty-bytes": "^6.1.1",
     "thememirror": "^2.0.1",
     "vue": "^3.4.21",
     "vue-codemirror": "^6.1.1",

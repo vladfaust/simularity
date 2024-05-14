@@ -3,13 +3,16 @@ import { onMounted, ref } from "vue";
 import { routeLocation } from "@/lib/router";
 import { d } from "@/lib/drizzle";
 import { desc } from "drizzle-orm";
+import Simulation from "./LoadSimulations/Simulation.vue";
 
-const simulations = ref<(typeof d.simulations.$inferSelect)[]>([]);
+const simulations = ref<Pick<typeof d.simulations.$inferSelect, "id">[]>([]);
 
 onMounted(async () => {
+  // TODO: TanStack query + useScroll for infinite query.
   simulations.value = await d.db.query.simulations.findMany({
+    columns: { id: true },
     orderBy: desc(d.simulations.updatedAt),
-    limit: 10,
+    limit: 9,
   });
 });
 </script>
@@ -18,16 +21,9 @@ onMounted(async () => {
 .flex.flex-col.gap-3.p-4
   h1 Load game
   .grid.grid-cols-3.gap-3
-    RouterLink.flex.flex-col.overflow-hidden.rounded-lg.transition-transform.pressable(
+    RouterLink.transition-transform.pressable(
       v-for="simulation of simulations"
       :to="routeLocation({ name: 'Simulation', params: { simulationId: simulation.id } })"
     )
-      img.aspect-video.w-full.bg-blue-400(
-        v-if="simulation.screenshot"
-        :src="simulation.screenshot"
-      )
-      .aspect-video.w-full.bg-blue-400(v-else)
-      span Updated: {{ new Date(+simulation.updatedAt).toLocaleString() }}
+      Simulation.overflow-hidden.rounded-lg(:simulation-id="simulation.id")
 </template>
-
-<style lang="scss" scoped></style>

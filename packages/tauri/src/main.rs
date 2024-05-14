@@ -56,6 +56,7 @@ fn migrate_up(sqlite_uri: &str) {
         migration!("004_create_code_updates"),
         migration!("005_add_created_by_player_to_story_updates"),
         migration!("006_add_simulation_head_tracking"),
+        migration!("007_drop_screenshot_column"),
     ]);
 
     assert!(migrations.validate().is_ok());

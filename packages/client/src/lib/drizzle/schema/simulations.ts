@@ -12,7 +12,6 @@ export const simulations = sqliteTable(
       .$defaultFn(() => nanoid()),
 
     scenarioId: text("scenario_id").notNull(),
-    screenshot: text("screenshot"),
     headStoryUpdateId: text("head_story_update_id"),
 
     createdAt: text("created_at")

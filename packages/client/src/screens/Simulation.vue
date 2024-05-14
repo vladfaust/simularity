@@ -21,6 +21,14 @@ import {
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { storyUpdatesTableName } from "@/lib/drizzle/schema/storyUpdates.ts";
 import { TransitionRoot } from "@headlessui/vue";
+import { appLocalDataDir, join } from "@tauri-apps/api/path";
+import {
+  BaseDirectory,
+  createDir,
+  exists,
+  writeBinaryFile,
+} from "@tauri-apps/api/fs";
+import prettyBytes from "pretty-bytes";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -356,6 +364,12 @@ async function advance() {
       ...incoming.storyUpdate,
       codeUpdates: [{ ...incoming.codeUpdate }],
     });
+
+    screenshot(true).then((shot) => {
+      if (shot) {
+        console.log("Saved screenshot", shot.path, prettyBytes(shot.size));
+      }
+    });
   } catch (e) {
     if (wouldRestorePlayerInput) {
       playerInput.value = playerInput_;
@@ -363,6 +377,33 @@ async function advance() {
   } finally {
     busy.value = false;
   }
+}
+
+/**
+ * Take a screenshot of the game, and save it at
+ * `$APPLOCALDATA/screenshots/{simulationId}`.
+ */
+async function screenshot(
+  rewrite: boolean,
+): Promise<{ path: string; size: number } | null> {
+  const path = await join(
+    await appLocalDataDir(),
+    "screenshots",
+    `${simulationId}.jpg`,
+  );
+
+  if ((await exists(path)) && !rewrite) {
+    return null;
+  }
+
+  const dataUri = gameInstance.screenshot("image/jpeg");
+  const base64 = dataUri.split(",")[1];
+  const buffer = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+
+  await createDir("screenshots", { dir: BaseDirectory.AppLocalData });
+  await writeBinaryFile(path, buffer, { append: false });
+
+  return { path, size: buffer.length };
 }
 
 /**
@@ -636,6 +677,15 @@ onMounted(async () => {
   stageUpdateCode.value = splitCode(
     storyUpdates.value.at(-1)?.codeUpdates.at(0)?.code || "",
   ).join("\n");
+
+  // ADHOC: Always create a screenshot upon running a simulation,
+  // because there is currently no easy way to detect
+  // if there have been any real updates.
+  screenshot(false).then((shot) => {
+    if (shot) {
+      console.log("Saved screenshot", shot.path, prettyBytes(shot.size));
+    }
+  });
 });
 
 onUnmounted(() => {
