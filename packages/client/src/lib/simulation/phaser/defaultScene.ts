@@ -11,8 +11,7 @@ export class SceneError extends Error {}
 
 export class DefaultScene extends Phaser.Scene implements Scene {
   private stageScene: {
-    locationId: string;
-    sceneId: string;
+    qualifiedId: string;
     bg: Phaser.GameObjects.Image;
   } | null = null;
 
@@ -43,21 +42,18 @@ export class DefaultScene extends Phaser.Scene implements Scene {
   constructor(
     readonly scenario: Scenario,
     private readonly assetBasePath: string,
-    private readonly initialStage: StageState | undefined,
+    private readonly initialState: StageState | undefined,
   ) {
     super();
   }
 
   create() {
-    if (this.initialStage) {
-      this.setScene(
-        this.initialStage.scene.locationId +
-          "/" +
-          this.initialStage.scene.sceneId,
-        false,
-      );
+    if (this.initialState) {
+      if (this.initialState.sceneQualifiedId) {
+        this.setScene(this.initialState.sceneQualifiedId, false);
+      }
 
-      for (const { id, outfitId, expressionId } of this.initialStage
+      for (const { id, outfitId, expressionId } of this.initialState
         .characters) {
         this.addCharacter(id, outfitId, expressionId);
       }
@@ -103,17 +99,27 @@ export class DefaultScene extends Phaser.Scene implements Scene {
 
   set(state: StageState | null) {
     if (state) {
-      this.setScene(
-        state.scene.locationId + "/" + state.scene.sceneId,
-        state.characters.length === 0,
-      );
+      if (state.sceneQualifiedId) {
+        this.setScene(state.sceneQualifiedId, state.characters.length === 0);
+      } else {
+        this.stageScene?.bg.destroy();
+        this.stageScene = null;
+      }
 
+      // Add or update characters.
       for (const { id, outfitId, expressionId } of state.characters) {
         if (!this.stageCharacters.has(id)) {
           this.addCharacter(id, outfitId, expressionId);
         } else {
           this.setOutfit(id, outfitId);
           this.setExpression(id, expressionId);
+        }
+      }
+
+      // Remove those characters which are not in the state.
+      for (const characterId of this.stageCharacters.keys()) {
+        if (!state.characters.find((c) => c.id === characterId)) {
+          this.removeCharacter(characterId);
         }
       }
     } else {
@@ -129,13 +135,13 @@ export class DefaultScene extends Phaser.Scene implements Scene {
   /**
    * Set the scene, clearing it if necessary.
    *
-   * @param id A combination of location and scene IDs, e.g. `"home/bedroom"`.
+   * @param qualifiedId A combination of location and scene IDs, e.g. `"home/bedroom"`.
    * @param clear Whether to clear the scene.
    */
-  setScene(id: string, clear: boolean) {
-    console.debug("setScene", { id, clear });
+  setScene(qualifiedId: string, clear: boolean) {
+    console.debug("setScene", { qualifiedId, clear });
 
-    const [locationId, sceneId] = id.split("/");
+    const [locationId, sceneId] = qualifiedId.split("/");
 
     const location = this.scenario.locations.find((l) => l.id === locationId);
     if (!location) throw new SceneError(`Location not found: ${locationId}`);
@@ -153,8 +159,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
 
     if (this.stageScene) {
       this.stageScene.bg.setTexture(texture);
-      this.stageScene.locationId = locationId;
-      this.stageScene.sceneId = sceneId;
+      this.stageScene.qualifiedId = qualifiedId;
     } else {
       const bg = this.add.image(
         this.game.canvas.width / 2,
@@ -163,8 +168,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
       );
 
       this.stageScene = {
-        locationId,
-        sceneId,
+        qualifiedId,
         bg,
       };
     }

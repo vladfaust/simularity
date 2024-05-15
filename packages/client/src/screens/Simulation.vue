@@ -844,7 +844,7 @@ onMounted(async () => {
 
   // TODO: Get initial stage value from the latest snapshot.
   stage = new Stage(scenario.value);
-  await stage.init();
+  await stage.initCodeEngine();
 
   if (storyUpdates.value.length) {
     // Apply existing code updates to the stage.

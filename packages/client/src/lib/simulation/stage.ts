@@ -1,17 +1,18 @@
 import { LuaEngine, LuaFactory } from "wasmoon";
 import { Scenario } from "../types";
+import { clone } from "../utils";
 import { Scene } from "./scene";
 
 /**
- * A Lua script error.
+ * A stage script error.
  */
 export class StageScriptError extends Error {}
 
+/**
+ * A stage state.
+ */
 export type State = {
-  scene: {
-    locationId: string;
-    sceneId: string;
-  };
+  sceneQualifiedId?: string;
 
   characters: {
     id: string;
@@ -24,10 +25,7 @@ export type State = {
  * An abstract simulation stage object.
  */
 export class Stage {
-  scene?: {
-    locationId: string;
-    sceneId: string;
-  };
+  sceneQualifiedId?: string;
 
   characters: {
     id: string;
@@ -41,19 +39,22 @@ export class Stage {
   constructor(readonly scenario: Scenario) {}
 
   dump(): State {
-    return {
-      scene: this.scene!,
+    return clone<State>({
+      sceneQualifiedId: this.sceneQualifiedId,
       characters: this.characters,
-    };
+    });
   }
 
-  async init() {
+  async initCodeEngine() {
     this._lua = await new LuaFactory().createEngine().then((lua) => {
       lua.global.set("noop", () => {});
 
-      lua.global.set("set_scene", (sceneId: string, clear: boolean) => {
-        this.setScene(sceneId, clear);
-      });
+      lua.global.set(
+        "set_scene",
+        (sceneQualifiedId: string, clear: boolean) => {
+          this.setScene(sceneQualifiedId, clear);
+        },
+      );
 
       lua.global.set(
         "add_character",
@@ -94,13 +95,14 @@ export class Stage {
    * Reset the stage immediately to the given state.
    */
   set(state: State | null = null) {
-    this.scene = state?.scene;
+    state = clone(state);
+    this.sceneQualifiedId = state?.sceneQualifiedId;
     this.characters = state?.characters ?? [];
     this._connectedScene?.set(state);
   }
 
-  private setScene(id: string, clear: boolean) {
-    const [locationId, sceneId] = id.split("/");
+  private setScene(qualifiedId: string, clear: boolean) {
+    const [locationId, sceneId] = qualifiedId.split("/");
 
     const location = this.scenario.locations.find((l) => l.id === locationId);
     if (!location)
@@ -109,13 +111,13 @@ export class Stage {
     const scene = location.scenes.find((s) => s.id === sceneId);
     if (!scene) throw new StageScriptError(`Scene not found: ${sceneId}`);
 
-    this.scene = { locationId, sceneId };
+    this.sceneQualifiedId = qualifiedId;
 
     if (clear) {
       this.characters = [];
     }
 
-    this._connectedScene?.setScene(id, clear);
+    this._connectedScene?.setScene(qualifiedId, clear);
   }
 
   private addCharacter(
