@@ -18,7 +18,7 @@ import {
   ScrollTextIcon,
 } from "lucide-vue-next";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
-import { storyUpdatesTableName } from "@/lib/drizzle/schema/storyUpdates.ts";
+import { writerUpdatesTableName } from "@/lib/drizzle/schema/writerUpdates";
 import { TransitionRoot } from "@headlessui/vue";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import {
@@ -36,26 +36,26 @@ const { simulationId } = defineProps<{ simulationId: string }>();
 let gameInstance: Game;
 let stage: Stage;
 let scene: DefaultScene;
-const storyUpdates = ref<
-  (typeof d.storyUpdates.$inferSelect & {
-    codeUpdates: (typeof d.codeUpdates.$inferSelect & {})[];
+const writerUpdates = ref<
+  (typeof d.writerUpdates.$inferSelect & {
+    directorUpdates: (typeof d.directorUpdates.$inferSelect & {})[];
   })[]
 >([]);
-const latestStoryUpdate = computed(() => storyUpdates.value.at(-1));
-const preLatestStoryUpdate = computed(() => storyUpdates.value.at(-2));
+const latestWriterUpdate = computed(() => writerUpdates.value.at(-1));
+const preLatestWriterUpdate = computed(() => writerUpdates.value.at(-2));
 let previousStageState: StageState | undefined;
 
 let scenario = ref<Scenario | undefined>();
 
 const busy = ref(false);
-const canPossiblyRegenerateStoryUpdate = computed(() =>
-  latestStoryUpdate.value
-    ? !latestStoryUpdate.value.episodeId &&
-      !latestStoryUpdate.value.createdByPlayer
+const canPossiblyRegenerateWriterUpdate = computed(() =>
+  latestWriterUpdate.value
+    ? !latestWriterUpdate.value.episodeId &&
+      !latestWriterUpdate.value.createdByPlayer
     : false,
 );
-const canPossiblyRegenerateCodeUpdate = computed(() =>
-  latestStoryUpdate.value ? !latestStoryUpdate.value.episodeId : false,
+const canPossiblyRegenerateDirectorUpdate = computed(() =>
+  latestWriterUpdate.value ? !latestWriterUpdate.value.episodeId : false,
 );
 
 /**
@@ -65,20 +65,20 @@ const state = ref<{
   currentEpisode: (Scenario["episodes"][0] & { nextChunkIndex: number }) | null;
 }>({ currentEpisode: null });
 
-const storyUpdateText = ref("");
-const stageUpdateCode = ref("");
+const latestWriterUpdateText = ref("");
+const latestDirectorUpdateCode = ref("");
 
 const writer = ref<Gpt | undefined>();
 const deferredWriter = new Deferred<Gpt>();
 const writerPrompt = ref("");
 const uncommitedWriterPrompt = ref("");
-const uncommitedStoryUpdateId = ref<string | undefined>();
+const uncommitedWriterUpdateId = ref<string | undefined>();
 
 const director = ref<Gpt | undefined>();
 const deferredDirector = new Deferred<Gpt>();
 const directorPrompt = ref("");
 const uncommittedDirectorPrompt = ref("");
-const uncommitedCodeUpdateId = ref<string | undefined>();
+const uncommitedDirectorUpdateId = ref<string | undefined>();
 
 const fullFade = ref(false);
 let fadeDeferred: Deferred<void> | undefined;
@@ -116,7 +116,7 @@ function consoleEventListener(event: KeyboardEvent) {
 /**
  * Predict the next director update for writer response.
  */
-async function inferCodeUpdate(writerResponse: string): Promise<string> {
+async function predictDirectorUpdate(writerResponse: string): Promise<string> {
   const grammar = buildGnbf(scenario.value!);
   console.debug("Director grammar", grammar);
 
@@ -142,7 +142,7 @@ async function inferCodeUpdate(writerResponse: string): Promise<string> {
 /**
  * Predict the next writer and director updates.
  */
-async function inferStoryUpdate(): Promise<{
+async function predictWriterUpdate(): Promise<{
   writerResponse: string;
   directorResponse: string;
 }> {
@@ -155,7 +155,7 @@ async function inferStoryUpdate(): Promise<{
   uncommitedWriterPrompt.value = writerResponse + "\n";
 
   uncommittedDirectorPrompt.value = writerResponse + "\n";
-  const directorResponse = await inferCodeUpdate(writerResponse);
+  const directorResponse = await predictDirectorUpdate(writerResponse);
 
   return {
     writerResponse,
@@ -173,8 +173,8 @@ async function inferStoryUpdate(): Promise<{
 async function commitLatestInference() {
   const promises = [];
 
-  if (uncommitedStoryUpdateId.value) {
-    const newKvCacheKey = `${simulationId}:${uncommitedStoryUpdateId.value}`;
+  if (uncommitedWriterUpdateId.value) {
+    const newKvCacheKey = `${simulationId}:${uncommitedWriterUpdateId.value}`;
 
     promises.push(
       deferredWriter.promise.then((writer) =>
@@ -182,14 +182,14 @@ async function commitLatestInference() {
           console.debug("Committed to writer", newKvCacheKey, tokens);
           writerPrompt.value += uncommitedWriterPrompt.value;
           uncommitedWriterPrompt.value = "";
-          uncommitedStoryUpdateId.value = undefined;
+          uncommitedWriterUpdateId.value = undefined;
         }),
       ),
     );
   }
 
-  if (uncommitedCodeUpdateId.value) {
-    const newKvCacheKey = `${simulationId}:${uncommitedCodeUpdateId.value}`;
+  if (uncommitedDirectorUpdateId.value) {
+    const newKvCacheKey = `${simulationId}:${uncommitedDirectorUpdateId.value}`;
 
     promises.push(
       deferredDirector.promise.then((director) =>
@@ -197,7 +197,7 @@ async function commitLatestInference() {
           console.debug("Committed to director", newKvCacheKey, tokens);
           directorPrompt.value += uncommittedDirectorPrompt.value;
           uncommittedDirectorPrompt.value = "";
-          uncommitedCodeUpdateId.value = undefined;
+          uncommitedDirectorUpdateId.value = undefined;
         }),
       ),
     );
@@ -222,47 +222,47 @@ async function resetStage() {
 }
 
 /**
- * Explicitly regenerate the code update for existing story update.
+ * Explicitly regenerate the director update for existing writer update.
  */
-async function regenerateCode() {
-  if (!latestStoryUpdate.value) {
-    throw new Error("regenerateCode() requires a story update");
+async function regenerateDirectorUpdate() {
+  if (!latestWriterUpdate.value) {
+    throw new Error("regenerateDirectorUpdate() requires a writer update");
   }
 
   busy.value = true;
   try {
     // OPTIMIZE: Infer while waiting for the fade.
     await resetStage();
-    storyUpdateText.value = latestStoryUpdate.value.text;
+    latestWriterUpdateText.value = latestWriterUpdate.value.content;
 
-    const writerResponse = latestStoryUpdate.value.text;
+    const writerResponse = latestWriterUpdate.value.content;
     uncommittedDirectorPrompt.value = "";
-    const directorResponse = await inferCodeUpdate(writerResponse);
+    const directorResponse = await predictDirectorUpdate(writerResponse);
 
-    stageUpdateCode.value = directorResponse;
+    latestDirectorUpdateCode.value = directorResponse;
 
-    const codeUpdate = (
+    const directorUpdate = (
       await d.db
-        .insert(d.codeUpdates)
+        .insert(d.directorUpdates)
         .values({
-          storyUpdateId: latestStoryUpdate.value.id,
-          code: directorResponse,
+          writerUpdateId: latestWriterUpdate.value.id,
+          content: directorResponse,
         })
         .returning()
     )[0];
 
-    latestStoryUpdate.value.codeUpdates.push(codeUpdate);
+    latestWriterUpdate.value.directorUpdates.push(directorUpdate);
   } finally {
     busy.value = false;
   }
 }
 
 /**
- * Explicitly regenerate the story update along with the code update.
+ * Explicitly regenerate the writer update along with the director update.
  */
-async function regenerateStory() {
-  if (!latestStoryUpdate.value) {
-    throw new Error("regenerateStory() requires a story update");
+async function regenerateWriterUpdate() {
+  if (!latestWriterUpdate.value) {
+    throw new Error("regenerateWriterUpdate() requires a writer update");
   }
 
   busy.value = true;
@@ -271,31 +271,31 @@ async function regenerateStory() {
     await resetStage();
 
     // Use the same parent update ID as the pre-latest update.
-    let parentUpdateId = preLatestStoryUpdate.value?.id;
-    storyUpdateText.value = preLatestStoryUpdate.value?.text || "";
+    let parentUpdateId = preLatestWriterUpdate.value?.id;
+    latestWriterUpdateText.value = preLatestWriterUpdate.value?.content || "";
 
-    const { writerResponse, directorResponse } = await inferStoryUpdate();
+    const { writerResponse, directorResponse } = await predictWriterUpdate();
 
-    storyUpdateText.value = writerResponse;
-    stageUpdateCode.value = directorResponse;
+    latestWriterUpdateText.value = writerResponse;
+    latestDirectorUpdateCode.value = directorResponse;
 
     const incoming = await saveUpdatesToDb({
-      storyUpdate: {
+      writerUpdate: {
         parentUpdateId,
-        text: writerResponse,
+        content: writerResponse,
       },
-      codeUpdate: {
-        code: directorResponse,
+      directorUpdate: {
+        content: directorResponse,
       },
     });
 
-    uncommitedStoryUpdateId.value = incoming.storyUpdate.id;
-    uncommitedCodeUpdateId.value = incoming.codeUpdate.id;
+    uncommitedWriterUpdateId.value = incoming.writerUpdate.id;
+    uncommitedDirectorUpdateId.value = incoming.directorUpdate.id;
 
-    storyUpdates.value.pop();
-    storyUpdates.value.push({
-      ...incoming.storyUpdate,
-      codeUpdates: [{ ...incoming.codeUpdate }],
+    writerUpdates.value.pop();
+    writerUpdates.value.push({
+      ...incoming.writerUpdate,
+      directorUpdates: [{ ...incoming.directorUpdate }],
     });
   } finally {
     busy.value = false;
@@ -323,39 +323,39 @@ async function sendPlayerInput() {
 
   busy.value = true;
   try {
-    storyUpdateText.value = playerInput_;
+    latestWriterUpdateText.value = playerInput_;
     await commitLatestInference();
 
     uncommitedWriterPrompt.value = `${playerInput_}\n`;
     uncommittedDirectorPrompt.value = `${playerInput_}\n`;
 
-    const directorResponse = await inferCodeUpdate(`${playerInput_}\n`);
+    const directorResponse = await predictDirectorUpdate(`${playerInput_}\n`);
     uncommittedDirectorPrompt.value += `${directorResponse}\n`;
 
     const incoming = await saveUpdatesToDb({
-      storyUpdate: {
-        parentUpdateId: latestStoryUpdate.value?.id,
-        text: playerInput_,
+      writerUpdate: {
+        parentUpdateId: latestWriterUpdate.value?.id,
+        content: playerInput_,
         createdByPlayer: true,
       },
-      codeUpdate: {
-        code: directorResponse,
+      directorUpdate: {
+        content: directorResponse,
       },
     });
 
-    uncommitedStoryUpdateId.value = incoming.storyUpdate.id;
-    uncommitedCodeUpdateId.value = incoming.codeUpdate.id;
+    uncommitedWriterUpdateId.value = incoming.writerUpdate.id;
+    uncommitedDirectorUpdateId.value = incoming.directorUpdate.id;
 
-    storyUpdates.value.push({
-      ...incoming.storyUpdate,
-      codeUpdates: [incoming.codeUpdate],
+    writerUpdates.value.push({
+      ...incoming.writerUpdate,
+      directorUpdates: [incoming.directorUpdate],
     });
   } catch (e) {
     if (wouldRestorePlayerInput) {
       playerInput.value = playerInput_;
     }
 
-    storyUpdateText.value = latestStoryUpdate.value?.text || "";
+    latestWriterUpdateText.value = latestWriterUpdate.value?.content || "";
 
     throw e;
   } finally {
@@ -375,8 +375,8 @@ async function advance() {
   // Advance the story.
   //
 
-  let storyUpdateEpisodeId: string | null = null;
-  let storyUpdateEpisodeChunkIndex: number | null = null;
+  let writerUpdateEpisodeId: string | null = null;
+  let writerUpdateEpisodeChunkIndex: number | null = null;
 
   busy.value = true;
   try {
@@ -386,22 +386,22 @@ async function advance() {
       console.debug("Advancing episode", state.value.currentEpisode);
 
       const currentEpisode = state.value.currentEpisode;
-      storyUpdateEpisodeId = currentEpisode.id;
-      storyUpdateEpisodeChunkIndex = currentEpisode.nextChunkIndex;
+      writerUpdateEpisodeId = currentEpisode.id;
+      writerUpdateEpisodeChunkIndex = currentEpisode.nextChunkIndex;
 
       // Advance the episode.
       //
 
-      storyUpdateText.value =
-        currentEpisode.chunks[currentEpisode.nextChunkIndex].storyText;
+      latestWriterUpdateText.value =
+        currentEpisode.chunks[currentEpisode.nextChunkIndex].writerUpdate;
 
-      stageUpdateCode.value = "";
+      latestDirectorUpdateCode.value = "";
       for (const line of splitCode(
-        currentEpisode.chunks[currentEpisode.nextChunkIndex].stageCode,
+        currentEpisode.chunks[currentEpisode.nextChunkIndex].directorUpdate,
       )) {
         console.debug("Evaluating stage code", line);
         await stage.eval(line);
-        stageUpdateCode.value += line + "\n";
+        latestDirectorUpdateCode.value += line + "\n";
         if (scene.busy) await scene.busy;
       }
 
@@ -413,37 +413,37 @@ async function advance() {
       console.debug("Saved stage state", previousStageState);
 
       const incoming = await saveUpdatesToDb({
-        storyUpdate: {
-          parentUpdateId: latestStoryUpdate.value?.id,
-          text: storyUpdateText.value,
-          episodeId: storyUpdateEpisodeId,
-          episodeChunkIndex: storyUpdateEpisodeChunkIndex,
+        writerUpdate: {
+          parentUpdateId: latestWriterUpdate.value?.id,
+          content: latestWriterUpdateText.value,
+          episodeId: writerUpdateEpisodeId,
+          episodeChunkIndex: writerUpdateEpisodeChunkIndex,
         },
-        codeUpdate: {
-          code: stageUpdateCode.value,
+        directorUpdate: {
+          content: latestDirectorUpdateCode.value,
         },
       });
 
-      storyUpdates.value.push({
-        ...incoming.storyUpdate,
-        codeUpdates: [{ ...incoming.codeUpdate }],
+      writerUpdates.value.push({
+        ...incoming.writerUpdate,
+        directorUpdates: [{ ...incoming.directorUpdate }],
       });
 
-      const newWriterPrompt = `${storyUpdateText.value}\n`;
+      const newWriterPrompt = `${latestWriterUpdateText.value}\n`;
       writerPrompt.value += newWriterPrompt;
       deferredWriter.promise.then((writer) =>
         writer.decode(
           newWriterPrompt,
-          `${simulationId}:${incoming.storyUpdate.id}`,
+          `${simulationId}:${incoming.writerUpdate.id}`,
         ),
       );
 
-      const newDirectorPrompt = `${storyUpdateText.value}\n${stageUpdateCode.value};\n`;
+      const newDirectorPrompt = `${latestWriterUpdateText.value}\n${latestDirectorUpdateCode.value};\n`;
       directorPrompt.value += newDirectorPrompt;
       deferredDirector.promise.then((director) =>
         director.decode(
           newDirectorPrompt,
-          `${simulationId}:${incoming.codeUpdate.id}`,
+          `${simulationId}:${incoming.directorUpdate.id}`,
         ),
       );
     } else {
@@ -451,27 +451,27 @@ async function advance() {
       // Do not commit it to GPT yet.
       //
 
-      const { writerResponse, directorResponse } = await inferStoryUpdate();
+      const { writerResponse, directorResponse } = await predictWriterUpdate();
 
-      storyUpdateText.value = writerResponse;
-      stageUpdateCode.value = directorResponse;
+      latestWriterUpdateText.value = writerResponse;
+      latestDirectorUpdateCode.value = directorResponse;
 
       const incoming = await saveUpdatesToDb({
-        storyUpdate: {
-          parentUpdateId: latestStoryUpdate.value?.id,
-          text: writerResponse,
+        writerUpdate: {
+          parentUpdateId: latestWriterUpdate.value?.id,
+          content: writerResponse,
         },
-        codeUpdate: {
-          code: directorResponse,
+        directorUpdate: {
+          content: directorResponse,
         },
       });
 
-      uncommitedStoryUpdateId.value = incoming.storyUpdate.id;
-      uncommitedCodeUpdateId.value = incoming.codeUpdate.id;
+      uncommitedWriterUpdateId.value = incoming.writerUpdate.id;
+      uncommitedDirectorUpdateId.value = incoming.directorUpdate.id;
 
-      storyUpdates.value.push({
-        ...incoming.storyUpdate,
-        codeUpdates: [{ ...incoming.codeUpdate }],
+      writerUpdates.value.push({
+        ...incoming.writerUpdate,
+        directorUpdates: [{ ...incoming.directorUpdate }],
       });
     }
 
@@ -519,9 +519,9 @@ async function screenshot(
  * Save updates to the database.
  */
 async function saveUpdatesToDb(updates: {
-  storyUpdate: {
+  writerUpdate: {
     parentUpdateId: string | undefined | null;
-    text: string;
+    content: string;
   } & (
     | {
         episodeId: string;
@@ -532,27 +532,27 @@ async function saveUpdatesToDb(updates: {
       }
     | {}
   );
-  codeUpdate: {
-    code: string;
+  directorUpdate: {
+    content: string;
   };
 }) {
   return d.db.transaction(async (tx) => {
-    const storyUpdate = (
+    const writerUpdate = (
       await tx
-        .insert(d.storyUpdates)
+        .insert(d.writerUpdates)
         .values({
           simulationId,
-          ...updates.storyUpdate,
+          ...updates.writerUpdate,
         })
         .returning()
     )[0];
 
-    const codeUpdate = (
+    const directorUpdate = (
       await tx
-        .insert(d.codeUpdates)
+        .insert(d.directorUpdates)
         .values({
-          storyUpdateId: storyUpdate.id,
-          ...updates.codeUpdate,
+          writerUpdateId: writerUpdate.id,
+          ...updates.directorUpdate,
         })
         .returning()
     )[0];
@@ -560,12 +560,12 @@ async function saveUpdatesToDb(updates: {
     await tx
       .update(d.simulations)
       .set({
-        headStoryUpdateId: storyUpdate.id,
-        updatedAt: new Date().valueOf().toString(),
+        headWriterUpdateId: writerUpdate.id,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .where(eq(d.simulations.id, simulationId));
 
-    return { storyUpdate, codeUpdate };
+    return { writerUpdate, directorUpdate };
   });
 }
 
@@ -587,25 +587,25 @@ async function prepareGpts() {
   // Would not include the latest update if it can be regenerated.
   //
 
-  const committedStoryUpdates = storyUpdates.value.slice(0, -1);
-  const committedCodeUpdates = committedStoryUpdates.map(
-    (u) => u.codeUpdates.at(0)!,
+  const committedWriterUpdates = writerUpdates.value.slice(0, -1);
+  const committedDirectorUpdates = committedWriterUpdates.map(
+    (u) => u.directorUpdates.at(0)!,
   );
 
-  const latestUpdate = storyUpdates.value.at(-1);
+  const latestUpdate = writerUpdates.value.at(-1);
   if (latestUpdate) {
     if (latestUpdate.episodeId) {
-      committedStoryUpdates.push(latestUpdate);
-      committedCodeUpdates.push(latestUpdate.codeUpdates.at(0)!);
+      committedWriterUpdates.push(latestUpdate);
+      committedDirectorUpdates.push(latestUpdate.directorUpdates.at(0)!);
     } else {
       // NOTE: Player-created updates are also considered uncommitted.
-      uncommitedWriterPrompt.value = `${latestUpdate.text}\n`;
-      uncommittedDirectorPrompt.value = `${latestUpdate.text}\n${latestUpdate.codeUpdates.at(0)!.code};\n`;
+      uncommitedWriterPrompt.value = `${latestUpdate.content}\n`;
+      uncommittedDirectorPrompt.value = `${latestUpdate.content}\n${latestUpdate.directorUpdates.at(0)!.content};\n`;
     }
   }
 
-  const textHistory = committedStoryUpdates.map((u) => u.text);
-  const codeHistory = committedCodeUpdates.map((u) => u?.code);
+  const textHistory = committedWriterUpdates.map((u) => u.content);
+  const codeHistory = committedDirectorUpdates.map((u) => u?.content);
 
   const writerFullPromptBuilder = () =>
     buildWriterPrompt(scenario.value!, textHistory) + "\n";
@@ -613,7 +613,10 @@ async function prepareGpts() {
   const directorFullPromptBuilder = () =>
     buildDirectorPrompt(
       scenario.value!,
-      zip(textHistory, codeHistory).map(([text, code]) => ({ text, code })),
+      zip(textHistory, codeHistory).map(([text, code]) => ({
+        text,
+        code,
+      })),
     ) + "\n";
 
   writerPrompt.value += writerFullPromptBuilder();
@@ -708,7 +711,7 @@ async function prepareGpts() {
         return syncGptCache(
           gpt,
           kvCacheKey,
-          committedStoryUpdates,
+          committedWriterUpdates,
           writerFullPromptBuilder,
           writerPartialPromptBuilder,
         );
@@ -731,7 +734,7 @@ async function prepareGpts() {
         return syncGptCache(
           gpt,
           kvCacheKey,
-          committedCodeUpdates,
+          committedDirectorUpdates,
           directorFullPromptBuilder,
           directorPartialPromptBuilder,
         );
@@ -768,76 +771,76 @@ onMounted(async () => {
   const query = new SQLiteSyncDialect().sqlToQuery(
     sql.raw(`
       WITH
-        story_updates_tree AS (
+        writer_updates_tree AS (
           SELECT
-            ${d.storyUpdates.id.name},
-            ${d.storyUpdates.parentUpdateId.name},
-            ${d.storyUpdates.createdByPlayer.name},
-            ${d.storyUpdates.text.name},
-            ${d.storyUpdates.episodeId.name},
-            ${d.storyUpdates.episodeChunkIndex.name},
-            ${d.storyUpdates.llamaInferenceId.name},
-            ${d.storyUpdates.createdAt.name}
+            ${d.writerUpdates.id.name},
+            ${d.writerUpdates.parentUpdateId.name},
+            ${d.writerUpdates.createdByPlayer.name},
+            ${d.writerUpdates.content.name},
+            ${d.writerUpdates.episodeId.name},
+            ${d.writerUpdates.episodeChunkIndex.name},
+            ${d.writerUpdates.llamaInferenceId.name},
+            ${d.writerUpdates.createdAt.name}
           FROM
-            ${storyUpdatesTableName}
+            ${writerUpdatesTableName}
           WHERE
-            ${d.storyUpdates.id.name} = ?
+            ${d.writerUpdates.id.name} = ?
           UNION ALL
           SELECT
-            parent.${d.storyUpdates.id.name},
-            parent.${d.storyUpdates.parentUpdateId.name},
-            parent.${d.storyUpdates.createdByPlayer.name},
-            parent.${d.storyUpdates.text.name},
-            parent.${d.storyUpdates.episodeId.name},
-            parent.${d.storyUpdates.episodeChunkIndex.name},
-            parent.${d.storyUpdates.llamaInferenceId.name},
-            parent.${d.storyUpdates.createdAt.name}
+            parent.${d.writerUpdates.id.name},
+            parent.${d.writerUpdates.parentUpdateId.name},
+            parent.${d.writerUpdates.createdByPlayer.name},
+            parent.${d.writerUpdates.content.name},
+            parent.${d.writerUpdates.episodeId.name},
+            parent.${d.writerUpdates.episodeChunkIndex.name},
+            parent.${d.writerUpdates.llamaInferenceId.name},
+            parent.${d.writerUpdates.createdAt.name}
           FROM
-            ${storyUpdatesTableName} parent
-            JOIN story_updates_tree child ON child.${d.storyUpdates.parentUpdateId.name} = parent.${d.storyUpdates.id.name}
+            ${writerUpdatesTableName} parent
+            JOIN writer_updates_tree child ON child.${d.writerUpdates.parentUpdateId.name} = parent.${d.writerUpdates.id.name}
         )
       SELECT
         *
       FROM
-        story_updates_tree;
+        writer_updates_tree;
   `),
   );
 
   // console.debug(query.sql);
-  const result = await sqlite.query(query.sql, [simulation.headStoryUpdateId]);
-  storyUpdates.value = parseSelectResult(d.storyUpdates, result)
+  const result = await sqlite.query(query.sql, [simulation.headWriterUpdateId]);
+  writerUpdates.value = parseSelectResult(d.writerUpdates, result)
     .map((update) => ({
       ...update,
-      codeUpdates: [],
+      directorUpdates: [],
     }))
     .reverse();
 
-  // Attach the latest code updates to the story updates.
+  // Attach the latest code updates to the writer updates.
   //
 
-  const codeUpdates = await d.db
+  const directorUpdates = await d.db
     .select()
-    .from(d.codeUpdates)
+    .from(d.directorUpdates)
     .where(
       inArray(
-        d.codeUpdates.storyUpdateId,
-        storyUpdates.value.map((u) => u.id),
+        d.directorUpdates.writerUpdateId,
+        writerUpdates.value.map((u) => u.id),
       ),
     )
-    .orderBy(desc(d.codeUpdates.createdAt))
-    .groupBy(d.codeUpdates.storyUpdateId)
+    .orderBy(desc(d.directorUpdates.createdAt))
+    .groupBy(d.directorUpdates.writerUpdateId)
     .all();
 
-  for (const codeUpdate of codeUpdates) {
-    const storyUpdate = storyUpdates.value.find(
-      (u) => u.id === codeUpdate.storyUpdateId,
+  for (const directorUpdate of directorUpdates) {
+    const writerUpdate = writerUpdates.value.find(
+      (u) => u.id === directorUpdate.writerUpdateId,
     );
 
-    if (storyUpdate) {
-      storyUpdate.codeUpdates.push(codeUpdate);
+    if (writerUpdate) {
+      writerUpdate.directorUpdates.push(directorUpdate);
     } else {
       throw new Error(
-        `For code update ${codeUpdate.id}, story update ${codeUpdate.storyUpdateId} not found`,
+        `For director update ${directorUpdate.id}, writer update ${directorUpdate.writerUpdateId} not found`,
       );
     }
   }
@@ -846,23 +849,23 @@ onMounted(async () => {
   stage = new Stage(scenario.value);
   await stage.initCodeEngine();
 
-  if (storyUpdates.value.length) {
-    // Apply existing code updates to the stage.
+  if (writerUpdates.value.length) {
+    // Apply existing director updates to the stage.
     let i = 0;
-    for (const update of storyUpdates.value) {
-      const codeUpdate = update.codeUpdates.at(0);
+    for (const update of writerUpdates.value) {
+      const directorUpdate = update.directorUpdates.at(0);
 
-      if (codeUpdate) {
-        console.debug("Evaluating stage code", codeUpdate.code);
-        await stage.eval(codeUpdate.code);
+      if (directorUpdate) {
+        console.debug("Evaluating stage code", directorUpdate.content);
+        await stage.eval(directorUpdate.content);
       }
 
       // For the sake of regeneration,
       // save the stage state at the -2nd update.
       // But when there only one update, save -1st.
       if (
-        storyUpdates.value.length == 1 ||
-        i++ === storyUpdates.value.length - 2
+        writerUpdates.value.length == 1 ||
+        i++ === writerUpdates.value.length - 2
       ) {
         previousStageState = stage.dump();
         console.debug("Saved stage state", previousStageState);
@@ -870,20 +873,20 @@ onMounted(async () => {
     }
 
     // If the last update has an episode ID, resume from there.
-    const latestStoryUpdate = storyUpdates.value.at(-1);
-    if (latestStoryUpdate?.episodeId) {
+    const latestWriterUpdate = writerUpdates.value.at(-1);
+    if (latestWriterUpdate?.episodeId) {
       const episode = scenario.value.episodes.find(
-        (e) => e.id === latestStoryUpdate.episodeId,
+        (e) => e.id === latestWriterUpdate.episodeId,
       );
 
       if (!episode) {
-        throw new Error(`Episode not found: ${latestStoryUpdate.episodeId}`);
+        throw new Error(`Episode not found: ${latestWriterUpdate.episodeId}`);
       }
 
-      if (latestStoryUpdate.episodeChunkIndex! < episode.chunks.length - 1) {
+      if (latestWriterUpdate.episodeChunkIndex! < episode.chunks.length - 1) {
         state.value.currentEpisode = {
           ...episode,
-          nextChunkIndex: latestStoryUpdate.episodeChunkIndex! + 1,
+          nextChunkIndex: latestWriterUpdate.episodeChunkIndex! + 1,
         };
       }
     }
@@ -902,9 +905,9 @@ onMounted(async () => {
   // Register a console event listener.
   window.addEventListener("keypress", consoleEventListener);
 
-  storyUpdateText.value = storyUpdates.value.at(-1)?.text || "";
-  stageUpdateCode.value = splitCode(
-    storyUpdates.value.at(-1)?.codeUpdates.at(0)?.code || "",
+  latestWriterUpdateText.value = writerUpdates.value.at(-1)?.content || "";
+  latestDirectorUpdateCode.value = splitCode(
+    writerUpdates.value.at(-1)?.directorUpdates.at(0)?.content || "",
   ).join("\n");
 
   // ADHOC: Always create a screenshot upon running a simulation,
@@ -940,18 +943,18 @@ onUnmounted(() => {
   .absolute.bottom-0.flex.h-32.w-full.flex-col.overflow-hidden.bg-yellow-500.bg-opacity-90.p-3
     .flex.grow.overflow-hidden
       .flex.grow.flex-col.overflow-y-scroll
-        p(:class="{ 'animate-pulse': busy }") {{ storyUpdateText }}
+        p(:class="{ 'animate-pulse': busy }") {{ latestWriterUpdateText }}
 
       .flex.flex-col.gap-2
         button.btn.pressable(
-          @click="regenerateStory"
-          :disabled="busy || !canPossiblyRegenerateStoryUpdate"
+          @click="regenerateWriterUpdate"
+          :disabled="busy || !canPossiblyRegenerateWriterUpdate"
           class="disabled:cursor-not-allowed disabled:opacity-50"
         )
           RefreshCwIcon(:size="20")
         button.btn.pressable(
-          @click="regenerateCode"
-          :disabled="busy || !canPossiblyRegenerateCodeUpdate"
+          @click="regenerateDirectorUpdate"
+          :disabled="busy || !canPossiblyRegenerateDirectorUpdate"
           class="disabled:cursor-not-allowed disabled:opacity-50"
         )
           BinaryIcon(:size="20")
@@ -992,8 +995,8 @@ onUnmounted(() => {
     :director="director"
     :director-prompt="directorPrompt"
     :uncommited-director-prompt="uncommittedDirectorPrompt"
-    :scene-code="stageUpdateCode"
-    :scene-text="storyUpdateText"
+    :scene-code="latestDirectorUpdateCode"
+    :scene-text="latestWriterUpdateText"
     :episode="currentEpisodeConsoleObject"
     @close="consoleModal = false"
   )

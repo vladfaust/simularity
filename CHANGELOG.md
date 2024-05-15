@@ -8,8 +8,7 @@
 
 > After squashing, bugs are removed from this list.
 
-- [ ] fix: updatedAt column
-      change type to integer?
+- [ ] fix: handle empty writer updates
 - [ ] fix: handle director syntactic errors
 - [ ] fix: handle director semantic errors
 - [ ] fix: context-aware grammar
@@ -35,7 +34,7 @@
 - [ ] feat: quests
 
 - [ ] feat: split player input to "say" and "do"
-- [ ] refactor: rename: writerUpdates, directorUpdates, gptInferences
+- [ ] refactor: rename llamaInferences -> gptInferences
 
 - [ ] dx: display current stage in console
 - [ ] dx: save gpt inferences to DB

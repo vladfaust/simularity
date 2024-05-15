@@ -49,8 +49,8 @@ export type Scenario = {
       id: string;
       chunks: [
         {
-          storyText: string;
-          stageCode: string;
+          writerUpdate: string;
+          directorUpdate: string;
         },
       ];
     },

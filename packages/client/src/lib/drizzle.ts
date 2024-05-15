@@ -71,10 +71,10 @@ const db = drizzle<typeof schema>(
 const d = {
   db,
   ...pick(schema, [
-    "simulations",
-    "storyUpdates",
-    "codeUpdates",
+    "directorUpdates",
     "llamaInferences",
+    "simulations",
+    "writerUpdates",
   ]),
 };
 

@@ -2,15 +2,15 @@ import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
-import { codeUpdates } from "./codeUpdates";
+import { directorUpdates } from "./directorUpdates";
 import { llamaInferences } from "./llamaInferences";
 import { simulations } from "./simulations";
 
-// FIXME: `storyUpdates._` is `undefined` in runtime.
-export const storyUpdatesTableName = "story_updates";
+// FIXME: `writerUpdates._` is `undefined` in runtime.
+export const writerUpdatesTableName = "writer_updates";
 
-export const storyUpdates = sqliteTable(
-  storyUpdatesTableName,
+export const writerUpdates = sqliteTable(
+  writerUpdatesTableName,
   sortByKey({
     id: text("id")
       .primaryKey()
@@ -36,7 +36,7 @@ export const storyUpdates = sqliteTable(
       { onDelete: "set null" },
     ),
 
-    text: text("text").notNull(),
+    content: text("content").notNull(),
 
     createdAt: text("created_at")
       .notNull()
@@ -44,22 +44,22 @@ export const storyUpdates = sqliteTable(
   }),
 );
 
-export const storyUpdateRelatiosn = relations(
-  storyUpdates,
+export const writerUpdateRelatiosn = relations(
+  writerUpdates,
   ({ one, many }) => ({
     simulation: one(simulations, {
-      fields: [storyUpdates.simulationId],
+      fields: [writerUpdates.simulationId],
       references: [simulations.id],
     }),
-    parent: one(storyUpdates, {
-      fields: [storyUpdates.parentUpdateId],
-      references: [storyUpdates.id],
+    parent: one(writerUpdates, {
+      fields: [writerUpdates.parentUpdateId],
+      references: [writerUpdates.id],
     }),
     llamaInference: one(llamaInferences, {
-      fields: [storyUpdates.llamaInferenceId],
+      fields: [writerUpdates.llamaInferenceId],
       references: [llamaInferences.id],
-      relationName: "story_updates",
+      relationName: "writer_updates",
     }),
-    codeUpdates: many(codeUpdates),
+    directorUpdates: many(directorUpdates),
   }),
 );

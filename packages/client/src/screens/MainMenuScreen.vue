@@ -36,29 +36,29 @@ async function newSimulation() {
         .returning({ id: d.simulations.id })
     )[0];
 
-    const storyUpdate = (
+    const writerUpdate = (
       await tx
-        .insert(d.storyUpdates)
+        .insert(d.writerUpdates)
         .values({
           simulationId: simulation.id,
-          text: chunk.storyText,
+          content: chunk.writerUpdate,
           episodeId: startEpisode.id,
           episodeChunkIndex: 0,
         })
         .returning({
-          id: d.storyUpdates.id,
+          id: d.writerUpdates.id,
         })
     )[0];
 
-    await tx.insert(d.codeUpdates).values({
-      storyUpdateId: storyUpdate.id,
-      code: chunk.stageCode,
+    await tx.insert(d.directorUpdates).values({
+      writerUpdateId: writerUpdate.id,
+      content: chunk.directorUpdate,
     });
 
     // Set simulation head.
     await tx
       .update(d.simulations)
-      .set({ headStoryUpdateId: storyUpdate.id })
+      .set({ headWriterUpdateId: writerUpdate.id })
       .where(eq(d.simulations.id, simulation.id));
 
     return simulation.id;
