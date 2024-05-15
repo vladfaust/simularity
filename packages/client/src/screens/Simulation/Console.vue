@@ -13,12 +13,14 @@ import { lua } from "@codemirror/legacy-modes/mode/lua";
 import { dracula } from "thememirror";
 import { autocompletion } from "@codemirror/autocomplete";
 import Prompt from "./Console/Prompt.vue";
-import { writer, director } from "@/lib/ai";
+import { Gpt } from "@/lib/ai";
 
 const props = defineProps<{
   open: boolean;
+  writer: Gpt | undefined;
   writerPrompt: string;
   uncommitedWriterPrompt: string;
+  director: Gpt | undefined;
   directorPrompt: string;
   uncommitedDirectorPrompt: string;
   sceneCode: string;

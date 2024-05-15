@@ -11,7 +11,13 @@ mod commands;
 mod sqlite;
 
 struct GptInstance {
+    pub model_path: String,
+    pub context_size: u32,
+    pub batch_size: usize,
     pub context: GptContext<'static>,
+
+    /// A key uniquely mapped to an actual KV cache value.
+    pub kv_cache_key: String,
 }
 
 struct AppState {
@@ -22,7 +28,10 @@ struct AppState {
     pub gpt_models: Mutex<HashMap<String, (Box<GptModel>, &'static GptModel)>>,
 
     /// {id => GptInstance}.
-    pub gpt_instances: Mutex<HashMap<String, GptInstance>>,
+    pub gpt_instances: Mutex<HashMap<String, Arc<Mutex<GptInstance>>>>,
+
+    /// ADHOC: Limit the number of simultaneous inferences to 1.
+    pub inference_mutex: Mutex<()>,
 
     /// { uri => connection }. A connection will be held until it is closed.
     pub sqlite_connections: Mutex<HashMap<String, Arc<Mutex<rusqlite::Connection>>>>,
@@ -71,6 +80,7 @@ impl AppState {
                 .expect("unable to create the llama backend"),
             gpt_models: Mutex::new(HashMap::new()),
             gpt_instances: Mutex::new(HashMap::new()),
+            inference_mutex: Mutex::new(()),
             sqlite_connections: Mutex::new(HashMap::new()),
         }
     }
@@ -89,8 +99,8 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::gpt::gpt_init,
-            commands::gpt::gpt_clear,
+            commands::gpt::gpt_find_or_create,
+            commands::gpt::gpt_reset,
             commands::gpt::gpt_decode,
             commands::gpt::gpt_infer,
             commands::gpt::gpt_commit,

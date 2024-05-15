@@ -1,12 +1,11 @@
-import { GPT_DIRECTOR, GPT_WRITER } from "@/env";
 import { ref } from "vue";
 import {
   InferOptions,
-  gptClear,
   gptCommit,
   gptDecode,
+  gptFindOrCreate,
   gptInfer,
-  gptInit,
+  gptReset,
   gptTokenCount,
 } from "./tauri";
 import { Deferred, sleep } from "./utils";
@@ -27,8 +26,9 @@ class GptDecodeJob extends Job<void> {
   constructor(
     gpt: Gpt,
     readonly prompt: string,
+    readonly newKvCacheKey: string,
   ) {
-    super(() => gptDecode(gpt.id, prompt));
+    super(() => gptDecode(gpt.id, prompt, newKvCacheKey));
   }
 }
 
@@ -48,8 +48,8 @@ class GptInferJob extends Job<string> {
 class GptCommitJob extends Job<number> {
   name = "Committing";
 
-  constructor(gpt: Gpt) {
-    super(() => gptCommit(gpt.id));
+  constructor(gpt: Gpt, newKvCacheKey: string) {
+    super(() => gptCommit(gpt.id, newKvCacheKey));
   }
 }
 
@@ -57,23 +57,45 @@ export type GptJob = GptDecodeJob | GptInferJob | GptCommitJob;
 
 export class Gpt {
   readonly jobs = ref<GptJob[]>([]);
-  readonly initialized = ref(false);
   readonly currentJob = ref<GptJob | null>(null);
-  readonly willClear = ref(false);
+  readonly willReset = ref(false);
 
-  constructor(
+  static async findOrCreate(
+    id: string,
+    modelPath: string,
+    contextSize: number,
+    batchSize: number,
+  ): Promise<{ gpt: Gpt; kvCacheKey: string }> {
+    const kvCacheKey = await gptFindOrCreate(
+      id,
+      modelPath,
+      contextSize,
+      batchSize,
+    );
+
+    return {
+      gpt: new Gpt(id, modelPath, contextSize, batchSize),
+      kvCacheKey,
+    };
+  }
+
+  private constructor(
     readonly id: string,
     readonly modelPath: string,
     readonly contextSize: number,
     readonly batchSize: number,
-  ) {
-    this.init();
+  ) {}
+
+  /**
+   * @see {@link gptDecode}.
+   */
+  async decode(prompt: string, newKvCacheKey: string): Promise<void> {
+    return this.pushJob(new GptDecodeJob(this, prompt, newKvCacheKey));
   }
 
-  async decode(prompt: string): Promise<void> {
-    return this.pushJob(new GptDecodeJob(this, prompt));
-  }
-
+  /**
+   * @see {@link gptInfer}.
+   */
   async infer(
     prompt: string | undefined,
     numEval: number,
@@ -82,38 +104,41 @@ export class Gpt {
     return this.pushJob(new GptInferJob(this, prompt, numEval, options));
   }
 
-  async commit(): Promise<number> {
-    return this.pushJob(new GptCommitJob(this));
+  /**
+   * @see {@link gptCommit}.
+   */
+  async commit(newKvCacheKey: string): Promise<number> {
+    return this.pushJob(new GptCommitJob(this, newKvCacheKey));
   }
 
-  async clear(): Promise<void> {
-    if (this.willClear.value) {
-      while (this.willClear.value) {
+  /**
+   * @see {@link gptReset}.
+   */
+  async reset(): Promise<void> {
+    if (this.willReset.value) {
+      while (this.willReset.value) {
         await sleep(100);
         return;
       }
     }
 
-    console.log(this.id, "Will clear...");
-    this.willClear.value = true;
+    // console.log(this.id, "Will reset...");
+    this.willReset.value = true;
 
-    // Wait for the current job to finish before clearing.
+    // Wait for the current job to finish before resetting.
     while (this.currentJob.value) {
       await sleep(100);
     }
 
-    this.willClear.value = false;
-    return gptClear(this.id);
+    this.willReset.value = false;
+    return gptReset(this.id);
   }
 
+  /**
+   * @see {@link gptTokenCount}.
+   */
   async tokenCount(prompt: string): Promise<number> {
     return await gptTokenCount(this.modelPath, prompt);
-  }
-
-  private async init() {
-    console.log(this.id, "Initializing...");
-    await gptInit(this.id, this.modelPath, this.contextSize, this.batchSize);
-    this.initialized.value = true;
   }
 
   private async pushJob<T>(job: Job<T>): Promise<T> {
@@ -124,48 +149,34 @@ export class Gpt {
 
   // Wake up for a single job completion.
   private async wakeUp(): Promise<void> {
-    while (!this.initialized.value || this.currentJob.value) {
+    while (this.currentJob.value) {
       await sleep(100);
     }
 
     let job = this.jobs.value.shift();
     if (job) {
-      console.log(this.id, "Performing job...", job.name);
+      console.debug(this.id, "Performing job...", job.name);
       this.currentJob.value = job;
 
       try {
         const result = (await job.fn()) as any;
-        console.log(this.id, "Job result", job.name, result);
+        // console.log(this.id, "Job result", job.name, result);
         job.deferred.resolve(result);
       } catch (error) {
         console.error(this.id, "Job error", job.name, error);
         this.jobs.value.length = 0; // Clear the queue.
         job.deferred.reject(error);
       } finally {
-        if (this.willClear.value) {
-          console.log(this.id, "Clearing due to willClear...");
+        if (this.willReset.value) {
+          // console.log(this.id, "Resetting due to willReset...");
           this.jobs.value.length = 0; // Clear the queue.
-          this.willClear.value = false;
+          this.willReset.value = false;
         }
 
         this.currentJob.value = null;
       }
     } else {
-      console.log(this.id, "No jobs to do.");
+      console.debug(this.id, "No jobs to do.");
     }
   }
 }
-
-export const writer = new Gpt(
-  "writer",
-  GPT_WRITER.modelPath,
-  GPT_WRITER.contextSize,
-  GPT_WRITER.batchSize,
-);
-
-export const director = new Gpt(
-  "director",
-  GPT_DIRECTOR.modelPath,
-  GPT_DIRECTOR.contextSize,
-  GPT_DIRECTOR.batchSize,
-);

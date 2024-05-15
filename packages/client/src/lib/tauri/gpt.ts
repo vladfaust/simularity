@@ -1,12 +1,17 @@
 import { invoke } from "@tauri-apps/api";
 
-export async function gptInit(
+/**
+ * Find or create a new GPT instance by ID.
+ * NOTE: Changing any parameter will replace the instance.
+ * @returns The instance's context cache key.
+ */
+export async function gptFindOrCreate(
   gptId: string,
   modelPath: string,
   contextSize: number,
   batchSize: number,
 ): Promise<string> {
-  return await invoke("gpt_init", {
+  return await invoke("gpt_find_or_create", {
     gptId,
     modelPath,
     contextSize,
@@ -14,14 +19,25 @@ export async function gptInit(
   });
 }
 
-export async function gptClear(gptId: string): Promise<void> {
-  return await invoke("gpt_clear", { gptId });
+/**
+ * Reset the GPT context. Will clear the KV cache.
+ */
+export async function gptReset(gptId: string): Promise<void> {
+  return await invoke("gpt_reset", { gptId });
 }
 
-export async function gptDecode(gptId: string, prompt: string): Promise<void> {
+/**
+ * Decode prompt, updating the KV cache.
+ */
+export async function gptDecode(
+  gptId: string,
+  prompt: string,
+  newKvCacheKey: string,
+): Promise<void> {
   return await invoke("gpt_decode", {
     gptId,
     prompt,
+    newKvCacheKey,
   });
 }
 
@@ -40,6 +56,9 @@ export type InferOptions = {
   };
 };
 
+/**
+ * Predict text. Does not update the KV cache.
+ */
 export async function gptInfer(
   gptId: string,
   prompt: string | undefined,
@@ -56,11 +75,20 @@ export async function gptInfer(
     options,
   });
 }
-
-export async function gptCommit(gptId: string): Promise<number> {
-  return await invoke("gpt_commit", { gptId });
+/**
+ * Commit the latest inference result to the KV cache.
+ * Returns the number of tokens committed.
+ */
+export async function gptCommit(
+  gptId: string,
+  newKvCacheKey: string,
+): Promise<number> {
+  return await invoke("gpt_commit", { gptId, newKvCacheKey });
 }
 
+/**
+ * Tokenize prompt and return the token count.
+ */
 export async function gptTokenCount(
   modelPath: string,
   prompt: string,

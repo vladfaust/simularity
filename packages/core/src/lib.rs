@@ -74,6 +74,7 @@ impl<'model> GptContext<'model> {
 pub fn clear(ctx: &mut GptContext) -> Result<()> {
     ctx.context.clear_kv_cache();
     ctx.session.clear();
+    ctx.uncommitted_session.clear();
     Ok(())
 }
 

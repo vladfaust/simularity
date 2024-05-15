@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from "vue-router";
-import { writer, director } from "./lib/ai";
-import { whenever } from "@vueuse/core";
 import { appWindow } from "@tauri-apps/api/window";
 import { onMounted, onUnmounted } from "vue";
 import { type UnlistenFn } from "@tauri-apps/api/event";
@@ -15,24 +13,10 @@ import { routeLocation } from "./lib/router";
 const route = useRoute();
 const router = useRouter();
 
-whenever(
-  () => writer.initialized.value,
-  () => {
-    console.log("Writer initialized", writer.modelPath);
-  },
-);
-
-whenever(
-  () => director.initialized.value,
-  () => {
-    console.log("Director initialized", director.modelPath);
-  },
-);
-
 let unlisten: UnlistenFn | undefined;
 
 async function cleanup() {
-  return await Promise.all([writer.clear(), director.clear()]);
+  // TODO: Unload the GPTs somehow?
 }
 
 onMounted(async () => {

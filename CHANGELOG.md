@@ -45,14 +45,6 @@
   - [ ] KV cache size (returns after decode/inference)
   - [ ] Memory usage (monitoring)
 
-- [ ] feat: preserve models between simulations
-      Shall store simulation ID + latest committed update ID on Rust side.
-      Then, ask for an instance by GPT ID.
-      Call reset on simulation/update ID mismatch.
-
-- [ ] feat: compact GPT status
-      Green: ready, chartreuse: queued, yellow: busy, orange: slow, red: error.
-
 ## History 📜
 
 ### May 2024
@@ -60,6 +52,7 @@
 - [x] feat: llama.cpp integration (Tue May 7, 2024)
 - [x] feat: replace git w/ SQLite (Sat May 11, 2024)
 - [x] feat: regenerate an update (Mon May 13, 2024)
+- [x] feat: reuse GPTs by params & KV cache key (Wed May 15, 2024)
 
 ### April 2024
 

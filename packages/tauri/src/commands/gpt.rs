@@ -1,27 +1,45 @@
 use app::static_box;
 use simularity_core::GptModel;
+use std::sync::Arc;
+use tauri::async_runtime::Mutex;
 
 use crate::{AppState, GptInstance};
 
 #[tauri::command]
-/// Initialize a new GPT instance, replacing the current, if any.
-pub async fn gpt_init(
-    gpt_id: &str,
+/// Find or create a new GPT instance, returning its KV cache key.
+/// NOTE: Changing any parameter will replace the instance.
+/// NOTE: Creating a new instance locks the entire GPT hash map.
+pub async fn gpt_find_or_create(
+    gpt_id: String,
     model_path: String,
     context_size: u32,
     batch_size: usize,
     state: tauri::State<'_, AppState>,
-) -> Result<(), tauri::InvokeError> {
+) -> Result<String, tauri::InvokeError> {
     println!(
-        "gpt_init(gpt_id: {:?}, model_path: {}, context_size: {})",
-        gpt_id, model_path, context_size
+        "gpt_find_or_create(gpt_id: {:?}, model_path: {}, context_size: {}, batc_size: {})",
+        gpt_id, model_path, context_size, batch_size
     );
 
-    let mut locked = state.gpt_instances.lock().await;
+    let mut hash_map_lock = state.gpt_instances.lock().await;
 
-    let model_ref = get_or_create_model_ref(model_path, &state).await?;
+    if let Some(arc) = hash_map_lock.get(&gpt_id) {
+        let gpt = arc.lock().await;
+
+        if (gpt.model_path == model_path)
+            && (gpt.context_size == context_size)
+            && (gpt.batch_size == batch_size)
+        {
+            return Ok(gpt.kv_cache_key.clone());
+        }
+    }
+
+    let model_ref = get_or_create_model_ref(model_path.clone(), &state).await?;
 
     let instance = GptInstance {
+        model_path,
+        context_size,
+        batch_size,
         context: simularity_core::GptContext::new(
             &state.gpt_backend,
             model_ref,
@@ -30,55 +48,77 @@ pub async fn gpt_init(
             None,
         )
         .map_err(tauri::InvokeError::from_anyhow)?,
+        kv_cache_key: String::new(),
     };
 
-    let old = locked.insert(gpt_id.to_string(), instance);
-    if let Some(old) = old {
-        println!("replaced gpt with id {}", gpt_id);
-        drop(old);
-    }
+    hash_map_lock.insert(gpt_id, Arc::new(Mutex::new(instance)));
 
-    Ok(())
+    Ok(String::new())
 }
 
 #[tauri::command]
-/// Clear the GPT context.
-pub async fn gpt_clear(
+/// Reset the GPT context. Will also clear the KV cache key.
+pub async fn gpt_reset(
     gpt_id: &str,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), tauri::InvokeError> {
-    println!("gpt_clear(gpt_id: {:?})", gpt_id);
+    println!("gpt_reset(gpt_id: {:?})", gpt_id);
 
-    let mut locked = state.gpt_instances.lock().await;
+    let hash_map_lock = state.gpt_instances.lock().await;
 
-    let gpt: &mut GptInstance = locked
-        .get_mut(gpt_id)
-        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?;
+    let arc = hash_map_lock
+        .get(gpt_id)
+        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?
+        .clone();
 
+    drop(hash_map_lock);
+    let mut gpt = arc.lock().await;
+
+    gpt.kv_cache_key.clear();
+
+    // TODO: Call `gpt.reset` instead.
     simularity_core::clear(&mut gpt.context).map_err(tauri::InvokeError::from_anyhow)
 }
 
 #[tauri::command]
-/// Decode prompt with the writer.
+/// Decode prompt, updating the KV cache.
+/// New KV cache key value must be provided.
+// TODO: Return new KV cache size.
 pub async fn gpt_decode(
     gpt_id: &str,
     prompt: String,
+    new_kv_cache_key: &str,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), tauri::InvokeError> {
-    println!("gpt_decode(gpt_id: {:?})", gpt_id);
+    println!(
+        "gpt_decode(gpt_id: {:?}, new_kv_cache_key: {})",
+        gpt_id, new_kv_cache_key
+    );
 
-    // FIXME: A GPT context access exclusivity must differ from the hashmap's.
-    let mut locked = state.gpt_instances.lock().await;
+    let mut hash_map_lock = state.gpt_instances.lock().await;
 
-    let gpt = locked
+    let arc = hash_map_lock
         .get_mut(gpt_id)
-        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?;
+        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?
+        .clone();
 
-    simularity_core::decode(&mut gpt.context, prompt).map_err(tauri::InvokeError::from_anyhow)
+    drop(hash_map_lock);
+
+    // ADHOC: Limit the number of simultaneous inferences to 1.
+    let inference_lock = state.inference_mutex.lock().await;
+    let mut gpt = arc.lock().await;
+
+    // TODO: Call `gpt.decode` instead.
+    let result =
+        simularity_core::decode(&mut gpt.context, prompt).map_err(tauri::InvokeError::from_anyhow);
+    gpt.kv_cache_key = new_kv_cache_key.to_string();
+
+    drop(inference_lock);
+    result
 }
 
 #[tauri::command]
-/// Predict text.
+/// Predict text. If not committed, the resulting KV cache updates will be discarded.
 pub async fn gpt_infer(
     gpt_id: &str,
     prompt: Option<&str>,
@@ -93,30 +133,53 @@ pub async fn gpt_infer(
         n_eval
     );
 
-    let mut locked = state.gpt_instances.lock().await;
+    let mut hash_map_lock = state.gpt_instances.lock().await;
 
-    let gpt = locked
+    let arc = hash_map_lock
         .get_mut(gpt_id)
-        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?;
+        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?
+        .clone();
 
-    simularity_core::infer(&mut gpt.context, prompt, n_eval, options)
-        .map_err(tauri::InvokeError::from_anyhow)
+    drop(hash_map_lock);
+
+    // ADHOC: Limit the number of simultaneous inferences to 1.
+    let inference_lock = state.inference_mutex.lock().await;
+    let mut gpt = arc.lock().await;
+
+    let result = simularity_core::infer(&mut gpt.context, prompt, n_eval, options)
+        .map_err(tauri::InvokeError::from_anyhow);
+
+    drop(inference_lock);
+    result
 }
 
 #[tauri::command]
-/// Commit the latest prediction.
+/// Commit the latest inference KV cache update.
+/// Requires a new KV cache key value.
+/// Returns the number of tokens committed.
 pub async fn gpt_commit(
     gpt_id: &str,
+    new_kv_cache_key: &str,
     state: tauri::State<'_, AppState>,
 ) -> Result<usize, tauri::InvokeError> {
-    println!("gpt_commit(gpt_id: {:?})", gpt_id,);
+    println!(
+        "gpt_commit(gpt_id: {:?}, new_kv_cache_key: {})",
+        gpt_id, new_kv_cache_key
+    );
 
-    let mut locked = state.gpt_instances.lock().await;
-    let gpt = locked
+    let mut hash_map_lock = state.gpt_instances.lock().await;
+    let arc = hash_map_lock
         .get_mut(gpt_id)
-        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?;
+        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?
+        .clone();
 
-    simularity_core::commit(&mut gpt.context).map_err(tauri::InvokeError::from_anyhow)
+    drop(hash_map_lock);
+    let mut gpt = arc.lock().await;
+
+    let result = simularity_core::commit(&mut gpt.context).map_err(tauri::InvokeError::from_anyhow);
+    gpt.kv_cache_key = new_kv_cache_key.to_string();
+
+    result
 }
 
 #[tauri::command]
