@@ -32,3 +32,7 @@ Paper: https://github.com/mit-han-lab/streaming-llm.
 ### Llama.cpp
 
 - On KV cache size & sequences: https://github.com/ggerganov/llama.cpp/discussions/4130#discussioncomment-8053636
+
+### Roleplay
+
+- https://github.com/Neph0s/awesome-llm-role-playing-with-persona
