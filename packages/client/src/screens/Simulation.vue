@@ -240,7 +240,7 @@ async function regenerateDirectorUpdate() {
     // OPTIMIZE: Infer while waiting for the fade.
     await resetStage();
 
-    const writerText = latestWriterUpdate.value.content;
+    const writerText = latestWriterUpdate.value.text;
     latestWriterUpdateText.value = writerText;
     uncommittedDirectorPrompt.value = "";
     const predictedDirectorUpdate = await predictDirectorUpdate(writerText);
@@ -252,7 +252,7 @@ async function regenerateDirectorUpdate() {
         .insert(d.directorUpdates)
         .values({
           writerUpdateId: latestWriterUpdate.value.id,
-          content: predictedDirectorUpdate.code,
+          code: predictedDirectorUpdate.code,
         })
         .returning()
     )[0];
@@ -278,7 +278,7 @@ async function regenerateWriterUpdate() {
 
     // Use the same parent update ID as the pre-latest update.
     let parentUpdateId = preLatestWriterUpdate.value?.id;
-    latestWriterUpdateText.value = preLatestWriterUpdate.value?.content || "";
+    latestWriterUpdateText.value = preLatestWriterUpdate.value?.text || "";
 
     const predicted = await predictUpdates();
 
@@ -288,10 +288,10 @@ async function regenerateWriterUpdate() {
     const incoming = await saveUpdatesToDb({
       writerUpdate: {
         parentUpdateId,
-        content: predicted.writerUpdate.text,
+        text: predicted.writerUpdate.text,
       },
       directorUpdate: {
-        content: predicted.directorUpdate.code,
+        code: predicted.directorUpdate.code,
       },
     });
 
@@ -343,11 +343,11 @@ async function sendPlayerInput() {
     const incoming = await saveUpdatesToDb({
       writerUpdate: {
         parentUpdateId: latestWriterUpdate.value?.id,
-        content: playerInput_,
+        text: playerInput_,
         createdByPlayer: true,
       },
       directorUpdate: {
-        content: predictedDirectorUpdate.code,
+        code: predictedDirectorUpdate.code,
       },
     });
 
@@ -363,7 +363,7 @@ async function sendPlayerInput() {
       playerInput.value = playerInput_;
     }
 
-    latestWriterUpdateText.value = latestWriterUpdate.value?.content || "";
+    latestWriterUpdateText.value = latestWriterUpdate.value?.text || "";
 
     throw e;
   } finally {
@@ -420,12 +420,12 @@ async function advance() {
       const incoming = await saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId: latestWriterUpdate.value?.id,
-          content: latestWriterUpdateText.value,
+          text: latestWriterUpdateText.value,
           episodeId: writerUpdateEpisodeId,
           episodeChunkIndex: writerUpdateEpisodeChunkIndex,
         },
         directorUpdate: {
-          content: latestDirectorUpdateCode.value,
+          code: latestDirectorUpdateCode.value,
         },
       });
 
@@ -464,10 +464,10 @@ async function advance() {
       const incoming = await saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId: latestWriterUpdate.value?.id,
-          content: predicted.writerUpdate.text,
+          text: predicted.writerUpdate.text,
         },
         directorUpdate: {
-          content: predicted.directorUpdate.code,
+          code: predicted.directorUpdate.code,
         },
       });
 
@@ -526,7 +526,7 @@ async function screenshot(
 async function saveUpdatesToDb(updates: {
   writerUpdate: {
     parentUpdateId: string | undefined | null;
-    content: string;
+    text: string;
   } & (
     | {
         episodeId: string;
@@ -538,7 +538,7 @@ async function saveUpdatesToDb(updates: {
     | {}
   );
   directorUpdate: {
-    content: DirectorUpdateCode;
+    code: DirectorUpdateCode;
   };
 }) {
   return d.db.transaction(async (tx) => {
@@ -604,13 +604,13 @@ async function prepareGpts() {
       committedDirectorUpdates.push(latestWriterUpdate.directorUpdates.at(0)!);
     } else {
       // NOTE: Player-created updates are also considered uncommitted.
-      uncommitedWriterPrompt.value = `${latestWriterUpdate.content}\n`;
-      uncommittedDirectorPrompt.value = `${latestWriterUpdate.content}\n${codeToLua(latestWriterUpdate.directorUpdates.at(0)!.content)}\n`;
+      uncommitedWriterPrompt.value = `${latestWriterUpdate.text}\n`;
+      uncommittedDirectorPrompt.value = `${latestWriterUpdate.text}\n${codeToLua(latestWriterUpdate.directorUpdates.at(0)!.code)}\n`;
     }
   }
 
-  const textHistory = committedWriterUpdates.map((u) => u.content);
-  const codeHistory = committedDirectorUpdates.map((u) => u?.content);
+  const textHistory = committedWriterUpdates.map((u) => u.text);
+  const codeHistory = committedDirectorUpdates.map((u) => u?.code);
 
   const writerFullPromptBuilder = () =>
     buildWriterPrompt(scenario.value!, textHistory) + "\n";
@@ -781,7 +781,7 @@ onMounted(async () => {
             ${d.writerUpdates.id.name},
             ${d.writerUpdates.parentUpdateId.name},
             ${d.writerUpdates.createdByPlayer.name},
-            ${d.writerUpdates.content.name},
+            ${d.writerUpdates.text.name},
             ${d.writerUpdates.episodeId.name},
             ${d.writerUpdates.episodeChunkIndex.name},
             ${d.writerUpdates.llamaInferenceId.name},
@@ -795,7 +795,7 @@ onMounted(async () => {
             parent.${d.writerUpdates.id.name},
             parent.${d.writerUpdates.parentUpdateId.name},
             parent.${d.writerUpdates.createdByPlayer.name},
-            parent.${d.writerUpdates.content.name},
+            parent.${d.writerUpdates.text.name},
             parent.${d.writerUpdates.episodeId.name},
             parent.${d.writerUpdates.episodeChunkIndex.name},
             parent.${d.writerUpdates.llamaInferenceId.name},
@@ -861,7 +861,7 @@ onMounted(async () => {
       const directorUpdate = update.directorUpdates.at(0);
 
       if (directorUpdate) {
-        const luaCode = codeToLua(directorUpdate.content);
+        const luaCode = codeToLua(directorUpdate.code);
         console.debug("Evaluating stage code", luaCode);
         await stage.eval(luaCode);
       }
@@ -911,9 +911,9 @@ onMounted(async () => {
   // Register a console event listener.
   window.addEventListener("keypress", consoleEventListener);
 
-  latestWriterUpdateText.value = writerUpdates.value.at(-1)?.content || "";
+  latestWriterUpdateText.value = writerUpdates.value.at(-1)?.text || "";
   latestDirectorUpdateCode.value =
-    writerUpdates.value.at(-1)?.directorUpdates.at(0)?.content || [];
+    writerUpdates.value.at(-1)?.directorUpdates.at(0)?.code || [];
 
   // ADHOC: Always create a screenshot upon running a simulation,
   // because there is currently no easy way to detect

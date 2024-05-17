@@ -41,7 +41,7 @@ async function newSimulation() {
         .insert(d.writerUpdates)
         .values({
           simulationId: simulation.id,
-          content: chunk.writerUpdateText,
+          text: chunk.writerUpdateText,
           episodeId: startEpisode.id,
           episodeChunkIndex: 0,
         })
@@ -52,7 +52,7 @@ async function newSimulation() {
 
     await tx.insert(d.directorUpdates).values({
       writerUpdateId: writerUpdate.id,
-      content: chunk.directorUpdateCode,
+      code: chunk.directorUpdateCode,
     });
 
     // Set simulation head.

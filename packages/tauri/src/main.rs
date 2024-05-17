@@ -67,6 +67,7 @@ fn migrate_up(sqlite_uri: &str) {
         migration!("006_add_simulation_head_tracking"),
         migration!("007_drop_screenshot_column"),
         migration!("008_rename_updates"),
+        migration!("009_rename_update_columns"),
     ]);
 
     assert!(migrations.validate().is_ok());

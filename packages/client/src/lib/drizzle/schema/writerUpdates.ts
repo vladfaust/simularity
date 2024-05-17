@@ -36,7 +36,7 @@ export const writerUpdates = sqliteTable(
       { onDelete: "set null" },
     ),
 
-    content: text("content").notNull(),
+    text: text("text").notNull(),
 
     createdAt: text("created_at")
       .notNull()

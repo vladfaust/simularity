@@ -23,9 +23,7 @@ export const directorUpdates = sqliteTable(
       { onDelete: "set null" },
     ),
 
-    content: text("content", { mode: "json" })
-      .$type<DirectorUpdateCode>()
-      .notNull(),
+    code: text("code", { mode: "json" }).$type<DirectorUpdateCode>().notNull(),
 
     createdAt: text("created_at")
       .notNull()
