@@ -48,5 +48,6 @@ onMounted(() => {
   img.aspect-video.w-full(v-if="screenshotUrl" :src="screenshotUrl")
   .aspect-video.w-full.bg-blue-400(v-else)
   .flex.p-2(v-if="simulation")
-    span {{ new Date(+simulation.updatedAt).toLocaleString() }}
+    //- FIXME: UTC is stored in the table, need to format it to local time.
+    span {{ new Date(simulation.updatedAt).toLocaleString() }}
 </template>
