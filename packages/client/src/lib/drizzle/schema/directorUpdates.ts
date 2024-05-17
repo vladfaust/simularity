@@ -1,3 +1,4 @@
+import { DirectorUpdateCode } from "@/lib/ai/director";
 import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
@@ -22,8 +23,9 @@ export const directorUpdates = sqliteTable(
       { onDelete: "set null" },
     ),
 
-    // TODO: Change to strongly-typed JSON.
-    content: text("content", { mode: "text" }).notNull(),
+    content: text("content", { mode: "json" })
+      .$type<DirectorUpdateCode>()
+      .notNull(),
 
     createdAt: text("created_at")
       .notNull()

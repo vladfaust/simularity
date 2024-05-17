@@ -3,9 +3,14 @@ import { computed, markRaw, onMounted, onUnmounted, ref } from "vue";
 import { type Scenario } from "@/lib/types";
 import { DefaultScene } from "../lib/simulation/phaser/defaultScene";
 import Console from "./Simulation/Console.vue";
-import { Deferred, sleep, splitCode, zip } from "@/lib/utils";
+import { Deferred, clone, sleep, splitCode, zip } from "@/lib/utils";
 import { buildWriterPrompt } from "@/lib/ai/writer";
-import { buildDirectorPrompt, buildGnbf } from "@/lib/ai/director";
+import {
+  buildDirectorPrompt,
+  buildGnbf,
+  type DirectorUpdateCode,
+  codeToLua,
+} from "@/lib/ai/director";
 import { Game } from "../lib/simulation/phaser/game";
 import { d, sqlite, parseSelectResult } from "@/lib/drizzle";
 import { desc, eq, inArray, sql } from "drizzle-orm";
@@ -66,7 +71,7 @@ const state = ref<{
 }>({ currentEpisode: null });
 
 const latestWriterUpdateText = ref("");
-const latestDirectorUpdateCode = ref("");
+const latestDirectorUpdateCode = ref<DirectorUpdateCode>([]);
 
 const writer = ref<Gpt | undefined>();
 const deferredWriter = new Deferred<Gpt>();
@@ -116,12 +121,14 @@ function consoleEventListener(event: KeyboardEvent) {
 /**
  * Predict the next director update for writer response.
  */
-async function predictDirectorUpdate(writerResponse: string): Promise<string> {
+async function predictDirectorUpdate(
+  writerText: string,
+): Promise<{ code: DirectorUpdateCode }> {
   const grammar = buildGnbf(scenario.value!);
   console.debug("Director grammar", grammar);
 
   const directorResponse = await deferredDirector.promise.then((director) =>
-    director.infer(`${writerResponse}\n`, 128, {
+    director.infer(`${writerText}\n`, 128, {
       stopSequences: ["\n"],
       grammar,
       temp: 1,
@@ -130,37 +137,36 @@ async function predictDirectorUpdate(writerResponse: string): Promise<string> {
   console.log("Director response", directorResponse);
   uncommittedDirectorPrompt.value += `${directorResponse}\n`;
 
+  const code: DirectorUpdateCode = [];
   for (const line of splitCode(directorResponse)) {
     console.debug("Evaluating stage code", line);
-    await stage.eval(line);
+    code.push(...(await stage.eval(line)));
     if (scene.busy) await scene.busy;
   }
 
-  return directorResponse;
+  return { code };
 }
 
 /**
  * Predict the next writer and director updates.
  */
-async function predictWriterUpdate(): Promise<{
-  writerResponse: string;
-  directorResponse: string;
+async function predictUpdates(): Promise<{
+  writerUpdate: { text: string };
+  directorUpdate: { code: DirectorUpdateCode };
 }> {
-  const writerResponse = await deferredWriter.promise.then((writer) =>
+  const writerUpdateText = await deferredWriter.promise.then((writer) =>
     writer.infer(undefined, 128, {
       stopSequences: ["\n"],
     }),
   );
-  console.log("Writer response", writerResponse);
-  uncommitedWriterPrompt.value = writerResponse + "\n";
+  const writerUpdate = { text: writerUpdateText };
+  console.log("Writer response text", writerUpdateText);
+  uncommitedWriterPrompt.value = writerUpdateText + "\n";
 
-  uncommittedDirectorPrompt.value = writerResponse + "\n";
-  const directorResponse = await predictDirectorUpdate(writerResponse);
+  uncommittedDirectorPrompt.value = writerUpdateText + "\n";
+  const directorUpdate = await predictDirectorUpdate(writerUpdateText);
 
-  return {
-    writerResponse,
-    directorResponse,
-  };
+  return { writerUpdate, directorUpdate };
 }
 
 /**
@@ -233,20 +239,20 @@ async function regenerateDirectorUpdate() {
   try {
     // OPTIMIZE: Infer while waiting for the fade.
     await resetStage();
-    latestWriterUpdateText.value = latestWriterUpdate.value.content;
 
-    const writerResponse = latestWriterUpdate.value.content;
+    const writerText = latestWriterUpdate.value.content;
+    latestWriterUpdateText.value = writerText;
     uncommittedDirectorPrompt.value = "";
-    const directorResponse = await predictDirectorUpdate(writerResponse);
+    const predictedDirectorUpdate = await predictDirectorUpdate(writerText);
 
-    latestDirectorUpdateCode.value = directorResponse;
+    latestDirectorUpdateCode.value = predictedDirectorUpdate.code;
 
     const directorUpdate = (
       await d.db
         .insert(d.directorUpdates)
         .values({
           writerUpdateId: latestWriterUpdate.value.id,
-          content: directorResponse,
+          content: predictedDirectorUpdate.code,
         })
         .returning()
     )[0];
@@ -274,18 +280,18 @@ async function regenerateWriterUpdate() {
     let parentUpdateId = preLatestWriterUpdate.value?.id;
     latestWriterUpdateText.value = preLatestWriterUpdate.value?.content || "";
 
-    const { writerResponse, directorResponse } = await predictWriterUpdate();
+    const predicted = await predictUpdates();
 
-    latestWriterUpdateText.value = writerResponse;
-    latestDirectorUpdateCode.value = directorResponse;
+    latestWriterUpdateText.value = predicted.writerUpdate.text;
+    latestDirectorUpdateCode.value = clone(predicted.directorUpdate.code);
 
     const incoming = await saveUpdatesToDb({
       writerUpdate: {
         parentUpdateId,
-        content: writerResponse,
+        content: predicted.writerUpdate.text,
       },
       directorUpdate: {
-        content: directorResponse,
+        content: predicted.directorUpdate.code,
       },
     });
 
@@ -329,8 +335,10 @@ async function sendPlayerInput() {
     uncommitedWriterPrompt.value = `${playerInput_}\n`;
     uncommittedDirectorPrompt.value = `${playerInput_}\n`;
 
-    const directorResponse = await predictDirectorUpdate(`${playerInput_}\n`);
-    uncommittedDirectorPrompt.value += `${directorResponse}\n`;
+    const predictedDirectorUpdate = await predictDirectorUpdate(
+      `${playerInput_}\n`,
+    );
+    uncommittedDirectorPrompt.value += `${codeToLua(predictedDirectorUpdate.code)}\n`;
 
     const incoming = await saveUpdatesToDb({
       writerUpdate: {
@@ -339,7 +347,7 @@ async function sendPlayerInput() {
         createdByPlayer: true,
       },
       directorUpdate: {
-        content: directorResponse,
+        content: predictedDirectorUpdate.code,
       },
     });
 
@@ -393,17 +401,14 @@ async function advance() {
       //
 
       latestWriterUpdateText.value =
-        currentEpisode.chunks[currentEpisode.nextChunkIndex].writerUpdate;
+        currentEpisode.chunks[currentEpisode.nextChunkIndex].writerUpdateText;
 
-      latestDirectorUpdateCode.value = "";
-      for (const line of splitCode(
-        currentEpisode.chunks[currentEpisode.nextChunkIndex].directorUpdate,
-      )) {
-        console.debug("Evaluating stage code", line);
-        await stage.eval(line);
-        latestDirectorUpdateCode.value += line + "\n";
-        if (scene.busy) await scene.busy;
-      }
+      const luaCode = codeToLua(
+        currentEpisode.chunks[currentEpisode.nextChunkIndex].directorUpdateCode,
+      );
+      console.debug("Evaluating stage code", luaCode);
+      latestDirectorUpdateCode.value = clone(await stage.eval(luaCode));
+      if (scene.busy) await scene.busy;
 
       if (++currentEpisode.nextChunkIndex >= currentEpisode.chunks.length) {
         state.value.currentEpisode = null;
@@ -438,7 +443,7 @@ async function advance() {
         ),
       );
 
-      const newDirectorPrompt = `${latestWriterUpdateText.value}\n${latestDirectorUpdateCode.value};\n`;
+      const newDirectorPrompt = `${latestWriterUpdateText.value}\n${codeToLua(latestDirectorUpdateCode.value)};\n`;
       directorPrompt.value += newDirectorPrompt;
       deferredDirector.promise.then((director) =>
         director.decode(
@@ -451,18 +456,18 @@ async function advance() {
       // Do not commit it to GPT yet.
       //
 
-      const { writerResponse, directorResponse } = await predictWriterUpdate();
+      const predicted = await predictUpdates();
 
-      latestWriterUpdateText.value = writerResponse;
-      latestDirectorUpdateCode.value = directorResponse;
+      latestWriterUpdateText.value = predicted.writerUpdate.text;
+      latestDirectorUpdateCode.value = predicted.directorUpdate.code;
 
       const incoming = await saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId: latestWriterUpdate.value?.id,
-          content: writerResponse,
+          content: predicted.writerUpdate.text,
         },
         directorUpdate: {
-          content: directorResponse,
+          content: predicted.directorUpdate.code,
         },
       });
 
@@ -533,7 +538,7 @@ async function saveUpdatesToDb(updates: {
     | {}
   );
   directorUpdate: {
-    content: string;
+    content: DirectorUpdateCode;
   };
 }) {
   return d.db.transaction(async (tx) => {
@@ -592,15 +597,15 @@ async function prepareGpts() {
     (u) => u.directorUpdates.at(0)!,
   );
 
-  const latestUpdate = writerUpdates.value.at(-1);
-  if (latestUpdate) {
-    if (latestUpdate.episodeId) {
-      committedWriterUpdates.push(latestUpdate);
-      committedDirectorUpdates.push(latestUpdate.directorUpdates.at(0)!);
+  const latestWriterUpdate = writerUpdates.value.at(-1);
+  if (latestWriterUpdate) {
+    if (latestWriterUpdate.episodeId) {
+      committedWriterUpdates.push(latestWriterUpdate);
+      committedDirectorUpdates.push(latestWriterUpdate.directorUpdates.at(0)!);
     } else {
       // NOTE: Player-created updates are also considered uncommitted.
-      uncommitedWriterPrompt.value = `${latestUpdate.content}\n`;
-      uncommittedDirectorPrompt.value = `${latestUpdate.content}\n${latestUpdate.directorUpdates.at(0)!.content};\n`;
+      uncommitedWriterPrompt.value = `${latestWriterUpdate.content}\n`;
+      uncommittedDirectorPrompt.value = `${latestWriterUpdate.content}\n${codeToLua(latestWriterUpdate.directorUpdates.at(0)!.content)}\n`;
     }
   }
 
@@ -627,7 +632,7 @@ async function prepareGpts() {
 
   const directorPartialPromptBuilder = (from: number, to: number) =>
     zip(textHistory.slice(from, to), codeHistory.slice(from, to))
-      .map(([text, code]) => `${text}\n${code}`)
+      .map(([text, code]) => `${text}\n${codeToLua(code)}`)
       .join("\n") + "\n";
 
   async function syncGptCache(
@@ -856,8 +861,9 @@ onMounted(async () => {
       const directorUpdate = update.directorUpdates.at(0);
 
       if (directorUpdate) {
-        console.debug("Evaluating stage code", directorUpdate.content);
-        await stage.eval(directorUpdate.content);
+        const luaCode = codeToLua(directorUpdate.content);
+        console.debug("Evaluating stage code", luaCode);
+        await stage.eval(luaCode);
       }
 
       // For the sake of regeneration,
@@ -906,9 +912,8 @@ onMounted(async () => {
   window.addEventListener("keypress", consoleEventListener);
 
   latestWriterUpdateText.value = writerUpdates.value.at(-1)?.content || "";
-  latestDirectorUpdateCode.value = splitCode(
-    writerUpdates.value.at(-1)?.directorUpdates.at(0)?.content || "",
-  ).join("\n");
+  latestDirectorUpdateCode.value =
+    writerUpdates.value.at(-1)?.directorUpdates.at(0)?.content || [];
 
   // ADHOC: Always create a screenshot upon running a simulation,
   // because there is currently no easy way to detect
@@ -995,7 +1000,7 @@ onUnmounted(() => {
     :director="director"
     :director-prompt="directorPrompt"
     :uncommited-director-prompt="uncommittedDirectorPrompt"
-    :scene-code="latestDirectorUpdateCode"
+    :scene-code="codeToLua(latestDirectorUpdateCode)"
     :scene-text="latestWriterUpdateText"
     :episode="currentEpisodeConsoleObject"
     @close="consoleModal = false"

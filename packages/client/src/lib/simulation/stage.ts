@@ -1,4 +1,5 @@
 import { LuaEngine, LuaFactory } from "wasmoon";
+import { DirectorUpdateCode } from "../ai/director";
 import { Scenario } from "../types";
 import { clone } from "../utils";
 import { Scene } from "./scene";
@@ -35,6 +36,7 @@ export class Stage {
 
   private _lua?: LuaEngine;
   private _connectedScene?: Scene;
+  private _directorUpdateCode: DirectorUpdateCode = [];
 
   constructor(readonly scenario: Scenario) {}
 
@@ -53,6 +55,13 @@ export class Stage {
         "set_scene",
         (sceneQualifiedId: string, clear: boolean) => {
           this.setScene(sceneQualifiedId, clear);
+          this._directorUpdateCode.push({
+            name: "set_scene",
+            args: {
+              sceneId: sceneQualifiedId,
+              clear,
+            },
+          });
         },
       );
 
@@ -60,22 +69,50 @@ export class Stage {
         "add_character",
         (characterId: string, outfitId: string, expressionId: string) => {
           this.addCharacter(characterId, outfitId, expressionId);
+          this._directorUpdateCode.push({
+            name: "add_character",
+            args: {
+              characterId,
+              outfitId,
+              expressionId,
+            },
+          });
         },
       );
 
       lua.global.set("set_outfit", (characterId: string, outfitId: string) => {
         this.setOutfit(characterId, outfitId);
+        this._directorUpdateCode.push({
+          name: "set_outfit",
+          args: {
+            characterId,
+            outfitId,
+          },
+        });
       });
 
       lua.global.set(
         "set_expression",
         (characterId: string, expressionId: string) => {
           this.setExpression(characterId, expressionId);
+          this._directorUpdateCode.push({
+            name: "set_expression",
+            args: {
+              characterId,
+              expressionId,
+            },
+          });
         },
       );
 
       lua.global.set("remove_character", (characterId: string) => {
         this.removeCharacter(characterId);
+        this._directorUpdateCode.push({
+          name: "remove_character",
+          args: {
+            characterId,
+          },
+        });
       });
 
       return lua;
@@ -86,9 +123,11 @@ export class Stage {
     this._connectedScene = scene;
   }
 
-  eval(luaCode: string): Promise<any> {
+  async eval(luaCode: string): Promise<DirectorUpdateCode> {
     if (!this._lua) throw new Error("Lua engine not initialized");
-    return this._lua.doString(luaCode);
+    this._directorUpdateCode.length = 0;
+    await this._lua.doString(luaCode);
+    return this._directorUpdateCode;
   }
 
   /**

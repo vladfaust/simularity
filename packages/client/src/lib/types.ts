@@ -1,3 +1,5 @@
+import { DirectorUpdateCode } from "./ai/director";
+
 export type Scenario = {
   name: string;
   globalPrompt: string;
@@ -49,8 +51,8 @@ export type Scenario = {
       id: string;
       chunks: [
         {
-          writerUpdate: string;
-          directorUpdate: string;
+          writerUpdateText: string;
+          directorUpdateCode: DirectorUpdateCode;
         },
       ];
     },
