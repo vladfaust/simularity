@@ -330,6 +330,9 @@ pub fn infer(
             print!("{}", output_string);
             decoded_string += &output_string;
 
+            // NOTE: The stop sequence is added to the uncommitted session.
+            ctx.uncommitted_session.push(new_token);
+
             // Is it a stop sequence?
             if let Some(stop_sequences) = &options.stop_sequences {
                 for stop_sequence in stop_sequences {
@@ -345,7 +348,6 @@ pub fn infer(
             // Set the batch head to the new token.
             batch.clear();
             batch.add(new_token, n_session as i32, &[0], true)?;
-            ctx.uncommitted_session.push(new_token);
         }
 
         n_session += 1;
