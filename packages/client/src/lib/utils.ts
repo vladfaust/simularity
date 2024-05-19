@@ -85,3 +85,11 @@ export function sleep(ms: number): Promise<void> {
 export function clone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
+
+/**
+ * Would panic upon non-exhaustive-ness.
+ * @example default: unreachable(case)
+ */
+export function unreachable(arg: never) {
+  return arg;
+}

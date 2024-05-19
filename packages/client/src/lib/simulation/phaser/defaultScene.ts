@@ -2,7 +2,7 @@ import { Scenario } from "@/lib/types";
 import { throwError } from "@/lib/utils";
 import Phaser from "phaser";
 import { Scene } from "../scene";
-import { State as StageState } from "../stage";
+import { StageState, toSceneQualifiedId } from "../stage";
 
 /**
  * An unexpected scene error.
@@ -42,15 +42,21 @@ export class DefaultScene extends Phaser.Scene implements Scene {
   constructor(
     readonly scenario: Scenario,
     private readonly assetBasePath: string,
-    private readonly initialState: StageState | undefined,
+    private readonly initialState: StageState | null = null,
   ) {
     super();
   }
 
   create() {
     if (this.initialState) {
-      if (this.initialState.sceneQualifiedId) {
-        this.setScene(this.initialState.sceneQualifiedId, false);
+      if (this.initialState.scene) {
+        this.setScene(
+          toSceneQualifiedId(
+            this.initialState.scene.locationId,
+            this.initialState.scene.sceneId,
+          ),
+          false,
+        );
       }
 
       for (const { id, outfitId, expressionId } of this.initialState
@@ -97,10 +103,13 @@ export class DefaultScene extends Phaser.Scene implements Scene {
     }
   }
 
-  set(state: StageState | null) {
+  setState(state: StageState | null) {
     if (state) {
-      if (state.sceneQualifiedId) {
-        this.setScene(state.sceneQualifiedId, state.characters.length === 0);
+      if (state.scene) {
+        this.setScene(
+          toSceneQualifiedId(state.scene.locationId, state.scene.sceneId),
+          state.characters.length === 0,
+        );
       } else {
         this.stageScene?.bg.destroy();
         this.stageScene = null;
@@ -135,42 +144,51 @@ export class DefaultScene extends Phaser.Scene implements Scene {
   /**
    * Set the scene, clearing it if necessary.
    *
-   * @param qualifiedId A combination of location and scene IDs, e.g. `"home/bedroom"`.
+   * @param qualifiedId A combination of location and scene IDs,
+   * e.g. `"home/bedroom"`, or `null` for the null scene.
+   *
    * @param clear Whether to clear the scene.
    */
-  setScene(qualifiedId: string, clear: boolean) {
+  setScene(qualifiedId: string | null, clear: boolean) {
     console.debug("setScene", { qualifiedId, clear });
 
-    const [locationId, sceneId] = qualifiedId.split("/");
+    if (qualifiedId) {
+      const [locationId, sceneId] = qualifiedId.split("/");
 
-    const location = this.scenario.locations.find((l) => l.id === locationId);
-    if (!location) throw new SceneError(`Location not found: ${locationId}`);
+      const location = this.scenario.locations.find((l) => l.id === locationId);
+      if (!location) throw new SceneError(`Location not found: ${locationId}`);
 
-    const scene = location.scenes.find((s) => s.id === sceneId);
-    if (!scene) throw new SceneError(`Scene not found: ${sceneId}`);
+      const scene = location.scenes.find((s) => s.id === sceneId);
+      if (!scene) throw new SceneError(`Scene not found: ${sceneId}`);
+
+      const texture = this._sceneTextureKey(locationId, sceneId);
+
+      if (this.stageScene) {
+        this.stageScene.bg.setTexture(texture);
+        this.stageScene.qualifiedId = qualifiedId;
+      } else {
+        const bg = this.add.image(
+          this.game.canvas.width / 2,
+          this.game.canvas.height / 2,
+          texture,
+        );
+
+        this.stageScene = {
+          qualifiedId,
+          bg,
+        };
+      }
+    } else {
+      if (this.stageScene) {
+        this.stageScene.bg.destroy();
+        this.stageScene = null;
+      }
+    }
 
     if (clear) {
       for (const characterId of this.stageCharacters.keys()) {
         this.removeCharacter(characterId);
       }
-    }
-
-    const texture = this._sceneTextureKey(locationId, sceneId);
-
-    if (this.stageScene) {
-      this.stageScene.bg.setTexture(texture);
-      this.stageScene.qualifiedId = qualifiedId;
-    } else {
-      const bg = this.add.image(
-        this.game.canvas.width / 2,
-        this.game.canvas.height / 2,
-        texture,
-      );
-
-      this.stageScene = {
-        qualifiedId,
-        bg,
-      };
     }
   }
 

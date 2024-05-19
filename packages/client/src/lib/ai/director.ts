@@ -1,80 +1,5 @@
-import { z } from "zod";
+import { StageCall, stageCallsToLua } from "../simulation/stage";
 import { Scenario } from "../types";
-
-const SetSceneSchema = z
-  .object({
-    name: z.literal("set_scene"),
-    args: z.object({
-      sceneId: z.string().describe("The ID of the scene to set."),
-      clear: z
-        .boolean()
-        .describe(
-          `If "clear" is \`true\`, remove all characters from the scene. If "clear" is \`false\`, keep the characters in the scene and update the scene background only.`,
-        ),
-    }),
-  })
-  .describe("Set the scene to specified sceneId.");
-
-const AddCharacterSchema = z
-  .object({
-    name: z.literal("add_character"),
-    args: z.object({
-      characterId: z.string().describe("The ID of the character to add."),
-      outfitId: z.string().describe("The ID of the outfit to use."),
-      expressionId: z.string().describe("The ID of the expression to use."),
-    }),
-  })
-  .describe("Add a character to the scene.");
-
-const SetOutfitSchema = z
-  .object({
-    name: z.literal("set_outfit"),
-    args: z.object({
-      characterId: z.string().describe("The ID of the character to update."),
-      outfitId: z.string().describe("The ID of the outfit to set."),
-    }),
-  })
-  .describe("Set outfit of a character.");
-
-const SetExpressionSchema = z
-  .object({
-    name: z.literal("set_expression"),
-    args: z.object({
-      characterId: z.string().describe("The ID of the character to update."),
-      expressionId: z.string().describe("The ID of the expression to set."),
-    }),
-  })
-  .describe("Set expression of a character.");
-
-const RemoveCharacterSchema = z
-  .object({
-    name: z.literal("remove_character"),
-    args: z.object({
-      characterId: z.string().describe("The ID of the character to remove."),
-    }),
-  })
-  .describe("Remove a character from the scene.");
-
-export const DirectorUpdateCodeSchema = z.array(
-  z.union([
-    SetSceneSchema,
-    AddCharacterSchema,
-    SetOutfitSchema,
-    SetExpressionSchema,
-    RemoveCharacterSchema,
-  ]),
-);
-
-export type DirectorUpdateCode = z.infer<typeof DirectorUpdateCodeSchema>;
-
-export function codeToLua(calls: DirectorUpdateCode): string {
-  return calls
-    .map((call) => {
-      const args = Object.values(call.args).map((v) => JSON.stringify(v));
-      return `${call.name}(${args.join(", ")})`;
-    })
-    .join(";");
-}
 
 /**
  * Build a GNBF grammar to constrain director output.
@@ -134,7 +59,7 @@ export function buildDirectorPrompt(
   scenario: Scenario,
   history: {
     text: string;
-    code: DirectorUpdateCode;
+    code: StageCall[];
   }[],
 ) {
   const locations = scenario.locations.map((location) => {
@@ -164,7 +89,7 @@ ${outfit.prompt}
     );
 
     return `
-### ${character.displayName}
+### ${character.fullName}
 characterId: ${character.id}
 expressionId: ${character.expressions.map((e) => e.id).join(", ")}
 #### Appearance
@@ -197,6 +122,6 @@ Set expression of a character.
 ### remove_character(characterId: string)
 Remove a character from the scene.
 ## Script (text followed by code)
-${history.map((h) => `${h.text}\n${codeToLua(h.code)}`).join("\n")}
+${history.map((h) => `${h.text}\n${stageCallsToLua(h.code)}`).join("\n")}
 `.trim();
 }

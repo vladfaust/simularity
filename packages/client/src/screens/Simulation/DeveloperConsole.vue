@@ -7,13 +7,9 @@ import {
 } from "@headlessui/vue";
 import { computed, ref, watch } from "vue";
 import { ArrowUpToLineIcon, Undo2Icon } from "lucide-vue-next";
-import { Codemirror } from "vue-codemirror";
-import { StreamLanguage } from "@codemirror/language";
-import { lua } from "@codemirror/legacy-modes/mode/lua";
-import { dracula } from "thememirror";
-import { autocompletion } from "@codemirror/autocomplete";
-import Prompt from "./Console/Prompt.vue";
+import Prompt from "./DeveloperConsole/Prompt.vue";
 import { Gpt } from "@/lib/ai";
+import { type StageCall, stageCallsToLua } from "@/lib/simulation/stage";
 
 const props = defineProps<{
   open: boolean;
@@ -32,6 +28,7 @@ const props = defineProps<{
       total: number;
     };
   } | null;
+  stageStateDelta: StageCall[];
 }>();
 
 const consoleRef = ref<HTMLInputElement | null>(null);
@@ -65,38 +62,6 @@ watch(
 const emit = defineEmits<{
   (event: "close"): void;
 }>();
-
-const codemirrorExtensions = [
-  dracula,
-  autocompletion({
-    override: [
-      (context) => {
-        let word = context.matchBefore(/\w*/);
-        if (!word) return null;
-
-        if (word.from == word.to && !context.explicit) return null;
-
-        return {
-          from: word.from,
-
-          options: [
-            {
-              label: "set_scene",
-              type: "function",
-              detail: "Set the scene",
-            },
-            {
-              label: "add_character",
-              type: "function",
-              detail: "Add a character to scene",
-            },
-          ],
-        };
-      },
-    ],
-  }),
-  StreamLanguage.define(lua),
-];
 </script>
 
 <template lang="pug">
@@ -122,7 +87,7 @@ Dialog.relative.z-50(
         DialogPanel.flex.h-full.flex-col(class="bg-black/50")
           .grid.h-full.grow.gap-2.overflow-hidden.p-2(class="sm:grid-cols-3")
             //- Info.
-            .flex.flex-col
+            .flex.flex-col.gap-2
               //- Info.
               .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
                 .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
@@ -155,10 +120,10 @@ Dialog.relative.z-50(
                   v-model="sceneText"
                 )
 
-              //- Code.
+              //- Stage state.
               .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
                 .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
-                  span.font-bold.uppercase.tracking-wide Code
+                  span.font-bold.uppercase.tracking-wide Stage delta
                   .flex.gap-1
                     button.btn.transition-transform.pressable(
                       @click="resetSceneCode"
@@ -170,9 +135,10 @@ Dialog.relative.z-50(
                       :disabled="!sceneCodeChanged"
                     )
                       ArrowUpToLineIcon(:size="20")
-                Codemirror.h-full.text-sm(
-                  v-model="sceneCode"
-                  :extensions="codemirrorExtensions"
+
+                textarea.h-full.resize-none.overflow-scroll.bg-transparent.p-2.font-mono.text-white(
+                  :value="stageCallsToLua(stageStateDelta)"
+                  readonly
                 )
 
             //- Writer prompt.

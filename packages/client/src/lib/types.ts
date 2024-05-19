@@ -1,4 +1,4 @@
-import { DirectorUpdateCode } from "./ai/director";
+import { StageCall } from "./simulation/stage";
 
 export type Scenario = {
   name: string;
@@ -7,6 +7,7 @@ export type Scenario = {
     {
       id: string;
       name: string;
+      about: string;
       prompt: string;
       scenes: [
         {
@@ -21,8 +22,11 @@ export type Scenario = {
   characters: [
     {
       id: string;
-      displayName: string;
+      fullName: string;
+      displayName?: string;
       displayColor: string;
+      about: string;
+      pfp?: string;
       personalityPrompt: string;
       traits: string[];
       appearancePrompt: string;
@@ -52,7 +56,7 @@ export type Scenario = {
       chunks: [
         {
           writerUpdateText: string;
-          directorUpdateCode: DirectorUpdateCode;
+          stageCalls: StageCall[];
         },
       ];
     },

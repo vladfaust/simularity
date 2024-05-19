@@ -5,9 +5,22 @@
 @layer components {
   .btn {
     @apply border;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-md {
     @apply rounded px-4 py-2;
+  }
+
+  .btn-primary {
+    @apply bg-blue-500 text-white;
+  }
+
+  .btn-success {
+    @apply bg-green-500 text-white;
+  }
+
+  .btn-error {
+    @apply bg-red-500 text-white;
   }
 }

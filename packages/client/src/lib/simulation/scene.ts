@@ -1,10 +1,10 @@
-import { State } from "./stage";
+import { StageState } from "./stage";
 
 /**
  * An abstract render scene object.
  */
 export interface Scene {
-  setScene(sceneId: string, clear: boolean): void;
+  setScene(qualifiedId: string | null, clear: boolean): void;
   addCharacter(
     characterId: string,
     outfitId: string,
@@ -17,5 +17,5 @@ export interface Scene {
   /**
    * Set the scene to given state.
    */
-  set(state: State | null): void;
+  setState(state: StageState | null): void;
 }

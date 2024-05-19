@@ -1,7 +1,7 @@
 import { Scenario } from "@/lib/types";
 import { Deferred } from "@/lib/utils";
 import Phaser from "phaser";
-import { State } from "../stage";
+import { StageState } from "../stage";
 import { DefaultScene } from "./defaultScene";
 
 export class Game {
@@ -29,7 +29,7 @@ export class Game {
   createDefaultScene(
     scenario: Scenario,
     assetBasePath: string,
-    initialStage: State | undefined,
+    initialStage: StageState | undefined,
   ): Promise<DefaultScene> {
     this._game.scene.add(
       "default",

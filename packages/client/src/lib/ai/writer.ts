@@ -27,7 +27,7 @@ ${scenes.join("\n")}
     );
 
     return `
-### ${character.displayName}
+### ${character.fullName}
 ${character.scenarioPrompt}
 #### Personality
 ${character.personalityPrompt}
