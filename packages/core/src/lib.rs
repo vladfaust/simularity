@@ -216,12 +216,15 @@ pub fn infer(
     cleanup_uncommitted_session(ctx);
 
     // Add the head.
-    batch.add(
-        *ctx.session.get(n_session - 1).unwrap(),
-        (n_session - 1) as i32,
-        &[0],
-        true, // It must have logits.
-    )?;
+    if n_session > 0 {
+        batch.add(
+            *ctx.session.get(n_session - 1).unwrap(),
+            (n_session - 1) as i32,
+            &[0],
+            true, // It must have logits.
+        )?;
+    }
+
     if let Some(prompt) = prompt {
         let prompt_tokens = ctx
             .context
