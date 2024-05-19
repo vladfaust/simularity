@@ -70,7 +70,7 @@ const state = ref<{
 }>({ currentEpisode: null });
 
 const latestWriterUpdateText = ref("");
-const latestDirectorUpdateCode = ref<StageCall[]>([]);
+const latestDirectorUpdateCode = ref<StageCall[] | null | undefined>();
 
 const writer = ref<Gpt | undefined>();
 const deferredWriter = new Deferred<Gpt>();
@@ -78,6 +78,7 @@ const writerPrompt = ref("");
 const uncommitedWriterPrompt = ref("");
 const uncommitedWriterUpdateId = ref<string | undefined>();
 
+const enableDirector = ref(false);
 const director = ref<Gpt | undefined>();
 const deferredDirector = new Deferred<Gpt>();
 const directorPrompt = ref("");
@@ -147,11 +148,11 @@ async function predictDirectorUpdate(
 }
 
 /**
- * Predict the next writer and director updates.
+ * Predict the next writer and director (if enabled) updates.
  */
 async function predictUpdates(): Promise<{
   writerUpdate: { text: string };
-  directorUpdate: { code: StageCall[] };
+  directorUpdate?: { code: StageCall[] };
 }> {
   const writerUpdateText = await deferredWriter.promise.then((writer) =>
     writer.infer(undefined, 128, {
@@ -163,7 +164,11 @@ async function predictUpdates(): Promise<{
   uncommitedWriterPrompt.value = writerUpdateText + "\n";
 
   uncommittedDirectorPrompt.value = writerUpdateText + "\n";
-  const directorUpdate = await predictDirectorUpdate(writerUpdateText);
+
+  let directorUpdate;
+  if (enableDirector.value) {
+    directorUpdate = await predictDirectorUpdate(writerUpdateText);
+  }
 
   return { writerUpdate, directorUpdate };
 }
@@ -214,11 +219,13 @@ async function commitUncommitted() {
   const actualDelta = stage.delta(previousStageState.value);
   console.debug("Actual delta", actualDelta);
   console.debug("Latest director update delta", latestDirectorUpdateCode.value);
-  const deltasEqual = comparesDeltas(
-    stage.state.value,
-    actualDelta,
-    latestDirectorUpdateCode.value,
-  );
+  const deltasEqual = latestDirectorUpdateCode.value
+    ? comparesDeltas(
+        stage.state.value,
+        actualDelta,
+        latestDirectorUpdateCode.value,
+      )
+    : actualDelta.length === 0;
   console.log("Deltas equal", deltasEqual);
 
   if (!deltasEqual) {
@@ -298,7 +305,8 @@ async function regenerateDirectorUpdate() {
 }
 
 /**
- * Explicitly regenerate the writer update along with the director update.
+ * Explicitly regenerate the writer update along with
+ * the director (if director is enabled) update.
  */
 async function regenerateWriterUpdate() {
   if (!latestWriterUpdate.value) {
@@ -317,25 +325,29 @@ async function regenerateWriterUpdate() {
     const predicted = await predictUpdates();
 
     latestWriterUpdateText.value = predicted.writerUpdate.text;
-    latestDirectorUpdateCode.value = clone(predicted.directorUpdate.code);
+    latestDirectorUpdateCode.value = predicted.directorUpdate
+      ? clone(predicted.directorUpdate.code)
+      : [];
 
     const incoming = await saveUpdatesToDb({
       writerUpdate: {
         parentUpdateId,
         text: predicted.writerUpdate.text,
       },
-      directorUpdate: {
-        code: predicted.directorUpdate.code,
-      },
+      directorUpdate: predicted.directorUpdate
+        ? {
+            code: predicted.directorUpdate.code,
+          }
+        : undefined,
     });
 
     uncommitedWriterUpdateId.value = incoming.writerUpdate.id;
-    uncommitedDirectorUpdateId.value = incoming.directorUpdate.id;
+    uncommitedDirectorUpdateId.value = incoming.directorUpdate?.id;
 
     writerUpdates.value.pop();
     writerUpdates.value.push({
       ...incoming.writerUpdate,
-      directorUpdates: [{ ...incoming.directorUpdate }],
+      directorUpdates: incoming.directorUpdate ? [incoming.directorUpdate] : [],
     });
   } finally {
     busy.value = false;
@@ -369,10 +381,14 @@ async function sendPlayerInput() {
     uncommitedWriterPrompt.value = `${playerInput_}\n`;
     uncommittedDirectorPrompt.value = `${playerInput_}\n`;
 
-    const predictedDirectorUpdate = await predictDirectorUpdate(
-      `${playerInput_}\n`,
-    );
-    uncommittedDirectorPrompt.value += `${stageCallsToLua(predictedDirectorUpdate.code)}\n`;
+    let predictedDirectorUpdate;
+    if (enableDirector.value) {
+      predictedDirectorUpdate = await predictDirectorUpdate(
+        `${playerInput_}\n`,
+      );
+
+      uncommittedDirectorPrompt.value += `${stageCallsToLua(predictedDirectorUpdate.code)}\n`;
+    }
 
     const incoming = await saveUpdatesToDb({
       writerUpdate: {
@@ -380,17 +396,17 @@ async function sendPlayerInput() {
         text: playerInput_,
         createdByPlayer: true,
       },
-      directorUpdate: {
-        code: predictedDirectorUpdate.code,
-      },
+      directorUpdate: predictedDirectorUpdate
+        ? { code: predictedDirectorUpdate.code }
+        : undefined,
     });
 
     uncommitedWriterUpdateId.value = incoming.writerUpdate.id;
-    uncommitedDirectorUpdateId.value = incoming.directorUpdate.id;
+    uncommitedDirectorUpdateId.value = incoming.directorUpdate?.id;
 
     writerUpdates.value.push({
       ...incoming.writerUpdate,
-      directorUpdates: [incoming.directorUpdate],
+      directorUpdates: incoming.directorUpdate ? [incoming.directorUpdate] : [],
     });
   } catch (e) {
     if (wouldRestorePlayerInput) {
@@ -465,7 +481,9 @@ async function advance() {
 
       writerUpdates.value.push({
         ...incoming.writerUpdate,
-        directorUpdates: [{ ...incoming.directorUpdate }],
+        directorUpdates: incoming.directorUpdate
+          ? [incoming.directorUpdate]
+          : [],
       });
 
       const newWriterPrompt = `${latestWriterUpdateText.value}\n`;
@@ -477,14 +495,16 @@ async function advance() {
         ),
       );
 
-      const newDirectorPrompt = `${latestWriterUpdateText.value}\n${stageCallsToLua(latestDirectorUpdateCode.value)};\n`;
-      directorPrompt.value += newDirectorPrompt;
-      deferredDirector.promise.then((director) =>
-        director.decode(
-          newDirectorPrompt,
-          `${simulationId}:${incoming.directorUpdate.id}`,
-        ),
-      );
+      if (enableDirector.value) {
+        const newDirectorPrompt = `${latestWriterUpdateText.value}\n${stageCallsToLua(latestDirectorUpdateCode.value)};\n`;
+        directorPrompt.value += newDirectorPrompt;
+        deferredDirector.promise.then((director) =>
+          director.decode(
+            newDirectorPrompt,
+            `${simulationId}:${incoming.directorUpdate!.id}`,
+          ),
+        );
+      }
     } else {
       // Predict the next update.
       // Do not commit it to GPT yet.
@@ -493,24 +513,26 @@ async function advance() {
       const predicted = await predictUpdates();
 
       latestWriterUpdateText.value = predicted.writerUpdate.text;
-      latestDirectorUpdateCode.value = predicted.directorUpdate.code;
+      latestDirectorUpdateCode.value = predicted.directorUpdate
+        ? predicted.directorUpdate.code
+        : [];
 
       const incoming = await saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId: latestWriterUpdate.value?.id,
           text: predicted.writerUpdate.text,
         },
-        directorUpdate: {
-          code: predicted.directorUpdate.code,
-        },
+        directorUpdate: predicted.directorUpdate,
       });
 
       uncommitedWriterUpdateId.value = incoming.writerUpdate.id;
-      uncommitedDirectorUpdateId.value = incoming.directorUpdate.id;
+      uncommitedDirectorUpdateId.value = incoming.directorUpdate?.id;
 
       writerUpdates.value.push({
         ...incoming.writerUpdate,
-        directorUpdates: [{ ...incoming.directorUpdate }],
+        directorUpdates: incoming.directorUpdate
+          ? [incoming.directorUpdate]
+          : [],
       });
     }
 
@@ -571,7 +593,7 @@ async function saveUpdatesToDb(updates: {
       }
     | {}
   );
-  directorUpdate: {
+  directorUpdate?: {
     code: StageCall[];
   };
 }) {
@@ -586,15 +608,18 @@ async function saveUpdatesToDb(updates: {
         .returning()
     )[0];
 
-    const directorUpdate = (
-      await tx
-        .insert(d.directorUpdates)
-        .values({
-          writerUpdateId: writerUpdate.id,
-          ...updates.directorUpdate,
-        })
-        .returning()
-    )[0];
+    let directorUpdate;
+    if (updates.directorUpdate) {
+      directorUpdate = (
+        await tx
+          .insert(d.directorUpdates)
+          .values({
+            writerUpdateId: writerUpdate.id,
+            ...updates.directorUpdate,
+          })
+          .returning()
+      )[0];
+    }
 
     await tx
       .update(d.simulations)
@@ -627,19 +652,20 @@ async function prepareGpts() {
   //
 
   const committedWriterUpdates = writerUpdates.value.slice(0, -1);
-  const committedDirectorUpdates = committedWriterUpdates.map(
-    (u) => u.directorUpdates.at(0)!,
+  const committedDirectorUpdates = committedWriterUpdates.map((u) =>
+    u.directorUpdates.at(0),
   );
 
   const latestWriterUpdate = writerUpdates.value.at(-1);
   if (latestWriterUpdate) {
     if (latestWriterUpdate.episodeId) {
       committedWriterUpdates.push(latestWriterUpdate);
-      committedDirectorUpdates.push(latestWriterUpdate.directorUpdates.at(0)!);
+      committedDirectorUpdates.push(latestWriterUpdate.directorUpdates.at(0));
     } else {
       // NOTE: Player-created updates are also considered uncommitted.
       uncommitedWriterPrompt.value = `${latestWriterUpdate.text}\n`;
-      uncommittedDirectorPrompt.value = `${latestWriterUpdate.text}\n${stageCallsToLua(latestWriterUpdate.directorUpdates.at(0)!.code)}\n`;
+      const code = latestWriterUpdate.directorUpdates.at(0)?.code;
+      uncommittedDirectorPrompt.value = `${latestWriterUpdate.text}\n${code ? stageCallsToLua(code) : "noop();"}\n`;
     }
   }
 
@@ -666,13 +692,16 @@ async function prepareGpts() {
 
   const directorPartialPromptBuilder = (from: number, to: number) =>
     zip(textHistory.slice(from, to), codeHistory.slice(from, to))
-      .map(([text, code]) => `${text}\n${stageCallsToLua(code)}`)
+      .map(
+        ([text, code]) =>
+          `${text}\n${code ? stageCallsToLua(code) : "noop();"}`,
+      )
       .join("\n") + "\n";
 
   async function syncGptCache(
     gpt: Gpt,
     kvCacheKey: string,
-    committedUpdates: { id: string }[],
+    committedUpdates: ({ id: string } | undefined)[],
     fullPromptBuilder: () => string,
     partialPromptBuilder: (
       fromCommittedUpdateIndex: number,
@@ -760,28 +789,30 @@ async function prepareGpts() {
       }),
   );
 
-  promises.push(
-    Gpt.findOrCreate(
-      "director",
-      GPT_DIRECTOR.modelPath,
-      GPT_DIRECTOR.contextSize,
-      GPT_DIRECTOR.batchSize,
-    )
-      .then(({ gpt, kvCacheKey }) => {
-        director.value = markRaw(gpt);
+  if (enableDirector.value) {
+    promises.push(
+      Gpt.findOrCreate(
+        "director",
+        GPT_DIRECTOR.modelPath,
+        GPT_DIRECTOR.contextSize,
+        GPT_DIRECTOR.batchSize,
+      )
+        .then(({ gpt, kvCacheKey }) => {
+          director.value = markRaw(gpt);
 
-        return syncGptCache(
-          gpt,
-          kvCacheKey,
-          committedDirectorUpdates,
-          directorFullPromptBuilder,
-          directorPartialPromptBuilder,
-        );
-      })
-      .then((gpt) => {
-        deferredDirector.resolve(gpt);
-      }),
-  );
+          return syncGptCache(
+            gpt,
+            kvCacheKey,
+            committedDirectorUpdates,
+            directorFullPromptBuilder,
+            directorPartialPromptBuilder,
+          );
+        })
+        .then((gpt) => {
+          deferredDirector.resolve(gpt);
+        }),
+    );
+  }
 
   await Promise.all(promises);
 }
@@ -1006,6 +1037,7 @@ onUnmounted(() => {
           )
             RefreshCwIcon(:size="20")
           button.btn.pressable(
+            v-if="enableDirector"
             @click="regenerateDirectorUpdate"
             :disabled="busy || !canPossiblyRegenerateDirectorUpdate"
             class="disabled:cursor-not-allowed disabled:opacity-50"
@@ -1056,7 +1088,7 @@ onUnmounted(() => {
     :director="director"
     :director-prompt="directorPrompt"
     :uncommited-director-prompt="uncommittedDirectorPrompt"
-    :scene-code="stageCallsToLua(latestDirectorUpdateCode)"
+    :scene-code="stageCallsToLua(latestDirectorUpdateCode || [])"
     :scene-text="latestWriterUpdateText"
     :episode="currentEpisodeConsoleObject"
     :stage-state-delta="stage?.delta(previousStageState) || []"

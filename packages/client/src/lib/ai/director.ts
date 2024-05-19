@@ -59,7 +59,7 @@ export function buildDirectorPrompt(
   scenario: Scenario,
   history: {
     text: string;
-    code: StageCall[];
+    code: StageCall[] | undefined;
   }[],
 ) {
   const locations = scenario.locations.map((location) => {
@@ -122,6 +122,6 @@ Set expression of a character.
 ### remove_character(characterId: string)
 Remove a character from the scene.
 ## Script (text followed by code)
-${history.map((h) => `${h.text}\n${stageCallsToLua(h.code)}`).join("\n")}
+${history.map((h) => `${h.text}\n${h.code ? stageCallsToLua(h.code) : "noop();"}`).join("\n")}
 `.trim();
 }
