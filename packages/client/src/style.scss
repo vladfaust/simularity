@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  // Disable overscroll, thanks to
+  // https://github.com/tauri-apps/tauri/issues/4309.
+  body {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
 @layer components {
   .btn {
     @apply border;
