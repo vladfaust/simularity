@@ -49,6 +49,7 @@
 - [x] feat: replace git w/ SQLite (Sat May 11, 2024)
 - [x] feat: regenerate an update (Mon May 13, 2024)
 - [x] feat: reuse GPTs by params & KV cache key (Wed May 15, 2024)
+- [x] feat(client): sandbox console (Sun May 19, 2024)
 - [x] feat(client): chat interface (Wed May 22, 2024)
 
 ### April 2024
