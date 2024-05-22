@@ -1,21 +1,20 @@
 <script setup lang="ts">
-import { computed, markRaw, onMounted, onUnmounted, ref } from "vue";
+import { type Raw, computed, markRaw, onMounted, onUnmounted, ref } from "vue";
 import { type Scenario } from "@/lib/types";
 import { DefaultScene } from "../lib/simulation/phaser/defaultScene";
 import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
-import { Deferred, clone, sleep, splitCode, zip } from "@/lib/utils";
+import { Deferred, clone, sleep } from "@/lib/utils";
 import { buildWriterPrompt } from "@/lib/ai/writer";
-import { buildDirectorPrompt, buildGnbf } from "@/lib/ai/director";
 import { Game } from "../lib/simulation/phaser/game";
 import { d, sqlite, parseSelectResult } from "@/lib/drizzle";
 import { asc, eq, inArray, sql } from "drizzle-orm";
 import { Stage, type StageCall, type StageState } from "@/lib/simulation/stage";
 import GptStatus from "./Simulation/GptStatus.vue";
 import {
-  BinaryIcon,
-  ClapperboardIcon,
-  RefreshCwIcon,
+  FastForwardIcon,
+  Loader2Icon,
   ScrollTextIcon,
+  SendHorizontalIcon,
 } from "lucide-vue-next";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { writerUpdatesTableName } from "@/lib/drizzle/schema/writerUpdates";
@@ -29,38 +28,26 @@ import {
 } from "@tauri-apps/api/fs";
 import prettyBytes from "pretty-bytes";
 import { Gpt } from "@/lib/ai";
-import { GPT_DIRECTOR, GPT_WRITER } from "@/env";
+import { GPT_WRITER } from "@/env";
 import SandboxConsole from "./Simulation/SandboxConsole.vue";
 import { stageCallsToLua, comparesDeltas } from "@/lib/simulation/stage";
+import { useInfiniteScroll, useScroll } from "@vueuse/core";
+import AssistantUpdateVue, {
+  AssistantUpdate,
+} from "./Simulation/AssistantUpdate.vue";
+import UserUpdateVue, { UserUpdate } from "./Simulation/UserUpdate.vue";
+import EpisodeUpdateVue, {
+  EpisodeUpdate,
+} from "./Simulation/EpisodeUpdate.vue";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
 let gameInstance: Game;
 let stage: Stage;
 let scene: DefaultScene;
-const writerUpdates = ref<
-  (typeof d.writerUpdates.$inferSelect & {
-    directorUpdates: (typeof d.directorUpdates.$inferSelect & {})[];
-  })[]
->([]);
-const latestWriterUpdate = computed(() => writerUpdates.value.at(-1));
-const preLatestWriterUpdate = computed(() => writerUpdates.value.at(-2));
-
-const previousStageState = ref<StageState | undefined | null>();
 
 let scenario = ref<Scenario | undefined>();
 const assetBaseUrl = ref<URL | undefined>();
-
-const busy = ref(false);
-const canPossiblyRegenerateWriterUpdate = computed(() =>
-  latestWriterUpdate.value
-    ? !latestWriterUpdate.value.episodeId &&
-      !latestWriterUpdate.value.createdByPlayer
-    : false,
-);
-const canPossiblyRegenerateDirectorUpdate = computed(() =>
-  latestWriterUpdate.value ? !latestWriterUpdate.value.episodeId : false,
-);
 
 /**
  * The runtime simulation state object.
@@ -69,21 +56,41 @@ const state = ref<{
   currentEpisode: (Scenario["episodes"][0] & { nextChunkIndex: number }) | null;
 }>({ currentEpisode: null });
 
-const latestWriterUpdateText = ref("");
-const latestDirectorUpdateCode = ref<StageCall[] | null | undefined>();
+/**
+ * Previous meaningful stage state.
+ */
+const previousStageState = ref<StageState | undefined | null>();
+
+/**
+ * Simulation updates, ordered from the newest to the oldest.
+ */
+const updates = ref<
+  (Raw<AssistantUpdate> | Raw<UserUpdate> | Raw<EpisodeUpdate>)[]
+>([]);
+
+/**
+ * The latest (i.e. the first) update, if any.
+ */
+const latestUpdate = computed(() => updates.value.at(0));
+
+const busy = ref(false);
 
 const writer = ref<Gpt | undefined>();
 const deferredWriter = new Deferred<Gpt>();
 const writerPrompt = ref("");
-const uncommitedWriterPrompt = ref("");
-const uncommitedWriterUpdateId = ref<string | undefined>();
+const uncommittedPlayerInput = ref("");
+const uncommittedAssistantText = ref("");
+const uncommittedWriterPrompt = computed(() => {
+  let value = "";
 
-const enableDirector = ref(false);
-const director = ref<Gpt | undefined>();
-const deferredDirector = new Deferred<Gpt>();
-const directorPrompt = ref("");
-const uncommittedDirectorPrompt = ref("");
-const uncommitedDirectorUpdateId = ref<string | undefined>();
+  if (uncommittedPlayerInput.value)
+    value += uncommittedPlayerInput.value + "\n";
+  if (uncommittedAssistantText.value)
+    value += uncommittedAssistantText.value + "\n";
+
+  return value;
+});
+const uncommittedWriterKvCacheKey = ref<string | undefined>();
 
 const fullFade = ref(false);
 let fadeDeferred: Deferred<void> | undefined;
@@ -106,9 +113,20 @@ const currentEpisodeConsoleObject = computed(() =>
 );
 
 const playerInput = ref("");
-const playerInputEnabled = computed(
+const userInputEnabled = computed(
   () => !busy.value && !state.value.currentEpisode,
 );
+
+const updatesScrollOffsetY = ref(0);
+const updatesRef = ref<HTMLElement | null>(null);
+useInfiniteScroll(updatesRef, () => {}, {
+  direction: "top",
+});
+useScroll(updatesRef, {
+  onScroll(e) {
+    updatesScrollOffsetY.value = (e.target as HTMLDivElement).scrollTop;
+  },
+});
 
 function consoleEventListener(event: KeyboardEvent) {
   // Detect tilda key press on different keyboard layouts.
@@ -119,61 +137,9 @@ function consoleEventListener(event: KeyboardEvent) {
 }
 
 /**
- * Predict the next director update for writer response.
- */
-async function predictDirectorUpdate(
-  writerText: string,
-): Promise<{ code: StageCall[] }> {
-  const grammar = buildGnbf(scenario.value!);
-  console.debug("Director grammar", grammar);
-
-  const directorResponse = await deferredDirector.promise.then((director) =>
-    director.infer(`${writerText}\n`, 128, {
-      stopSequences: ["\n"],
-      grammar,
-      temp: 1,
-    }),
-  );
-  console.log("Director response", directorResponse);
-  uncommittedDirectorPrompt.value += `${directorResponse}\n`;
-
-  const code: StageCall[] = [];
-  for (const line of splitCode(directorResponse)) {
-    console.debug("Evaluating stage code", line);
-    code.push(...(await stage.eval(line)));
-    if (scene.busy) await scene.busy;
-  }
-
-  return { code };
-}
-
-/**
- * Predict the next writer and director (if enabled) updates.
- */
-async function predictUpdates(): Promise<{
-  writerUpdate: { text: string };
-  directorUpdate?: { code: StageCall[] };
-}> {
-  const writerUpdateText = await deferredWriter.promise.then((writer) =>
-    writer.infer(undefined, 128, {
-      stopSequences: ["\n"],
-    }),
-  );
-  const writerUpdate = { text: writerUpdateText };
-  console.log("Writer response text", writerUpdateText);
-  uncommitedWriterPrompt.value = writerUpdateText + "\n";
-
-  uncommittedDirectorPrompt.value = writerUpdateText + "\n";
-
-  let directorUpdate;
-  if (enableDirector.value) {
-    directorUpdate = await predictDirectorUpdate(writerUpdateText);
-  }
-
-  return { writerUpdate, directorUpdate };
-}
-
-/**
+ * Prerequisites: can only be called when the latest update
+ * is assistant-created, and there is no inference in-progress.
+ *
  * 1. Commit the caches generated by latest inference.
  * If not committed, pending caches will be discarded
  * upon the next inference /decoding.
@@ -186,68 +152,60 @@ async function predictUpdates(): Promise<{
 async function commitUncommitted() {
   const promises = [];
 
-  if (uncommitedWriterUpdateId.value) {
-    const newKvCacheKey = `${simulationId}:${uncommitedWriterUpdateId.value}`;
+  if (uncommittedWriterKvCacheKey.value) {
+    const newKvCacheKey = `${simulationId}:${uncommittedWriterKvCacheKey.value}`;
 
     promises.push(
       deferredWriter.promise.then((writer) =>
         writer.commit(newKvCacheKey).then((tokens) => {
           console.debug("Committed to writer", newKvCacheKey, tokens);
-          writerPrompt.value += uncommitedWriterPrompt.value;
-          uncommitedWriterPrompt.value = "";
-          uncommitedWriterUpdateId.value = undefined;
+          writerPrompt.value += uncommittedWriterPrompt.value;
+          uncommittedPlayerInput.value = "";
+          uncommittedAssistantText.value = "";
+          uncommittedWriterKvCacheKey.value = undefined;
         }),
       ),
     );
   }
 
-  if (uncommitedDirectorUpdateId.value) {
-    const newKvCacheKey = `${simulationId}:${uncommitedDirectorUpdateId.value}`;
+  // Check if the actual stage delta differs from the latest director update.
+  // If so, save the actual delta as a new director update.
+  if (latestUpdate.value instanceof AssistantUpdate) {
+    const update = latestUpdate.value as AssistantUpdate;
 
-    promises.push(
-      deferredDirector.promise.then((director) =>
-        director.commit(newKvCacheKey).then((tokens) => {
-          console.debug("Committed to director", newKvCacheKey, tokens);
-          directorPrompt.value += uncommittedDirectorPrompt.value;
-          uncommittedDirectorPrompt.value = "";
-          uncommitedDirectorUpdateId.value = undefined;
-        }),
-      ),
+    const actualDelta = stage.delta(previousStageState.value);
+    console.debug("Actual delta", actualDelta);
+
+    console.debug(
+      "Latest director update delta",
+      update.chosenVariant.directorUpdate?.code,
     );
-  }
 
-  const actualDelta = stage.delta(previousStageState.value);
-  console.debug("Actual delta", actualDelta);
-  console.debug("Latest director update delta", latestDirectorUpdateCode.value);
-  const deltasEqual = latestDirectorUpdateCode.value
-    ? comparesDeltas(
-        stage.state.value,
-        actualDelta,
-        latestDirectorUpdateCode.value,
-      )
-    : actualDelta.length === 0;
-  console.log("Deltas equal", deltasEqual);
+    const deltasEqual = update.chosenVariant.directorUpdate
+      ? comparesDeltas(
+          stage.state.value,
+          actualDelta,
+          update.chosenVariant.directorUpdate.code,
+        )
+      : actualDelta.length === 0;
+    console.log("Deltas equal?", deltasEqual);
 
-  if (!deltasEqual) {
-    console.log("Saving actual delta as a new director update", actualDelta);
+    if (!deltasEqual) {
+      console.log("Saving actual delta as a new director update", actualDelta);
 
-    if (!latestWriterUpdate.value) {
-      throw new Error("Cannot save director update without a writer update");
+      promises.push(
+        d.db
+          .insert(d.directorUpdates)
+          .values({
+            writerUpdateId: update.chosenVariant.id,
+            code: actualDelta,
+          })
+          .returning()
+          .then((directorUpdates) => {
+            update.chosenVariant.directorUpdate = directorUpdates[0];
+          }),
+      );
     }
-
-    promises.push(
-      d.db
-        .insert(d.directorUpdates)
-        .values({
-          writerUpdateId: latestWriterUpdate.value.id,
-          code: actualDelta,
-        })
-        .returning()
-        .then((directorUpdates) => {
-          // Replace the first director update with the new one.
-          latestWriterUpdate.value!.directorUpdates.unshift(directorUpdates[0]);
-        }),
-    );
   }
 
   await Promise.all(promises);
@@ -269,104 +227,85 @@ async function resetStage() {
 }
 
 /**
- * Explicitly regenerate the director update for existing writer update.
+ * Explicitly regenerate an assistant update.
  */
-async function regenerateDirectorUpdate() {
-  if (!latestWriterUpdate.value) {
-    throw new Error("regenerateDirectorUpdate() requires a writer update");
+async function regenerateAssistantUpdate(updateIndex: number) {
+  if (busy.value) {
+    throw new Error("Cannot regenerate while busy");
+  }
+
+  if (updateIndex !== 0) {
+    throw new Error("Only the latest assistant update can be regenerated");
+  }
+
+  const regeneratedUpdate = updates.value[updateIndex];
+  if (!(regeneratedUpdate instanceof AssistantUpdate)) {
+    throw new Error(
+      "`regenerateAssistantUpdate()` requires an assistant update",
+    );
   }
 
   busy.value = true;
+  regeneratedUpdate.newVariantInProgress.value = true;
   try {
     // OPTIMIZE: Infer while waiting for the fade.
     await resetStage();
 
-    const writerText = latestWriterUpdate.value.text;
-    latestWriterUpdateText.value = writerText;
-    uncommittedDirectorPrompt.value = "";
-    const predictedDirectorUpdate = await predictDirectorUpdate(writerText);
+    let prompt = "";
+    if (uncommittedPlayerInput.value)
+      prompt += uncommittedPlayerInput.value + "\n";
 
-    latestDirectorUpdateCode.value = predictedDirectorUpdate.code;
+    const writerResponse = await deferredWriter.promise.then((writer) =>
+      writer.infer(prompt, 128, {
+        stopSequences: ["\n"],
+      }),
+    );
 
-    const directorUpdate = (
-      await d.db
-        .insert(d.directorUpdates)
-        .values({
-          writerUpdateId: latestWriterUpdate.value.id,
-          code: predictedDirectorUpdate.code,
-        })
-        .returning()
-    )[0];
-
-    latestWriterUpdate.value.directorUpdates.push(directorUpdate);
-  } finally {
-    busy.value = false;
-  }
-}
-
-/**
- * Explicitly regenerate the writer update along with
- * the director (if director is enabled) update.
- */
-async function regenerateWriterUpdate() {
-  if (!latestWriterUpdate.value) {
-    throw new Error("regenerateWriterUpdate() requires a writer update");
-  }
-
-  busy.value = true;
-  try {
-    // OPTIMIZE: Infer while waiting for the fade.
-    await resetStage();
-
-    // Use the same parent update ID as the pre-latest update.
-    let parentUpdateId = preLatestWriterUpdate.value?.id;
-    latestWriterUpdateText.value = preLatestWriterUpdate.value?.text || "";
-
-    const predicted = await predictUpdates();
-
-    latestWriterUpdateText.value = predicted.writerUpdate.text;
-    latestDirectorUpdateCode.value = predicted.directorUpdate
-      ? clone(predicted.directorUpdate.code)
-      : [];
-
-    const incoming = await saveUpdatesToDb({
+    const { writerUpdate } = await saveUpdatesToDb({
       writerUpdate: {
-        parentUpdateId,
-        text: predicted.writerUpdate.text,
+        parentUpdateId: regeneratedUpdate.parentId,
+        text: writerResponse,
       },
-      directorUpdate: predicted.directorUpdate
-        ? {
-            code: predicted.directorUpdate.code,
-          }
-        : undefined,
     });
 
-    uncommitedWriterUpdateId.value = incoming.writerUpdate.id;
-    uncommitedDirectorUpdateId.value = incoming.directorUpdate?.id;
+    uncommittedAssistantText.value = writerResponse;
+    uncommittedWriterKvCacheKey.value = writerUpdate.id;
 
-    writerUpdates.value.pop();
-    writerUpdates.value.push({
-      ...incoming.writerUpdate,
-      directorUpdates: incoming.directorUpdate ? [incoming.directorUpdate] : [],
+    regeneratedUpdate.variants.push({
+      id: writerUpdate.id,
+      text: writerUpdate.text,
+      createdAt: writerUpdate.createdAt,
+      directorUpdate: null,
     });
+
+    regeneratedUpdate.chosenVariantIndex.value =
+      regeneratedUpdate.variants.length - 1;
   } finally {
+    regeneratedUpdate.newVariantInProgress.value = false;
     busy.value = false;
   }
 }
 
 /**
- * Send player's input to the simulation.
- * Will predict director update for the input.
- * Input may be edited later, therefore
- * is not committed to GPT yet.
+ * Send player message to the chat.
+ * The message may be edited, so is not committed to GPT yet.
  */
-async function sendPlayerInput() {
+async function sendPlayerMessage() {
   if (state.value.currentEpisode) {
     throw new Error("Player input not allowed during episode");
   }
 
-  let playerInput_ = playerInput.value;
-  if (!playerInput_) {
+  if (
+    !(
+      latestUpdate.value instanceof AssistantUpdate ||
+      latestUpdate.value instanceof EpisodeUpdate
+    )
+  ) {
+    throw new Error("Player input not allowed after player input");
+  }
+
+  let userMessage = playerInput.value;
+  if (!userMessage) {
     throw new Error("Empty player input");
   }
 
@@ -375,45 +314,68 @@ async function sendPlayerInput() {
 
   busy.value = true;
   try {
-    latestWriterUpdateText.value = playerInput_;
     await commitUncommitted();
 
-    uncommitedWriterPrompt.value = `${playerInput_}\n`;
-    uncommittedDirectorPrompt.value = `${playerInput_}\n`;
+    // If the latest update is an episode update, use its ID as the parent ID.
+    // Otherwise, use the latest assistant update's chosen variant ID.
+    const parentUpdateId =
+      latestUpdate.value instanceof AssistantUpdate
+        ? latestUpdate.value.chosenVariant.id
+        : latestUpdate.value.id;
 
-    let predictedDirectorUpdate;
-    if (enableDirector.value) {
-      predictedDirectorUpdate = await predictDirectorUpdate(
-        `${playerInput_}\n`,
-      );
-
-      uncommittedDirectorPrompt.value += `${stageCallsToLua(predictedDirectorUpdate.code)}\n`;
-    }
-
-    const incoming = await saveUpdatesToDb({
+    // Save the player update.
+    let saved = await saveUpdatesToDb({
       writerUpdate: {
-        parentUpdateId: latestWriterUpdate.value?.id,
-        text: playerInput_,
+        parentUpdateId,
+        text: userMessage,
         createdByPlayer: true,
       },
-      directorUpdate: predictedDirectorUpdate
-        ? { code: predictedDirectorUpdate.code }
-        : undefined,
     });
 
-    uncommitedWriterUpdateId.value = incoming.writerUpdate.id;
-    uncommitedDirectorUpdateId.value = incoming.directorUpdate?.id;
+    const userUpdateId = saved.writerUpdate.id;
+    const userUpdate = markRaw(
+      new UserUpdate(parentUpdateId, [saved.writerUpdate]),
+    );
+    updates.value.unshift(userUpdate);
 
-    writerUpdates.value.push({
-      ...incoming.writerUpdate,
-      directorUpdates: incoming.directorUpdate ? [incoming.directorUpdate] : [],
+    // TODO: Here, the empty updates array, it's cocky.
+    const assistantUpdate = markRaw(new AssistantUpdate(userUpdateId, []));
+    assistantUpdate.newVariantInProgress.value = true;
+    updates.value.unshift(assistantUpdate);
+
+    uncommittedPlayerInput.value = userMessage;
+
+    const writerResponse = await deferredWriter.promise.then((writer) =>
+      writer.infer(uncommittedWriterPrompt.value, 128, {
+        stopSequences: ["\n"],
+      }),
+    );
+
+    // Save the assistant update.
+    saved = await saveUpdatesToDb({
+      writerUpdate: {
+        parentUpdateId: userUpdateId,
+        text: writerResponse,
+      },
     });
+
+    const assistantUpdateId = saved.writerUpdate.id;
+    assistantUpdate.variants.push({
+      id: assistantUpdateId,
+      text: saved.writerUpdate.text,
+      createdAt: saved.writerUpdate.createdAt,
+      directorUpdate: null,
+    });
+
+    assistantUpdate.chosenVariantIndex.value = 0;
+    assistantUpdate.newVariantInProgress.value = false;
+
+    uncommittedAssistantText.value = writerResponse;
+    uncommittedWriterKvCacheKey.value = assistantUpdateId;
   } catch (e) {
     if (wouldRestorePlayerInput) {
-      playerInput.value = playerInput_;
+      playerInput.value = userMessage;
     }
-
-    latestWriterUpdateText.value = latestWriterUpdate.value?.text || "";
 
     throw e;
   } finally {
@@ -430,11 +392,14 @@ async function advance() {
     throw new Error("To advance, player input must be empty");
   }
 
-  // Advance the story.
-  //
-
-  let writerUpdateEpisodeId: string | null = null;
-  let writerUpdateEpisodeChunkIndex: number | null = null;
+  let parentUpdateId: string | null = null;
+  if (latestUpdate.value instanceof AssistantUpdate) {
+    parentUpdateId = latestUpdate.value.chosenVariant.id;
+  } else if (latestUpdate.value instanceof UserUpdate) {
+    parentUpdateId = latestUpdate.value.chosenVariant.id;
+  } else if (latestUpdate.value instanceof EpisodeUpdate) {
+    parentUpdateId = latestUpdate.value.id;
+  }
 
   busy.value = true;
   try {
@@ -444,21 +409,24 @@ async function advance() {
       console.debug("Advancing episode", state.value.currentEpisode);
 
       const currentEpisode = state.value.currentEpisode;
-      writerUpdateEpisodeId = currentEpisode.id;
-      writerUpdateEpisodeChunkIndex = currentEpisode.nextChunkIndex;
+      const episodeId = currentEpisode.id;
+      const episodeChunkIndex = currentEpisode.nextChunkIndex;
 
       // Advance the episode.
       //
 
-      latestWriterUpdateText.value =
+      const text =
         currentEpisode.chunks[currentEpisode.nextChunkIndex].writerUpdateText;
 
-      const luaCode = stageCallsToLua(
-        currentEpisode.chunks[currentEpisode.nextChunkIndex].stageCalls,
-      );
-      console.debug("Evaluating stage code", luaCode);
-      latestDirectorUpdateCode.value = clone(await stage.eval(luaCode));
-      if (scene.busy) await scene.busy;
+      const code =
+        currentEpisode.chunks[currentEpisode.nextChunkIndex].stageCalls;
+
+      if (code?.length) {
+        const luaCode = stageCallsToLua(code);
+        console.debug("Applying stage calls", luaCode);
+        stage.apply(code);
+        if (scene.busy) await scene.busy;
+      }
 
       if (++currentEpisode.nextChunkIndex >= currentEpisode.chunks.length) {
         state.value.currentEpisode = null;
@@ -469,24 +437,28 @@ async function advance() {
 
       const incoming = await saveUpdatesToDb({
         writerUpdate: {
-          parentUpdateId: latestWriterUpdate.value?.id,
-          text: latestWriterUpdateText.value,
-          episodeId: writerUpdateEpisodeId,
-          episodeChunkIndex: writerUpdateEpisodeChunkIndex,
+          parentUpdateId,
+          text,
+          episodeId,
+          episodeChunkIndex,
         },
-        directorUpdate: {
-          code: latestDirectorUpdateCode.value,
-        },
+        directorUpdate: code ? { code } : undefined,
       });
 
-      writerUpdates.value.push({
-        ...incoming.writerUpdate,
-        directorUpdates: incoming.directorUpdate
-          ? [incoming.directorUpdate]
-          : [],
-      });
+      const episodeUpdate = markRaw(
+        new EpisodeUpdate(
+          incoming.writerUpdate.id,
+          parentUpdateId,
+          episodeId,
+          episodeChunkIndex,
+          text,
+          incoming.directorUpdate ?? null,
+        ),
+      );
 
-      const newWriterPrompt = `${latestWriterUpdateText.value}\n`;
+      updates.value.unshift(episodeUpdate);
+
+      const newWriterPrompt = `${text}\n`;
       writerPrompt.value += newWriterPrompt;
       deferredWriter.promise.then((writer) =>
         writer.decode(
@@ -494,46 +466,36 @@ async function advance() {
           `${simulationId}:${incoming.writerUpdate.id}`,
         ),
       );
-
-      if (enableDirector.value) {
-        const newDirectorPrompt = `${latestWriterUpdateText.value}\n${stageCallsToLua(latestDirectorUpdateCode.value)};\n`;
-        directorPrompt.value += newDirectorPrompt;
-        deferredDirector.promise.then((director) =>
-          director.decode(
-            newDirectorPrompt,
-            `${simulationId}:${incoming.directorUpdate!.id}`,
-          ),
-        );
-      }
     } else {
       // Predict the next update.
       // Do not commit it to GPT yet.
       //
 
-      const predicted = await predictUpdates();
+      const assistantUpdate = markRaw(new AssistantUpdate(parentUpdateId, []));
+      assistantUpdate.newVariantInProgress.value = true;
+      updates.value.unshift(assistantUpdate);
 
-      latestWriterUpdateText.value = predicted.writerUpdate.text;
-      latestDirectorUpdateCode.value = predicted.directorUpdate
-        ? predicted.directorUpdate.code
-        : [];
+      const writerResponse = await deferredWriter.promise.then((writer) =>
+        writer.infer(undefined, 128, { stopSequences: ["\n"] }),
+      );
 
-      const incoming = await saveUpdatesToDb({
+      const { writerUpdate } = await saveUpdatesToDb({
         writerUpdate: {
-          parentUpdateId: latestWriterUpdate.value?.id,
-          text: predicted.writerUpdate.text,
+          parentUpdateId,
+          text: writerResponse,
         },
-        directorUpdate: predicted.directorUpdate,
       });
 
-      uncommitedWriterUpdateId.value = incoming.writerUpdate.id;
-      uncommitedDirectorUpdateId.value = incoming.directorUpdate?.id;
-
-      writerUpdates.value.push({
-        ...incoming.writerUpdate,
-        directorUpdates: incoming.directorUpdate
-          ? [incoming.directorUpdate]
-          : [],
+      assistantUpdate.variants.push({
+        id: writerUpdate.id,
+        text: writerUpdate.text,
+        createdAt: writerUpdate.createdAt,
+        directorUpdate: null,
       });
+      assistantUpdate.newVariantInProgress.value = false;
+
+      uncommittedAssistantText.value = writerResponse;
+      uncommittedWriterKvCacheKey.value = writerUpdate.id;
     }
 
     screenshot(true).then((shot) => {
@@ -647,68 +609,72 @@ async function prepareGpts() {
   // Upon decoding or committing, update KV cache key with recent `updateId`.
   //
 
-  // Decode pre-prompts.
-  // Would not include the latest update if it can be regenerated.
-  //
+  const latestUpdate = updates.value.at(0);
+  const previousUpdate = updates.value.at(1);
 
-  const committedWriterUpdates = writerUpdates.value.slice(0, -1);
-  const committedDirectorUpdates = committedWriterUpdates.map((u) =>
-    u.directorUpdates.at(0),
-  );
+  /**
+   * Committed updates, sorted from oldest to newest.
+   */
+  const committedUpdates = updates.value.slice(2).reverse();
 
-  const latestWriterUpdate = writerUpdates.value.at(-1);
-  if (latestWriterUpdate) {
-    if (latestWriterUpdate.episodeId) {
-      committedWriterUpdates.push(latestWriterUpdate);
-      committedDirectorUpdates.push(latestWriterUpdate.directorUpdates.at(0));
-    } else {
-      // NOTE: Player-created updates are also considered uncommitted.
-      uncommitedWriterPrompt.value = `${latestWriterUpdate.text}\n`;
-      const code = latestWriterUpdate.directorUpdates.at(0)?.code;
-      uncommittedDirectorPrompt.value = `${latestWriterUpdate.text}\n${code ? stageCallsToLua(code) : "noop();"}\n`;
-    }
+  // If the latest update is an episode update,
+  // then it and the previous update are both committed.
+  if (latestUpdate instanceof EpisodeUpdate) {
+    if (previousUpdate) committedUpdates.push(previousUpdate);
+    committedUpdates.push(latestUpdate);
   }
 
-  const textHistory = committedWriterUpdates.map((u) => u.text);
-  const codeHistory = committedDirectorUpdates.map((u) => u?.code);
+  // If the latest update is a user update,
+  // then the previous update is committed, but not the latest.
+  else if (latestUpdate instanceof UserUpdate) {
+    if (previousUpdate) committedUpdates.push(previousUpdate);
+    uncommittedPlayerInput.value = latestUpdate.chosenVariant.text;
+  }
+
+  // If the latest update is an assistant update,
+  // then it is not committed... Should also check the previous update.
+  else if (latestUpdate instanceof AssistantUpdate) {
+    if (previousUpdate instanceof UserUpdate) {
+      // Again, a user update is not committed.
+      uncommittedPlayerInput.value = previousUpdate.chosenVariant.text;
+    } else if (previousUpdate) {
+      // Otherwise (assistant or episode update) it is committed.
+      committedUpdates.push(previousUpdate);
+    }
+
+    uncommittedAssistantText.value = latestUpdate.chosenVariant.text;
+  }
+
+  const textHistory = committedUpdates.map((u) => {
+    if (u instanceof AssistantUpdate || u instanceof UserUpdate) {
+      return u.chosenVariant.text;
+    } else {
+      return u.text;
+    }
+  });
 
   const writerFullPromptBuilder = () =>
     buildWriterPrompt(scenario.value!, textHistory) + "\n";
 
-  const directorFullPromptBuilder = () =>
-    buildDirectorPrompt(
-      scenario.value!,
-      zip(textHistory, codeHistory).map(([text, code]) => ({
-        text,
-        code,
-      })),
-    ) + "\n";
-
   writerPrompt.value += writerFullPromptBuilder();
-  directorPrompt.value += directorFullPromptBuilder();
 
   const writerPartialPromptBuilder = (from: number, to: number) =>
     textHistory.slice(from, to).join("\n") + "\n";
 
-  const directorPartialPromptBuilder = (from: number, to: number) =>
-    zip(textHistory.slice(from, to), codeHistory.slice(from, to))
-      .map(
-        ([text, code]) =>
-          `${text}\n${code ? stageCallsToLua(code) : "noop();"}`,
-      )
-      .join("\n") + "\n";
-
   async function syncGptCache(
     gpt: Gpt,
     kvCacheKey: string,
-    committedUpdates: ({ id: string } | undefined)[],
+
+    // NOTE: It needs some way to map to the KV cache key.
+    committedUpdateIds: string[],
+
     fullPromptBuilder: () => string,
     partialPromptBuilder: (
       fromCommittedUpdateIndex: number,
       toCommittedUpdateIndex: number,
     ) => string,
   ) {
-    const headUpdateId = committedUpdates.at(-1)?.id;
+    const headUpdateId = committedUpdateIds.at(-1);
     const headKvCacheKey = `${simulationId}:${headUpdateId}`;
 
     if (kvCacheKey) {
@@ -729,17 +695,17 @@ async function prepareGpts() {
         // If not found, reset the model.
         //
 
-        const cachedUpdateIndex = committedUpdates.findIndex(
-          (u) => u?.id === kvCacheKeyUpdateId,
+        const cachedUpdateIndex = committedUpdateIds.findIndex(
+          (u) => u === kvCacheKeyUpdateId,
         );
 
         if (cachedUpdateIndex !== -1) {
           console.log(
-            `${gpt.id}: kvCacheKey partial update ID mismatch, decoding from update ID ${kvCacheKeyUpdateId} to ${headUpdateId} (${committedUpdates.length - cachedUpdateIndex} updates)…`,
+            `${gpt.id}: kvCacheKey partial update ID mismatch, decoding from update ID ${kvCacheKeyUpdateId} to ${headUpdateId} (${committedUpdateIds.length - cachedUpdateIndex} updates)…`,
           );
 
           await gpt.decode(
-            partialPromptBuilder(cachedUpdateIndex, committedUpdates.length),
+            partialPromptBuilder(cachedUpdateIndex, committedUpdateIds.length),
             headKvCacheKey,
           );
         } else {
@@ -755,7 +721,9 @@ async function prepareGpts() {
       }
     } else if (headUpdateId) {
       console.log(`${gpt.id}: empty kvCacheKey, full cache rebuild…`);
-      await gpt.decode(fullPromptBuilder(), headKvCacheKey);
+      const prompt = fullPromptBuilder();
+      console.debug(prompt);
+      await gpt.decode(prompt, headKvCacheKey);
     } else {
       console.log(`${gpt.id}: empty kvCacheKey, no head; do nothing.`);
     }
@@ -779,7 +747,13 @@ async function prepareGpts() {
         return syncGptCache(
           gpt,
           kvCacheKey,
-          committedWriterUpdates,
+          committedUpdates.map((u) => {
+            if (u instanceof AssistantUpdate || u instanceof UserUpdate) {
+              return u.chosenVariant.id;
+            } else {
+              return u.id;
+            }
+          }),
           writerFullPromptBuilder,
           writerPartialPromptBuilder,
         );
@@ -788,31 +762,6 @@ async function prepareGpts() {
         deferredWriter.resolve(gpt);
       }),
   );
-
-  if (enableDirector.value) {
-    promises.push(
-      Gpt.findOrCreate(
-        "director",
-        GPT_DIRECTOR.modelPath,
-        GPT_DIRECTOR.contextSize,
-        GPT_DIRECTOR.batchSize,
-      )
-        .then(({ gpt, kvCacheKey }) => {
-          director.value = markRaw(gpt);
-
-          return syncGptCache(
-            gpt,
-            kvCacheKey,
-            committedDirectorUpdates,
-            directorFullPromptBuilder,
-            directorPartialPromptBuilder,
-          );
-        })
-        .then((gpt) => {
-          deferredDirector.resolve(gpt);
-        }),
-    );
-  }
 
   await Promise.all(promises);
 }
@@ -838,6 +787,7 @@ onMounted(async () => {
   }
 
   // TODO: Fetch until `simulation.latestSnapshotId`.
+  // NOTE: The ordering is from the oldest to the latest.
   const query = new SQLiteSyncDialect().sqlToQuery(
     sql.raw(`
       WITH
@@ -876,16 +826,16 @@ onMounted(async () => {
   `),
   );
 
-  // console.debug(query.sql);
   const result = await sqlite.query(query.sql, [simulation.headWriterUpdateId]);
-  writerUpdates.value = parseSelectResult(d.writerUpdates, result)
-    .map((update) => ({
-      ...update,
-      directorUpdates: [],
-    }))
-    .reverse();
 
-  // Attach the latest code updates to the writer updates.
+  const rawWriterUpdates: (typeof d.writerUpdates.$inferSelect & {
+    directorUpdate: typeof d.directorUpdates.$inferSelect | null;
+  })[] = parseSelectResult(d.writerUpdates, result).map((update) => ({
+    ...update,
+    directorUpdate: null,
+  }));
+
+  // Assign the latest code updates to the writer updates.
   //
 
   const directorUpdates = await d.db
@@ -900,22 +850,20 @@ onMounted(async () => {
     .where(
       inArray(
         d.directorUpdates.writerUpdateId,
-        writerUpdates.value.map((u) => u.id),
+        rawWriterUpdates.map((u) => u.id),
       ),
     )
     .groupBy(d.directorUpdates.writerUpdateId)
     .orderBy(asc(d.directorUpdates.createdAt))
     .all();
 
-  console.debug(directorUpdates);
-
   for (const directorUpdate of directorUpdates) {
-    const writerUpdate = writerUpdates.value.find(
+    const writerUpdate = rawWriterUpdates.find(
       (u) => u.id === directorUpdate.writerUpdateId,
     );
 
     if (writerUpdate) {
-      writerUpdate.directorUpdates.push(directorUpdate);
+      writerUpdate.directorUpdate = directorUpdate;
     } else {
       throw new Error(
         `For director update ${directorUpdate.id}, writer update ${directorUpdate.writerUpdateId} not found`,
@@ -923,15 +871,38 @@ onMounted(async () => {
     }
   }
 
+  updates.value = rawWriterUpdates.map((rawUpdate) => {
+    if (rawUpdate.createdByPlayer) {
+      return markRaw(new UserUpdate(rawUpdate.parentUpdateId, [rawUpdate], 0));
+    } else if (rawUpdate.episodeId) {
+      return markRaw(
+        new EpisodeUpdate(
+          rawUpdate.id,
+          rawUpdate.parentUpdateId,
+          rawUpdate.episodeId,
+          rawUpdate.episodeChunkIndex!,
+          rawUpdate.text,
+          rawUpdate.directorUpdate,
+        ),
+      );
+    } else {
+      return markRaw(
+        new AssistantUpdate(rawUpdate.parentUpdateId, [
+          { ...rawUpdate, directorUpdate: rawUpdate.directorUpdate },
+        ]),
+      );
+    }
+  });
+
   // TODO: Get initial stage value from the latest snapshot.
   stage = new Stage(scenario.value);
   await stage.initCodeEngine();
 
-  if (writerUpdates.value.length) {
+  if (rawWriterUpdates.length) {
     // Apply existing director updates to the stage.
     let i = 0;
-    for (const update of writerUpdates.value) {
-      const directorUpdate = update.directorUpdates.at(0);
+    for (const rawUpdate of rawWriterUpdates.reverse()) {
+      const directorUpdate = rawUpdate.directorUpdate;
 
       if (directorUpdate) {
         const luaCode = stageCallsToLua(directorUpdate.code);
@@ -939,33 +910,31 @@ onMounted(async () => {
         await stage.eval(luaCode);
       }
 
-      // For the sake of regeneration,
-      // save the stage state at the -2nd update.
-      // But when there only one update, save -1st.
-      if (
-        writerUpdates.value.length == 1 ||
-        i++ === writerUpdates.value.length - 2
-      ) {
+      // For the sake of regeneration, save the stage state at previous update.
+      // But when there only one update, save the latest.
+      if (updates.value.length == 1 || i++ === updates.value.length - 2) {
         previousStageState.value = clone(stage.state.value);
         console.debug("Saved stage state", previousStageState.value);
       }
     }
 
-    // If the last update has an episode ID, resume from there.
-    const latestWriterUpdate = writerUpdates.value.at(-1);
-    if (latestWriterUpdate?.episodeId) {
+    // If the latest update's (single) variant
+    // has an episode ID, resume from there.
+    if (latestUpdate.value instanceof EpisodeUpdate) {
+      const episodeUpdate = latestUpdate.value;
+
       const episode = scenario.value.episodes.find(
-        (e) => e.id === latestWriterUpdate.episodeId,
+        (e) => e.id === episodeUpdate.episodeId,
       );
 
       if (!episode) {
-        throw new Error(`Episode not found: ${latestWriterUpdate.episodeId}`);
+        throw new Error(`Episode not found: ${episodeUpdate.episodeId}`);
       }
 
-      if (latestWriterUpdate.episodeChunkIndex! < episode.chunks.length - 1) {
+      if (episodeUpdate.chunkIndex! < episode.chunks.length - 1) {
         state.value.currentEpisode = {
           ...episode,
-          nextChunkIndex: latestWriterUpdate.episodeChunkIndex! + 1,
+          nextChunkIndex: episodeUpdate.chunkIndex! + 1,
         };
       }
     }
@@ -989,10 +958,6 @@ onMounted(async () => {
   // Register a console event listener.
   window.addEventListener("keypress", consoleEventListener);
 
-  latestWriterUpdateText.value = writerUpdates.value.at(-1)?.text || "";
-  latestDirectorUpdateCode.value =
-    writerUpdates.value.at(-1)?.directorUpdates.at(0)?.code || [];
-
   // ADHOC: Always create a screenshot upon running a simulation,
   // because there is currently no easy way to detect
   // if there have been any real updates.
@@ -1012,8 +977,8 @@ onUnmounted(() => {
 
 <template lang="pug">
 .flex.h-screen.w-screen
-  .relative.h-full.w-full.overflow-hidden
-    #game-screen
+  .relative.flex.h-full.w-full.justify-center.overflow-hidden
+    #game-screen.h-full.w-full
 
     .absolute.top-0.flex.w-full.justify-between.bg-white.bg-opacity-50.p-1
       span {{ scenario?.name }}: {{ simulationId }}
@@ -1021,41 +986,69 @@ onUnmounted(() => {
         .flex.items-center.gap-1
           GptStatus(:gpt="writer" :icon-size="22")
             ScrollTextIcon(:size="18")
-          GptStatus(:gpt="director" :icon-size="22")
-            ClapperboardIcon(:size="18")
 
-    .absolute.bottom-0.flex.h-32.w-full.flex-col.overflow-hidden.bg-yellow-500.bg-opacity-90.p-3
-      .flex.grow.overflow-hidden
-        .flex.grow.flex-col.overflow-y-scroll
-          p(:class="{ 'animate-pulse': busy }") {{ latestWriterUpdateText }}
-
-        .flex.flex-col.gap-2
-          button.btn.pressable(
-            @click="regenerateWriterUpdate"
-            :disabled="busy || !canPossiblyRegenerateWriterUpdate"
-            class="disabled:cursor-not-allowed disabled:opacity-50"
+    .absolute.top-0.flex.h-full.max-w-xl.grow.flex-col.gap-2.p-2
+      ._updates-container.flex.h-full.w-full.flex-col-reverse.gap-2.overflow-y-scroll(
+        ref="updatesRef"
+        :style="{ '-webkit-mask-size': `100% calc(50% - ${updatesScrollOffsetY}px)` }"
+      )
+        template(v-for="update, i of updates" :key="update.parentId")
+          AssistantUpdateVue(
+            v-if="AssistantUpdate.is(update)"
+            :update="update"
+            :can-regenerate="i === 0"
+            :show-variant-navigation="i === 0"
+            @regenerate="regenerateAssistantUpdate(i)"
           )
-            RefreshCwIcon(:size="20")
-          button.btn.pressable(
-            v-if="enableDirector"
-            @click="regenerateDirectorUpdate"
-            :disabled="busy || !canPossiblyRegenerateDirectorUpdate"
-            class="disabled:cursor-not-allowed disabled:opacity-50"
+          UserUpdateVue(v-else-if="UserUpdate.is(update)" :update="update")
+          EpisodeUpdateVue(
+            v-else-if="EpisodeUpdate.is(update)"
+            :update="update"
           )
-            BinaryIcon(:size="20")
 
-      .flex.w-full.gap-2
-        input.w-full.rounded.px-2(
-          v-model="playerInput"
-          placeholder="Player input"
-          :disabled="!playerInputEnabled"
-          class="disabled:opacity-50"
-        )
-        button.rounded.border.px-3.py-2.pressable(
-          @click="playerInput ? sendPlayerInput() : advance()"
-          :disabled="busy"
-          class="disabled:cursor-not-allowed disabled:opacity-50"
-        ) {{ playerInput ? "Send" : "Next" }}
+      .h-12.w-full
+        .flex.h-full.gap-2.rounded
+          input.h-full.w-full.rounded-lg.px-3.shadow-lg(
+            v-model="playerInput"
+            placeholder="Player input"
+            :disabled="!userInputEnabled"
+            class="disabled:opacity-50"
+          )
+
+          button.relative.grid.aspect-square.h-full.place-items-center.rounded-lg.bg-white.shadow-lg.transition.pressable(
+            @click="playerInput ? sendPlayerMessage() : advance()"
+            :disabled="busy"
+          )
+            TransitionRoot.absolute(
+              :show="busy"
+              enter="duration-100 ease-out"
+              enter-from="scale-0 opacity-0"
+              enter-to="scale-100 opacity-100"
+              leave="duration-100 ease-in"
+              leave-from="scale-100 opacity-100"
+              leave-to="scale-0 opacity-0"
+            )
+              Loader2Icon.animate-spin(:size="20")
+            TransitionRoot.absolute(
+              :show="!busy && !!playerInput"
+              enter="duration-100 ease-out"
+              enter-from="scale-0 opacity-0"
+              enter-to="scale-100 opacity-100"
+              leave="duration-100 ease-in"
+              leave-from="scale-100 opacity-100"
+              leave-to="scale-0 opacity-0"
+            )
+              SendHorizontalIcon(:size="20")
+            TransitionRoot.absolute(
+              :show="!busy && !playerInput"
+              enter="duration-100 ease-out"
+              enter-from="scale-0 opacity-0"
+              enter-to="scale-100 opacity-100"
+              leave="duration-100 ease-in"
+              leave-from="scale-100 opacity-100"
+              leave-to="scale-0 opacity-0"
+            )
+              FastForwardIcon(:size="20")
 
   SandboxConsole.h-full.shrink-0.shadow-lg(
     v-if="scenario && assetBaseUrl"
@@ -1084,14 +1077,25 @@ onUnmounted(() => {
     :open="consoleModal"
     :writer="writer"
     :writer-prompt="writerPrompt"
-    :uncommited-writer-prompt="uncommitedWriterPrompt"
-    :director="director"
-    :director-prompt="directorPrompt"
-    :uncommited-director-prompt="uncommittedDirectorPrompt"
-    :scene-code="stageCallsToLua(latestDirectorUpdateCode || [])"
-    :scene-text="latestWriterUpdateText"
+    :uncommitted-writer-prompt="uncommittedWriterPrompt"
+    :uncommitted-writer-kv-cache-key="uncommittedWriterKvCacheKey"
     :episode="currentEpisodeConsoleObject"
     :stage-state-delta="stage?.delta(previousStageState) || []"
     @close="consoleModal = false"
   )
 </template>
+
+<style lang="scss" scoped>
+._updates-container {
+  -webkit-mask-image: -webkit-gradient(
+    linear,
+    left top,
+    left bottom,
+    color-stop(20%, rgba(0, 0, 0, 0)),
+    color-stop(50%, rgba(0, 0, 0, 1))
+  );
+
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position-y: 100%;
+}
+</style>

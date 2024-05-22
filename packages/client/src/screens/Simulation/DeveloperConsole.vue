@@ -5,22 +5,17 @@ import {
   TransitionChild,
   TransitionRoot,
 } from "@headlessui/vue";
-import { computed, ref, watch } from "vue";
-import { ArrowUpToLineIcon, Undo2Icon } from "lucide-vue-next";
+import { ref } from "vue";
 import Prompt from "./DeveloperConsole/Prompt.vue";
 import { Gpt } from "@/lib/ai";
 import { type StageCall, stageCallsToLua } from "@/lib/simulation/stage";
 
-const props = defineProps<{
+defineProps<{
   open: boolean;
   writer: Gpt | undefined;
   writerPrompt: string;
-  uncommitedWriterPrompt: string;
-  director: Gpt | undefined;
-  directorPrompt: string;
-  uncommitedDirectorPrompt: string;
-  sceneCode: string;
-  sceneText: string;
+  uncommittedWriterPrompt: string;
+  uncommittedWriterKvCacheKey: string | undefined;
   episode: {
     id: string;
     chunks: {
@@ -32,32 +27,6 @@ const props = defineProps<{
 }>();
 
 const consoleRef = ref<HTMLInputElement | null>(null);
-
-const sceneCode = ref(props.sceneCode);
-const sceneCodeChanged = computed(
-  () => sceneCode.value.trim() !== props.sceneCode.trim(),
-);
-function resetSceneCode() {
-  sceneCode.value = props.sceneCode;
-}
-function applySceneCode() {}
-watch(
-  () => props.sceneCode,
-  (value) => (sceneCode.value = value),
-);
-
-const sceneText = ref(props.sceneText);
-const sceneTextChanged = computed(
-  () => sceneText.value.trim() !== props.sceneText.trim(),
-);
-function resetSceneText() {
-  sceneText.value = props.sceneText;
-}
-function applySceneText() {}
-watch(
-  () => props.sceneText,
-  (value) => (sceneText.value = value),
-);
 
 const emit = defineEmits<{
   (event: "close"): void;
@@ -100,41 +69,12 @@ Dialog.relative.z-50(
                   span(v-if="episode")
                     b Chunk:&nbsp;
                     | {{ episode.chunks.current }}/{{ episode.chunks.total }}
-
-              //- Text.
-              .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
-                .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
-                  span.font-bold.uppercase.tracking-wide Text
-                  .flex.gap-1
-                    button.btn.transition-transform.pressable(
-                      @click="resetSceneText"
-                      :disabled="!sceneTextChanged"
-                    )
-                      Undo2Icon(:size="20")
-                    button.btn.transition-transform.pressable(
-                      @click="applySceneText"
-                      :disabled="!sceneTextChanged"
-                    )
-                      ArrowUpToLineIcon(:size="20")
-                textarea.h-full.resize-none.overflow-scroll.bg-transparent.p-2.text-white(
-                  v-model="sceneText"
-                )
+                  code {{ { uncommittedWriterKvCacheKey } }}
 
               //- Stage state.
               .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")
                 .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
                   span.font-bold.uppercase.tracking-wide Stage delta
-                  .flex.gap-1
-                    button.btn.transition-transform.pressable(
-                      @click="resetSceneCode"
-                      :disabled="!sceneCodeChanged"
-                    )
-                      Undo2Icon(:size="20")
-                    button.btn.transition-transform.pressable(
-                      @click="applySceneCode"
-                      :disabled="!sceneCodeChanged"
-                    )
-                      ArrowUpToLineIcon(:size="20")
 
                 textarea.h-full.resize-none.overflow-scroll.bg-transparent.p-2.font-mono.text-white(
                   :value="stageCallsToLua(stageStateDelta)"
@@ -142,24 +82,10 @@ Dialog.relative.z-50(
                 )
 
             //- Writer prompt.
-            Prompt.rounded-lg(
+            Prompt.col-span-2.rounded-lg(
               :gpt="writer"
               :content="writerPrompt"
-              :uncommitted-content="uncommitedWriterPrompt"
-              class="bg-black/50"
-            )
-
-            //- Director prompt.
-            Prompt.rounded-lg(
-              :gpt="director"
-              :content="directorPrompt"
-              :uncommitted-content="uncommitedDirectorPrompt"
+              :uncommitted-content="uncommittedWriterPrompt"
               class="bg-black/50"
             )
 </template>
-
-<style lang="scss" scoped>
-.btn {
-  @apply disabled:opacity-50;
-}
-</style>

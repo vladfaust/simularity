@@ -56,7 +56,7 @@ export type Scenario = {
       chunks: [
         {
           writerUpdateText: string;
-          stageCalls: StageCall[];
+          stageCalls?: StageCall[];
         },
       ];
     },

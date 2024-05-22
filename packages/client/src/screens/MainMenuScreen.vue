@@ -50,10 +50,12 @@ async function newSimulation() {
         })
     )[0];
 
-    await tx.insert(d.directorUpdates).values({
-      writerUpdateId: writerUpdate.id,
-      code: chunk.directorUpdateCode,
-    });
+    if (chunk.stageCalls) {
+      await tx.insert(d.directorUpdates).values({
+        writerUpdateId: writerUpdate.id,
+        code: chunk.stageCalls,
+      });
+    }
 
     // Set simulation head.
     await tx

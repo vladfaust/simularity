@@ -36,6 +36,6 @@ const tokenCount = asyncComputed(() => props.gpt?.tokenCount(props.content));
       :class="{ 'whitespace-pre': textWrap, 'whitespace-pre-line': !textWrap }"
     )
       | {{ content }}
-      span.opacity-50(v-if="uncommittedContent")
+      span.bg-white.bg-opacity-50(v-if="uncommittedContent")
         | {{ uncommittedContent }}
 </template>

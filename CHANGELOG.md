@@ -8,12 +8,9 @@
 
 > After squashing, bugs are removed from this list.
 
-- [ ] fix: handle empty writer updates
-- [ ] fix: handle director syntactic errors
-- [ ] fix: handle director semantic errors
-- [ ] fix: context-aware grammar
-
 ## MVP 🚀
+
+- [ ] feat: instruction-based interactions
 
 - [ ] feat: inference server
 
@@ -33,8 +30,8 @@
 - [ ] feat: consolidation
 - [ ] feat: quests
 
-- [ ] feat: split player input to "say" and "do"
 - [ ] refactor: rename llamaInferences -> gptInferences
+- [ ] refactor: rename writerUpdates -> chatUpdates, directorUpdates -> stageUpdates
 
 - [ ] dx: display current stage in console
 - [ ] dx: save gpt inferences to DB
@@ -52,6 +49,7 @@
 - [x] feat: replace git w/ SQLite (Sat May 11, 2024)
 - [x] feat: regenerate an update (Mon May 13, 2024)
 - [x] feat: reuse GPTs by params & KV cache key (Wed May 15, 2024)
+- [x] feat(client): chat interface (Wed May 22, 2024)
 
 ### April 2024
 
