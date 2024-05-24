@@ -12,7 +12,7 @@ export class AssistantUpdate {
 
   constructor(
     readonly parentId: string | null,
-    readonly variants: (Pick<
+    public variants: (Pick<
       typeof d.writerUpdates.$inferSelect,
       "id" | "text" | "createdAt"
     > & {

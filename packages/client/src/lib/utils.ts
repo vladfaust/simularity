@@ -93,3 +93,25 @@ export function clone<T>(obj: T): T {
 export function unreachable(arg: never) {
   return arg;
 }
+
+/**
+ * Check if value is truthy and return it, otherwise throw.
+ * @example assert(a > b, "a must be greater than b")
+ */
+export function assert<T>(value: T, message?: string): NonNullable<T> {
+  if (!value) throw new Error(message || "Assertion failed");
+  return value;
+}
+
+/**
+ * Validate that `call(value)` is truthy, and return `value`, otherwise throw.
+ * @example assertFn(val, val => val > 0, "Val must be > 0")
+ */
+export function assertFn<T>(
+  value: T,
+  call: (value: T) => any,
+  message?: string,
+): T {
+  if (!call(value)) throw new Error(message || "Assertion failed");
+  return value;
+}

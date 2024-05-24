@@ -3,11 +3,11 @@ import { type Raw, computed, markRaw, onMounted, onUnmounted, ref } from "vue";
 import { type Scenario } from "@/lib/types";
 import { DefaultScene } from "../lib/simulation/phaser/defaultScene";
 import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
-import { Deferred, clone, sleep } from "@/lib/utils";
+import { Deferred, clone, sleep, assert, assertFn } from "@/lib/utils";
 import { buildWriterPrompt } from "@/lib/ai/writer";
 import { Game } from "../lib/simulation/phaser/game";
 import { d, sqlite, parseSelectResult } from "@/lib/drizzle";
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { Stage, type StageCall, type StageState } from "@/lib/simulation/stage";
 import GptStatus from "./Simulation/GptStatus.vue";
 import {
@@ -770,6 +770,22 @@ async function prepareGpts() {
   await Promise.all(promises);
 }
 
+async function fetchDirectorUpdates(writerUpdateIds: string[]) {
+  return d.db
+    .select({
+      id: d.directorUpdates.id,
+      writerUpdateId: d.directorUpdates.writerUpdateId,
+      code: d.directorUpdates.code,
+      createdAt: sql<string>`max(${d.directorUpdates.createdAt})`,
+      llamaInferenceId: d.directorUpdates.llamaInferenceId,
+    })
+    .from(d.directorUpdates)
+    .where(inArray(d.directorUpdates.writerUpdateId, writerUpdateIds))
+    .groupBy(d.directorUpdates.writerUpdateId)
+    .orderBy(asc(d.directorUpdates.createdAt))
+    .all();
+}
+
 onMounted(async () => {
   const simulation = await d.db.query.simulations.findFirst({
     where: eq(d.simulations.id, simulationId),
@@ -831,92 +847,116 @@ onMounted(async () => {
   );
 
   const result = await sqlite.query(query.sql, [simulation.headWriterUpdateId]);
-
-  const rawWriterUpdates: (typeof d.writerUpdates.$inferSelect & {
-    directorUpdate: typeof d.directorUpdates.$inferSelect | null;
-  })[] = parseSelectResult(d.writerUpdates, result).map((update) => ({
-    ...update,
-    directorUpdate: null,
-  }));
+  const writerUpdates = parseSelectResult(d.writerUpdates, result);
 
   // Assign the latest code updates to the writer updates.
   //
 
-  const directorUpdates = await d.db
-    .select({
-      id: d.directorUpdates.id,
-      writerUpdateId: d.directorUpdates.writerUpdateId,
-      code: d.directorUpdates.code,
-      createdAt: sql<string>`max(${d.directorUpdates.createdAt})`,
-      llamaInferenceId: d.directorUpdates.llamaInferenceId,
-    })
-    .from(d.directorUpdates)
-    .where(
-      inArray(
-        d.directorUpdates.writerUpdateId,
-        rawWriterUpdates.map((u) => u.id),
-      ),
-    )
-    .groupBy(d.directorUpdates.writerUpdateId)
-    .orderBy(asc(d.directorUpdates.createdAt))
-    .all();
+  const directorUpdates = await fetchDirectorUpdates(
+    writerUpdates.map((u) => u.id),
+  );
 
-  for (const directorUpdate of directorUpdates) {
-    const writerUpdate = rawWriterUpdates.find(
-      (u) => u.id === directorUpdate.writerUpdateId,
-    );
-
-    if (writerUpdate) {
-      writerUpdate.directorUpdate = directorUpdate;
-    } else {
-      throw new Error(
-        `For director update ${directorUpdate.id}, writer update ${directorUpdate.writerUpdateId} not found`,
+  updates.value = writerUpdates.map((writerUpdate) => {
+    if (writerUpdate.createdByPlayer) {
+      return markRaw(
+        new UserUpdate(writerUpdate.parentUpdateId, [writerUpdate], 0),
       );
-    }
-  }
-
-  updates.value = rawWriterUpdates.map((rawUpdate) => {
-    if (rawUpdate.createdByPlayer) {
-      return markRaw(new UserUpdate(rawUpdate.parentUpdateId, [rawUpdate], 0));
-    } else if (rawUpdate.episodeId) {
+    } else if (writerUpdate.episodeId) {
       return markRaw(
         new EpisodeUpdate(
-          rawUpdate.id,
-          rawUpdate.parentUpdateId,
-          rawUpdate.episodeId,
-          rawUpdate.episodeChunkIndex!,
-          rawUpdate.text,
-          rawUpdate.directorUpdate,
+          writerUpdate.id,
+          writerUpdate.parentUpdateId,
+          writerUpdate.episodeId,
+          writerUpdate.episodeChunkIndex!,
+          writerUpdate.text,
+          directorUpdates.find(
+            (directorUpdate) =>
+              directorUpdate.writerUpdateId === writerUpdate.id,
+          ) ?? null,
         ),
       );
     } else {
       return markRaw(
-        new AssistantUpdate(rawUpdate.parentUpdateId, [
-          { ...rawUpdate, directorUpdate: rawUpdate.directorUpdate },
+        new AssistantUpdate(writerUpdate.parentUpdateId, [
+          {
+            ...writerUpdate,
+            directorUpdate:
+              directorUpdates.find(
+                (directorUpdate) =>
+                  directorUpdate.writerUpdateId === writerUpdate.id,
+              ) ?? null,
+          },
         ]),
       );
     }
   });
 
+  // If the newest update is an assistant update, also fetch its siblings.
+  if (latestUpdate.value instanceof AssistantUpdate) {
+    const preservedVariantId = latestUpdate.value.chosenVariant.id;
+
+    const siblings = await d.db.query.writerUpdates.findMany({
+      where: and(
+        latestUpdate.value.parentId
+          ? eq(d.writerUpdates.parentUpdateId, latestUpdate.value.parentId)
+          : isNull(d.writerUpdates.parentUpdateId),
+        eq(d.writerUpdates.simulationId, simulationId),
+      ),
+    });
+
+    // Because it includes the latest update itself.
+    assert(siblings.length > 0);
+
+    // OPTIMIZE: Merge director update queries into one (see above).
+    const directorUpdates = await fetchDirectorUpdates(
+      siblings.map((u) => u.id),
+    );
+
+    latestUpdate.value.variants = siblings.map((writerUpdate) => ({
+      ...writerUpdate,
+      directorUpdate:
+        directorUpdates.find(
+          (directorUpdate) => directorUpdate.writerUpdateId === writerUpdate.id,
+        ) || null,
+    }));
+
+    latestUpdate.value.chosenVariantIndex.value = assertFn(
+      latestUpdate.value.variants.findIndex((v) => v.id === preservedVariantId),
+      (index) => index >= 0,
+    );
+  }
+
   // TODO: Get initial stage value from the latest snapshot.
   stage = new Stage(scenario.value);
   await stage.initCodeEngine();
 
-  if (rawWriterUpdates.length) {
-    // Apply existing director updates to the stage.
-    let i = 0;
-    for (const rawUpdate of rawWriterUpdates.reverse()) {
-      const directorUpdate = rawUpdate.directorUpdate;
+  if (updates.value.length) {
+    // Apply existing director updates to the stage,
+    // from oldest to newest (i.e. reverse).
+    //
+
+    // REFACTOR: It'd be more readable to do `i = updates.value.length`,
+    // but the `i++` logic within the loop is not trivial.
+    let i = updates.value.length;
+    while (i > 0) {
+      const update = updates.value[--i];
+      let directorUpdate;
+
+      if (update instanceof AssistantUpdate) {
+        directorUpdate = update.chosenVariant.directorUpdate;
+      } else if (update instanceof EpisodeUpdate) {
+        directorUpdate = update.directorUpdate;
+      }
 
       if (directorUpdate) {
         const luaCode = stageCallsToLua(directorUpdate.code);
-        console.debug("Evaluating stage code", luaCode);
-        await stage.eval(luaCode);
+        console.debug("Applying stage code", luaCode);
+        stage.apply(directorUpdate.code);
       }
 
       // For the sake of regeneration, save the stage state at previous update.
       // But when there only one update, save the latest.
-      if (updates.value.length == 1 || i++ === updates.value.length - 2) {
+      if (updates.value.length == 1 || i === 1) {
         previousStageState.value = clone(stage.state.value);
         console.debug("Saved stage state", previousStageState.value);
       }
