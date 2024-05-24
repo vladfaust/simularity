@@ -13,8 +13,10 @@ import GptStatus from "./Simulation/GptStatus.vue";
 import {
   FastForwardIcon,
   Loader2Icon,
+  MenuIcon,
   ScrollTextIcon,
   SendHorizontalIcon,
+  XIcon,
 } from "lucide-vue-next";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { writerUpdatesTableName } from "@/lib/drizzle/schema/writerUpdates";
@@ -111,6 +113,8 @@ const currentEpisodeConsoleObject = computed(() =>
       }
     : null,
 );
+
+const showSandboxConsole = ref(false);
 
 const playerInput = ref("");
 const userInputEnabled = computed(
@@ -980,83 +984,102 @@ onUnmounted(() => {
   .relative.flex.h-full.w-full.justify-center.overflow-hidden
     #game-screen.h-full.w-full
 
-    .absolute.top-0.flex.w-full.justify-between.bg-white.bg-opacity-50.p-1
-      span {{ scenario?.name }}: {{ simulationId }}
-      .flex.gap-2
-        .flex.items-center.gap-1
-          GptStatus(:gpt="writer" :icon-size="22")
-            ScrollTextIcon(:size="18")
+    .absolute.top-0.flex.h-full.w-full.flex-col.items-center.gap-2
+      .flex.w-full.justify-end.px-2.pt-2
+        button.rounded-lg.bg-black.bg-opacity-50.px-2.py-1.shadow.transition-transform.pressable(
+          @click="showSandboxConsole = !showSandboxConsole"
+        )
+          MenuIcon.text-white(v-if="!showSandboxConsole" :size="20")
+          XIcon.text-white(v-else :size="20")
 
-    .absolute.top-0.flex.h-full.max-w-xl.grow.flex-col.gap-2.p-2
-      ._updates-container.flex.h-full.w-full.flex-col-reverse.gap-2.overflow-y-scroll(
-        ref="updatesRef"
-        :style="{ '-webkit-mask-size': `100% calc(50% - ${updatesScrollOffsetY}px)` }"
-      )
-        template(v-for="update, i of updates" :key="update.parentId")
-          AssistantUpdateVue(
-            v-if="AssistantUpdate.is(update)"
-            :update="update"
-            :can-regenerate="i === 0"
-            :show-variant-navigation="i === 0"
-            @regenerate="regenerateAssistantUpdate(i)"
-          )
-          UserUpdateVue(v-else-if="UserUpdate.is(update)" :update="update")
-          EpisodeUpdateVue(
-            v-else-if="EpisodeUpdate.is(update)"
-            :update="update"
-          )
-
-      .h-12.w-full
-        .flex.h-full.gap-2.rounded
-          input.h-full.w-full.rounded-lg.px-3.shadow-lg(
-            v-model="playerInput"
-            placeholder="Player input"
-            :disabled="!userInputEnabled"
-            class="disabled:opacity-50"
-          )
-
-          button.relative.grid.aspect-square.h-full.place-items-center.rounded-lg.bg-white.shadow-lg.transition.pressable(
-            @click="playerInput ? sendPlayerMessage() : advance()"
-            :disabled="busy"
-          )
-            TransitionRoot.absolute(
-              :show="busy"
-              enter="duration-100 ease-out"
-              enter-from="scale-0 opacity-0"
-              enter-to="scale-100 opacity-100"
-              leave="duration-100 ease-in"
-              leave-from="scale-100 opacity-100"
-              leave-to="scale-0 opacity-0"
+      .flex.h-full.max-w-xl.grow.flex-col.gap-2.overflow-hidden.px-2
+        ._updates-container.flex.h-full.w-full.flex-col-reverse.gap-2.overflow-y-scroll(
+          ref="updatesRef"
+          :style="{ '-webkit-mask-size': `100% calc(50% - ${updatesScrollOffsetY}px)` }"
+        )
+          template(v-for="update, i of updates" :key="update.parentId")
+            AssistantUpdateVue(
+              v-if="AssistantUpdate.is(update)"
+              :update="update"
+              :can-regenerate="i === 0"
+              :show-variant-navigation="i === 0"
+              @regenerate="regenerateAssistantUpdate(i)"
             )
-              Loader2Icon.animate-spin(:size="20")
-            TransitionRoot.absolute(
-              :show="!busy && !!playerInput"
-              enter="duration-100 ease-out"
-              enter-from="scale-0 opacity-0"
-              enter-to="scale-100 opacity-100"
-              leave="duration-100 ease-in"
-              leave-from="scale-100 opacity-100"
-              leave-to="scale-0 opacity-0"
+            UserUpdateVue(v-else-if="UserUpdate.is(update)" :update="update")
+            EpisodeUpdateVue(
+              v-else-if="EpisodeUpdate.is(update)"
+              :update="update"
             )
-              SendHorizontalIcon(:size="20")
-            TransitionRoot.absolute(
-              :show="!busy && !playerInput"
-              enter="duration-100 ease-out"
-              enter-from="scale-0 opacity-0"
-              enter-to="scale-100 opacity-100"
-              leave="duration-100 ease-in"
-              leave-from="scale-100 opacity-100"
-              leave-to="scale-0 opacity-0"
-            )
-              FastForwardIcon(:size="20")
 
-  SandboxConsole.h-full.shrink-0.shadow-lg(
-    v-if="scenario && assetBaseUrl"
+        .h-12.w-full
+          .flex.h-full.gap-2.rounded
+            input.h-full.w-full.rounded-lg.px-3.shadow-lg(
+              v-model="playerInput"
+              placeholder="Player input"
+              :disabled="!userInputEnabled"
+              class="disabled:opacity-50"
+            )
+
+            button.relative.grid.aspect-square.h-full.place-items-center.rounded-lg.bg-white.shadow-lg.transition.pressable(
+              @click="playerInput ? sendPlayerMessage() : advance()"
+              :disabled="busy"
+            )
+              //- REFACTOR: Make a component for such multi-state animations.
+              TransitionRoot.absolute(
+                :show="busy"
+                enter="duration-100 ease-out"
+                enter-from="scale-0 opacity-0"
+                enter-to="scale-100 opacity-100"
+                leave="duration-100 ease-in"
+                leave-from="scale-100 opacity-100"
+                leave-to="scale-0 opacity-0"
+              )
+                Loader2Icon.animate-spin(:size="20")
+              TransitionRoot.absolute(
+                :show="!busy && !!playerInput"
+                enter="duration-100 ease-out"
+                enter-from="scale-0 opacity-0"
+                enter-to="scale-100 opacity-100"
+                leave="duration-100 ease-in"
+                leave-from="scale-100 opacity-100"
+                leave-to="scale-0 opacity-0"
+              )
+                SendHorizontalIcon(:size="20")
+              TransitionRoot.absolute(
+                :show="!busy && !playerInput"
+                enter="duration-100 ease-out"
+                enter-from="scale-0 opacity-0"
+                enter-to="scale-100 opacity-100"
+                leave="duration-100 ease-in"
+                leave-from="scale-100 opacity-100"
+                leave-to="scale-0 opacity-0"
+              )
+                FastForwardIcon(:size="20")
+
+      .flex.w-full.justify-between.bg-white.bg-opacity-50.p-2
+        span {{ scenario?.name }}: {{ simulationId }}
+        .flex.gap-2
+          .flex.items-center.gap-1
+            GptStatus(:gpt="writer" :icon-size="22")
+              ScrollTextIcon(:size="18")
+
+  TransitionRoot.h-full.shrink-0(
     class="w-1/3"
-    :asset-base-url="assetBaseUrl"
-    :scenario="scenario"
-    :stage="stage"
+    :unmount="true"
+    :show="showSandboxConsole"
+    enter="transition duration-200 ease-in"
+    enter-from="opacity-0 translate-x-full"
+    enter-to="opacity-100 translate-x-0"
+    leave="transition duration-200 ease-out"
+    leave-from="opacity-100 translate-x-0"
+    leave-to="opacity-0 translate-x-full"
   )
+    SandboxConsole.h-full(
+      v-if="scenario && assetBaseUrl"
+      :asset-base-url="assetBaseUrl"
+      :scenario="scenario"
+      :stage="stage"
+    )
 
   //- Fade layer.
   TransitionRoot(
