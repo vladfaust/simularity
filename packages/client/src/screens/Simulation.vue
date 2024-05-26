@@ -16,6 +16,7 @@ import {
   MenuIcon,
   ScrollTextIcon,
   SendHorizontalIcon,
+  SkipForwardIcon,
   XIcon,
 } from "lucide-vue-next";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
@@ -1119,7 +1120,7 @@ function chooseAssistantVariant(update: AssistantUpdate, variantIndex: number) {
               )
                 SendHorizontalIcon(:size="20")
               TransitionRoot.absolute(
-                :show="!busy && !playerInput"
+                :show="!busy && !playerInput && !state.currentEpisode"
                 enter="duration-100 ease-out"
                 enter-from="scale-0 opacity-0"
                 enter-to="scale-100 opacity-100"
@@ -1128,6 +1129,16 @@ function chooseAssistantVariant(update: AssistantUpdate, variantIndex: number) {
                 leave-to="scale-0 opacity-0"
               )
                 FastForwardIcon(:size="20")
+              TransitionRoot.absolute(
+                :show="!busy && !playerInput && !!state.currentEpisode"
+                enter="duration-100 ease-out"
+                enter-from="scale-0 opacity-0"
+                enter-to="scale-100 opacity-100"
+                leave="duration-100 ease-in"
+                leave-from="scale-100 opacity-100"
+                leave-to="scale-0 opacity-0"
+              )
+                SkipForwardIcon(:size="20")
 
       .flex.w-full.justify-between.bg-white.bg-opacity-50.p-2
         span {{ scenario?.name }}: {{ simulationId }}
