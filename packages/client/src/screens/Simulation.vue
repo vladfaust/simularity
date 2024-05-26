@@ -3,7 +3,7 @@ import { type Raw, computed, markRaw, onMounted, onUnmounted, ref } from "vue";
 import { type Scenario } from "@/lib/types";
 import { DefaultScene } from "../lib/simulation/phaser/defaultScene";
 import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
-import { Deferred, clone, sleep, assert, assertFn } from "@/lib/utils";
+import { Deferred, clone, assert, assertFn } from "@/lib/utils";
 import { buildWriterPrompt } from "@/lib/ai/writer";
 import { Game } from "../lib/simulation/phaser/game";
 import { d, sqlite, parseSelectResult } from "@/lib/drizzle";
@@ -94,11 +94,7 @@ const uncommittedWriterPrompt = computed(() => {
 });
 const uncommittedWriterKvCacheKey = ref<string | undefined>();
 
-const fullFade = ref(false);
-let fadeDeferred: Deferred<void> | undefined;
-function onAfterFullFade() {
-  fadeDeferred?.resolve();
-}
+const _canvasFade = ref(true);
 
 const consoleModal = ref(false);
 // FIXME: Proper episode display.
@@ -218,16 +214,13 @@ async function commitUncommitted() {
   console.debug("Saved stage state", previousStageState.value);
 }
 
-async function resetStage() {
-  fadeDeferred = new Deferred();
-  fullFade.value = true;
-  return fadeDeferred.promise.then(async () => {
-    console.log("Resetting stage");
-    stage.setState(previousStageState.value ?? null);
-    console.debug("Loaded stage state", previousStageState.value);
-    await sleep(50);
-    fullFade.value = false;
-  });
+async function fadeCanvas(callback: () => Promise<void>): Promise<void> {
+  try {
+    _canvasFade.value = true;
+    await callback();
+  } finally {
+    _canvasFade.value = false;
+  }
 }
 
 /**
@@ -253,7 +246,9 @@ async function regenerateAssistantUpdate(updateIndex: number) {
   regeneratedUpdate.newVariantInProgress.value = true;
   try {
     // OPTIMIZE: Infer while waiting for the fade.
-    await resetStage();
+    await fadeCanvas(async () => {
+      stage.setState(previousStageState.value ?? null);
+    });
 
     let prompt = "";
     if (uncommittedPlayerInput.value)
@@ -984,17 +979,19 @@ onMounted(async () => {
     }
   }
 
-  gameInstance = new Game();
-  scene = await gameInstance.createDefaultScene(
-    scenario.value,
-    "/scenarios/" + simulation.scenarioId,
-    clone(stage.state.value),
-  );
-
   assetBaseUrl.value = new URL(
     `/scenarios/${simulation.scenarioId}/`,
     window.location.origin,
   );
+
+  gameInstance = new Game();
+  scene = new DefaultScene(
+    scenario.value,
+    assetBaseUrl.value.toString(),
+    clone(stage.state.value),
+    () => (_canvasFade.value = false),
+  );
+  await gameInstance.createScene(scene, "default");
 
   // Connect the stage to the scene.
   stage.connectScene(scene);
@@ -1017,14 +1014,49 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener("keypress", consoleEventListener);
 });
+
+function chooseAssistantVariant(update: AssistantUpdate, variantIndex: number) {
+  const code = update.variants[variantIndex].directorUpdate?.code;
+  const actualDelta = stage.delta(previousStageState.value);
+
+  function setUncommitted() {
+    uncommittedAssistantText.value = update.variants[variantIndex].text;
+    uncommittedWriterKvCacheKey.value = update.variants[variantIndex].id;
+  }
+
+  if (
+    comparesDeltas(previousStageState.value ?? null, actualDelta, code ?? [])
+  ) {
+    fadeCanvas(async () => {
+      stage.setState(previousStageState.value ?? null);
+      const code = update.variants[variantIndex].directorUpdate?.code;
+      if (code) stage.apply(code);
+      setUncommitted();
+    });
+  } else {
+    setUncommitted();
+  }
+}
 </script>
 
 <template lang="pug">
 .flex.h-screen.w-screen
   .relative.flex.h-full.w-full.justify-center.overflow-hidden
-    #game-screen.h-full.w-full
+    .relative.h-full.w-full
+      TransitionRoot#canvas-fade.absolute.top-0.z-10.h-screen.w-screen.bg-black(
+        :unmount="true"
+        :show="_canvasFade"
+        enter="transition-opacity duration-500 ease-in"
+        enter-from="opacity-0"
+        enter-to="opacity-100"
+        leave="transition-opacity duration-500 ease-out"
+        leave-from="opacity-100"
+        leave-to="opacity-0"
+      )
 
-    .absolute.top-0.flex.h-full.w-full.flex-col.items-center.gap-2
+      #game-screen.h-full.w-full
+
+    .absolute.top-0.z-20.flex.h-full.w-full.flex-col.items-center.gap-2
       .flex.w-full.justify-end.px-2.pt-2
         button.rounded-lg.bg-black.bg-opacity-50.px-2.py-1.shadow.transition-transform.pressable(
           @click="showSandboxConsole = !showSandboxConsole"
@@ -1032,7 +1064,7 @@ onUnmounted(() => {
           MenuIcon.text-white(v-if="!showSandboxConsole" :size="20")
           XIcon.text-white(v-else :size="20")
 
-      .flex.h-full.max-w-xl.grow.flex-col.gap-2.overflow-hidden.px-2
+      .flex.h-full.w-full.max-w-xl.grow.flex-col.gap-2.overflow-hidden.px-2
         ._updates-container.flex.h-full.w-full.flex-col-reverse.gap-2.overflow-y-scroll(
           ref="updatesRef"
           :style="{ '-webkit-mask-size': `100% calc(50% - ${updatesScrollOffsetY}px)` }"
@@ -1044,6 +1076,7 @@ onUnmounted(() => {
               :can-regenerate="i === 0"
               :show-variant-navigation="i === 0"
               @regenerate="regenerateAssistantUpdate(i)"
+              @choose-variant="(variantIndex) => chooseAssistantVariant(update, variantIndex)"
             )
             UserUpdateVue(v-else-if="UserUpdate.is(update)" :update="update")
             EpisodeUpdateVue(
@@ -1120,21 +1153,6 @@ onUnmounted(() => {
       :scenario="scenario"
       :stage="stage"
     )
-
-  //- Fade layer.
-  TransitionRoot(
-    as="template"
-    :unmount="true"
-    :show="fullFade"
-    enter="transition-opacity duration-500 ease-in"
-    enter-from="opacity-0"
-    enter-to="opacity-100"
-    leave="transition-opacity duration-500 ease-out"
-    leave-from="opacity-100"
-    leave-to="opacity-0"
-    @after-enter="onAfterFullFade"
-  )
-    .absolute.top-0.z-40.h-screen.w-screen.bg-black
 
   DeveloperConsole(
     :open="consoleModal"

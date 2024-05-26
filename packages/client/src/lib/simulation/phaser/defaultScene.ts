@@ -43,6 +43,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
     readonly scenario: Scenario,
     private readonly assetBasePath: string,
     private readonly initialState: StageState | null = null,
+    private readonly onCreate?: () => void,
   ) {
     super();
   }
@@ -64,6 +65,8 @@ export class DefaultScene extends Phaser.Scene implements Scene {
         this.addCharacter(id, outfitId, expressionId);
       }
     }
+
+    this.onCreate?.();
   }
 
   preload() {

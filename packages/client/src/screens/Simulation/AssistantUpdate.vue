@@ -51,6 +51,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: "regenerate"): void;
+  (event: "chooseVariant", variantIndex: number): void;
 }>();
 
 function onClickPreviousVariant() {
@@ -61,6 +62,8 @@ function onClickPreviousVariant() {
   if (props.update.chosenVariantIndex.value) {
     props.update.chosenVariantIndex.value--;
   }
+
+  emit("chooseVariant", props.update.chosenVariantIndex.value);
 }
 
 function onClickNextVariant() {
@@ -73,6 +76,7 @@ function onClickNextVariant() {
     props.update.variants.length - 1
   ) {
     props.update.chosenVariantIndex.value++;
+    emit("chooseVariant", props.update.chosenVariantIndex.value);
   } else {
     emit("regenerate");
   }

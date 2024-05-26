@@ -1,8 +1,5 @@
-import { Scenario } from "@/lib/types";
 import { Deferred } from "@/lib/utils";
 import Phaser from "phaser";
-import { StageState } from "../stage";
-import { DefaultScene } from "./defaultScene";
 
 export class Game {
   private _game: Phaser.Game;
@@ -26,27 +23,20 @@ export class Game {
     });
   }
 
-  createDefaultScene(
-    scenario: Scenario,
-    assetBasePath: string,
-    initialStage: StageState | undefined,
-  ): Promise<DefaultScene> {
-    this._game.scene.add(
-      "default",
-      new DefaultScene(scenario, assetBasePath, initialStage),
-      true,
-    );
+  /**
+   * Returns a promise of a created scene.
+   */
+  createScene<T extends Phaser.Scene>(scene: T, sceneName: string): Promise<T> {
+    this._game.scene.add(sceneName, scene, true);
 
-    const deferredScene = new Deferred<DefaultScene>();
+    const deferredScene = new Deferred<T>();
 
     // TODO: Call once the scene is ready.
     const interval = setInterval(() => {
-      const defaultScene = this._game.scene.getScene(
-        "default",
-      ) as DefaultScene | null;
+      const scene = this._game.scene.getScene(sceneName) as T | null;
 
-      if (defaultScene) {
-        deferredScene.resolve(defaultScene);
+      if (scene) {
+        deferredScene.resolve(scene);
         clearInterval(interval);
       }
     }, 100);
