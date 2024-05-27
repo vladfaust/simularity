@@ -983,6 +983,7 @@ onMounted(async () => {
     window.location.origin,
   );
 
+  // REFACTOR: Scene creation shall be incapsulated.
   gameInstance = new Game();
   scene = new DefaultScene(
     scenario.value,

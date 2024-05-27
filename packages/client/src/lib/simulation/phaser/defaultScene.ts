@@ -253,6 +253,32 @@ export class DefaultScene extends Phaser.Scene implements Scene {
         ),
       },
     });
+
+    this.arrangeCharacters();
+  }
+
+  arrangeCharacters() {
+    const proximityModifier = 0.8;
+    const chunk = this.game.canvas.width / (this.stageCharacters.size + 1);
+
+    let i = 0;
+    for (const [characterId, character] of this.stageCharacters.entries()) {
+      const k = i++ - (this.stageCharacters.size - 1) / 2;
+      const posX =
+        this.game.canvas.width / 2 +
+        chunk * k * proximityModifier ** Math.abs(k);
+
+      console.debug("Set character position X", {
+        chunk,
+        k,
+        characterId,
+        posX,
+      });
+
+      character.body.sprite.x = posX;
+      character.outfit.sprite.x = posX;
+      character.expression.sprite.x = posX;
+    }
   }
 
   setOutfit(characterId: string, outfitId: string) {
@@ -340,6 +366,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
     character.expression.sprite.destroy();
 
     this.stageCharacters.delete(characterId);
+    this.arrangeCharacters();
   }
 
   private _sceneTextureKey(locationId: string, sceneId: string) {
