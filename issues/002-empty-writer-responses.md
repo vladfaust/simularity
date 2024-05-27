@@ -12,3 +12,7 @@ Possible fix: ban the newline token in the beginning.
 Should log or panic if `\n` or `EOS` is predicted immediately.
 
 Died again at regeneration #4.
+
+Now it returns all empty responses:
+
+![](../img/issues/02-empty-writer-responses/image-3.png)
