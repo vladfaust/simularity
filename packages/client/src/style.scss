@@ -15,23 +15,39 @@
 
 @layer components {
   .btn {
-    @apply border;
+    @apply flex items-center justify-center;
     @apply disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  .btn-pressable {
+    @apply transition-transform pressable;
+  }
+
   .btn-md {
-    @apply rounded px-4 py-2;
+    @apply gap-2 px-4 py-2 font-medium shadow;
+  }
+
+  .btn-neutral {
+    @apply bg-neutral-300 text-neutral-800;
   }
 
   .btn-primary {
-    @apply bg-blue-500 text-white;
+    @apply bg-primary-500 text-primary-base;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary-500 text-secondary-base;
   }
 
   .btn-success {
-    @apply bg-green-500 text-white;
+    @apply bg-success-500 text-success-base border-success-600 border;
+  }
+
+  .btn-warn {
+    @apply bg-warn-500 text-warn-base border-warn-600 border;
   }
 
   .btn-error {
-    @apply bg-red-500 text-white;
+    @apply bg-error-500 text-error-base;
   }
 }

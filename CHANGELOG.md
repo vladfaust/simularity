@@ -17,8 +17,7 @@
 
   - [ ] Payments
 
-- [ ] feat: edit user messages
-      Looks like the AI is struggling to continue the conversation.
+- [ ] tip: Looks like the AI is struggling to continue the conversation.
       Try rephrasing your message or add more possible destinations in it.
 
 - [ ] feat: configure inference
@@ -68,6 +67,7 @@
 - [x] feat: reuse GPTs by params & KV cache key (Wed May 15, 2024)
 - [x] feat(client): sandbox console (Sun May 19, 2024)
 - [x] feat(client): chat interface (Wed May 22, 2024)
+- [x] feat(client): edit user messages (Mon May 27, 2024)
 
 ### April 2024
 

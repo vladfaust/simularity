@@ -334,7 +334,7 @@ async function sendPlayerMessage() {
 
     const userUpdateId = saved.writerUpdate.id;
     const userUpdate = markRaw(
-      new UserUpdate(parentUpdateId, [saved.writerUpdate]),
+      new UserUpdate(parentUpdateId, saved.writerUpdate),
     );
     updates.value.unshift(userUpdate);
 
@@ -854,9 +854,7 @@ onMounted(async () => {
 
   updates.value = writerUpdates.map((writerUpdate) => {
     if (writerUpdate.createdByPlayer) {
-      return markRaw(
-        new UserUpdate(writerUpdate.parentUpdateId, [writerUpdate], 0),
-      );
+      return markRaw(new UserUpdate(writerUpdate.parentUpdateId, writerUpdate));
     } else if (writerUpdate.episodeId) {
       return markRaw(
         new EpisodeUpdate(
@@ -1038,6 +1036,89 @@ function chooseAssistantVariant(update: AssistantUpdate, variantIndex: number) {
     setUncommitted();
   }
 }
+
+/**
+ * Inference a message in response to user input.
+ */
+// REFACTOR: Merge with `sendPlayerMessage`.
+async function inferResponse(
+  userUpdate: UserUpdate,
+  assistantUpdate: AssistantUpdate | null,
+) {
+  console.trace({ userUpdate, assistantUpdate });
+  let userMessageContent = userUpdate.chosenVariant.text;
+
+  if (!assistantUpdate) {
+    assistantUpdate = markRaw(
+      new AssistantUpdate(userUpdate.chosenVariant.id, []),
+    );
+
+    updates.value.unshift(assistantUpdate);
+  }
+
+  assistantUpdate.newVariantInProgress.value = true;
+
+  try {
+    uncommittedPlayerInput.value = userMessageContent;
+
+    const writerResponse = await deferredWriter.promise.then((writer) =>
+      writer.infer(uncommittedWriterPrompt.value, 128, {
+        stopSequences: ["\n"],
+      }),
+    );
+
+    // Save the assistant update.
+    const saved = await saveUpdatesToDb({
+      writerUpdate: {
+        parentUpdateId: userUpdate.chosenVariant.id,
+        text: writerResponse,
+      },
+    });
+
+    const assistantUpdateId = saved.writerUpdate.id;
+    assistantUpdate.variants.push({
+      id: assistantUpdateId,
+      text: saved.writerUpdate.text,
+      createdAt: saved.writerUpdate.createdAt,
+      directorUpdate: null,
+    });
+    assistantUpdate.chosenVariantIndex.value++;
+
+    uncommittedAssistantText.value = writerResponse;
+    uncommittedWriterKvCacheKey.value = assistantUpdateId;
+  } finally {
+    assistantUpdate.newVariantInProgress.value = false;
+  }
+}
+
+async function onUserUpdateEdit(update: UserUpdate, newText: string) {
+  console.debug("onUserUpdateEdit", newText);
+
+  try {
+    busy.value = true;
+
+    const { writerUpdate: newWriterUpdate } = await saveUpdatesToDb({
+      writerUpdate: {
+        createdByPlayer: true,
+        parentUpdateId: update.parentId,
+        text: newText,
+      },
+    });
+
+    update.chosenVariant = {
+      id: newWriterUpdate.id,
+      text: newWriterUpdate.text,
+      createdAt: newWriterUpdate.createdAt,
+    };
+
+    await inferResponse(
+      update,
+      latestUpdate.value instanceof AssistantUpdate ? latestUpdate.value : null,
+    );
+  } finally {
+    busy.value = false;
+  }
+}
 </script>
 
 <template lang="pug">
@@ -1079,7 +1160,13 @@ function chooseAssistantVariant(update: AssistantUpdate, variantIndex: number) {
               @regenerate="regenerateAssistantUpdate(i)"
               @choose-variant="(variantIndex) => chooseAssistantVariant(update, variantIndex)"
             )
-            UserUpdateVue(v-else-if="UserUpdate.is(update)" :update="update")
+            UserUpdateVue(
+              v-else-if="UserUpdate.is(update)"
+              :update="update"
+              :can-edit="i === 0 || i === 1"
+              :show-variant-navigation="i === 0 || i === 1"
+              @edit="(newText) => onUserUpdateEdit(update, newText)"
+            )
             EpisodeUpdateVue(
               v-else-if="EpisodeUpdate.is(update)"
               :update="update"
