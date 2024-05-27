@@ -8,38 +8,56 @@
 
 > After squashing, bugs are removed from this list.
 
-## MVP 🚀
+- [ ] [SQLite Migrations Are not Applied](./issues/01-sqlite.md)
+- [ ] check: enter doesn't work sometimes to send a message
+- [ ] [Empty Writer Responses](./issues/02-empty-writer-responses.md)
 
-- [ ] feat: instruction-based interactions
+## MVP 🚀
 
 - [ ] feat: inference server
 
   - [ ] Payments
 
+- [ ] feat: edit user messages
+      Looks like the AI is struggling to continue the conversation.
+      Try rephrasing your message or add more possible destinations in it.
+
 - [ ] feat: configure inference
 
-  - [ ] Choose local files
-  - [ ] Choose server
-  - [ ] Download files
+  - Choose local files
+
+    - [ ] .gguf
+
+  - [ ] ~~Choose server~~
+        You can only choose a Simularity Server.
+
+  - Download files
 
     - [ ] Huggingface
-    - [ ] Custom CDN
+    - [ ] Simularity CDN
 
-- [ ] feat: event labeling
-- [ ] feat: episode system
-- [ ] feat: consolidation
-- [ ] feat: quests
+- [ ] feat(client/SandboxConsole): set model parameters
+      Temperature, top-K etc.
 
-- [ ] refactor: rename llamaInferences -> gptInferences
-- [ ] refactor: rename writerUpdates -> chatUpdates, directorUpdates -> stageUpdates
+- [ ] feat(core): T5
 
-- [ ] dx: display current stage in console
-- [ ] dx: save gpt inferences to DB
+  - [ ] feat: event labeling
 
-- [ ] feat+dx: more GPT information
+    - [ ] feat: episode system
+    - [ ] feat: quests
+
+  - [ ] feat: summarization
+  - [ ] feat: memory consolidation
+
+- feat+dx: more GPT information
 
   - [ ] KV cache size (returns after decode/inference)
   - [ ] Memory usage (monitoring)
+
+## Ideas 💡
+
+- [x] feat: instruction-based interactions
+      Simple text generation works fine once you understand the rules.
 
 ## History 📜
 
