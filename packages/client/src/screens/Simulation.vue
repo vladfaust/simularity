@@ -1092,6 +1092,7 @@ function chooseAssistantVariant(update: AssistantUpdate, variantIndex: number) {
               placeholder="Player input"
               :disabled="!userInputEnabled"
               class="disabled:opacity-50"
+              @keydown.enter.exact="playerInput ? sendPlayerMessage() : advance()"
             )
 
             button.relative.grid.aspect-square.h-full.place-items-center.rounded-lg.bg-white.shadow-lg.transition.pressable(

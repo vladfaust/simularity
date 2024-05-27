@@ -9,7 +9,6 @@
 > After squashing, bugs are removed from this list.
 
 - [ ] [SQLite Migrations Are not Applied](./issues/01-sqlite.md)
-- [ ] check: enter doesn't work sometimes to send a message
 - [ ] [Empty Writer Responses](./issues/02-empty-writer-responses.md)
 
 ## MVP 🚀
