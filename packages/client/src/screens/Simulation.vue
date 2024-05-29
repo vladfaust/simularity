@@ -53,6 +53,7 @@ import {
   EpisodeUpdate,
   type Update,
 } from "@/lib/simulation/updates";
+import { type InferOptions } from "@/lib/tauri/gpt";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -140,6 +141,15 @@ useInfiniteScroll(updatesRef, () => {}, {
 useScroll(updatesRef, {
   onScroll(e) {
     updatesScrollOffsetY.value = (e.target as HTMLDivElement).scrollTop;
+  },
+});
+
+const modelSettings = ref<InferOptions>({
+  temp: 1.15,
+  minP: 0.1,
+  mirostat: {
+    tau: 5,
+    eta: 0.1,
   },
 });
 
@@ -279,6 +289,7 @@ async function regenerateAssistantUpdate(updateIndex: number) {
       writer.infer(prompt, 128, {
         stopSequences: ["\n"],
         grammar: writerGrammar,
+        ...modelSettings.value,
       }),
     );
 
@@ -378,6 +389,7 @@ async function sendPlayerMessage() {
       writer.infer(prompt, 128, {
         stopSequences: ["\n"],
         grammar: writerGrammar,
+        ...modelSettings.value,
       }),
     );
 
@@ -512,6 +524,7 @@ async function advance() {
         writer.infer(prompt, 128, {
           stopSequences: ["\n"],
           grammar: writerGrammar,
+          ...modelSettings.value,
         }),
       );
 
@@ -1104,6 +1117,7 @@ async function inferResponse(
       writer.infer(prompt, 128, {
         stopSequences: ["\n"],
         grammar: writerGrammar,
+        ...modelSettings.value,
       }),
     );
 
