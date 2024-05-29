@@ -5,7 +5,7 @@ import {
 } from "@/lib/simulation/updates";
 import { toSceneQualifiedId } from "../simulation/stage";
 import { Scenario } from "../types";
-import { unreachable } from "../utils";
+import { assert, unreachable } from "../utils";
 import { XmlNode } from "../xmlNode";
 
 export type Message =
@@ -65,7 +65,9 @@ export function buildWriterPrompt(
   }
 
   // Characters.
-  for (const character of scenario.characters) {
+  for (const character of scenario.characters.filter(
+    (character) => !character.locked,
+  )) {
     messages.push({
       role: "system",
       content: new XmlNode("Character", character.scenarioPrompt)
@@ -83,6 +85,25 @@ export function buildWriterPrompt(
               .addAttribute("id", outfit.id)
               .addAttribute("name", outfit.name),
           ),
+        )
+        .addChildren(
+          character.relationships
+            ? Object.entries(character.relationships)
+                .filter(
+                  ([characterId]) =>
+                    !assert(
+                      scenario.characters.find(
+                        (character) => character.id === characterId,
+                      ),
+                    ).locked,
+                )
+                .map(([characterId, relationship]) =>
+                  new XmlNode("Relationship", relationship).addAttribute(
+                    "with-character-id",
+                    characterId,
+                  ),
+                )
+            : [],
         )
         .toString(),
     });

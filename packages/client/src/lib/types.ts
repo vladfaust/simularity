@@ -27,10 +27,12 @@ export type Scenario = {
       displayName?: string;
       displayColor: string;
       about: string;
+      locked?: boolean;
       personalityPrompt: string;
       traits: string[];
       appearancePrompt: string;
       scenarioPrompt: string;
+      relationships?: Record<string, string>;
       bodies: [string];
       expressions: [
         {
