@@ -1174,6 +1174,26 @@ async function onUserUpdateEdit(update: UserUpdate, newText: string) {
     busy.value = false;
   }
 }
+
+async function onAssistantUpdateEdit(update: AssistantUpdate, newText: string) {
+  console.debug("onUserUpdateEdit", newText);
+
+  try {
+    busy.value = true;
+
+    await d.db
+      .update(d.writerUpdates)
+      .set({
+        text: newText,
+      })
+      .where(eq(d.writerUpdates.id, update.chosenVariant.id));
+
+    update.chosenVariant.text = newText;
+    uncommittedAssistantText.value = newText;
+  } finally {
+    busy.value = false;
+  }
+}
 </script>
 
 <template lang="pug">
@@ -1211,8 +1231,10 @@ async function onUserUpdateEdit(update: UserUpdate, newText: string) {
               v-if="AssistantUpdate.is(update)"
               :update="update"
               :can-regenerate="i === 0"
+              :can-edit="i === 0"
               :show-variant-navigation="i === 0"
               @regenerate="regenerateAssistantUpdate(i)"
+              @edit="(newText) => onAssistantUpdateEdit(update, newText)"
               @choose-variant="(variantIndex) => chooseAssistantVariant(update, variantIndex)"
             )
             UserUpdateVue(
