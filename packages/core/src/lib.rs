@@ -223,6 +223,18 @@ pub fn infer(
             &[0],
             true, // It must have logits.
         )?;
+
+        let token_str = ctx
+            .context
+            .model
+            .token_to_str(*ctx.session.get(n_session - 1).unwrap(), Special::Plaintext)
+            .unwrap();
+
+        eprint!("Session head token: {} (", token_str);
+        for c in token_str.chars() {
+            eprint!("{}", c.escape_unicode());
+        }
+        eprintln!(").");
     }
 
     if let Some(prompt) = prompt {
@@ -242,6 +254,18 @@ pub fn infer(
                 i == prompt_tokens.len() - 1,
             )?;
         }
+
+        let token_str = ctx
+            .context
+            .model
+            .token_to_str(*prompt_tokens.last().unwrap(), Special::Plaintext)
+            .unwrap();
+
+        eprint!("Prompt head token: {} (", token_str);
+        for c in token_str.chars() {
+            eprint!("{}", c.escape_unicode());
+        }
+        eprintln!(").");
 
         ctx.uncommitted_session = prompt_tokens;
     } else {
@@ -373,10 +397,14 @@ pub fn infer(
     let end = ggml_time_us();
     let duration = (end - start) as f32 / 1_000_000.0;
     eprintln!(
-        "predicted {} tokens in {:.2} s, speed {:.2} t/s\n",
+        "predicted {} tokens in {:.2} s, speed {:.2} t/s",
         n_decoded,
         duration,
         n_decoded as f32 / duration
+    );
+    eprintln!(
+        "new kv_cache_token_count: {}",
+        ctx.context.get_kv_cache_token_count()
     );
 
     Ok(decoded_string)
