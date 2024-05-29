@@ -9,7 +9,6 @@
 > After squashing, bugs are removed from this list.
 
 - [ ] [SQLite Migrations Are not Applied](./issues/01-sqlite.md)
-- [ ] [Empty Writer Responses](./issues/02-empty-writer-responses.md)
 
 ## MVP 🚀
 
@@ -68,6 +67,7 @@
 - [x] feat(client): sandbox console (Sun May 19, 2024)
 - [x] feat(client): chat interface (Wed May 22, 2024)
 - [x] feat(client): edit user messages (Mon May 27, 2024)
+- [x] feat(client): instruct mode (Wed May 29, 2024)
 
 ### April 2024
 

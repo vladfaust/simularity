@@ -14,7 +14,8 @@ export type Scenario = {
           id: string;
           name: string;
           bg: string;
-          prompt?: string;
+          shortPrompt: string;
+          detailedPrompt?: string;
         },
       ];
     },
@@ -26,7 +27,6 @@ export type Scenario = {
       displayName?: string;
       displayColor: string;
       about: string;
-      pfp?: string;
       personalityPrompt: string;
       traits: string[];
       appearancePrompt: string;

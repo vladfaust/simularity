@@ -4,7 +4,16 @@ import { type Scenario } from "@/lib/types";
 import { DefaultScene } from "../lib/simulation/phaser/defaultScene";
 import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
 import { Deferred, clone, assert, assertFn } from "@/lib/utils";
-import { buildWriterPrompt } from "@/lib/ai/writer";
+import {
+  buildWriterChatHistory,
+  buildWriterPrompt,
+  formatMessages,
+  writerInstructions,
+  writerResponsePrefix,
+  USER_PREFIX,
+  AI_PREFIX,
+  writerGrammar,
+} from "@/lib/ai/writer";
 import { Game } from "../lib/simulation/phaser/game";
 import { d, sqlite, parseSelectResult } from "@/lib/drizzle";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -35,13 +44,15 @@ import { GPT_WRITER } from "@/env";
 import SandboxConsole from "./Simulation/SandboxConsole.vue";
 import { stageCallsToLua, comparesDeltas } from "@/lib/simulation/stage";
 import { useInfiniteScroll, useScroll } from "@vueuse/core";
-import AssistantUpdateVue, {
+import AssistantUpdateVue from "./Simulation/AssistantUpdate.vue";
+import UserUpdateVue from "./Simulation/UserUpdate.vue";
+import EpisodeUpdateVue from "./Simulation/EpisodeUpdate.vue";
+import {
   AssistantUpdate,
-} from "./Simulation/AssistantUpdate.vue";
-import UserUpdateVue, { UserUpdate } from "./Simulation/UserUpdate.vue";
-import EpisodeUpdateVue, {
+  UserUpdate,
   EpisodeUpdate,
-} from "./Simulation/EpisodeUpdate.vue";
+  type Update,
+} from "@/lib/simulation/updates";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -67,9 +78,7 @@ const previousStageState = ref<StageState | undefined | null>();
 /**
  * Simulation updates, ordered from the newest to the oldest.
  */
-const updates = ref<
-  (Raw<AssistantUpdate> | Raw<UserUpdate> | Raw<EpisodeUpdate>)[]
->([]);
+const updates = ref<Raw<Update>[]>([]);
 
 /**
  * The latest (i.e. the first) update, if any.
@@ -80,16 +89,21 @@ const busy = ref(false);
 
 const writer = ref<Gpt | undefined>();
 const deferredWriter = new Deferred<Gpt>();
-const writerPrompt = ref("");
+
+/** The committed writer prompt, always trimmed. */
+const committedWriterPrompt = ref("");
+
 const uncommittedPlayerInput = ref("");
 const uncommittedAssistantText = ref("");
+
+/** The uncommitted writer prompt, always trimmed. */
 const uncommittedWriterPrompt = computed(() => {
   let value = "";
 
   if (uncommittedPlayerInput.value)
-    value += uncommittedPlayerInput.value + "\n";
+    value += USER_PREFIX + uncommittedPlayerInput.value + "\n";
   if (uncommittedAssistantText.value)
-    value += uncommittedAssistantText.value + "\n";
+    value += AI_PREFIX + uncommittedAssistantText.value + "\n";
 
   return value;
 });
@@ -160,7 +174,7 @@ async function commitUncommitted() {
       deferredWriter.promise.then((writer) =>
         writer.commit(newKvCacheKey).then((tokens) => {
           console.debug("Committed to writer", newKvCacheKey, tokens);
-          writerPrompt.value += uncommittedWriterPrompt.value;
+          committedWriterPrompt.value += "\n" + uncommittedWriterPrompt.value;
           uncommittedPlayerInput.value = "";
           uncommittedAssistantText.value = "";
           uncommittedWriterKvCacheKey.value = undefined;
@@ -251,13 +265,20 @@ async function regenerateAssistantUpdate(updateIndex: number) {
       stage.setState(previousStageState.value ?? null);
     });
 
-    let prompt = "";
-    if (uncommittedPlayerInput.value)
-      prompt += uncommittedPlayerInput.value + "\n";
+    uncommittedAssistantText.value = "";
+
+    const prompt =
+      "\n" +
+      (uncommittedWriterPrompt.value
+        ? uncommittedWriterPrompt.value + "\n"
+        : "") +
+      writerResponsePrefix;
+    console.log("Prompt", prompt);
 
     const writerResponse = await deferredWriter.promise.then((writer) =>
       writer.infer(prompt, 128, {
         stopSequences: ["\n"],
+        grammar: writerGrammar,
       }),
     );
 
@@ -345,9 +366,18 @@ async function sendPlayerMessage() {
 
     uncommittedPlayerInput.value = userMessage;
 
+    const prompt =
+      "\n" +
+      (uncommittedWriterPrompt.value
+        ? uncommittedWriterPrompt.value + "\n"
+        : "") +
+      writerResponsePrefix;
+    console.log("Prompt", prompt);
+
     const writerResponse = await deferredWriter.promise.then((writer) =>
-      writer.infer(uncommittedWriterPrompt.value, 128, {
+      writer.infer(prompt, 128, {
         stopSequences: ["\n"],
+        grammar: writerGrammar,
       }),
     );
 
@@ -458,8 +488,8 @@ async function advance() {
 
       updates.value.unshift(episodeUpdate);
 
-      const newWriterPrompt = `${text}\n`;
-      writerPrompt.value += newWriterPrompt;
+      const newWriterPrompt = `\n${AI_PREFIX}${text}`;
+      committedWriterPrompt.value += newWriterPrompt;
       deferredWriter.promise.then((writer) =>
         writer.decode(
           newWriterPrompt,
@@ -475,8 +505,14 @@ async function advance() {
       assistantUpdate.newVariantInProgress.value = true;
       updates.value.unshift(assistantUpdate);
 
+      const prompt = "\n\n" + writerResponsePrefix;
+      console.log("Prompt", prompt);
+
       const writerResponse = await deferredWriter.promise.then((writer) =>
-        writer.infer(undefined, 128, { stopSequences: ["\n"] }),
+        writer.infer(prompt, 128, {
+          stopSequences: ["\n"],
+          grammar: writerGrammar,
+        }),
       );
 
       const { writerUpdate } = await saveUpdatesToDb({
@@ -615,7 +651,7 @@ async function prepareGpts() {
   /**
    * Committed updates, sorted from oldest to newest.
    */
-  const committedUpdates = updates.value.slice(2).reverse();
+  const committedUpdates: Update[] = updates.value.slice(2).reverse();
 
   // If the latest update is an episode update,
   // then it and the previous update are both committed.
@@ -645,42 +681,36 @@ async function prepareGpts() {
     uncommittedAssistantText.value = latestUpdate.chosenVariant.text;
   }
 
-  const textHistory = committedUpdates.map((u) => {
-    if (u instanceof AssistantUpdate || u instanceof UserUpdate) {
-      return u.chosenVariant.text;
-    } else {
-      return u.text;
-    }
-  });
+  const writerFullPromptBuilder = (updates: Update[]) =>
+    writerInstructions +
+    formatMessages(buildWriterPrompt(scenario.value!, updates));
 
-  const writerFullPromptBuilder = () =>
-    buildWriterPrompt(scenario.value!, textHistory) + "\n";
+  committedWriterPrompt.value += writerFullPromptBuilder(committedUpdates);
 
-  writerPrompt.value += writerFullPromptBuilder();
-
-  const writerPartialPromptBuilder = (from: number, to: number) =>
-    textHistory.slice(from, to).join("\n") + "\n";
+  const writerPartialPromptBuilder = (updates: Update[]) =>
+    formatMessages(buildWriterChatHistory(updates));
 
   async function syncGptCache(
     gpt: Gpt,
-    kvCacheKey: string,
-
-    // NOTE: It needs some way to map to the KV cache key.
-    committedUpdateIds: string[],
-
-    fullPromptBuilder: () => string,
-    partialPromptBuilder: (
-      fromCommittedUpdateIndex: number,
-      toCommittedUpdateIndex: number,
-    ) => string,
+    actualKvCacheKey: string,
+    committedUpdates: Update[],
+    fullPromptBuilder: (updates: Update[]) => string,
+    partialPromptBuilder: (updates: Update[]) => string,
   ) {
+    const committedUpdateIds = committedUpdates.map((u) => {
+      if (u instanceof AssistantUpdate || u instanceof UserUpdate) {
+        return u.chosenVariant.id;
+      } else {
+        return u.id;
+      }
+    });
     const headUpdateId = committedUpdateIds.at(-1);
-    const headKvCacheKey = `${simulationId}:${headUpdateId}`;
+    const newKvCacheKey = `${simulationId}:${headUpdateId}`;
 
-    if (kvCacheKey) {
-      console.debug(`${gpt.id} kvCacheKey: ${kvCacheKey}.`);
+    if (actualKvCacheKey) {
+      console.debug(`${gpt.id} kvCacheKey: ${actualKvCacheKey}.`);
       const [kvCacheKeySimulationId, kvCacheKeyUpdateId] =
-        kvCacheKey.split(":");
+        actualKvCacheKey.split(":");
 
       if (!headUpdateId) {
         console.debug(`${gpt.id}: kvCacheKey not empty, but no head; reset…`);
@@ -688,7 +718,7 @@ async function prepareGpts() {
       } else if (kvCacheKeySimulationId !== simulationId) {
         console.debug(`${gpt.id}: kvCacheKey simulation ID mismatch, rebuild…`);
         await gpt.reset();
-        await gpt.decode(fullPromptBuilder(), headKvCacheKey);
+        await gpt.decode(fullPromptBuilder(committedUpdates), newKvCacheKey);
       } else if (kvCacheKeyUpdateId !== headUpdateId) {
         // Try finding the cached update in the list of committed updates.
         // If found, continue decoding from there.
@@ -705,8 +735,14 @@ async function prepareGpts() {
           );
 
           await gpt.decode(
-            partialPromptBuilder(cachedUpdateIndex, committedUpdateIds.length),
-            headKvCacheKey,
+            "\n" +
+              partialPromptBuilder(
+                committedUpdates.slice(
+                  cachedUpdateIndex,
+                  committedUpdateIds.length,
+                ),
+              ),
+            newKvCacheKey,
           );
         } else {
           console.log(
@@ -714,16 +750,16 @@ async function prepareGpts() {
           );
 
           await gpt.reset();
-          await gpt.decode(fullPromptBuilder(), headKvCacheKey);
+          await gpt.decode(fullPromptBuilder(committedUpdates), newKvCacheKey);
         }
       } else {
         console.log(`${gpt.id}: kvCacheKey full match, do nothing.`);
       }
     } else if (headUpdateId) {
       console.log(`${gpt.id}: empty kvCacheKey, full cache rebuild…`);
-      const prompt = fullPromptBuilder();
+      const prompt = fullPromptBuilder(committedUpdates);
       console.debug(prompt);
-      await gpt.decode(prompt, headKvCacheKey);
+      await gpt.decode(prompt, newKvCacheKey);
     } else {
       console.log(`${gpt.id}: empty kvCacheKey, no head; do nothing.`);
     }
@@ -747,13 +783,7 @@ async function prepareGpts() {
         return syncGptCache(
           gpt,
           kvCacheKey,
-          committedUpdates.map((u) => {
-            if (u instanceof AssistantUpdate || u instanceof UserUpdate) {
-              return u.chosenVariant.id;
-            } else {
-              return u.id;
-            }
-          }),
+          committedUpdates,
           writerFullPromptBuilder,
           writerPartialPromptBuilder,
         );
@@ -1062,9 +1092,18 @@ async function inferResponse(
   try {
     uncommittedPlayerInput.value = userMessageContent;
 
+    const prompt =
+      "\n" +
+      (uncommittedWriterPrompt.value
+        ? uncommittedWriterPrompt.value + "\n"
+        : "") +
+      writerResponsePrefix;
+    console.log("Prompt", prompt);
+
     const writerResponse = await deferredWriter.promise.then((writer) =>
-      writer.infer(uncommittedWriterPrompt.value, 128, {
+      writer.infer(prompt, 128, {
         stopSequences: ["\n"],
+        grammar: writerGrammar,
       }),
     );
 
@@ -1257,7 +1296,7 @@ async function onUserUpdateEdit(update: UserUpdate, newText: string) {
   DeveloperConsole(
     :open="consoleModal"
     :writer="writer"
-    :writer-prompt="writerPrompt"
+    :writer-prompt="committedWriterPrompt"
     :uncommitted-writer-prompt="uncommittedWriterPrompt"
     :uncommitted-writer-kv-cache-key="uncommittedWriterKvCacheKey"
     :episode="currentEpisodeConsoleObject"

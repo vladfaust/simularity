@@ -67,7 +67,7 @@ export function buildDirectorPrompt(
       `
 ##### ${scene.name}
 sceneId: ${location.id}/${scene.id}
-${scene.prompt}
+${scene.shortPrompt}
 `.trim(),
     );
 

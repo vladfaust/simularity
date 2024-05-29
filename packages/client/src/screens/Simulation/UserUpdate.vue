@@ -1,26 +1,5 @@
-<script lang="ts">
-/**
- * A user-generated update.
- */
-export class UserUpdate {
-  static is(obj: any): obj is UserUpdate {
-    return obj instanceof UserUpdate;
-  }
-
-  constructor(
-    readonly parentId: string | null,
-    public chosenVariant: Pick<
-      typeof d.writerUpdates.$inferSelect,
-      "id" | "text" | "createdAt"
-    >,
-  ) {
-    this.parentId = parentId;
-  }
-}
-</script>
-
 <script setup lang="ts">
-import { d } from "@/lib/drizzle";
+import { UserUpdate } from "@/lib/simulation/updates";
 import { CircleCheckIcon, CircleSlashIcon, Edit3Icon } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import Contenteditable from "vue-contenteditable";
