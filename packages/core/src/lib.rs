@@ -316,6 +316,7 @@ pub fn infer(
 
             // is it an end of stream?
             if new_token == ctx.context.model.token_eos() {
+                eprintln!("Stopping at EOS token");
                 break;
             }
 
@@ -342,6 +343,13 @@ pub fn infer(
                     if decoded_string.ends_with(stop_sequence) {
                         // Remove the stop sequence.
                         decoded_string.truncate(decoded_string.len() - stop_sequence.len());
+
+                        // "Stopping at sequence \u{a}." (newline).
+                        eprint!("Stopping at sequence ",);
+                        for c in stop_sequence.chars() {
+                            eprint!("{}", c.escape_unicode());
+                        }
+                        eprintln!(".");
 
                         break 'main;
                     }
