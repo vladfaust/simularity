@@ -155,7 +155,8 @@ const modelSettings = ref<InferOptions>({
 
 function consoleEventListener(event: KeyboardEvent) {
   // Detect tilda key press on different keyboard layouts.
-  if (["~", "§", "`", ">", "]"].includes(event.key)) {
+  // FIXME: Enable [, disable when input fields is focused.
+  if (["~", "§", "`", ">"].includes(event.key)) {
     consoleModal.value = !consoleModal.value;
     event.preventDefault();
   }
