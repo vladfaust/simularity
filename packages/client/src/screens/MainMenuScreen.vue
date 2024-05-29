@@ -18,9 +18,11 @@ async function newSimulation() {
     throw new Error(`Scenario not found: ${scenarioId}`);
   }
 
-  const startEpisode = scenario.episodes.at(0);
+  const startEpisode = scenario.episodes.find(
+    (episode) => episode.id === scenario.startEpisodeId,
+  );
   if (!startEpisode) {
-    throw new Error(`Scenario has no episodes: ${scenarioId}`);
+    throw new Error(`Start episode not found: ${scenario.startEpisodeId}`);
   }
 
   const chunk = startEpisode.chunks.at(0);
