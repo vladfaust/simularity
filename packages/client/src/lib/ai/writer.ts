@@ -60,6 +60,11 @@ export function buildWriterPrompt(
               .addAttribute("name", scene.name),
           ),
         )
+        .addChildren(
+          location.connections?.map((connection) =>
+            new XmlNode("Connection").addAttribute("to", connection),
+          ) ?? [],
+        )
         .toString(),
     });
   }

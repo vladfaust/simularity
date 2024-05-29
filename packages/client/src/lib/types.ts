@@ -18,6 +18,7 @@ export type Scenario = {
           detailedPrompt?: string;
         },
       ];
+      connections?: string[];
     },
   ];
   characters: [
