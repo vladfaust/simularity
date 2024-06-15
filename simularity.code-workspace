@@ -17,8 +17,12 @@
       "path": "packages/client"
     },
     {
-      "name": "server",
-      "path": "packages/server"
+      "name": "api",
+      "path": "packages/api"
+    },
+    {
+      "name": "inference",
+      "path": "packages/inference"
     }
   ],
   "settings": {}

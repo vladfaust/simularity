@@ -1,4 +1,16 @@
 import { invoke } from "@tauri-apps/api";
+import { InferOptions } from "../ai";
+
+/**
+ * Load a GPT model from a file path.
+ */
+export async function gptLoadModel(modelPath: string) {
+  return (await invoke("gpt_load_model", {
+    modelPath,
+  })) as {
+    trainContextSize: number;
+  };
+}
 
 /**
  * Find or create a new GPT instance by ID.
@@ -40,21 +52,6 @@ export async function gptDecode(
     newKvCacheKey,
   });
 }
-
-export type InferOptions = {
-  stopSequences?: string[];
-  grammar?: string;
-  temp?: number;
-  topK?: number;
-  minP?: number;
-  topP?: number;
-  tfsZ?: number;
-  typicalP?: number;
-  mirostat?: {
-    tau: number;
-    eta: number;
-  };
-};
 
 /**
  * Predict text. Does not update the KV cache.

@@ -1,7 +1,7 @@
 import { deepEqual } from "fast-equals";
 import { ref } from "vue";
 import { LuaEngine, LuaFactory } from "wasmoon";
-import { z } from "zod";
+import { z } from "zod"; // TODO: Switch to `valibot`.
 import { Scenario } from "../types";
 import { clone, unreachable } from "../utils";
 import { Scene } from "./scene";

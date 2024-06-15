@@ -15,7 +15,7 @@
         "ask": false,
         "confirm": true,
         "message": true,
-        "open": false,
+        "open": true,
         "save": false
       },
       "fs": {

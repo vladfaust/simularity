@@ -31,6 +31,13 @@ pub fn init_model(backend: &GptBackend, model_path: &str) -> Result<GptModel> {
     ))
 }
 
+impl GptModel {
+    /// Get the context size the model was trained on.
+    pub fn n_ctx_train(&self) -> u32 {
+        self.0.n_ctx_train()
+    }
+}
+
 /// A GPT context holds KV cache, thus requiring contiguity in prompts.
 /// Call `clear` to reset the context completely.
 pub struct GptContext<'model> {
@@ -79,6 +86,7 @@ pub fn clear(ctx: &mut GptContext) -> Result<()> {
 }
 
 /// Decode a prompt, updating the KV cache.
+// TODO: Return the new KV cache size.
 pub fn decode(ctx: &mut GptContext, prompt: String) -> Result<()> {
     println!(
         "(before) kv cache token_count: {}, used_cells: {}",
@@ -156,14 +164,14 @@ pub fn decode(ctx: &mut GptContext, prompt: String) -> Result<()> {
     Ok(())
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct MirostatV2 {
     pub tau: f32,
     pub eta: f32,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct InferOptions {
     pub stop_sequences: Option<Vec<String>>,
@@ -417,6 +425,11 @@ pub fn commit(ctx: &mut GptContext) -> Result<usize> {
     let len = ctx.uncommitted_session.len();
     ctx.session.append(&mut ctx.uncommitted_session);
     Ok(len)
+}
+
+/// Get the number of tokens in the KV cache.
+pub fn kv_cache_size(ctx: &GptContext) -> usize {
+    ctx.context.get_kv_cache_token_count() as usize
 }
 
 /// Get the number of tokens in a prompt.

@@ -12,7 +12,7 @@
 
 ## MVP 🚀
 
-- [ ] feat: inference server
+- [x] feat: inference server
 
   - [ ] Payments
 
@@ -23,9 +23,9 @@
 
   - Choose local files
 
-    - [ ] .gguf
+    - [x] .gguf
 
-  - [ ] ~~Choose server~~
+  - [x] ~~Choose server~~
         You can only choose a Simularity Server.
 
   - Download files
@@ -57,6 +57,10 @@
       Simple text generation works fine once you understand the rules.
 
 ## History 📜
+
+### June 2024
+
+- [x] feat: inference server (Sat June 15)
 
 ### May 2024
 

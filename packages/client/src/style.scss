@@ -24,7 +24,11 @@
   }
 
   .btn-md {
-    @apply gap-2 px-4 py-2 font-medium shadow;
+    @apply gap-2 px-4 py-2 font-medium;
+  }
+
+  .btn-sm {
+    @apply gap-1 px-2 py-1 font-medium;
   }
 
   .btn-neutral {
@@ -40,11 +44,11 @@
   }
 
   .btn-success {
-    @apply bg-success-500 text-success-base border-success-600 border;
+    @apply border border-success-600 bg-success-500 text-success-base;
   }
 
   .btn-warn {
-    @apply bg-warn-500 text-warn-base border-warn-600 border;
+    @apply border border-warn-600 bg-warn-500 text-warn-base;
   }
 
   .btn-error {

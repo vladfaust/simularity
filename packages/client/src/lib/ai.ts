@@ -1,14 +1,37 @@
 import { ref } from "vue";
-import {
-  InferOptions,
-  gptCommit,
-  gptDecode,
-  gptFindOrCreate,
-  gptInfer,
-  gptReset,
-  gptTokenCount,
-} from "./tauri";
-import { Deferred, sleep } from "./utils";
+import * as remoteInferenceClient from "./remoteInferenceClient";
+import * as tauri from "./tauri";
+import { Deferred, sleep, unreachable } from "./utils";
+
+export type InferOptions = {
+  stopSequences?: string[];
+  grammar?: string;
+  temp?: number;
+  topK?: number;
+  minP?: number;
+  topP?: number;
+  tfsZ?: number;
+  typicalP?: number;
+  mirostat?: {
+    tau: number;
+    eta: number;
+  };
+};
+
+type Driver =
+  | {
+      type: "remote";
+      baseUrl: string;
+      model: string;
+    }
+  | {
+      type: "local";
+      modelPath: string;
+      contextSize: number;
+      batchSize: number;
+    };
+
+type GptJob = GptDecodeJob | GptInferJob | GptCommitJob;
 
 abstract class Job<T> {
   abstract name: string;
@@ -28,7 +51,22 @@ class GptDecodeJob extends Job<void> {
     readonly prompt: string,
     readonly newKvCacheKey: string,
   ) {
-    super(() => gptDecode(gpt.id, prompt, newKvCacheKey));
+    super(async (): Promise<void> => {
+      switch (gpt.driver.type) {
+        case "local":
+          return tauri.gptDecode(gpt.id, prompt, newKvCacheKey);
+        case "remote":
+          await remoteInferenceClient.gpt.decode(
+            gpt.driver.baseUrl,
+            gpt.id,
+            prompt,
+          );
+
+          return;
+        default:
+          throw unreachable(gpt.driver);
+      }
+    });
   }
 }
 
@@ -41,7 +79,24 @@ class GptInferJob extends Job<string> {
     readonly numEval: number,
     readonly options: InferOptions,
   ) {
-    super(() => gptInfer(gpt.id, prompt, numEval, options));
+    super(async (): Promise<string> => {
+      switch (gpt.driver.type) {
+        case "local":
+          return tauri.gptInfer(gpt.id, prompt, numEval, options);
+        case "remote":
+          return (
+            await remoteInferenceClient.gpt.infer(
+              gpt.driver.baseUrl,
+              gpt.id,
+              prompt,
+              numEval,
+              options,
+            )
+          ).result;
+        default:
+          throw unreachable(gpt.driver);
+      }
+    });
   }
 }
 
@@ -49,52 +104,96 @@ class GptCommitJob extends Job<number> {
   name = "Committing";
 
   constructor(gpt: Gpt, newKvCacheKey: string) {
-    super(() => gptCommit(gpt.id, newKvCacheKey));
+    super(async (): Promise<number> => {
+      switch (gpt.driver.type) {
+        case "local":
+          return tauri.gptCommit(gpt.id, newKvCacheKey);
+        case "remote":
+          return (
+            await remoteInferenceClient.gpt.commit(gpt.driver.baseUrl, gpt.id)
+          ).kvCacheSize;
+        default:
+          throw unreachable(gpt.driver);
+      }
+    });
   }
 }
 
-export type GptJob = GptDecodeJob | GptInferJob | GptCommitJob;
-
+/**
+ * A GPT instance, routing requests to the appropriate backend (local or remote).
+ */
 export class Gpt {
-  readonly jobs = ref<GptJob[]>([]);
-  readonly currentJob = ref<GptJob | null>(null);
-  readonly willReset = ref(false);
+  /**
+   * Create a new remote GPT session.
+   */
+  static async createRemote(
+    inferenceServerBaseUrl: string,
+    model: string,
+  ): Promise<{ gpt: Gpt; kvCacheKey: null }> {
+    const { id } = await remoteInferenceClient.gpt.create(
+      inferenceServerBaseUrl,
+      model,
+    );
 
-  static async findOrCreate(
-    id: string,
+    return {
+      gpt: new Gpt(id, {
+        type: "remote",
+        baseUrl: inferenceServerBaseUrl,
+        model,
+      }),
+      kvCacheKey: null,
+    };
+  }
+
+  /**
+   * Create a new local GPT instance.
+   *
+   * @param localGptId The ID of the local GPT instance.
+   * If the ID already exists, the instance will be reused
+   * (would need to sync the context cache manually).
+   */
+  static async createLocal(
+    localGptId: string,
     modelPath: string,
     contextSize: number,
     batchSize: number,
-  ): Promise<{ gpt: Gpt; kvCacheKey: string }> {
-    const kvCacheKey = await gptFindOrCreate(
-      id,
+  ): Promise<{ gpt: Gpt; kvCacheKey: string | null }> {
+    const kvCacheKey = await tauri.gptFindOrCreate(
+      localGptId,
       modelPath,
       contextSize,
       batchSize,
     );
 
     return {
-      gpt: new Gpt(id, modelPath, contextSize, batchSize),
+      gpt: new Gpt(localGptId, {
+        type: "local",
+        modelPath,
+        contextSize,
+        batchSize,
+      }),
       kvCacheKey,
     };
   }
 
-  private constructor(
-    readonly id: string,
-    readonly modelPath: string,
-    readonly contextSize: number,
-    readonly batchSize: number,
-  ) {}
+  private _id: string;
+  private jobs = ref<GptJob[]>([]);
+  private currentJob = ref<GptJob | null>(null);
+  private willReset = ref(false);
+
+  get id() {
+    return this._id;
+  }
 
   /**
-   * @see {@link gptDecode}.
+   * Decode the prompt, updating the KV cache.
    */
   async decode(prompt: string, newKvCacheKey: string): Promise<void> {
     return this.pushJob(new GptDecodeJob(this, prompt, newKvCacheKey));
   }
 
   /**
-   * @see {@link gptInfer}.
+   * Infer text from the prompt.
    */
   async infer(
     prompt: string | undefined,
@@ -105,14 +204,16 @@ export class Gpt {
   }
 
   /**
-   * @see {@link gptCommit}.
+   * Commit the latest inference result to the GPT's KV cache.
    */
   async commit(newKvCacheKey: string): Promise<number> {
     return this.pushJob(new GptCommitJob(this, newKvCacheKey));
   }
 
   /**
-   * @see {@link gptReset}.
+   * Reset the GPT.
+   * For local GPT, would clear the KV cache.
+   * For remote GPT, would delete the session and create a new one.
    */
   async reset(): Promise<void> {
     if (this.willReset.value) {
@@ -131,14 +232,49 @@ export class Gpt {
     }
 
     this.willReset.value = false;
-    return gptReset(this.id);
+
+    switch (this.driver.type) {
+      case "local":
+        return tauri.gptReset(this.id);
+      case "remote":
+        await remoteInferenceClient.gpt.delete_(this.driver.baseUrl, this.id);
+
+        this._id = (
+          await remoteInferenceClient.gpt.create(
+            this.driver.baseUrl,
+            this.driver.model,
+          )
+        ).id;
+
+        return;
+      default:
+        throw unreachable(this.driver);
+    }
   }
 
   /**
-   * @see {@link gptTokenCount}.
+   * Returns the number of tokens in the prompt.
    */
   async tokenCount(prompt: string): Promise<number> {
-    return await gptTokenCount(this.modelPath, prompt);
+    switch (this.driver.type) {
+      case "local":
+        return tauri.gptTokenCount(this.driver.modelPath, prompt);
+      case "remote":
+        return remoteInferenceClient.gpt.tokenCount(
+          this.driver.baseUrl,
+          this.driver.model,
+          prompt,
+        );
+      default:
+        throw unreachable(this.driver);
+    }
+  }
+
+  private constructor(
+    id: string,
+    readonly driver: Driver,
+  ) {
+    this._id = id;
   }
 
   private async pushJob<T>(job: Job<T>): Promise<T> {

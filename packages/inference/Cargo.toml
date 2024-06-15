@@ -1,0 +1,22 @@
+[package]
+name = "simularity-inference"
+version = "0.1.0"
+description = "Simularity Inference server"
+authors = ["Simularity AI™️ <simularity.ai>"]
+license = "UNLICENSED"
+rust-version = "1.80"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7.5", features = ["json", "macros"] }
+dotenvy = "0.15.7"
+tokio = { version = "1.38.0", features = ["rt-multi-thread"] }
+simularity-core = { path = "../core" }
+log = "0.4.21"
+env_logger = "0.11.3"
+reqwest = { version = "0.12.4", features = ["json"] }
+serde = "1.0.203"
+anyhow = "1.0.86"
+nanoid = "0.4.0"
+reqwest-retry = "0.5.0"
+reqwest-middleware = { version = "0.3.1", features = ["json"] }

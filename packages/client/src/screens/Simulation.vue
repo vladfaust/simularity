@@ -3,7 +3,7 @@ import { type Raw, computed, markRaw, onMounted, onUnmounted, ref } from "vue";
 import { type Scenario } from "@/lib/types";
 import { DefaultScene } from "../lib/simulation/phaser/defaultScene";
 import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
-import { Deferred, clone, assert, assertFn } from "@/lib/utils";
+import { Deferred, clone, assert, assertFn, unreachable } from "@/lib/utils";
 import {
   buildWriterChatHistory,
   buildWriterPrompt,
@@ -25,6 +25,7 @@ import {
   MenuIcon,
   ScrollTextIcon,
   SendHorizontalIcon,
+  ShapesIcon,
   SkipForwardIcon,
   XIcon,
 } from "lucide-vue-next";
@@ -39,8 +40,7 @@ import {
   writeBinaryFile,
 } from "@tauri-apps/api/fs";
 import prettyBytes from "pretty-bytes";
-import { Gpt } from "@/lib/ai";
-import { GPT_WRITER } from "@/env";
+import { Gpt, type InferOptions } from "@/lib/ai";
 import SandboxConsole from "./Simulation/SandboxConsole.vue";
 import { stageCallsToLua, comparesDeltas } from "@/lib/simulation/stage";
 import { useInfiniteScroll, useScroll } from "@vueuse/core";
@@ -53,7 +53,9 @@ import {
   EpisodeUpdate,
   type Update,
 } from "@/lib/simulation/updates";
-import { type InferOptions } from "@/lib/tauri/gpt";
+import Menu from "./Simulation/Menu.vue";
+import router, { routeLocation } from "@/lib/router";
+import * as settings from "@/settings";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -127,6 +129,7 @@ const currentEpisodeConsoleObject = computed(() =>
 );
 
 const showSandboxConsole = ref(false);
+const showMenu = ref(false);
 
 const playerInput = ref("");
 const userInputEnabled = computed(
@@ -706,7 +709,7 @@ async function prepareGpts() {
 
   async function syncGptCache(
     gpt: Gpt,
-    actualKvCacheKey: string,
+    actualKvCacheKey: string | null,
     committedUpdates: Update[],
     fullPromptBuilder: (updates: Update[]) => string,
     partialPromptBuilder: (updates: Update[]) => string,
@@ -782,32 +785,60 @@ async function prepareGpts() {
     return gpt;
   }
 
-  const promises = [];
+  let gpt: Gpt,
+    kvCacheKey: string | null = null;
 
-  promises.push(
-    Gpt.findOrCreate(
-      "writer",
-      GPT_WRITER.modelPath,
-      GPT_WRITER.contextSize,
-      GPT_WRITER.batchSize,
-    )
-      .then(({ gpt, kvCacheKey }) => {
-        writer.value = markRaw(gpt);
+  const driver = (await settings.getGptDriver()) || "remote";
+  switch (driver) {
+    case "remote": {
+      const baseUrl =
+        (await settings.getGptRemoteBaseUrl()) ||
+        import.meta.env.VITE_DEFAULT_REMOTE_INFERENCE_SERVER_BASE_URL;
+      const model =
+        (await settings.getGptRemoteModel()) ||
+        import.meta.env.VITE_DEFAULT_REMOTE_GPT_INFERENCE_MODEL;
 
-        return syncGptCache(
-          gpt,
-          kvCacheKey,
-          committedUpdates,
-          writerFullPromptBuilder,
-          writerPartialPromptBuilder,
-        );
-      })
-      .then((gpt) => {
-        deferredWriter.resolve(gpt);
-      }),
+      const result = await Gpt.createRemote(baseUrl, model);
+      gpt = result.gpt;
+
+      break;
+    }
+
+    case "local": {
+      const model = await settings.getGptLocalModelPath();
+      if (!model) throw new Error("Local model path not set");
+
+      const contextSize = await settings.getGptLocalContextSize();
+      if (!contextSize) throw new Error("Local context size not set");
+
+      const result = await Gpt.createLocal(
+        "writer",
+        model,
+        contextSize,
+        contextSize,
+      );
+
+      gpt = result.gpt;
+      kvCacheKey = result.kvCacheKey;
+
+      break;
+    }
+
+    default:
+      throw unreachable(driver);
+  }
+
+  writer.value = markRaw(gpt);
+
+  await syncGptCache(
+    gpt,
+    kvCacheKey,
+    committedUpdates,
+    writerFullPromptBuilder,
+    writerPartialPromptBuilder,
   );
 
-  await Promise.all(promises);
+  deferredWriter.resolve(gpt);
 }
 
 async function fetchDirectorUpdates(writerUpdateIds: string[]) {
@@ -1194,6 +1225,10 @@ async function onAssistantUpdateEdit(update: AssistantUpdate, newText: string) {
     busy.value = false;
   }
 }
+
+function toMainMenu() {
+  router.push(routeLocation({ name: "MainMenu" }));
+}
 </script>
 
 <template lang="pug">
@@ -1214,11 +1249,16 @@ async function onAssistantUpdateEdit(update: AssistantUpdate, newText: string) {
       #game-screen.h-full.w-full
 
     .absolute.top-0.z-20.flex.h-full.w-full.flex-col.items-center.gap-2
-      .flex.w-full.justify-end.px-2.pt-2
+      .flex.w-full.justify-between.gap-2.px-2.pt-2
+        button.rounded-lg.bg-black.bg-opacity-50.px-2.py-1.shadow.transition-transform.pressable(
+          @click="showMenu = !showMenu"
+        )
+          MenuIcon.text-white(:size="20")
+
         button.rounded-lg.bg-black.bg-opacity-50.px-2.py-1.shadow.transition-transform.pressable(
           @click="showSandboxConsole = !showSandboxConsole"
         )
-          MenuIcon.text-white(v-if="!showSandboxConsole" :size="20")
+          ShapesIcon.text-white(v-if="!showSandboxConsole" :size="20")
           XIcon.text-white(v-else :size="20")
 
       .flex.h-full.w-full.max-w-xl.grow.flex-col.gap-2.overflow-hidden.px-2
@@ -1340,6 +1380,8 @@ async function onAssistantUpdateEdit(update: AssistantUpdate, newText: string) {
     :stage-state-delta="stage?.delta(previousStageState) || []"
     @close="consoleModal = false"
   )
+
+  Menu(:open="showMenu" @close="showMenu = false" @to-main-menu="toMainMenu")
 </template>
 
 <style lang="scss" scoped>

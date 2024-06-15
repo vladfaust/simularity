@@ -3,13 +3,13 @@ import { RouterLink, useRouter } from "vue-router";
 import { routeLocation } from "../lib/router";
 import { d } from "@/lib/drizzle";
 import { type Scenario } from "@/lib/types";
-import { DEFAULT_SCENARIO_ID } from "@/env";
 import { eq } from "drizzle-orm";
+import { BookMarkedIcon, BookOpenIcon, SettingsIcon } from "lucide-vue-next";
 
 const router = useRouter();
 
 async function newSimulation() {
-  const scenarioId = DEFAULT_SCENARIO_ID;
+  const scenarioId = import.meta.env.VITE_DEFAULT_SCENARIO_ID;
 
   const scenario: Scenario | undefined = await fetch(
     `/scenarios/${scenarioId}/manifest.json`,
@@ -82,11 +82,26 @@ async function newSimulation() {
 <template lang="pug">
 .grid.h-screen.place-items-center
   .flex.flex-col.gap-2
-    button.btn.btn-md.transition-transform.pressable(@click="newSimulation") New game
+    button.btn.btn-md.transition-transform.pressable(@click="newSimulation")
+      BookOpenIcon(:size="20")
+      span New game
     RouterLink.btn-md.btn.transition-transform.pressable(
       :to="routeLocation({ name: 'LoadSimulations' })"
-    ) Load game
+    )
+      BookMarkedIcon(:size="20")
+      span Load game
     RouterLink.btn-md.btn.transition-transform.pressable(
-      :to="routeLocation({ name: 'GnbfTester' })"
-    ) GNBF tester
+      :to="routeLocation({ name: 'Settings' })"
+    )
+      SettingsIcon(:size="20")
+      span Settings
+    //- RouterLink.btn-md.btn.transition-transform.pressable(
+    //-   :to="routeLocation({ name: 'GnbfTester' })"
+    //- ) GNBF tester
 </template>
+
+<style lang="scss" scoped>
+.btn {
+  @apply rounded-lg border;
+}
+</style>

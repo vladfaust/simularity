@@ -6,11 +6,13 @@ import {
 } from "vue-router";
 import LoadSimulations from "../screens/LoadSimulations.vue";
 import MainMenu from "../screens/MainMenuScreen.vue";
+import Settings from "../screens/Settings.vue";
 import Shutdown from "../screens/Shutdown.vue";
 import Simulation from "../screens/Simulation.vue";
 
 export type RouteName =
   | "MainMenu"
+  | "Settings"
   | "LoadSimulations"
   | "Simulation"
   | "GnbfTester"
@@ -19,6 +21,7 @@ export type RouteName =
 export function routeLocation(
   args:
     | { name: "MainMenu" }
+    | { name: "Settings" }
     | { name: "LoadSimulations" }
     | { name: "Simulation"; params: { simulationId: string } }
     | { name: "GnbfTester" }
@@ -32,6 +35,11 @@ const routes: Array<RouteRecordRaw> = [
     path: "/",
     name: "MainMenu" satisfies RouteName,
     component: MainMenu,
+  },
+  {
+    path: "/settings",
+    name: "Settings" satisfies RouteName,
+    component: Settings,
   },
   {
     path: "/simulations/load",

@@ -91,6 +91,8 @@ impl AppState {
 fn main() {
     tauri::Builder::default()
         .manage(AppState::new())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_persisted_scope::init())
         .setup(|app| {
             let sqlite_uri = app
                 .path_resolver()
@@ -101,6 +103,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::gpt::gpt_load_model,
             commands::gpt::gpt_find_or_create,
             commands::gpt::gpt_reset,
             commands::gpt::gpt_decode,

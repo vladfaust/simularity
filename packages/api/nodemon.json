@@ -1,0 +1,10 @@
+{
+  "watch": [
+    "src",
+    ".env",
+    "package.json",
+    "tsconfig.json"
+  ],
+  "ext": "*",
+  "exec": "npm run build && npx nf start web"
+}
