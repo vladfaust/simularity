@@ -1,4 +1,5 @@
 import { InferOptions } from "../ai";
+import { abortSignal } from "../utils";
 
 export async function create(
   baseUrl: string,
@@ -23,6 +24,7 @@ export async function decode(
   baseUrl: string,
   gptSessionId: string,
   prompt: string,
+  options: { timeout: number },
 ): Promise<{
   decodingId: string;
   kvCacheSize: number;
@@ -33,6 +35,7 @@ export async function decode(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ prompt }),
+    signal: abortSignal(options.timeout),
   });
 
   if (!response.ok) {
@@ -50,7 +53,8 @@ export async function infer(
   gptSessionId: string,
   prompt: string | undefined,
   nEval: number,
-  options: InferOptions,
+  inferOptions: InferOptions,
+  options: { timeout: number },
 ): Promise<{
   inferenceId: string;
   result: string;
@@ -61,7 +65,8 @@ export async function infer(
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ prompt, nEval, options }),
+    body: JSON.stringify({ prompt, nEval, options: inferOptions }),
+    signal: abortSignal(options.timeout),
   });
 
   if (!response.ok) {

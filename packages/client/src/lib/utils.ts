@@ -103,3 +103,12 @@ export function assertFn<T>(
   if (!call(value)) throw new Error(message || "Assertion failed");
   return value;
 }
+
+/**
+ * Create an AbortSignal that will be aborted after the given timeout.
+ */
+export function abortSignal(timeout: number) {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), timeout);
+  return controller.signal;
+}

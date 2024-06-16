@@ -1,3 +1,4 @@
+import { toMilliseconds } from "duration-fns";
 import { ref } from "vue";
 import * as remoteInferenceClient from "./remoteInferenceClient";
 import * as tauri from "./tauri";
@@ -60,6 +61,7 @@ class GptDecodeJob extends Job<void> {
             gpt.driver.baseUrl,
             gpt.id,
             prompt,
+            { timeout: toMilliseconds({ minutes: 2 }) },
           );
 
           return;
@@ -91,6 +93,7 @@ class GptInferJob extends Job<string> {
               prompt,
               numEval,
               options,
+              { timeout: toMilliseconds({ minutes: 2 }) },
             )
           ).result;
         default:
