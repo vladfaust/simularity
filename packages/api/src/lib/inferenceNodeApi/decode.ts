@@ -20,7 +20,7 @@ export async function decode(
   baseUrl: string,
   args: { sessionId: string; prompt: string },
   options: { timeout: number } = {
-    timeout: toMilliseconds({ minutes: 1 }),
+    timeout: toMilliseconds({ minutes: 2 }),
   },
 ): Promise<v.InferOutput<typeof ResponseSchema>> {
   let response;

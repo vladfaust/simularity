@@ -47,7 +47,7 @@ export async function infer(
     options: v.InferOutput<typeof InferOptions>;
   },
   options: { timeout: number } = {
-    timeout: toMilliseconds({ minutes: 1 }),
+    timeout: toMilliseconds({ minutes: 2 }),
   },
 ): Promise<v.InferOutput<typeof ResponseSchema>> {
   let response;
