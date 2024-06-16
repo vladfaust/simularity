@@ -38,8 +38,8 @@ pub async fn handler(
     let start = std::time::Instant::now();
     let kv_cache_size = tokio::task::spawn_blocking(move || {
         let mut gpt = arc.lock().unwrap();
-        let _ = simularity_core::decode(&mut gpt.context, req.prompt.clone());
-        simularity_core::kv_cache_size(&gpt.context)
+        let _ = gpt.context.decode(req.prompt.clone());
+        gpt.context.kv_cache_size()
     })
     .await?;
 

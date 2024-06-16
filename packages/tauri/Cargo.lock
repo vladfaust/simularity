@@ -81,22 +81,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25bdb32cbbdce2b519a9cd7df3a678443100e265d5e25ca763b7572a5104f5f3"
 
 [[package]]
-name = "app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "rusqlite",
- "rusqlite_migration",
- "serde",
- "serde_json",
- "simularity-core",
- "tauri",
- "tauri-build",
- "tauri-plugin-persisted-scope",
- "tauri-plugin-store",
-]
-
-[[package]]
 name = "atk"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2680,6 +2664,22 @@ dependencies = [
  "encoding_rs",
  "llama-cpp-2",
  "serde",
+]
+
+[[package]]
+name = "simularity-tauri"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rusqlite",
+ "rusqlite_migration",
+ "serde",
+ "serde_json",
+ "simularity-core",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-persisted-scope",
+ "tauri-plugin-store",
 ]
 
 [[package]]

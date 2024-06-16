@@ -1,5 +1,5 @@
-use app::static_box;
-use simularity_core::GptModel;
+use simularity_core::gpt;
+use simularity_tauri::static_box;
 use std::sync::Arc;
 use tauri::async_runtime::Mutex;
 
@@ -61,7 +61,7 @@ pub async fn gpt_find_or_create(
         model_path,
         context_size,
         batch_size,
-        context: simularity_core::GptContext::new(
+        context: gpt::Context::new(
             &state.gpt_backend,
             model_ref,
             context_size,
@@ -96,9 +96,7 @@ pub async fn gpt_reset(
     let mut gpt = arc.lock().await;
 
     gpt.kv_cache_key.clear();
-
-    // TODO: Call `gpt.reset` instead.
-    simularity_core::clear(&mut gpt.context).map_err(tauri::InvokeError::from_anyhow)
+    gpt.context.reset().map_err(tauri::InvokeError::from_anyhow)
 }
 
 #[tauri::command]
@@ -129,9 +127,10 @@ pub async fn gpt_decode(
     let inference_lock = state.inference_mutex.lock().await;
     let mut gpt = arc.lock().await;
 
-    // TODO: Call `gpt.decode` instead.
-    let result =
-        simularity_core::decode(&mut gpt.context, prompt).map_err(tauri::InvokeError::from_anyhow);
+    let result = gpt
+        .context
+        .decode(prompt)
+        .map_err(tauri::InvokeError::from_anyhow);
     gpt.kv_cache_key = new_kv_cache_key.to_string();
 
     drop(inference_lock);
@@ -144,7 +143,7 @@ pub async fn gpt_infer(
     gpt_id: &str,
     prompt: Option<&str>,
     n_eval: usize,
-    options: simularity_core::InferOptions,
+    options: gpt::InferOptions,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, tauri::InvokeError> {
     println!(
@@ -167,7 +166,9 @@ pub async fn gpt_infer(
     let inference_lock = state.inference_mutex.lock().await;
     let mut gpt = arc.lock().await;
 
-    let result = simularity_core::infer(&mut gpt.context, prompt, n_eval, options)
+    let result = gpt
+        .context
+        .infer(prompt, n_eval, options)
         .map_err(tauri::InvokeError::from_anyhow);
 
     drop(inference_lock);
@@ -197,7 +198,10 @@ pub async fn gpt_commit(
     drop(hash_map_lock);
     let mut gpt = arc.lock().await;
 
-    let result = simularity_core::commit(&mut gpt.context).map_err(tauri::InvokeError::from_anyhow);
+    let result = gpt
+        .context
+        .commit()
+        .map_err(tauri::InvokeError::from_anyhow);
     gpt.kv_cache_key = new_kv_cache_key.to_string();
 
     result
@@ -211,13 +215,13 @@ pub async fn gpt_token_count(
     state: tauri::State<'_, AppState>,
 ) -> Result<usize, tauri::InvokeError> {
     let model_ref = get_or_create_model_ref(model_path, &state).await?;
-    Ok(simularity_core::token_count(model_ref, prompt))
+    Ok(model_ref.token_count(prompt))
 }
 
 async fn get_or_create_model_ref(
     model_path: String,
     state: &AppState,
-) -> Result<&'static GptModel, tauri::InvokeError> {
+) -> Result<&'static gpt::Model, tauri::InvokeError> {
     let mut locked = state.gpt_models.lock().await;
 
     if let Some(model) = locked.get(&model_path) {
@@ -226,7 +230,7 @@ async fn get_or_create_model_ref(
 
     let (model_box, model_ref) = unsafe {
         static_box(
-            simularity_core::init_model(&state.gpt_backend, &model_path)
+            gpt::Model::new(&state.gpt_backend, &model_path)
                 .map_err(tauri::InvokeError::from_anyhow)?,
         )
     };

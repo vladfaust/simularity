@@ -3,7 +3,7 @@
     windows_subsystem = "windows"
 )]
 
-use simularity_core::{GptBackend, GptContext, GptModel};
+use simularity_core::gpt;
 use std::{collections::HashMap, sync::Arc};
 use tauri::async_runtime::Mutex;
 
@@ -14,18 +14,18 @@ struct GptInstance {
     pub model_path: String,
     pub context_size: u32,
     pub batch_size: usize,
-    pub context: GptContext<'static>,
+    pub context: gpt::Context<'static>,
 
     /// A key uniquely mapped to an actual KV cache value.
     pub kv_cache_key: String,
 }
 
 struct AppState {
-    gpt_backend: GptBackend,
+    gpt_backend: gpt::Backend,
 
     /// {model_path => model tuple}.
     /// TODO: Hash by actual model hash (e.g. sha256 of the model file).
-    pub gpt_models: Mutex<HashMap<String, (Box<GptModel>, &'static GptModel)>>,
+    pub gpt_models: Mutex<HashMap<String, (Box<gpt::Model>, &'static gpt::Model)>>,
 
     /// {id => GptInstance}.
     pub gpt_instances: Mutex<HashMap<String, Arc<Mutex<GptInstance>>>>,
@@ -78,8 +78,7 @@ fn migrate_up(sqlite_uri: &str) {
 impl AppState {
     pub fn new() -> Self {
         Self {
-            gpt_backend: simularity_core::init_backend()
-                .expect("unable to create the llama backend"),
+            gpt_backend: gpt::Backend::new().expect("unable to create the llama backend"),
             gpt_models: Mutex::new(HashMap::new()),
             gpt_instances: Mutex::new(HashMap::new()),
             inference_mutex: Mutex::new(()),

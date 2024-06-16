@@ -27,8 +27,8 @@ pub async fn handler(
 
     let kv_cache_size = tokio::task::spawn_blocking(move || {
         let mut gpt = arc.lock().unwrap();
-        let _ = simularity_core::commit(&mut gpt.context);
-        simularity_core::kv_cache_size(&gpt.context)
+        let _ = gpt.context.commit();
+        gpt.context.kv_cache_size()
     })
     .await?;
 

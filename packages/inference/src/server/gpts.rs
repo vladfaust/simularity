@@ -2,7 +2,7 @@ use axum::{
     routing::{delete, post},
     Router,
 };
-use simularity_core::{GptBackend, GptContext, GptModel};
+use simularity_core::gpt;
 use std::{collections::HashMap, sync::Arc};
 
 use super::AppState;
@@ -15,12 +15,12 @@ pub mod infer;
 pub mod token_count;
 
 pub struct GptInstance {
-    pub context: GptContext<'static>,
+    pub context: gpt::Context<'static>,
 }
 
 pub struct GptState {
-    pub backend: GptBackend,
-    pub model: &'static GptModel,
+    pub backend: gpt::Backend,
+    pub model: &'static gpt::Model,
 
     /// {id => GptInstance}.
     pub instances: tokio::sync::Mutex<HashMap<String, Arc<std::sync::Mutex<GptInstance>>>>,
@@ -28,14 +28,12 @@ pub struct GptState {
 
 impl GptState {
     pub fn new(model_path: &str) -> Self {
-        let gpt_backend =
-            simularity_core::init_backend().expect("unable to create the llama backend");
+        let gpt_backend = gpt::Backend::new().expect("unable to create the llama backend");
 
         // SAFETY: The model lives throughout the lifetime of the application.
         let gpt_model = {
             std::boxed::Box::leak(Box::new(
-                simularity_core::init_model(&gpt_backend, model_path)
-                    .expect("unable to create GPT model"),
+                gpt::Model::new(&gpt_backend, model_path).expect("unable to create GPT model"),
             ))
         };
 

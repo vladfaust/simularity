@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use simularity_core::InferOptions;
+use simularity_core::gpt::InferOptions;
 use std::sync::Arc;
 
 #[derive(serde::Deserialize)]
@@ -46,12 +46,8 @@ pub async fn handler(
     let result = tokio::task::spawn_blocking(move || {
         let mut gpt = arc.lock().unwrap();
 
-        simularity_core::infer(
-            &mut gpt.context,
-            req.prompt.as_deref(),
-            req.n_eval,
-            req.options.clone(),
-        )
+        gpt.context
+            .infer(req.prompt.as_deref(), req.n_eval, req.options.clone())
     })
     .await??;
 

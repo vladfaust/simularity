@@ -1,6 +1,7 @@
 use super::GptInstance;
 use crate::server::{AppError, AppState};
 use axum::{extract::State, Json};
+use simularity_core::gpt;
 use std::sync::Arc;
 
 #[derive(serde::Deserialize)]
@@ -28,7 +29,7 @@ pub async fn handler(
     let batch_size = context_size;
 
     let instance = GptInstance {
-        context: simularity_core::GptContext::new(
+        context: gpt::Context::new(
             &state.gpt.backend,
             state.gpt.model,
             context_size as u32,
