@@ -1261,10 +1261,10 @@ function toMainMenu() {
           ShapesIcon.text-white(v-if="!showSandboxConsole" :size="20")
           XIcon.text-white(v-else :size="20")
 
-      .flex.h-full.w-full.max-w-xl.grow.flex-col.gap-2.overflow-hidden.px-2
-        ._updates-container.flex.h-full.w-full.flex-col-reverse.gap-2.overflow-y-scroll(
+      .flex.h-full.w-full.max-w-xl.grow.flex-col.justify-end.gap-2.overflow-hidden.px-2
+        ._updates-container.flex.w-full.flex-col-reverse.gap-2.overflow-y-scroll(
           ref="updatesRef"
-          :style="{ '-webkit-mask-size': `100% calc(50% - ${updatesScrollOffsetY}px)` }"
+          :style="{ '-webkit-mask-size': `100% calc(100% - ${updatesScrollOffsetY}px)`, 'max-height': `40%` }"
         )
           template(v-for="update, i of updates" :key="update.parentId")
             AssistantUpdateVue(
@@ -1390,7 +1390,7 @@ function toMainMenu() {
     linear,
     left top,
     left bottom,
-    color-stop(20%, rgba(0, 0, 0, 0)),
+    color-stop(0%, rgba(0, 0, 0, 0)),
     color-stop(50%, rgba(0, 0, 0, 1))
   );
 
