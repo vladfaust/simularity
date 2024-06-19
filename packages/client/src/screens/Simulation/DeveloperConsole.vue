@@ -15,7 +15,6 @@ defineProps<{
   writer: Gpt | undefined;
   writerPrompt: string;
   uncommittedWriterPrompt: string;
-  uncommittedWriterKvCacheKey: string | undefined;
   episode: {
     id: string;
     chunks: {
@@ -69,7 +68,6 @@ Dialog.relative.z-50(
                   span(v-if="episode")
                     b Chunk:&nbsp;
                     | {{ episode.chunks.current }}/{{ episode.chunks.total }}
-                  code {{ { uncommittedWriterKvCacheKey } }}
 
               //- Stage state.
               .flex.flex-col.overflow-hidden.rounded-lg(class="bg-black/50")

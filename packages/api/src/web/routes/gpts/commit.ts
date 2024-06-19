@@ -46,10 +46,7 @@ export default Router()
     }
 
     const inferenceNodeResponse = await pRetry(
-      () =>
-        inferenceNodeApi.commit(inferenceNode.baseUrl, {
-          sessionId: gptSession.id,
-        }),
+      () => inferenceNodeApi.commit(inferenceNode.baseUrl, gptSession.id),
       {
         retries: 2,
         onFailedAttempt: (error) => {

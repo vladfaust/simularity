@@ -2,6 +2,7 @@ import { StageCall } from "./simulation/stage";
 
 export type Scenario = {
   name: string;
+  instructions: string;
   globalPrompt: string;
   locations: [
     {

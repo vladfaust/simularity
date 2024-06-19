@@ -2,6 +2,10 @@ import chalk from "chalk";
 
 chalk.level = 2;
 
+function debug(...args: any[]) {
+  console.debug(chalk.gray("[D]"), ...args);
+}
+
 function log(...args: any[]) {
   console.log(chalk.cyan("[L]"), ...args);
 }
@@ -19,6 +23,7 @@ function error(...args: any[]) {
 }
 
 export const konsole = {
+  debug,
   log,
   info,
   warn,

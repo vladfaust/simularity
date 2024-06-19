@@ -15,6 +15,7 @@ pub mod infer;
 pub mod token_count;
 
 pub struct GptInstance {
+    pub model: &'static gpt::Model,
     pub context: gpt::Context<'static>,
 }
 

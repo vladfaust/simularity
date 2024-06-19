@@ -40,9 +40,9 @@ const ResponseSchema = v.object({
 
 export async function infer(
   baseUrl: string,
+  sessionId: string,
   args: {
-    sessionId: string;
-    prompt?: string;
+    prompt: string | null;
     nEval: number;
     options: v.InferOutput<typeof InferOptions>;
   },
@@ -52,17 +52,13 @@ export async function infer(
 ): Promise<v.InferOutput<typeof ResponseSchema>> {
   let response;
   try {
-    response = await fetch(`${baseUrl}/gpts/${args.sessionId}/infer`, {
+    response = await fetch(`${baseUrl}/gpts/${sessionId}/infer`, {
       method: "POST",
       headers: {
         Authorization: `Token ${env.INFERENCE_NODE_SECRET}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        prompt: args.prompt,
-        nEval: args.nEval,
-        options: args.options,
-      }),
+      body: JSON.stringify(args),
       signal: abortSignal(options.timeout),
     });
   } catch (e: any) {

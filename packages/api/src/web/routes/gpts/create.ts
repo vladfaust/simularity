@@ -12,10 +12,17 @@ import { findInferenceNode } from "./_common.js";
 
 const RequestBodySchema = v.object({
   model: v.string(),
+
+  /**
+   * If set, would try loading the GPT session
+   * from prompt's hash, otherwise decode from scratch.
+   */
+  initialPrompt: v.optional(v.string()),
 });
 
 const ResponseBodySchema = v.object({
   id: v.string(),
+  sessionLoaded: v.optional(v.boolean()),
 });
 
 /**
@@ -41,8 +48,12 @@ export default Router()
     }
 
     const gptSessionId = randomUUID();
-    await pRetry(
-      () => inferenceNodeApi.create(node.baseUrl, { id: gptSessionId }),
+    const inferenceNodeResponse = await pRetry(
+      () =>
+        inferenceNodeApi.create(node.baseUrl, {
+          id: gptSessionId,
+          initialPrompt: body.output.initialPrompt,
+        }),
       {
         retries: 2,
         onFailedAttempt: (error) => {
@@ -72,5 +83,10 @@ export default Router()
     )[0];
     konsole.info("Created GPT session", session);
 
-    return res.status(201).json(parseTyped(ResponseBodySchema, session));
+    return res.status(201).json(
+      parseTyped(ResponseBodySchema, {
+        ...session,
+        sessionLoaded: inferenceNodeResponse.sessionLoaded ?? undefined,
+      }),
+    );
   });

@@ -16,7 +16,7 @@ import {
 } from "../inferenceNodes/common.js";
 
 const RequestBodySchema = v.object({
-  prompt: v.optional(v.string()),
+  prompt: v.nullable(v.string()),
   nEval: v.number(),
   options: InferOptions,
 });
@@ -68,8 +68,7 @@ export default Router()
 
     const inferenceNodeResponse = await pRetry(
       () =>
-        inferenceNodeApi.infer(inferenceNode.baseUrl, {
-          sessionId: gptSession.id,
+        inferenceNodeApi.infer(inferenceNode.baseUrl, gptSession.id, {
           prompt: body.output.prompt,
           nEval: body.output.nEval,
           options: body.output.options,

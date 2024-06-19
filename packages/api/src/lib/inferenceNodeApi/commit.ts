@@ -11,11 +11,11 @@ const ResponseSchema = v.object({
 
 export async function commit(
   baseUrl: string,
-  args: { sessionId: string },
+  sessionId: string,
 ): Promise<v.InferOutput<typeof ResponseSchema>> {
   let response;
   try {
-    response = await fetch(`${baseUrl}/gpts/${args.sessionId}/commit`, {
+    response = await fetch(`${baseUrl}/gpts/${sessionId}/commit`, {
       method: "POST",
       headers: {
         Authorization: `Token ${env.INFERENCE_NODE_SECRET}`,

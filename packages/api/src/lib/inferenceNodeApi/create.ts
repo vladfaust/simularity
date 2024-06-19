@@ -1,10 +1,22 @@
 import { env } from "@/env.js";
 import { FetchError, ResponseOkError } from "../errors.js";
+import { v } from "../valibot.js";
+
+const ResponseSchema = v.object({
+  /**
+   * Whether was the session loaded, if initial prompt is set.
+   * False means a session file was not found.
+   */
+  sessionLoaded: v.nullable(v.boolean()),
+});
 
 export async function create(
   baseUrl: string,
-  args: { id: string },
-): Promise<void> {
+  args: {
+    id: string;
+    initialPrompt: string | undefined;
+  },
+): Promise<v.InferOutput<typeof ResponseSchema>> {
   let response;
   try {
     response = await fetch(`${baseUrl}/gpts`, {
@@ -13,9 +25,7 @@ export async function create(
         Authorization: `Token ${env.INFERENCE_NODE_SECRET}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        id: args.id,
-      }),
+      body: JSON.stringify(args),
     });
   } catch (e: any) {
     throw new FetchError(e.message);
@@ -25,5 +35,5 @@ export async function create(
     throw await ResponseOkError.from(response);
   }
 
-  return;
+  return await response.json().then((x) => v.parse(ResponseSchema, x));
 }

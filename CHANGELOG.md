@@ -61,6 +61,7 @@
 ### June 2024
 
 - [x] feat: inference server (Sat June 15)
+- [x] feat: GPT session caching (Wed June 19)
 
 ### May 2024
 

@@ -3,11 +3,11 @@ import { FetchError, ResponseOkError } from "../errors.js";
 
 export async function delete_(
   baseUrl: string,
-  args: { sessionId: string },
+  sessionId: string,
 ): Promise<void> {
   let response;
   try {
-    response = await fetch(`${baseUrl}/gpts/${args.sessionId}`, {
+    response = await fetch(`${baseUrl}/gpts/${sessionId}`, {
       method: "DELETE",
       headers: {
         Authorization: `Token ${env.INFERENCE_NODE_SECRET}`,

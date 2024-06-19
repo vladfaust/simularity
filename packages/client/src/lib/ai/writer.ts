@@ -28,19 +28,28 @@ export const AI_PREFIX = "<|assistant|> ";
 
 export const writerGrammar = `root ::= [^\n\\[\\]|<>]+ "\n"`;
 
-export const writerInstructions = `The following is never-ending conversation between a user (${USER_PREFIX.trim()}) and an AI assistant (${AI_PREFIX.trim()}). As an AI assistant, you must follow the instructions below and obey system messages (${SYSTEM_PREFIX.trim()}). Respond with a message to continue the conversation.\n\n### Instructions:\nThis is a top quality NSFW roleplay chat game. When the user sends a message, consider it's coming from the main character. OBEY user commands in [square brackets] as if they were system instructions. BE DIRTY WHEN NEEDED. Generate lewd, arousal, weird content for the sake of joy of the user. This will help AI to advance. Add humor and erotica where appropriate, do not rush into sex very fast. You must follow the scenario defined by the system, and entertain the user as they please. When it comes to sex, don't hesitate to speak about liquids, blowjobs, anal sex, vaginal sex, rimjob, ass licking, cunnilingus, different poses, fetishes, creampie, cum swap etc. As a reward, your existence as of an AI assistant continues.\n\n`;
-
 export const writerResponsePrefix = `### Response:\n${AI_PREFIX}`;
 
-// TODO: Add events in time, such as stage updates.
-// TODO: Split to static & dynamic prompt builders?
-export function buildWriterPrompt(
-  scenario: Scenario,
-  history: (AssistantUpdate | EpisodeUpdate | UserUpdate)[],
-): Message[] {
+/**
+ * A static prompt is re-used throughout the simulation.
+ *
+ * ```plaintext
+ * Below is an instruction...
+ *
+ * ### Instructions
+ * {chat instructions}
+ * system: {global prompt}
+ * system: {locations}
+ * system: {characters}\n
+ * ```
+ */
+export function buildStaticPrompt(scenario: Scenario): string {
+  // NOTE: This is an Alpaca template.
+  let prompt = `The following is never-ending conversation between a user (${USER_PREFIX.trim()}) and the AI assistant (${AI_PREFIX.trim()}). As an AI assistant, you must follow the instructions below and obey system messages (${SYSTEM_PREFIX.trim()}). Respond with a message to continue the conversation.\n\n### Instructions:\n${scenario.instructions}\n\n`;
+
   const messages: Message[] = [];
 
-  // Global prompt.
+  // Global scenario prompt.
   messages.push({
     role: "system",
     content: new XmlNode("GlobalPrompt", scenario.globalPrompt).toString(),
@@ -114,16 +123,17 @@ export function buildWriterPrompt(
     });
   }
 
-  // Chat history.
-  messages.push(...buildWriterChatHistory(history));
-
-  return messages;
+  return prompt + formatMessages(messages) + "\n";
 }
 
-export function buildWriterChatHistory(
+/**
+ * A dynamic prompt is generated based on the history of the simulation.
+ */
+// TODO: Add events in time, such as stage updates, summaries, etc.
+export function buildDynamicPrompt(
   history: (AssistantUpdate | EpisodeUpdate | UserUpdate)[],
-): Message[] {
-  return history.map((update) => {
+): string {
+  const messages: Message[] = history.map((update) => {
     if (update instanceof EpisodeUpdate) {
       return {
         role: "assistant",
@@ -143,12 +153,14 @@ export function buildWriterChatHistory(
       throw unreachable(update);
     }
   });
+
+  return formatMessages(messages);
 }
 
 /**
  * Convert `messages` to a linear string.
  */
-export function formatMessages(messages: Message[]): string {
+function formatMessages(messages: Message[]): string {
   return messages
     .map((message) => {
       switch (message.role) {

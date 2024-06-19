@@ -30,3 +30,23 @@ export function abortSignal(timeout: number) {
   setTimeout(() => controller.abort(), timeout);
   return controller.signal;
 }
+
+/**
+ * Return a hash digest of the given data.
+ */
+export async function digest(
+  data: string,
+  algorithm: AlgorithmIdentifier,
+): Promise<Buffer> {
+  const buffer = new TextEncoder().encode(data);
+  return Buffer.from(await crypto.subtle.digest(algorithm, buffer));
+}
+
+/**
+ * Return a hex string representation of a buffer (without leading `0x`).
+ */
+export function bufferToHex(buffer: Uint8Array): string {
+  return Array.prototype.map
+    .call(buffer, (x) => x.toString(16).padStart(2, "0"))
+    .join("");
+}

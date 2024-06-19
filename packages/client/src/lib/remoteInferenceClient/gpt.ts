@@ -1,40 +1,47 @@
-import { InferOptions } from "../ai";
+import { InferenceOptions } from "../ai";
 import { abortSignal } from "../utils";
 
 export async function create(
   baseUrl: string,
-  model: string,
-): Promise<{ id: string }> {
+  body: {
+    model: string;
+    initialPrompt?: string;
+  },
+): Promise<{ id: string; sessionLoaded?: boolean }> {
   const response = await fetch(`${baseUrl}/gpts`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     throw new Error(`Failed to create GPT session: ${response.statusText}`);
   }
 
-  return (await response.json()) as { id: string };
+  return (await response.json()) as { id: string; sessionLoaded: boolean };
 }
 
 export async function decode(
   baseUrl: string,
-  gptSessionId: string,
-  prompt: string,
+  gptId: string,
+  body: {
+    prompt: string;
+    dumpSession: boolean;
+  },
   options: { timeout: number },
 ): Promise<{
   decodingId: string;
   kvCacheSize: number;
+  sessionDumpSize?: number;
 }> {
-  const response = await fetch(`${baseUrl}/gpts/${gptSessionId}/decode`, {
+  const response = await fetch(`${baseUrl}/gpts/${gptId}/decode`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify(body),
     signal: abortSignal(options.timeout),
   });
 
@@ -50,22 +57,24 @@ export async function decode(
 
 export async function infer(
   baseUrl: string,
-  gptSessionId: string,
-  prompt: string | undefined,
-  nEval: number,
-  inferOptions: InferOptions,
+  gptId: string,
+  body: {
+    prompt: string | null;
+    nEval: number;
+    options: InferenceOptions;
+  },
   options: { timeout: number },
 ): Promise<{
   inferenceId: string;
   result: string;
   kvCacheSize: number;
 }> {
-  const response = await fetch(`${baseUrl}/gpts/${gptSessionId}/infer`, {
+  const response = await fetch(`${baseUrl}/gpts/${gptId}/infer`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ prompt, nEval, options: inferOptions }),
+    body: JSON.stringify(body),
     signal: abortSignal(options.timeout),
   });
 
@@ -82,9 +91,9 @@ export async function infer(
 
 export async function commit(
   baseUrl: string,
-  gptSessionId: string,
+  gptId: string,
 ): Promise<{ commitId: string; kvCacheSize: number }> {
-  const response = await fetch(`${baseUrl}/gpts/${gptSessionId}/commit`, {
+  const response = await fetch(`${baseUrl}/gpts/${gptId}/commit`, {
     method: "POST",
   });
 
@@ -95,16 +104,13 @@ export async function commit(
   return (await response.json()) as { commitId: string; kvCacheSize: number };
 }
 
-export async function delete_(
-  baseUrl: string,
-  gptSessionId: string,
-): Promise<void> {
-  const response = await fetch(`${baseUrl}/gpts/${gptSessionId}`, {
+export async function destroy(baseUrl: string, gptId: string): Promise<void> {
+  const response = await fetch(`${baseUrl}/gpts/${gptId}`, {
     method: "DELETE",
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to delete GPT session: ${response.statusText}`);
+    throw new Error(`Failed to destroy GPT session: ${response.statusText}`);
   }
 }
 

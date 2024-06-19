@@ -1,10 +1,10 @@
 import { invoke } from "@tauri-apps/api";
-import { InferOptions } from "../ai";
+import { InferenceOptions } from "../ai";
 
 /**
  * Load a GPT model from a file path.
  */
-export async function gptLoadModel(modelPath: string) {
+export async function loadModel(modelPath: string) {
   return (await invoke("gpt_load_model", {
     modelPath,
   })) as {
@@ -13,54 +13,52 @@ export async function gptLoadModel(modelPath: string) {
 }
 
 /**
- * Find or create a new GPT instance by ID.
- * NOTE: Changing any parameter will replace the instance.
- * @returns The instance's context cache key.
+ * Create a new GPT instance.
  */
-export async function gptFindOrCreate(
+export async function create(
   gptId: string,
   modelPath: string,
   contextSize: number,
   batchSize: number,
-): Promise<string> {
-  return await invoke("gpt_find_or_create", {
+  initialPrompt?: string,
+) {
+  return (await invoke("gpt_create", {
     gptId,
     modelPath,
     contextSize,
     batchSize,
-  });
+    initialPrompt,
+  })) as {
+    sessionLoaded?: boolean;
+  };
 }
 
 /**
- * Reset the GPT context. Will clear the KV cache.
+ * Destroy a GPT instance.
  */
-export async function gptReset(gptId: string): Promise<void> {
-  return await invoke("gpt_reset", { gptId });
+export async function destroy(gptId: string): Promise<void> {
+  return await invoke("gpt_destroy", { gptId });
 }
 
 /**
  * Decode prompt, updating the KV cache.
  */
-export async function gptDecode(
+export async function decode(
   gptId: string,
   prompt: string,
-  newKvCacheKey: string,
+  dumpSession: boolean,
 ): Promise<void> {
-  return await invoke("gpt_decode", {
-    gptId,
-    prompt,
-    newKvCacheKey,
-  });
+  return await invoke("gpt_decode", { gptId, prompt, dumpSession });
 }
 
 /**
  * Predict text. Does not update the KV cache.
  */
-export async function gptInfer(
+export async function infer(
   gptId: string,
-  prompt: string | undefined,
+  prompt: string | null,
   numEval: number,
-  options: InferOptions = {},
+  inferOptions: InferenceOptions = {},
 ): Promise<string> {
   return await invoke("gpt_infer", {
     gptId,
@@ -69,24 +67,22 @@ export async function gptInfer(
     prompt: prompt ? prompt : undefined,
 
     nEval: numEval,
-    options,
+    options: inferOptions,
   });
 }
 /**
  * Commit the latest inference result to the KV cache.
  * Returns the number of tokens committed.
  */
-export async function gptCommit(
-  gptId: string,
-  newKvCacheKey: string,
-): Promise<number> {
-  return await invoke("gpt_commit", { gptId, newKvCacheKey });
+// TODO: Return the new KV cache size.
+export async function commit(gptId: string): Promise<number> {
+  return await invoke("gpt_commit", { gptId });
 }
 
 /**
  * Tokenize prompt and return the token count.
  */
-export async function gptTokenCount(
+export async function tokenCount(
   modelPath: string,
   prompt: string,
 ): Promise<number> {

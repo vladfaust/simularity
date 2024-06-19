@@ -11,13 +11,8 @@ mod commands;
 mod sqlite;
 
 struct GptInstance {
-    pub model_path: String,
-    pub context_size: u32,
-    pub batch_size: usize,
+    pub model: &'static gpt::Model,
     pub context: gpt::Context<'static>,
-
-    /// A key uniquely mapped to an actual KV cache value.
-    pub kv_cache_key: String,
 }
 
 struct AppState {
@@ -102,13 +97,14 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::gpt::gpt_load_model,
-            commands::gpt::gpt_find_or_create,
-            commands::gpt::gpt_reset,
-            commands::gpt::gpt_decode,
-            commands::gpt::gpt_infer,
-            commands::gpt::gpt_commit,
-            commands::gpt::gpt_token_count,
+            commands::gpt::load_model::gpt_load_model,
+            commands::gpt::create::gpt_create,
+            commands::gpt::decode::gpt_decode,
+            commands::gpt::infer::gpt_infer,
+            commands::gpt::commit::gpt_commit,
+            commands::gpt::destroy::gpt_destroy,
+            commands::gpt::token_count::gpt_token_count,
+            commands::gpt::reset::gpt_reset,
             commands::sqlite::sqlite_open,
             commands::sqlite::sqlite_execute,
             commands::sqlite::sqlite_query,

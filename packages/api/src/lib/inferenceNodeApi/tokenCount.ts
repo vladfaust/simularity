@@ -18,9 +18,7 @@ export async function tokenCount(
         Authorization: `Token ${env.INFERENCE_NODE_SECRET}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        prompt: args.prompt,
-      }),
+      body: JSON.stringify(args),
     });
   } catch (e: any) {
     throw new FetchError(e.message);

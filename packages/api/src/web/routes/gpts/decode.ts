@@ -1,3 +1,4 @@
+import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { FetchError, ResponseOkError } from "@/lib/errors.js";
 import * as inferenceNodeApi from "@/lib/inferenceNodeApi.js";
@@ -6,6 +7,7 @@ import { redis } from "@/lib/redis.js";
 import { parseTyped, v } from "@/lib/valibot.js";
 import bodyParser from "body-parser";
 import cors from "cors";
+import { createHash } from "crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { Router } from "express";
 import pRetry from "p-retry";
@@ -16,11 +18,21 @@ import {
 
 const RequestBodySchema = v.object({
   prompt: v.string(),
+
+  /**
+   * Whether to dump the GPT session after decoding.
+   * The prompt's SHA-256 hash must be whitelisted
+   * in the database, otherwise ignored.
+   */
+  // NOTE: Whitelisting is required to prevent cache abuse.
+  // NOTE: Set `ALLOW_ALL_SESSION_CACHE` to bypass whitelisting.
+  dumpSession: v.boolean(),
 });
 
 const ResponseBodySchema = v.object({
   decodingId: v.string(),
   kvCacheSize: v.number(),
+  sessionDumpSize: v.optional(v.number()),
 });
 
 /**
@@ -62,11 +74,35 @@ export default Router()
       return res.status(410).send("Inference node is dead");
     }
 
+    let dumpSession = false;
+
+    if (body.output.dumpSession) {
+      const promptHash = createHash("sha256")
+        .update(body.output.prompt)
+        .digest();
+
+      dumpSession =
+        env.ALLOW_ALL_SESSION_CACHE ||
+        !!(await d.db.query.gptSessionHashes.findFirst({
+          where: eq(d.gptSessionHashes.hash, promptHash),
+        }));
+
+      if (dumpSession) {
+        konsole.log("Will dump session", {
+          promptHash: promptHash.toString("hex"),
+        });
+      } else {
+        konsole.info("Prompt's session hash not whitelisted", {
+          promptHash: promptHash.toString("hex"),
+        });
+      }
+    }
+
     const inferenceNodeResponse = await pRetry(
       () =>
-        inferenceNodeApi.decode(inferenceNode.baseUrl, {
-          sessionId: gptSession.id,
+        inferenceNodeApi.decode(inferenceNode.baseUrl, gptSession.id, {
           prompt: body.output.prompt,
+          dumpSession,
         }),
       {
         retries: 2,
@@ -100,6 +136,7 @@ export default Router()
       parseTyped(ResponseBodySchema, {
         decodingId: gptDecoding.id,
         kvCacheSize: inferenceNodeResponse.kvCacheSize,
+        sessionDumpSize: inferenceNodeResponse.sessionDumpSize ?? undefined,
       }),
     );
   });

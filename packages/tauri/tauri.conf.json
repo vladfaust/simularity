@@ -27,7 +27,8 @@
         "removeFile": false,
         "renameFile": false,
         "scope": [
-          "$APPLOCALDATA/**/*"
+          "$APPLOCALDATA/**/*",
+          "$APPCACHE/**/*"
         ],
         "writeFile": true,
         "exists": true

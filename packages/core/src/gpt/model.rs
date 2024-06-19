@@ -1,5 +1,8 @@
 use anyhow::{Context, Ok, Result};
-use llama_cpp_2::model::{params::LlamaModelParams, AddBos, LlamaModel};
+use llama_cpp_2::{
+    model::{params::LlamaModelParams, AddBos, LlamaModel},
+    token::LlamaToken,
+};
 
 use super::backend::Backend;
 
@@ -20,13 +23,15 @@ impl Model {
         self.0.n_ctx_train()
     }
 
+    /// Tokenize a prompt.
+    pub fn tokenize(&self, prompt: &str) -> Vec<LlamaToken> {
+        self.0
+            .str_to_token(prompt, AddBos::Never)
+            .expect("failed to tokenize prompt")
+    }
+
     /// Get the number of tokens in a prompt.
     pub fn token_count(&self, prompt: &str) -> usize {
-        let prompt_tokens = self
-            .0
-            .str_to_token(prompt, AddBos::Never)
-            .expect("failed to tokenize prompt");
-
-        prompt_tokens.len()
+        self.tokenize(prompt).len()
     }
 }
