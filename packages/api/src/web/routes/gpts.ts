@@ -4,6 +4,7 @@ import commit from "./gpts/commit.js";
 import create from "./gpts/create.js";
 import decode from "./gpts/decode.js";
 import delete_ from "./gpts/delete.js";
+import find from "./gpts/find.js";
 import infer from "./gpts/infer.js";
 import tokenCount from "./gpts/tokenCount.js";
 
@@ -12,5 +13,6 @@ export default Router()
   .use(create)
   .use(decode)
   .use(delete_)
+  .use(find)
   .use(infer)
   .use(tokenCount);

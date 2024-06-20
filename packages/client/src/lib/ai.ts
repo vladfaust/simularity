@@ -20,7 +20,7 @@ export type InferenceOptions = {
   };
 };
 
-type Driver =
+export type GptDriver =
   | {
       type: "remote";
       baseUrl: string;
@@ -126,12 +126,31 @@ class GptCommitJob extends Job<number> {
  */
 export class Gpt {
   /**
+   * Find an existing GPT instance.
+   */
+  static async find(driver: GptDriver, id: string): Promise<Gpt | null> {
+    let found = false;
+
+    switch (driver.type) {
+      case "local":
+        found = await tauri.gpt.find(id);
+        break;
+      case "remote":
+        found = await remoteInferenceClient.gpt.find(driver.baseUrl, id);
+        break;
+      default:
+        throw unreachable(driver);
+    }
+
+    return found ? new Gpt(id, driver) : null;
+  }
+  /**
    * Create a new GPT instance.
    * @param initialPrompt If set, would try to preload the session,
    * otherwise decode from scratch.
    */
   static async create(
-    driver: Driver,
+    driver: GptDriver,
     initialPrompt?: string,
   ): Promise<{ gpt: Gpt; sessionLoaded?: boolean }> {
     let id: string;
@@ -274,7 +293,7 @@ export class Gpt {
 
   private constructor(
     id: string,
-    readonly driver: Driver,
+    readonly driver: GptDriver,
   ) {
     this._id = id;
   }

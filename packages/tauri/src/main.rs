@@ -98,6 +98,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::gpt::load_model::gpt_load_model,
+            commands::gpt::find::gpt_find,
             commands::gpt::create::gpt_create,
             commands::gpt::decode::gpt_decode,
             commands::gpt::infer::gpt_infer,

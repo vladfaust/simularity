@@ -1,6 +1,21 @@
 import { InferenceOptions } from "../ai";
 import { abortSignal } from "../utils";
 
+/**
+ * Return whether a GPT session exists.
+ */
+export async function find(baseUrl: string, gptId: string): Promise<boolean> {
+  const response = await fetch(`${baseUrl}/gpts/${gptId}`, {
+    method: "HEAD",
+  });
+
+  if (!response.ok) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function create(
   baseUrl: string,
   body: {

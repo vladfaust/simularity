@@ -38,7 +38,7 @@ import {
   writeBinaryFile,
 } from "@tauri-apps/api/fs";
 import prettyBytes from "pretty-bytes";
-import { Gpt, type InferenceOptions } from "@/lib/ai";
+import { Gpt, type GptDriver, type InferenceOptions } from "@/lib/ai";
 import SandboxConsole from "./Simulation/SandboxConsole.vue";
 import { stageCallsToLua, comparesDeltas } from "@/lib/simulation/stage";
 import { useInfiniteScroll, useScroll } from "@vueuse/core";
@@ -54,6 +54,7 @@ import {
 import Menu from "./Simulation/Menu.vue";
 import router, { routeLocation } from "@/lib/router";
 import * as settings from "@/settings";
+import { latestGptSessionId } from "@/store";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -683,10 +684,10 @@ async function prepareGpt() {
   const dynamicPrompt = buildDynamicPrompt(committedUpdates);
   committedWriterPrompt.value += staticPrompt + dynamicPrompt;
 
-  const createGpt = async (staticPrompt: string) => {
-    const driver = (await settings.getGptDriver()) || "remote";
-
-    switch (driver) {
+  const findOrCreateGpt = async (staticPrompt: string) => {
+    let driver: GptDriver;
+    const driverType = (await settings.getGptDriver()) || "remote";
+    switch (driverType) {
       case "remote": {
         const baseUrl =
           (await settings.getGptRemoteBaseUrl()) ||
@@ -695,7 +696,13 @@ async function prepareGpt() {
           (await settings.getGptRemoteModel()) ||
           import.meta.env.VITE_DEFAULT_REMOTE_GPT_INFERENCE_MODEL;
 
-        return Gpt.create({ type: "remote", baseUrl, model }, staticPrompt);
+        driver = {
+          type: "remote",
+          baseUrl,
+          model,
+        };
+
+        break;
       }
 
       case "local": {
@@ -705,24 +712,50 @@ async function prepareGpt() {
         const contextSize = await settings.getGptLocalContextSize();
         if (!contextSize) throw new Error("Local context size not set");
 
-        return Gpt.create(
-          {
-            type: "local",
-            modelPath,
-            contextSize,
-            batchSize: contextSize,
-          },
-          staticPrompt,
-        );
+        driver = {
+          type: "local",
+          modelPath,
+          contextSize,
+          batchSize: contextSize,
+        };
+
+        break;
       }
 
       default:
-        throw unreachable(driver);
+        throw unreachable(driverType);
     }
+
+    let gpt: Gpt | null = null;
+    let restored = false;
+
+    if (latestGptSessionId.value) {
+      console.debug(
+        "Will try restoring GPT session",
+        driver,
+        latestGptSessionId.value,
+      );
+      gpt = await Gpt.find(driver, latestGptSessionId.value);
+      restored = !!gpt;
+      if (restored) console.log("Restored GPT session", driver, gpt!.id);
+    }
+
+    if (!gpt) {
+      console.debug("Creating new GPT session", driver);
+      const result = await Gpt.create(driver, staticPrompt);
+      gpt = result.gpt;
+      latestGptSessionId.value = gpt.id;
+      console.log("Created new GPT session", driver, gpt.id);
+    }
+
+    return { gpt, restored };
   };
 
-  const { gpt } = await createGpt(staticPrompt);
-  gpt.decode(dynamicPrompt);
+  const { gpt, restored } = await findOrCreateGpt(staticPrompt);
+
+  if (!restored) {
+    gpt.decode(dynamicPrompt);
+  }
 
   writer.value = markRaw(gpt);
   deferredWriter.resolve(writer.value);

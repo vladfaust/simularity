@@ -13,6 +13,13 @@ export async function loadModel(modelPath: string) {
 }
 
 /**
+ * Return whether a GPT instance exists.
+ */
+export async function find(gptId: string) {
+  return (await invoke("gpt_find", { gptId })) as boolean;
+}
+
+/**
  * Create a new GPT instance.
  */
 export async function create(
