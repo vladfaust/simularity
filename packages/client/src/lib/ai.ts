@@ -176,14 +176,20 @@ export class Gpt {
   }
 
   private _id: string;
-
-  // FIXME: Getters (used in `GptStatus.vue`).
-  private jobs = ref<GptJob[]>([]);
-  private currentJob = ref<GptJob | null>(null);
-  private wouldDestroy = ref(false);
+  private _jobs = ref<GptJob[]>([]);
+  private _currentJob = ref<GptJob | null>(null);
+  private _wouldDestroy = ref(false);
 
   get id() {
     return this._id;
+  }
+
+  get jobs() {
+    return this._jobs;
+  }
+
+  get currentJob() {
+    return this._currentJob;
   }
 
   /**
@@ -222,21 +228,21 @@ export class Gpt {
    * Would wait for the current job to finish before destroying.
    */
   async destroy(): Promise<void> {
-    if (this.wouldDestroy.value) {
-      while (this.wouldDestroy.value) {
+    if (this._wouldDestroy.value) {
+      while (this._wouldDestroy.value) {
         await sleep(100);
         return;
       }
     }
 
-    this.wouldDestroy.value = true;
+    this._wouldDestroy.value = true;
 
     // Wait for the current job to finish before destroying.
-    while (this.currentJob.value) {
+    while (this._currentJob.value) {
       await sleep(100);
     }
 
-    this.wouldDestroy.value = false;
+    this._wouldDestroy.value = false;
 
     switch (this.driver.type) {
       case "local":
@@ -274,36 +280,36 @@ export class Gpt {
   }
 
   private async pushJob<T>(job: Job<T>): Promise<T> {
-    this.jobs.value.push(job as unknown as GptJob);
+    this._jobs.value.push(job as unknown as GptJob);
     this.wakeUp();
     return job.result;
   }
 
   // Wake up for a single job completion.
   private async wakeUp(): Promise<void> {
-    while (this.currentJob.value) {
+    while (this._currentJob.value) {
       await sleep(100);
     }
 
-    let job = this.jobs.value.shift();
+    let job = this._jobs.value.shift();
     if (job) {
       console.debug(this.id, "Performing job...", job.name);
-      this.currentJob.value = job;
+      this._currentJob.value = job;
 
       try {
         const result = (await job.fn()) as any;
         job.deferred.resolve(result);
       } catch (error) {
         console.error(this.id, "Job error", job.name, error);
-        this.jobs.value.length = 0; // Clear the queue.
+        this._jobs.value.length = 0; // Clear the queue.
         job.deferred.reject(error);
       } finally {
-        if (this.wouldDestroy.value) {
-          this.jobs.value.length = 0; // Clear the queue.
-          this.wouldDestroy.value = false;
+        if (this._wouldDestroy.value) {
+          this._jobs.value.length = 0; // Clear the queue.
+          this._wouldDestroy.value = false;
         }
 
-        this.currentJob.value = null;
+        this._currentJob.value = null;
       }
     } else {
       console.debug(this.id, "No jobs to do.");
