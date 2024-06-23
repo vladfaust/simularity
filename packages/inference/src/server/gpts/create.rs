@@ -60,38 +60,43 @@ pub async fn handler(
 
     let mut session_loaded: Option<bool> = None;
     if let Some(initial_prompt) = req.initial_prompt.as_ref() {
-        let mut hasher = Sha256::new();
-        hasher.update(initial_prompt.as_bytes());
-        let hash = format!("{:x}", hasher.finalize());
-        let session_file_path = std::env::temp_dir().join(format!("{}.llama-session", hash));
+        let initial_prompt = initial_prompt.clone();
 
-        let mut gpt = instance.lock().unwrap();
-        let tokens = gpt.model.tokenize(initial_prompt);
+        session_loaded = tokio::task::spawn_blocking(move || {
+            let mut hasher = Sha256::new();
+            hasher.update(initial_prompt.as_bytes());
+            let hash = format!("{:x}", hasher.finalize());
+            let session_file_path = std::env::temp_dir().join(format!("{}.llama-session", hash));
 
-        if session_file_path.exists() {
-            info!("Will load llama.cpp session from {:?}", session_file_path,);
+            let mut gpt = instance.lock().unwrap();
+            let tokens = gpt.model.tokenize(&initial_prompt);
 
-            let start = std::time::Instant::now();
-            gpt.context
-                .load_session(&session_file_path, tokens)
-                .unwrap();
+            if session_file_path.exists() {
+                info!("Will load llama.cpp session from {:?}", session_file_path,);
 
-            info!(
-                "Loaded llama.cpp session from {:?} in {}s",
-                session_file_path,
-                start.elapsed().as_secs()
-            );
+                let start = std::time::Instant::now();
+                gpt.context
+                    .load_session(&session_file_path, tokens)
+                    .unwrap();
 
-            session_loaded = Some(true);
-        } else {
-            info!(
-                "Llama.cpp session file does not exist at {:?}, will decode",
-                session_file_path
-            );
+                info!(
+                    "Loaded llama.cpp session from {:?} in {}s",
+                    session_file_path,
+                    start.elapsed().as_secs()
+                );
 
-            gpt.context.decode(initial_prompt.clone())?;
-            session_loaded = Some(false);
-        }
+                Some(true)
+            } else {
+                info!(
+                    "Llama.cpp session file does not exist at {:?}, will decode",
+                    session_file_path
+                );
+
+                gpt.context.decode(initial_prompt.clone()).unwrap();
+                Some(false)
+            }
+        })
+        .await?;
     }
 
     Ok(Json(CreateResponseBody { session_loaded }))
