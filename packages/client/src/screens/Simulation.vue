@@ -1335,7 +1335,7 @@ function toMainMenu() {
 
 <style lang="scss" scoped>
 ._updates-container {
-  -webkit-mask-image: -webkit-gradient(
+  mask-image: -webkit-gradient(
     linear,
     left top,
     left bottom,
@@ -1343,7 +1343,7 @@ function toMainMenu() {
     color-stop(50%, rgba(0, 0, 0, 1))
   );
 
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-position-y: 100%;
+  mask-repeat: no-repeat;
+  mask-position: 0 100%;
 }
 </style>
