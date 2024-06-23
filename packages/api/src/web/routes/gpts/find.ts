@@ -5,13 +5,14 @@ import cors from "cors";
 import { and, eq, isNull } from "drizzle-orm";
 import { Router } from "express";
 import { inferenceNodeKey } from "../inferenceNodes/common.js";
+import { GPT_SESSION_ID_SCHEMA } from "./_common.js";
 
 // TODO: Session TTL.
 export default Router()
   .use(cors())
   .head("/gpts/:gptSessionId", async (req, res) => {
     const gptSessionId = v.safeParse(
-      v.pipe(v.string(), v.uuid()),
+      GPT_SESSION_ID_SCHEMA,
       req.params.gptSessionId,
     );
 

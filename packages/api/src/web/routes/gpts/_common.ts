@@ -7,6 +7,8 @@ import {
   inferenceNodeKeyPattern,
 } from "../inferenceNodes/common.js";
 
+export const GPT_SESSION_ID_SCHEMA = v.pipe(v.string(), v.uuid());
+
 /**
  * Find an inference node by model.
  */

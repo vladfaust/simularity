@@ -13,6 +13,7 @@ import {
   InferenceNodeSchema,
   inferenceNodeKey,
 } from "../inferenceNodes/common.js";
+import { GPT_SESSION_ID_SCHEMA } from "./_common.js";
 
 const ResponseBodySchema = v.object({
   commitId: v.string(),
@@ -23,9 +24,18 @@ export default Router()
   .use(cors())
   .use(bodyParser.json())
   .post("/gpts/:gptSessionId/commit", async (req, res, next) => {
+    const gptSessionId = v.safeParse(
+      GPT_SESSION_ID_SCHEMA,
+      req.params.gptSessionId,
+    );
+
+    if (!gptSessionId.success) {
+      return res.status(400).send("Invalid GPT session ID");
+    }
+
     const gptSession = await d.db.query.gptSessions.findFirst({
       where: and(
-        eq(d.gptSessions.id, req.params.gptSessionId),
+        eq(d.gptSessions.id, gptSessionId.output),
         isNull(d.gptSessions.deletedAt),
       ),
     });
