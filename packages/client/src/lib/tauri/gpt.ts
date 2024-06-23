@@ -1,5 +1,13 @@
 import { invoke } from "@tauri-apps/api";
-import { InferenceOptions } from "../ai";
+import { listen } from "@tauri-apps/api/event";
+import { InferenceOptionsSchema } from "../ai/common";
+import { v } from "../valibot";
+
+export type InferenceEventPayload = {
+  content: string;
+};
+
+const INFERENCE_EVENT_NAME = "app://gpt/inference";
 
 /**
  * Load a GPT model from a file path.
@@ -65,9 +73,16 @@ export async function infer(
   gptId: string,
   prompt: string | null,
   numEval: number,
-  inferOptions: InferenceOptions = {},
+  inferOptions: v.InferInput<typeof InferenceOptionsSchema> = {},
+  callback?: (event: InferenceEventPayload) => void,
 ): Promise<string> {
-  return await invoke("gpt_infer", {
+  const unlisten = callback
+    ? await listen(INFERENCE_EVENT_NAME, (event) => {
+        callback(event.payload as InferenceEventPayload);
+      })
+    : undefined;
+
+  const result = (await invoke("gpt_infer", {
     gptId,
 
     // NOTE: Only send the prompt if is truthy.
@@ -75,7 +90,12 @@ export async function infer(
 
     nEval: numEval,
     options: inferOptions,
-  });
+    eventName: callback ? INFERENCE_EVENT_NAME : undefined,
+  })) as string;
+
+  unlisten?.();
+
+  return result;
 }
 /**
  * Commit the latest inference result to the KV cache.

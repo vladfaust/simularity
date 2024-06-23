@@ -1,5 +1,5 @@
-import { InferenceOptions } from "../ai";
 import { abortSignal } from "../utils";
+export { infer } from "./gpt/infer";
 
 /**
  * Return whether a GPT session exists.
@@ -66,40 +66,6 @@ export async function decode(
 
   return (await response.json()) as {
     decodingId: string;
-    kvCacheSize: number;
-  };
-}
-
-export async function infer(
-  baseUrl: string,
-  gptId: string,
-  body: {
-    prompt: string | null;
-    nEval: number;
-    options: InferenceOptions;
-  },
-  options: { timeout: number },
-): Promise<{
-  inferenceId: string;
-  result: string;
-  kvCacheSize: number;
-}> {
-  const response = await fetch(`${baseUrl}/gpts/${gptId}/infer`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    signal: abortSignal(options.timeout),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to infer: ${response.statusText}`);
-  }
-
-  return (await response.json()) as {
-    inferenceId: string;
-    result: string;
     kvCacheSize: number;
   };
 }

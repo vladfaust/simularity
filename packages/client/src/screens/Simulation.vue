@@ -38,7 +38,8 @@ import {
   writeBinaryFile,
 } from "@tauri-apps/api/fs";
 import prettyBytes from "pretty-bytes";
-import { Gpt, type GptDriver, type InferenceOptions } from "@/lib/ai";
+import { Gpt, type GptDriver } from "@/lib/ai";
+import { InferenceOptionsSchema } from "@/lib/ai/common";
 import SandboxConsole from "./Simulation/SandboxConsole.vue";
 import { stageCallsToLua, comparesDeltas } from "@/lib/simulation/stage";
 import { useInfiniteScroll, useScroll } from "@vueuse/core";
@@ -55,6 +56,7 @@ import Menu from "./Simulation/Menu.vue";
 import router, { routeLocation } from "@/lib/router";
 import * as settings from "@/settings";
 import { latestGptSessionId } from "@/store";
+import { v } from "@/lib/valibot";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -146,7 +148,7 @@ useScroll(updatesRef, {
   },
 });
 
-const modelSettings = ref<InferenceOptions>({
+const modelSettings = ref<v.InferOutput<typeof InferenceOptionsSchema>>({
   temp: 1.15,
   minP: 0.1,
   mirostat: {
@@ -269,7 +271,7 @@ async function regenerateAssistantUpdate(updateIndex: number) {
   }
 
   busy.value = true;
-  regeneratedUpdate.newVariantInProgress.value = true;
+  regeneratedUpdate.inProgressVariantText.value = "";
   try {
     // OPTIMIZE: Infer while waiting for the fade.
     await fadeCanvas(async () => {
@@ -287,11 +289,18 @@ async function regenerateAssistantUpdate(updateIndex: number) {
     console.log("Prompt", prompt);
 
     const writerResponse = await deferredWriter.promise.then((writer) =>
-      writer.infer(prompt, 128, {
-        stopSequences: ["\n"],
-        grammar: writerGrammar,
-        ...modelSettings.value,
-      }),
+      writer.infer(
+        prompt,
+        128,
+        {
+          stopSequences: ["\n"],
+          grammar: writerGrammar,
+          ...modelSettings.value,
+        },
+        (e) => {
+          regeneratedUpdate.inProgressVariantText.value += e.content;
+        },
+      ),
     );
 
     const { writerUpdate } = await saveUpdatesToDb({
@@ -314,7 +323,7 @@ async function regenerateAssistantUpdate(updateIndex: number) {
     regeneratedUpdate.chosenVariantIndex.value =
       regeneratedUpdate.variants.length - 1;
   } finally {
-    regeneratedUpdate.newVariantInProgress.value = false;
+    regeneratedUpdate.inProgressVariantText.value = null;
     busy.value = false;
   }
 }
@@ -373,7 +382,7 @@ async function sendPlayerMessage() {
 
     // TODO: Here, the empty updates array, it's cocky.
     const assistantUpdate = markRaw(new AssistantUpdate(userUpdateId, []));
-    assistantUpdate.newVariantInProgress.value = true;
+    assistantUpdate.inProgressVariantText.value = "";
     updates.value.unshift(assistantUpdate);
 
     uncommittedPlayerInput.value = userMessage;
@@ -387,11 +396,18 @@ async function sendPlayerMessage() {
     console.log("Prompt", prompt);
 
     const writerResponse = await deferredWriter.promise.then((writer) =>
-      writer.infer(prompt, 128, {
-        stopSequences: ["\n"],
-        grammar: writerGrammar,
-        ...modelSettings.value,
-      }),
+      writer.infer(
+        prompt,
+        128,
+        {
+          stopSequences: ["\n"],
+          grammar: writerGrammar,
+          ...modelSettings.value,
+        },
+        (e) => {
+          assistantUpdate.inProgressVariantText.value += e.content;
+        },
+      ),
     );
 
     // Save the assistant update.
@@ -411,7 +427,7 @@ async function sendPlayerMessage() {
     });
 
     assistantUpdate.chosenVariantIndex.value = 0;
-    assistantUpdate.newVariantInProgress.value = false;
+    assistantUpdate.inProgressVariantText.value = null;
 
     uncommittedAssistantText.value = writerResponse;
     uncommittedWriterKvCacheKey.value = assistantUpdateId;
@@ -510,18 +526,25 @@ async function advance() {
       //
 
       const assistantUpdate = markRaw(new AssistantUpdate(parentUpdateId, []));
-      assistantUpdate.newVariantInProgress.value = true;
+      assistantUpdate.inProgressVariantText.value = "";
       updates.value.unshift(assistantUpdate);
 
       const prompt = "\n\n" + writerResponsePrefix;
       console.log("Prompt", prompt);
 
       const writerResponse = await deferredWriter.promise.then((writer) =>
-        writer.infer(prompt, 128, {
-          stopSequences: ["\n"],
-          grammar: writerGrammar,
-          ...modelSettings.value,
-        }),
+        writer.infer(
+          prompt,
+          128,
+          {
+            stopSequences: ["\n"],
+            grammar: writerGrammar,
+            ...modelSettings.value,
+          },
+          (e) => {
+            assistantUpdate.inProgressVariantText.value += e.content;
+          },
+        ),
       );
 
       const { writerUpdate } = await saveUpdatesToDb({
@@ -537,7 +560,7 @@ async function advance() {
         createdAt: writerUpdate.createdAt,
         directorUpdate: null,
       });
-      assistantUpdate.newVariantInProgress.value = false;
+      assistantUpdate.inProgressVariantText.value = null;
 
       uncommittedAssistantText.value = writerResponse;
       uncommittedWriterKvCacheKey.value = writerUpdate.id;
@@ -1052,7 +1075,7 @@ async function inferResponse(
     updates.value.unshift(assistantUpdate);
   }
 
-  assistantUpdate.newVariantInProgress.value = true;
+  assistantUpdate.inProgressVariantText.value = "";
 
   try {
     uncommittedPlayerInput.value = userMessageContent;
@@ -1066,11 +1089,18 @@ async function inferResponse(
     console.log("Prompt", prompt);
 
     const writerResponse = await deferredWriter.promise.then((writer) =>
-      writer.infer(prompt, 128, {
-        stopSequences: ["\n"],
-        grammar: writerGrammar,
-        ...modelSettings.value,
-      }),
+      writer.infer(
+        prompt,
+        128,
+        {
+          stopSequences: ["\n"],
+          grammar: writerGrammar,
+          ...modelSettings.value,
+        },
+        (e) => {
+          assistantUpdate.inProgressVariantText.value += e.content;
+        },
+      ),
     );
 
     // Save the assistant update.
@@ -1093,7 +1123,7 @@ async function inferResponse(
     uncommittedAssistantText.value = writerResponse;
     uncommittedWriterKvCacheKey.value = assistantUpdateId;
   } finally {
-    assistantUpdate.newVariantInProgress.value = false;
+    assistantUpdate.inProgressVariantText.value = null;
   }
 }
 

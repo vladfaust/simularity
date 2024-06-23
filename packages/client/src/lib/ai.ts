@@ -1,23 +1,14 @@
 import { toMilliseconds } from "duration-fns";
 import { nanoid } from "nanoid";
 import { ref } from "vue";
+import { InferenceOptionsSchema } from "./ai/common";
 import * as remoteInferenceClient from "./remoteInferenceClient";
 import * as tauri from "./tauri";
 import { Deferred, sleep, unreachable } from "./utils";
+import { v } from "./valibot";
 
-export type InferenceOptions = {
-  stopSequences?: string[];
-  grammar?: string;
-  temp?: number;
-  topK?: number;
-  minP?: number;
-  topP?: number;
-  tfsZ?: number;
-  typicalP?: number;
-  mirostat?: {
-    tau: number;
-    eta: number;
-  };
+export type InferenceEvent = {
+  content: string;
 };
 
 export type GptDriver =
@@ -79,12 +70,13 @@ class GptInferJob extends Job<string> {
     gpt: Gpt,
     readonly prompt: string | null,
     readonly nEval: number,
-    readonly options: InferenceOptions,
+    readonly options: v.InferInput<typeof InferenceOptionsSchema>,
+    readonly callback?: (event: InferenceEvent) => void,
   ) {
     super(async (): Promise<string> => {
       switch (gpt.driver.type) {
         case "local":
-          return tauri.gpt.infer(gpt.id, prompt, nEval, options);
+          return tauri.gpt.infer(gpt.id, prompt, nEval, options, callback);
         case "remote":
           return (
             await remoteInferenceClient.gpt.infer(
@@ -92,6 +84,7 @@ class GptInferJob extends Job<string> {
               gpt.id,
               { prompt, nEval, options },
               { timeout: toMilliseconds({ minutes: 2 }) },
+              callback,
             )
           ).result;
         default:
@@ -229,9 +222,12 @@ export class Gpt {
   async infer(
     prompt: string | null,
     nEval: number,
-    options: InferenceOptions = {},
+    options: v.InferInput<typeof InferenceOptionsSchema> = {},
+    callback?: (event: InferenceEvent) => void,
   ): Promise<string> {
-    return this.pushJob(new GptInferJob(this, prompt, nEval, options));
+    return this.pushJob(
+      new GptInferJob(this, prompt, nEval, options, callback),
+    );
   }
 
   /**

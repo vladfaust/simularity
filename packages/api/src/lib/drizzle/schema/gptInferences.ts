@@ -2,6 +2,7 @@ import { InferOptions } from "@/lib/inferenceNodeApi/infer.js";
 import { v } from "@/lib/valibot.js";
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   integer,
   json,
   pgTable,
@@ -28,6 +29,9 @@ export const gptInferences = pgTable("gpt_inferences", {
 
   /** Number of evaluations (max. generated prompt size in tokens). */
   nEval: integer("n_eval").notNull(),
+
+  /** Whether the inference was streamed. */
+  stream: boolean("stream").notNull(),
 
   /** The inference result. */
   result: text("result").notNull(),

@@ -19,12 +19,22 @@ const RequestBodySchema = v.object({
   prompt: v.nullable(v.string()),
   nEval: v.number(),
   options: InferOptions,
+  stream: v.boolean(),
 });
 
-const ResponseBodySchema = v.object({
+const NonStreamResponseBodySchema = v.object({
   inferenceId: v.string(),
   result: v.string(),
-  kvCacheSize: v.number(),
+});
+
+const StreamContentSchema = v.object({
+  brand: v.literal("content"),
+  content: v.string(),
+});
+
+const StreamEpilogueSchema = v.object({
+  brand: v.literal("epilogue"),
+  inferenceId: v.string(),
 });
 
 /**
@@ -66,13 +76,46 @@ export default Router()
       return res.status(410).send("Inference node is dead");
     }
 
+    let result = "";
+    let inferenceDuration: number;
+
     const inferenceNodeResponse = await pRetry(
-      () =>
-        inferenceNodeApi.infer(inferenceNode.baseUrl, gptSession.id, {
-          prompt: body.output.prompt,
-          nEval: body.output.nEval,
-          options: body.output.options,
-        }),
+      async () => {
+        if (body.output.stream) {
+          let start = Date.now();
+
+          for await (const chunk of inferenceNodeApi.inferStream(
+            inferenceNode.baseUrl,
+            gptSession.id,
+            {
+              prompt: body.output.prompt,
+              nEval: body.output.nEval,
+              options: body.output.options,
+            },
+          )) {
+            // TODO: Write to a temporary buffer for performance reasons.
+            // So that a slow client does not slow other clients down.
+            res.write(
+              JSON.stringify(
+                parseTyped(StreamContentSchema, {
+                  ...chunk,
+                  brand: "content",
+                }),
+              ) + "\n",
+            );
+
+            result += chunk.content;
+          }
+
+          inferenceDuration = Date.now() - start;
+        } else {
+          return inferenceNodeApi.infer(inferenceNode.baseUrl, gptSession.id, {
+            prompt: body.output.prompt,
+            nEval: body.output.nEval,
+            options: body.output.options,
+          });
+        }
+      },
       {
         retries: 2,
         onFailedAttempt: (error) => {
@@ -88,6 +131,15 @@ export default Router()
       },
     );
 
+    if (!body.output.stream) {
+      if (!inferenceNodeResponse) {
+        throw new Error("(BUG) inferenceNodeResponse is undefined");
+      }
+
+      result = inferenceNodeResponse.result;
+      inferenceDuration = inferenceNodeResponse.duration;
+    }
+
     const gptInference = (
       await d.db
         .insert(d.gptInferences)
@@ -96,8 +148,9 @@ export default Router()
           prompt: body.output.prompt,
           options: body.output.options,
           nEval: body.output.nEval,
-          result: inferenceNodeResponse.result,
-          inferenceDuration: inferenceNodeResponse.duration,
+          stream: body.output.stream,
+          result,
+          inferenceDuration: inferenceDuration!,
         })
         .returning({
           id: d.gptInferences.id,
@@ -105,11 +158,27 @@ export default Router()
         })
     )[0];
 
-    return res.status(200).json(
-      parseTyped(ResponseBodySchema, {
-        inferenceId: gptInference.id,
-        result: gptInference.result,
-        kvCacheSize: inferenceNodeResponse.kvCacheSize,
-      }),
-    );
+    if (body.output.stream) {
+      res.write(
+        JSON.stringify(
+          parseTyped(StreamEpilogueSchema, {
+            brand: "epilogue",
+            inferenceId: gptInference.id,
+          }),
+        ) + "\n",
+      );
+
+      res.end();
+    } else {
+      if (!inferenceNodeResponse) {
+        throw new Error("(BUG) inferenceNodeResponse is undefined");
+      }
+
+      return res.status(200).json(
+        parseTyped(NonStreamResponseBodySchema, {
+          inferenceId: gptInference.id,
+          result: gptInference.result,
+        }),
+      );
+    }
   });

@@ -20,6 +20,7 @@
     "phaser": "^3.80.1",
     "pretty-bytes": "^6.1.1",
     "tauri-plugin-store-api": "github:tauri-apps/tauri-plugin-store#v1",
+    "valibot": "^0.33.3",
     "vue": "^3.4.21",
     "vue-contenteditable": "^4.1.0",
     "vue-router": "^4.3.2",

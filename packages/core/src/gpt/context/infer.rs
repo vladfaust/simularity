@@ -43,6 +43,7 @@ impl<'model> Context<'model> {
         prompt: Option<&str>,
         n_eval: usize,
         options: InferOptions,
+        callback: Option<impl Fn(&str)>,
     ) -> Result<String> {
         let mut grammar = match &options.grammar {
             Some(grammar) => Some(
@@ -236,6 +237,10 @@ impl<'model> Context<'model> {
                             break 'main;
                         }
                     }
+                }
+
+                if let Some(f) = &callback {
+                    f(&output_string)
                 }
 
                 // Set the batch head to the new token.

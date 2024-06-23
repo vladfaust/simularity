@@ -1,12 +1,15 @@
 import { d } from "@/lib/drizzle";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 
 /**
  * An assistant-generated update.
  */
 export class AssistantUpdate {
   readonly chosenVariantIndex = ref(0);
-  readonly newVariantInProgress = ref(false);
+  readonly inProgressVariantText = ref<string | null>(null);
+  readonly newVariantInProgress = computed(
+    () => this.inProgressVariantText.value !== null,
+  );
 
   static is(obj: any): obj is AssistantUpdate {
     return obj instanceof AssistantUpdate;

@@ -57,7 +57,9 @@ function onClickNextVariant() {
 const isContenteditable = ref(false);
 const rTextElement = ref<HTMLParagraphElement | null>(null);
 const rText = ref(
-  props.update.newVariantInProgress ? "" : props.update.chosenVariant.text,
+  props.update.newVariantInProgress.value
+    ? ""
+    : props.update.chosenVariant.text,
 );
 
 watchImmediate(
@@ -117,9 +119,11 @@ const rAnyChanges = computed(
 )
   p.leading-snug
     template(v-if="update.newVariantInProgress.value")
-      span.mr-2.inline-block.h-full.w-2.animate-pulse.bg-black(
-        style="animation-duration: 500ms"
-      )
+      p
+        | {{ update.inProgressVariantText.value }}
+        span.-my-1.inline-block.h-5.w-2.animate-pulse.bg-black(
+          style="animation-duration: 500ms"
+        )
     template(v-else-if="update.variants.length")
       Contenteditable.leading-snug(
         tag="p"
