@@ -9,6 +9,7 @@ use std::sync::Arc;
 #[serde(rename_all = "camelCase")]
 pub struct CommitResponseBody {
     /// New KV cache size in tokens.
+    // TODO: Rename to `context_length`.
     kv_cache_size: usize,
 }
 

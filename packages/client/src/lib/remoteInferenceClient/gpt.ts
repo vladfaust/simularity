@@ -1,4 +1,5 @@
-import { abortSignal } from "../utils";
+export { create } from "./gpt/create";
+export { decode } from "./gpt/decode";
 export { infer } from "./gpt/infer";
 
 /**
@@ -14,60 +15,6 @@ export async function find(baseUrl: string, gptId: string): Promise<boolean> {
   }
 
   return true;
-}
-
-export async function create(
-  baseUrl: string,
-  body: {
-    model: string;
-    initialPrompt?: string;
-  },
-): Promise<{ id: string; sessionLoaded?: boolean }> {
-  const response = await fetch(`${baseUrl}/gpts`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to create GPT session: ${response.statusText}`);
-  }
-
-  return (await response.json()) as { id: string; sessionLoaded: boolean };
-}
-
-export async function decode(
-  baseUrl: string,
-  gptId: string,
-  body: {
-    prompt: string;
-    dumpSession: boolean;
-  },
-  options: { timeout: number },
-): Promise<{
-  decodingId: string;
-  kvCacheSize: number;
-  sessionDumpSize?: number;
-}> {
-  const response = await fetch(`${baseUrl}/gpts/${gptId}/decode`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    signal: abortSignal(options.timeout),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to decode prompt: ${response.statusText}`);
-  }
-
-  return (await response.json()) as {
-    decodingId: string;
-    kvCacheSize: number;
-  };
 }
 
 export async function commit(

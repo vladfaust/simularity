@@ -1,12 +1,14 @@
 use anyhow::{Context as AnyHowContext, Ok, Result};
 use llama_cpp_2::{ggml_time_us, llama_batch::LlamaBatch, model::AddBos};
 
-use super::Context;
+use crate::gpt::context::{register_eval_callback, unregister_eval_callback};
+
+use super::{Context, EvalCallback};
 
 impl<'model> Context<'model> {
     /// Decode a prompt, updating the KV cache.
     // TODO: Return the new KV cache size.
-    pub fn decode(&mut self, prompt: String) -> Result<()> {
+    pub fn decode(&mut self, prompt: String, eval_callback: Option<EvalCallback>) -> Result<()> {
         println!(
             "(before) kv cache token_count: {}, used_cells: {}",
             self.context.get_kv_cache_token_count(),
@@ -23,6 +25,13 @@ impl<'model> Context<'model> {
 
         let mut batch = LlamaBatch::new(self.context.n_batch().try_into().unwrap(), 1);
         self.cleanup_uncommitted_session();
+
+        let mut will_unregister = false;
+        if let Some(eval_callback) = eval_callback {
+            let cb_eval_id = self.cb_eval_id.expect("cb_eval_id not set");
+            register_eval_callback(cb_eval_id, eval_callback);
+            will_unregister = true;
+        }
 
         measure("decode", || {
             if n_session == 0 {
@@ -73,6 +82,11 @@ impl<'model> Context<'model> {
 
             Ok(())
         })?;
+
+        if will_unregister {
+            let cb_eval_id = unsafe { self.cb_eval_id.unwrap_unchecked() };
+            unregister_eval_callback(cb_eval_id);
+        }
 
         println!(
             "(after) kv cache token_count: {}, used_cells: {}",

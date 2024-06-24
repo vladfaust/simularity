@@ -1,48 +1,48 @@
-import { InferenceOptionsSchema } from "@/lib/ai/common";
 import { abortSignal, filterWhitespaceStrings, unreachable } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 
 const RequestBodySchema = v.object({
-  prompt: v.nullable(v.string()),
-  nEval: v.number(),
-  options: InferenceOptionsSchema,
+  model: v.string(),
+
+  /**
+   * If set, would try loading the GPT session
+   * from prompt's hash, otherwise decode from scratch.
+   */
+  initialPrompt: v.optional(v.string()),
 });
 
 const DecodeProgressSchema = v.object({
   type: v.literal("decodeProgress"),
-  progress: v.number(),
+  progress: v.number(), // 0-1
 });
 
-const InferenceSchema = v.object({
-  type: v.literal("inference"),
-  content: v.string(),
+const SessionLoadProgressSchema = v.object({
+  type: v.literal("sessionLoadProgress"),
+  progress: v.number(), // 0-1
 });
 
 const EpilogueSchema = v.object({
   type: v.literal("epilogue"),
-  inferenceId: v.string(),
-  duration: v.number(),
+  sessionId: v.string(),
   contextLength: v.number(),
 });
 
 const ChunkSchema = v.union([
   DecodeProgressSchema,
-  InferenceSchema,
+  SessionLoadProgressSchema,
   EpilogueSchema,
 ]);
 
-export async function infer(
+export async function create(
   baseUrl: string,
-  gptId: string,
   body: v.InferInput<typeof RequestBodySchema>,
   options: { timeout: number },
-  decodeCallback?: (event: { progress: number }) => void,
-  inferenceCallback?: (event: { content: string }) => void,
+  progressCallback?: (event: { progress: number }) => void,
 ): Promise<{
-  inferenceId: string;
-  result: string;
+  sessionId: string;
+  contextLength: number;
 }> {
-  const response = await fetch(`${baseUrl}/gpts/${gptId}/infer`, {
+  const response = await fetch(`${baseUrl}/gpts`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -52,14 +52,12 @@ export async function infer(
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to infer: ${response.statusText}`);
+    throw new Error(`Failed to create GPT session: ${response.statusText}`);
   }
-
   const reader = response.body?.getReader();
   if (!reader) throw new Error("Response body is not readable.");
 
   const decoder = new TextDecoder();
-  let result = "";
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -72,16 +70,13 @@ export async function infer(
 
       switch (chunk.type) {
         case "decodeProgress":
-          decodeCallback?.(chunk);
-          break;
-        case "inference":
-          result += chunk.content;
-          inferenceCallback?.(chunk);
+        case "sessionLoadProgress":
+          progressCallback?.(chunk);
           break;
         case "epilogue":
           return {
-            inferenceId: chunk.inferenceId,
-            result,
+            sessionId: chunk.sessionId,
+            contextLength: chunk.contextLength,
           };
         default:
           throw unreachable(chunk);

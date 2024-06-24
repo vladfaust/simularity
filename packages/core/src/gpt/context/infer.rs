@@ -8,7 +8,8 @@ use llama_cpp_2::{
 };
 use std::str::FromStr;
 
-use super::Context;
+use super::{Context, EvalCallback};
+use crate::gpt::context::{register_eval_callback, unregister_eval_callback};
 
 #[derive(serde::Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
@@ -38,12 +39,19 @@ impl<'model> Context<'model> {
     /// NOTE: Neither the `prompt` nor the inferred tokens are committed to the session.
     /// Call `commit` after `infer` to apply both the prompt and the inferred tokens.
     /// This allows to `infer` multiple times from the same point.
+    ///
+    /// # Arguments
+    ///
+    /// * `decode_callback` - A callback to be called after a token
+    ///   is decoded during the pre-inference phase.
+    ///
     pub fn infer(
         &mut self,
         prompt: Option<&str>,
         n_eval: usize,
         options: InferOptions,
-        callback: Option<impl Fn(&str)>,
+        decode_callback: Option<EvalCallback>,
+        infer_callback: Option<impl Fn(&str)>,
     ) -> Result<String> {
         let mut grammar = match &options.grammar {
             Some(grammar) => Some(
@@ -134,11 +142,25 @@ impl<'model> Context<'model> {
         // If the prompt is not provided, the head logits is cached.
         // Otherwise, the decoding will take some time
         // to calculate, cache & initialize the new head logits.
+        //
+
+        let mut will_unregister = false;
+        if let Some(decode_callback) = decode_callback {
+            let cb_eval_id = self.cb_eval_id.expect("cb_eval_id not set");
+            register_eval_callback(cb_eval_id, decode_callback);
+            will_unregister = true;
+        }
+
         measure("infer:decoding", || {
             self.context
                 .decode(&mut batch)
                 .with_context(|| "failed to decode")
         })?;
+
+        if will_unregister {
+            let cb_eval_id = unsafe { self.cb_eval_id.unwrap_unchecked() };
+            unregister_eval_callback(cb_eval_id);
+        }
 
         let start = ggml_time_us();
         'main: while n_session <= n_target {
@@ -239,7 +261,8 @@ impl<'model> Context<'model> {
                     }
                 }
 
-                if let Some(f) = &callback {
+                // TODO: Put it to the end of block, stop if it returns false.
+                if let Some(f) = &infer_callback {
                     f(&output_string)
                 }
 

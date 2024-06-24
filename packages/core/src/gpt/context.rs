@@ -1,8 +1,10 @@
 use anyhow::{Context as AnyHowContext, Ok, Result};
 use llama_cpp_2::context::{params::LlamaContextParams, LlamaContext};
 use llama_cpp_2::token::LlamaToken;
+use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 
 use super::backend::Backend;
 use super::model::Model;
@@ -16,9 +18,44 @@ pub struct Context<'model> {
     context: LlamaContext<'model>,
     session: Vec<LlamaToken>,
     uncommitted_session: Vec<LlamaToken>,
+    cb_eval_id: Option<usize>,
 }
 
 unsafe impl Send for Context<'_> {}
+
+type EvalCallback = Box<dyn FnMut() -> bool + Send>;
+static EVAL_CALLBACKS: OnceLock<Mutex<HashMap<usize, EvalCallback>>> = OnceLock::new();
+
+// OPTIMIZE: Pass a Rust closure pointer directly to avoid lookup overhead.
+// Blocked by https://github.com/utilityai/llama-cpp-rs/issues/363.
+extern "C" fn cb_eval_fn(
+    _t: *mut llama_cpp_sys_2::ggml_tensor,
+    _ask: bool,
+    user_data: *mut std::ffi::c_void,
+) -> bool {
+    let eval_callbacks = EVAL_CALLBACKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut eval_callbacks = eval_callbacks.lock().unwrap();
+    let eval_callback = eval_callbacks.get_mut(&(user_data as usize));
+
+    if let Some(eval_callback) = eval_callback {
+        eval_callback();
+    }
+
+    // See https://github.com/ggerganov/llama.cpp/discussions/8051.
+    false
+}
+
+pub fn register_eval_callback(id: usize, callback: EvalCallback) -> Option<EvalCallback> {
+    let eval_callbacks = EVAL_CALLBACKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut eval_callbacks = eval_callbacks.lock().unwrap();
+    eval_callbacks.insert(id, callback)
+}
+
+pub fn unregister_eval_callback(id: usize) -> Option<EvalCallback> {
+    let eval_callbacks = EVAL_CALLBACKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut eval_callbacks = eval_callbacks.lock().unwrap();
+    eval_callbacks.remove(&id)
+}
 
 impl<'model> Context<'model> {
     pub fn new(
@@ -27,6 +64,7 @@ impl<'model> Context<'model> {
         n_ctx: usize,
         n_batch: usize,
         seed: Option<u32>,
+        cb_eval_id: Option<usize>,
     ) -> Result<Self> {
         let mut ctx_params = LlamaContextParams::default();
 
@@ -34,6 +72,11 @@ impl<'model> Context<'model> {
         ctx_params = ctx_params.with_n_batch(n_batch.try_into().unwrap());
         if let Some(seed) = seed {
             ctx_params = ctx_params.with_seed(seed);
+        }
+
+        if let Some(cb_eval_id) = cb_eval_id {
+            ctx_params = ctx_params.with_cb_eval(Some(cb_eval_fn));
+            ctx_params = ctx_params.with_cb_eval_user_data(cb_eval_id as _);
         }
 
         let ctx = model
@@ -45,6 +88,7 @@ impl<'model> Context<'model> {
             context: ctx,
             session: vec![],
             uncommitted_session: vec![],
+            cb_eval_id,
         })
     }
 

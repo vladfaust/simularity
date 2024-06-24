@@ -7,10 +7,6 @@ import * as tauri from "./tauri";
 import { Deferred, sleep, unreachable } from "./utils";
 import { v } from "./valibot";
 
-export type InferenceEvent = {
-  content: string;
-};
-
 export type GptDriver =
   | {
       type: "remote";
@@ -41,18 +37,20 @@ class GptDecodeJob extends Job<void> {
   constructor(
     gpt: Gpt,
     readonly prompt: string,
-    readonly dumpSession: boolean,
+    readonly decodeCallback?: (event: { progress: number }) => void,
   ) {
     super(async (): Promise<void> => {
       switch (gpt.driver.type) {
         case "local":
-          return tauri.gpt.decode(gpt.id, prompt, dumpSession);
+          await tauri.gpt.decode(gpt.id, prompt, decodeCallback);
+          return;
         case "remote":
           await remoteInferenceClient.gpt.decode(
             gpt.driver.baseUrl,
             gpt.id,
-            { prompt, dumpSession },
+            { prompt },
             { timeout: toMilliseconds({ minutes: 2 }) },
+            decodeCallback,
           );
 
           return;
@@ -71,12 +69,20 @@ class GptInferJob extends Job<string> {
     readonly prompt: string | null,
     readonly nEval: number,
     readonly options: v.InferInput<typeof InferenceOptionsSchema>,
-    readonly callback?: (event: InferenceEvent) => void,
+    readonly decodeCallback?: (event: { progress: number }) => void,
+    readonly inferenceCallback?: (event: { content: string }) => void,
   ) {
     super(async (): Promise<string> => {
       switch (gpt.driver.type) {
         case "local":
-          return tauri.gpt.infer(gpt.id, prompt, nEval, options, callback);
+          return tauri.gpt.infer(
+            gpt.id,
+            prompt,
+            nEval,
+            options,
+            decodeCallback,
+            inferenceCallback,
+          );
         case "remote":
           return (
             await remoteInferenceClient.gpt.infer(
@@ -84,7 +90,8 @@ class GptInferJob extends Job<string> {
               gpt.id,
               { prompt, nEval, options },
               { timeout: toMilliseconds({ minutes: 2 }) },
-              callback,
+              decodeCallback,
+              inferenceCallback,
             )
           ).result;
         default:
@@ -137,45 +144,53 @@ export class Gpt {
 
     return found ? new Gpt(id, driver) : null;
   }
+
   /**
    * Create a new GPT instance.
+   *
    * @param initialPrompt If set, would try to preload the session,
    * otherwise decode from scratch.
+   *
+   * @param dumpSession If set, would dump the session to disk.
+   * Ignored for remote inference.
    */
   static async create(
     driver: GptDriver,
-    initialPrompt?: string,
-  ): Promise<{ gpt: Gpt; sessionLoaded?: boolean }> {
+    initialPrompt: string | undefined,
+    progressCallback: (event: { progress: number }) => void | undefined,
+    dumpSession: boolean,
+  ): Promise<Gpt> {
     let id: string;
-    let sessionLoaded: boolean | undefined;
 
     switch (driver.type) {
       case "local": {
         id = nanoid();
 
-        const response = await tauri.gpt.create(
+        await tauri.gpt.create(
           id,
           driver.modelPath,
           driver.contextSize,
           driver.batchSize,
           initialPrompt,
+          progressCallback,
+          dumpSession,
         );
 
-        sessionLoaded = response.sessionLoaded;
         break;
       }
 
       case "remote": {
-        const response = await remoteInferenceClient.gpt.create(
-          driver.baseUrl,
-          {
-            model: driver.model,
-            initialPrompt,
-          },
-        );
-
-        id = response.id;
-        sessionLoaded = response.sessionLoaded;
+        id = (
+          await remoteInferenceClient.gpt.create(
+            driver.baseUrl,
+            {
+              model: driver.model,
+              initialPrompt,
+            },
+            { timeout: toMilliseconds({ minutes: 2 }) },
+            progressCallback,
+          )
+        ).sessionId;
 
         break;
       }
@@ -184,7 +199,7 @@ export class Gpt {
         throw unreachable(driver);
     }
 
-    return { gpt: new Gpt(id, driver), sessionLoaded };
+    return new Gpt(id, driver);
   }
 
   private _id: string;
@@ -206,12 +221,13 @@ export class Gpt {
 
   /**
    * Decode the prompt, updating the KV cache.
-   * @param dumpSession If set, would dump the session into a file
-   * (only use for initial decodes).
    */
   // TODO: Return the new KV cache size.
-  async decode(prompt: string, dumpSession: boolean = false): Promise<void> {
-    return this.pushJob(new GptDecodeJob(this, prompt, dumpSession));
+  async decode(
+    prompt: string,
+    callback?: (event: { progress: number }) => void,
+  ): Promise<void> {
+    return this.pushJob(new GptDecodeJob(this, prompt, callback));
   }
 
   /**
@@ -223,10 +239,18 @@ export class Gpt {
     prompt: string | null,
     nEval: number,
     options: v.InferInput<typeof InferenceOptionsSchema> = {},
-    callback?: (event: InferenceEvent) => void,
+    decodeCallback?: (event: { progress: number }) => void,
+    inferenceCallback?: (event: { content: string }) => void,
   ): Promise<string> {
     return this.pushJob(
-      new GptInferJob(this, prompt, nEval, options, callback),
+      new GptInferJob(
+        this,
+        prompt,
+        nEval,
+        options,
+        decodeCallback,
+        inferenceCallback,
+      ),
     );
   }
 

@@ -5,47 +5,57 @@ use axum::{
 };
 use axum_streams::StreamBodyAsOptions;
 use simularity_core::gpt::InferOptions;
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 use tokio::sync::mpsc::channel;
 
 use crate::server::{AppError, AppState};
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InferenceRequestBody {
+pub struct RequestBody {
     prompt: Option<String>,
     n_eval: usize,
     options: InferOptions,
-    stream: bool,
+}
+
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DecodeProgress {
+    progress: f32,
+}
+
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Inference {
+    content: String,
 }
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 /// Returned when `stream` is `false`.
-pub struct InferenceResponseBody {
+pub struct Epilogue {
     /// Inference duration in milliseconds.
     duration: u32,
 
-    /// New (potentially committed) KV cache size in tokens.
-    kv_cache_size: usize,
-
-    /// Inference result.
-    result: String,
+    /// New (potentially committed) context length in tokens.
+    context_length: usize,
 }
 
-/// Yielded when `stream` is `true`.
-#[derive(serde::Serialize, Clone)]
-pub struct InferenceResultChunk {
-    content: String,
+#[derive(serde::Serialize)]
+#[serde(tag = "type")]
+pub enum Chunk {
+    Decoding(DecodeProgress),
+    Inference(Inference),
+    Epilogue(Epilogue),
 }
 
 /// Perform inference using a GPT instance.
-/// Path: `POST /gpts/:id/infer`.
+/// Path: `POST /gpts/:id/infer` (streaming).
 #[axum::debug_handler]
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-    req: Json<InferenceRequestBody>,
+    req: Json<RequestBody>,
 ) -> Result<Response, AppError> {
     let hash_map_lock = state.gpt.instances.lock().await;
     let arc = hash_map_lock
@@ -53,51 +63,80 @@ pub async fn handler(
         .ok_or_else(|| AppError(anyhow::anyhow!("gpt not found")))?
         .clone();
 
-    if req.stream {
-        let (sender, receiver) = channel::<InferenceResultChunk>(req.n_eval);
+    let (sender, receiver) = channel::<Chunk>(req.n_eval);
 
-        tokio::task::spawn_blocking(move || {
-            let mut gpt = arc.lock().unwrap();
+    tokio::task::spawn_blocking(move || {
+        let mut gpt = arc.lock().unwrap();
 
-            gpt.context.infer(
-                req.prompt.as_deref(),
-                req.n_eval,
-                req.options.clone(),
-                Some(|content: &str| {
-                    sender
-                        .blocking_send(InferenceResultChunk {
-                            content: content.to_string(),
-                        })
-                        .unwrap();
-                }),
-            )
+        let inference_callback = Some(|content: &str| {
+            let chunk = Chunk::Inference(Inference {
+                content: content.to_string(),
+            });
+            sender.blocking_send(chunk).unwrap();
         });
 
-        let stream = tokio_stream::wrappers::ReceiverStream::new(receiver);
-        let stream_body = StreamBodyAsOptions::new().json_nl(stream);
+        let start = Instant::now();
+        if let Some(prompt) = req.prompt.as_ref() {
+            let tokens = gpt.model.tokenize(prompt);
+            let tokens_len = tokens.len();
 
-        Ok(stream_body.into_response())
-    } else {
-        let start = std::time::Instant::now();
-        let result = tokio::task::spawn_blocking(move || {
-            let mut gpt = arc.lock().unwrap();
+            let mut cur_node: usize = 0;
 
-            gpt.context.infer(
-                req.prompt.as_deref(),
-                req.n_eval,
-                req.options.clone(),
-                None::<fn(&str)>,
-            )
-        })
-        .await??;
+            // NOTE: The callback itself is throttled on the llama.cpp side.
+            let throttle = std::time::Duration::from_millis(500);
+            let mut last_emit: Option<Instant> = None;
 
-        let body = Json(InferenceResponseBody {
-            duration: start.elapsed().as_millis() as u32,
-            // TODO: Actually return the potential new KV cache size.
-            kv_cache_size: 0,
-            result,
-        });
+            let sender_clone = sender.clone();
+            let decode_callback = move || -> bool {
+                cur_node += 1;
 
-        Ok(body.into_response())
-    }
+                // Throttle the event emission.
+                if let Some(last_emit) = last_emit {
+                    if last_emit.elapsed() < throttle {
+                        return true;
+                    }
+                }
+
+                let progress = cur_node as f32 / (tokens_len as f32 * 2.0);
+                let chunk = Chunk::Decoding(DecodeProgress { progress });
+                sender_clone.blocking_send(chunk).unwrap();
+
+                last_emit = Some(std::time::Instant::now());
+                true
+            };
+            let decode_callback = Box::new(decode_callback);
+
+            gpt.context
+                .infer(
+                    req.prompt.as_deref(),
+                    req.n_eval,
+                    req.options.clone(),
+                    Some(decode_callback),
+                    inference_callback,
+                )
+                .expect("unable to perform inference");
+        } else {
+            gpt.context
+                .infer(
+                    req.prompt.as_deref(),
+                    req.n_eval,
+                    req.options.clone(),
+                    None,
+                    inference_callback,
+                )
+                .expect("unable to perform inference");
+        }
+
+        sender
+            .blocking_send(Chunk::Epilogue(Epilogue {
+                duration: start.elapsed().as_millis() as u32,
+                context_length: gpt.context.kv_cache_size(),
+            }))
+            .unwrap()
+    });
+
+    let stream = tokio_stream::wrappers::ReceiverStream::new(receiver);
+    let stream_body = StreamBodyAsOptions::new().json_nl(stream);
+
+    Ok(stream_body.into_response())
 }

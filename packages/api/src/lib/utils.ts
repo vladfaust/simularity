@@ -50,3 +50,18 @@ export function bufferToHex(buffer: Uint8Array): string {
     .call(buffer, (x) => x.toString(16).padStart(2, "0"))
     .join("");
 }
+
+/**
+ * Would panic upon non-exhaustive-ness.
+ * @example default: unreachable(case)
+ */
+export function unreachable(arg: never) {
+  return arg;
+}
+
+/**
+ * Remove empty-after-trimming strings from an array of strings.
+ */
+export function filterWhitespaceStrings(strings: string[]): string[] {
+  return strings.filter((s) => s.trim().length);
+}

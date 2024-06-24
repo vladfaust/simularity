@@ -1,13 +1,12 @@
-import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { FetchError, ResponseOkError } from "@/lib/errors.js";
 import * as inferenceNodeApi from "@/lib/inferenceNodeApi.js";
 import { konsole } from "@/lib/konsole.js";
 import { redis } from "@/lib/redis.js";
-import { parseTyped, v } from "@/lib/valibot.js";
+import { unreachable } from "@/lib/utils.js";
+import { v } from "@/lib/valibot.js";
 import bodyParser from "body-parser";
 import cors from "cors";
-import { createHash } from "crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { Router } from "express";
 import pRetry from "p-retry";
@@ -19,21 +18,18 @@ import { GPT_SESSION_ID_SCHEMA } from "./_common.js";
 
 const RequestBodySchema = v.object({
   prompt: v.string(),
-
-  /**
-   * Whether to dump the GPT session after decoding.
-   * The prompt's SHA-256 hash must be whitelisted
-   * in the database, otherwise ignored.
-   */
-  // NOTE: Whitelisting is required to prevent cache abuse.
-  // NOTE: Set `ALLOW_ALL_SESSION_CACHE` to bypass whitelisting.
-  dumpSession: v.boolean(),
 });
 
-const ResponseBodySchema = v.object({
-  decodingId: v.string(),
-  kvCacheSize: v.number(),
-  sessionDumpSize: v.optional(v.number()),
+const ProgressSchema = v.object({
+  type: v.literal("progress"),
+  progress: v.number(),
+});
+
+const EpilogueSchema = v.object({
+  type: v.literal("epilogue"),
+  decodeId: v.string(),
+  duration: v.number(),
+  contextLength: v.number(),
 });
 
 /**
@@ -84,36 +80,32 @@ export default Router()
       return res.status(410).send("Inference node is dead");
     }
 
-    let dumpSession = false;
+    const inferenceNodeResult = await pRetry(
+      async () => {
+        for await (const chunk of inferenceNodeApi.decode(
+          inferenceNode.baseUrl,
+          gptSession.id,
+          { prompt: body.output.prompt },
+        )) {
+          switch (chunk.type) {
+            case "Progress":
+              res.write(
+                JSON.stringify({
+                  type: "progress",
+                  progress: chunk.progress,
+                } satisfies v.InferOutput<typeof ProgressSchema>) + "\n",
+              );
 
-    if (body.output.dumpSession) {
-      const promptHash = createHash("sha256")
-        .update(body.output.prompt)
-        .digest();
+              break;
+            case "Epilogue":
+              return chunk;
+            default:
+              throw unreachable(chunk);
+          }
+        }
 
-      dumpSession =
-        env.ALLOW_ALL_SESSION_CACHE ||
-        !!(await d.db.query.gptSessionHashes.findFirst({
-          where: eq(d.gptSessionHashes.hash, promptHash),
-        }));
-
-      if (dumpSession) {
-        konsole.log("Will dump session", {
-          promptHash: promptHash.toString("hex"),
-        });
-      } else {
-        konsole.info("Prompt's session hash not whitelisted", {
-          promptHash: promptHash.toString("hex"),
-        });
-      }
-    }
-
-    const inferenceNodeResponse = await pRetry(
-      () =>
-        inferenceNodeApi.decode(inferenceNode.baseUrl, gptSession.id, {
-          prompt: body.output.prompt,
-          dumpSession,
-        }),
+        throw new Error("Inference node /decode did not return an epilogue");
+      },
       {
         retries: 2,
         onFailedAttempt: (error) => {
@@ -135,18 +127,21 @@ export default Router()
         .values({
           sessionId: gptSession.id,
           prompt: body.output.prompt,
-          decodingDuration: inferenceNodeResponse.duration,
+          decodingDuration: inferenceNodeResult.duration,
         })
         .returning({
           id: d.gptDecodings.id,
         })
     )[0];
 
-    res.status(200).json(
-      parseTyped(ResponseBodySchema, {
-        decodingId: gptDecoding.id,
-        kvCacheSize: inferenceNodeResponse.kvCacheSize,
-        sessionDumpSize: inferenceNodeResponse.sessionDumpSize ?? undefined,
-      }),
+    res.write(
+      JSON.stringify({
+        type: "epilogue",
+        decodeId: gptDecoding.id,
+        duration: inferenceNodeResult.duration,
+        contextLength: inferenceNodeResult.contextLength,
+      } satisfies v.InferOutput<typeof EpilogueSchema>) + "\n",
     );
+
+    res.end();
   });

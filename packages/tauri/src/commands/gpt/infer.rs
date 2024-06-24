@@ -1,5 +1,7 @@
 use simularity_core::gpt;
+use std::time::Instant;
 
+use super::common::DecodeProgress;
 use crate::AppState;
 
 #[derive(serde::Serialize, Clone)]
@@ -20,7 +22,8 @@ pub async fn gpt_infer(
     prompt: Option<&str>,
     n_eval: usize,
     options: gpt::InferOptions,
-    event_name: Option<String>,
+    decode_callback_event_name: Option<String>,
+    inference_callback_event_name: Option<String>,
     state: tauri::State<'_, AppState>,
     window: tauri::Window,
 ) -> Result<String, tauri::InvokeError> {
@@ -44,23 +47,65 @@ pub async fn gpt_infer(
     let inference_lock = state.inference_mutex.lock().await;
     let mut gpt = arc.lock().await;
 
-    let result = gpt
-        .context
-        .infer(
-            prompt,
-            n_eval,
-            options,
-            event_name.map(|event_name| {
-                move |content: &str| {
-                    let payload = InferenceEventPayload {
-                        content: content.to_string(),
-                    };
+    let window_clone = window.clone();
+    let inference_callback = inference_callback_event_name.map(|event_name| {
+        move |content: &str| {
+            let payload = InferenceEventPayload {
+                content: content.to_string(),
+            };
 
-                    window.emit(&event_name, payload).unwrap();
+            window_clone.emit(&event_name, payload).unwrap();
+        }
+    });
+
+    let result = if let Some(event_name) = decode_callback_event_name.as_ref() {
+        let total_tokens = if let Some(prompt) = prompt {
+            gpt.model.tokenize(prompt).len()
+        } else {
+            0
+        };
+
+        let event_name = event_name.clone();
+        let mut cur_node: usize = 0;
+        let throttle = std::time::Duration::from_millis(500);
+        let mut last_emit: Option<Instant> = None;
+
+        let decode_callback = move || -> bool {
+            cur_node += 1;
+
+            // Throttle the event emission.
+            if let Some(last_emit) = last_emit {
+                if last_emit.elapsed() < throttle {
+                    return true;
                 }
-            }),
-        )
-        .map_err(tauri::InvokeError::from_anyhow);
+            }
+
+            let payload = DecodeProgress {
+                progress: cur_node as f32 / (total_tokens as f32 * 2.0),
+            };
+
+            window.emit(&event_name, payload).unwrap();
+            last_emit = Some(std::time::Instant::now());
+
+            true
+        };
+
+        let decode_callback = Box::new(decode_callback);
+
+        gpt.context
+            .infer(
+                prompt,
+                n_eval,
+                options,
+                Some(decode_callback),
+                inference_callback,
+            )
+            .map_err(tauri::InvokeError::from_anyhow)
+    } else {
+        gpt.context
+            .infer(prompt, n_eval, options, None, inference_callback)
+            .map_err(tauri::InvokeError::from_anyhow)
+    };
 
     drop(inference_lock);
     result

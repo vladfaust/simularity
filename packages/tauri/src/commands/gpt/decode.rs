@@ -1,5 +1,7 @@
+use std::time::Instant;
+
+use super::common::DecodeProgress;
 use crate::AppState;
-use sha2::{Digest, Sha256};
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -9,24 +11,21 @@ pub struct Response {
 
     /// New KV cache size in tokens.
     kv_cache_size: usize,
-
-    /// Session dump size in bytes, if dumped.
-    session_dump_size: Option<usize>,
 }
 
 #[tauri::command]
 /// Decode prompt, updating the KV cache.
-/// Would save the session to a file if `dump_session` is set.
 pub async fn gpt_decode(
     gpt_id: &str,
     prompt: String,
-    dump_session: bool,
+    callback_event_name: Option<String>,
     state: tauri::State<'_, AppState>,
-    app: tauri::AppHandle,
+    window: tauri::Window,
 ) -> Result<Response, tauri::InvokeError> {
     println!(
-        "gpt_decode(gpt_id: {:?}, dump_session: {})",
-        gpt_id, dump_session
+        "gpt_decode(gpt_id: {:?}, callback_event_name: {})",
+        gpt_id,
+        callback_event_name.as_deref().unwrap_or("None"),
     );
 
     let mut hash_map_lock = state.gpt_instances.lock().await;
@@ -43,49 +42,50 @@ pub async fn gpt_decode(
     let mut gpt = arc.lock().await;
 
     let start = std::time::Instant::now();
-    let _ = gpt
-        .context
-        .decode(prompt.clone())
-        .map_err(tauri::InvokeError::from_anyhow);
+    let tokens = gpt.model.tokenize(&prompt);
 
-    let kv_cache_size = gpt.context.kv_cache_size();
+    if let Some(event_name) = callback_event_name.as_ref() {
+        let event_name = event_name.clone();
+        let mut cur_node: usize = 0;
+        let total_tokens = tokens.len();
+        let throttle = std::time::Duration::from_millis(500);
+        let mut last_emit: Option<Instant> = None;
 
-    let mut session_dump_size: Option<usize> = None;
-    if dump_session {
-        let mut hasher = Sha256::new();
-        hasher.update(prompt.as_bytes());
-        let hash = format!("{:x}", hasher.finalize());
+        let callback_fn = move || -> bool {
+            cur_node += 1;
 
-        let path = app
-            .path_resolver()
-            .app_cache_dir()
-            .unwrap()
-            .join(format!("{}.llama-session", hash));
+            // Throttle the event emission.
+            if let Some(last_emit) = last_emit {
+                if last_emit.elapsed() < throttle {
+                    return true;
+                }
+            }
 
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let payload = DecodeProgress {
+                progress: cur_node as f32 / (total_tokens as f32 * 2.0),
+            };
 
-        if path.exists() {
-            println!("llama.cpp session file already exists at {:?}", path);
-        } else {
-            let tokens = gpt.model.tokenize(&prompt);
-            gpt.context.save_session_file(&path, &tokens).unwrap();
+            window.emit(&event_name, payload).unwrap();
+            last_emit = Some(std::time::Instant::now());
 
-            let filesize = std::fs::metadata(&path).unwrap().len();
-            println!(
-                "dumped llama.cpp session to {:?} ({})",
-                path,
-                bytesize::ByteSize(filesize)
-            );
+            true
+        };
+        let callback_fn = Box::new(callback_fn);
 
-            session_dump_size = Some(filesize as usize);
-        }
+        gpt.context
+            .decode(prompt.clone(), Some(callback_fn))
+            .map_err(tauri::InvokeError::from_anyhow)?;
+    } else {
+        gpt.context
+            .decode(prompt.clone(), None)
+            .map_err(tauri::InvokeError::from_anyhow)?;
     }
 
+    let kv_cache_size = gpt.context.kv_cache_size();
     drop(inference_lock);
 
     Ok(Response {
         duration: start.elapsed().as_millis() as u32,
         kv_cache_size,
-        session_dump_size,
     })
 }

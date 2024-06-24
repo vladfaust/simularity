@@ -112,3 +112,10 @@ export function abortSignal(timeout: number) {
   setTimeout(() => controller.abort(), timeout);
   return controller.signal;
 }
+
+/**
+ * Remove empty-after-trimming strings from an array of strings.
+ */
+export function filterWhitespaceStrings(strings: string[]): string[] {
+  return strings.filter((s) => s.trim().length);
+}

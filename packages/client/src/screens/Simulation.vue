@@ -157,6 +157,11 @@ const modelSettings = ref<v.InferOutput<typeof InferenceOptionsSchema>>({
   },
 });
 
+function decodeCallback(event: { progress: number }) {
+  const progress = Math.round(event.progress * 100);
+  console.log(`Decoded ${progress}%%`, event);
+}
+
 function consoleEventListener(event: KeyboardEvent) {
   // Detect tilda key press on different keyboard layouts.
   // FIXME: Enable [, disable when input fields is focused.
@@ -297,6 +302,7 @@ async function regenerateAssistantUpdate(updateIndex: number) {
           grammar: writerGrammar,
           ...modelSettings.value,
         },
+        decodeCallback,
         (e) => {
           regeneratedUpdate.inProgressVariantText.value += e.content;
         },
@@ -404,6 +410,7 @@ async function sendPlayerMessage() {
           grammar: writerGrammar,
           ...modelSettings.value,
         },
+        decodeCallback,
         (e) => {
           assistantUpdate.inProgressVariantText.value += e.content;
         },
@@ -519,7 +526,9 @@ async function advance() {
 
       const newWriterPrompt = `\n${AI_PREFIX}${text}`;
       committedWriterPrompt.value += newWriterPrompt;
-      deferredWriter.promise.then((writer) => writer.decode(newWriterPrompt));
+      deferredWriter.promise.then((writer) =>
+        writer.decode(newWriterPrompt, decodeCallback),
+      );
     } else {
       // Predict the next update.
       // Do not commit it to GPT yet.
@@ -541,6 +550,7 @@ async function advance() {
             grammar: writerGrammar,
             ...modelSettings.value,
           },
+          decodeCallback,
           (e) => {
             assistantUpdate.inProgressVariantText.value += e.content;
           },
@@ -765,8 +775,7 @@ async function prepareGpt() {
 
     if (!gpt) {
       console.debug("Creating new GPT session", driver);
-      const result = await Gpt.create(driver, staticPrompt);
-      gpt = result.gpt;
+      gpt = await Gpt.create(driver, staticPrompt, decodeCallback, true);
       latestGptSessionId.value = gpt.id;
       console.log("Created new GPT session", driver, gpt.id);
     }
@@ -777,7 +786,7 @@ async function prepareGpt() {
   const { gpt, restored } = await findOrCreateGpt(staticPrompt);
 
   if (!restored) {
-    gpt.decode(dynamicPrompt);
+    gpt.decode(dynamicPrompt, decodeCallback);
   }
 
   writer.value = markRaw(gpt);
@@ -1097,6 +1106,7 @@ async function inferResponse(
           grammar: writerGrammar,
           ...modelSettings.value,
         },
+        decodeCallback,
         (e) => {
           assistantUpdate.inProgressVariantText.value += e.content;
         },

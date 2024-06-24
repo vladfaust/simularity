@@ -1,4 +1,4 @@
-import { InferOptions } from "@/lib/inferenceNodeApi/infer.js";
+import { OptionsSchema } from "@/lib/inferenceNodeApi/infer.js";
 import { v } from "@/lib/valibot.js";
 import { relations } from "drizzle-orm";
 import {
@@ -24,7 +24,7 @@ export const gptInferences = pgTable("gpt_inferences", {
 
   /** Inference options. */
   options: json("options")
-    .$type<v.InferOutput<typeof InferOptions>>()
+    .$type<v.InferOutput<typeof OptionsSchema>>()
     .notNull(),
 
   /** Number of evaluations (max. generated prompt size in tokens). */

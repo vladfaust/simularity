@@ -48,9 +48,9 @@ checksum = "cf4b9d6a944f767f8e5e0db018570623c85f3d925ac718db4e06d0187adb21c1"
 
 [[package]]
 name = "cc"
-version = "1.0.97"
+version = "1.0.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "099a5357d84c4c61eb35fc8eafa9a79a902c2f76911e5747ced4e032edd8d9b4"
+checksum = "c891175c3fb232128f48de6590095e59198bbeb8620c310be349bfc3afd12c7b"
 dependencies = [
  "jobserver",
  "libc",
@@ -96,6 +96,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b45de904aa0b010bce2ab45264d0631681847fa7b6f2eaa7dab7619943bc4f59"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "enumflags2"
+version = "0.7.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d232db7f5956f3f14313dc2f87985c58bd2c695ce124c8cdd984e08e15ac133d"
+dependencies = [
+ "enumflags2_derive",
+]
+
+[[package]]
+name = "enumflags2_derive"
+version = "0.7.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de0d48a183585823424a4ce1aa132d174a6a81bd540895822eb4c8373a8e49e8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -177,10 +197,9 @@ checksum = "01cda141df6706de531b6c46c3a33ecca755538219bd484262fa09410c13539c"
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.51"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7392f06dee821155c3709f83f9d5b2f08eab6d9f47e1d4dafb8c5de8eafd8311"
+version = "0.1.59"
 dependencies = [
+ "enumflags2",
  "llama-cpp-sys-2",
  "thiserror",
  "tracing",
@@ -188,12 +207,11 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.51"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fc376d90c76a090ed7df9db79ff894169b19eabd192c41cf03320532b0814d9"
+version = "0.1.59"
 dependencies = [
  "bindgen",
  "cc",
+ "once_cell",
 ]
 
 [[package]]
@@ -345,6 +363,7 @@ dependencies = [
  "anyhow",
  "encoding_rs",
  "llama-cpp-2",
+ "llama-cpp-sys-2",
  "serde",
 ]
 

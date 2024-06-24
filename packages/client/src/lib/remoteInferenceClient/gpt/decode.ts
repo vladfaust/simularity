@@ -1,48 +1,36 @@
-import { InferenceOptionsSchema } from "@/lib/ai/common";
 import { abortSignal, filterWhitespaceStrings, unreachable } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 
 const RequestBodySchema = v.object({
-  prompt: v.nullable(v.string()),
-  nEval: v.number(),
-  options: InferenceOptionsSchema,
+  prompt: v.string(),
 });
 
-const DecodeProgressSchema = v.object({
-  type: v.literal("decodeProgress"),
+const ProgressSchema = v.object({
+  type: v.literal("progress"),
   progress: v.number(),
-});
-
-const InferenceSchema = v.object({
-  type: v.literal("inference"),
-  content: v.string(),
 });
 
 const EpilogueSchema = v.object({
   type: v.literal("epilogue"),
-  inferenceId: v.string(),
+  decodeId: v.string(),
   duration: v.number(),
   contextLength: v.number(),
 });
 
-const ChunkSchema = v.union([
-  DecodeProgressSchema,
-  InferenceSchema,
-  EpilogueSchema,
-]);
+const ChunkSchema = v.union([ProgressSchema, EpilogueSchema]);
 
-export async function infer(
+export async function decode(
   baseUrl: string,
   gptId: string,
   body: v.InferInput<typeof RequestBodySchema>,
   options: { timeout: number },
   decodeCallback?: (event: { progress: number }) => void,
-  inferenceCallback?: (event: { content: string }) => void,
 ): Promise<{
-  inferenceId: string;
-  result: string;
+  decodeId: string;
+  duration: number;
+  contextLength: number;
 }> {
-  const response = await fetch(`${baseUrl}/gpts/${gptId}/infer`, {
+  const response = await fetch(`${baseUrl}/gpts/${gptId}/decode`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -52,14 +40,13 @@ export async function infer(
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to infer: ${response.statusText}`);
+    throw new Error(`Failed to decode prompt: ${response.statusText}`);
   }
 
   const reader = response.body?.getReader();
   if (!reader) throw new Error("Response body is not readable.");
 
   const decoder = new TextDecoder();
-  let result = "";
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -71,17 +58,14 @@ export async function infer(
       const chunk = v.parse(ChunkSchema, json);
 
       switch (chunk.type) {
-        case "decodeProgress":
+        case "progress":
           decodeCallback?.(chunk);
-          break;
-        case "inference":
-          result += chunk.content;
-          inferenceCallback?.(chunk);
           break;
         case "epilogue":
           return {
-            inferenceId: chunk.inferenceId,
-            result,
+            decodeId: chunk.decodeId,
+            duration: chunk.duration,
+            contextLength: chunk.contextLength,
           };
         default:
           throw unreachable(chunk);

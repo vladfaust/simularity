@@ -1,37 +1,34 @@
 import { env } from "@/env.js";
 import { toMilliseconds } from "duration-fns";
 import { FetchError, ResponseOkError } from "../errors.js";
-import { abortSignal } from "../utils.js";
+import { abortSignal, filterWhitespaceStrings } from "../utils.js";
 import { v } from "../valibot.js";
 
-const ResponseSchema = v.object({
-  /**
-   * Decoding duration in milliseconds.
-   */
-  duration: v.number(),
-
-  /**
-   * New KV cache size.
-   */
-  kvCacheSize: v.number(),
-
-  /**
-   * Session dump size in bytes, if dumped.
-   */
-  sessionDumpSize: v.nullable(v.number()),
+const RequestBodySchema = v.object({
+  prompt: v.string(),
 });
 
-export async function decode(
+const ProgressSchema = v.object({
+  type: v.literal("Progress"),
+  progress: v.number(),
+});
+
+const EpilogueSchema = v.object({
+  type: v.literal("Epilogue"),
+  duration: v.number(),
+  contextLength: v.number(),
+});
+
+const ChunkSchema = v.union([ProgressSchema, EpilogueSchema]);
+
+export async function* decode(
   baseUrl: string,
   sessionId: string,
-  args: {
-    prompt: string;
-    dumpSession: boolean;
-  },
+  args: v.InferInput<typeof RequestBodySchema>,
   options: { timeout: number } = {
     timeout: toMilliseconds({ minutes: 2 }),
   },
-): Promise<v.InferOutput<typeof ResponseSchema>> {
+): AsyncGenerator<v.InferOutput<typeof ChunkSchema>> {
   let response;
   try {
     response = await fetch(`${baseUrl}/gpts/${sessionId}/decode`, {
@@ -51,5 +48,22 @@ export async function decode(
     throw await ResponseOkError.from(response);
   }
 
-  return await response.json().then((x) => v.parse(ResponseSchema, x));
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Response body is not readable.");
+  }
+
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    for (const text of filterWhitespaceStrings(
+      decoder.decode(value).split("\n"),
+    )) {
+      const json = JSON.parse(text);
+      const chunk = v.parse(ChunkSchema, json);
+      yield chunk;
+    }
+  }
 }

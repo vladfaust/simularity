@@ -7,7 +7,7 @@ use std::collections::HashMap;
 // TODO: When the heartbeat fails due to node deregistration, re-register the node.
 pub async fn run_heartbeat() {
     // Retry up to 3 times with increasing intervals between attempts.
-    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(10);
 
     // 1. POST /inference-nodes {id, ... }
     // 2. (Loop) HEAD /inference-nodes/{id}/heartbeat

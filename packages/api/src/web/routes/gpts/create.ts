@@ -1,11 +1,14 @@
+import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { FetchError, ResponseOkError } from "@/lib/errors.js";
 import * as inferenceNodeApi from "@/lib/inferenceNodeApi.js";
 import { konsole } from "@/lib/konsole.js";
-import { parseTyped, v } from "@/lib/valibot.js";
+import { unreachable } from "@/lib/utils.js";
+import { v } from "@/lib/valibot.js";
 import bodyParser from "body-parser";
 import cors from "cors";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
+import { eq } from "drizzle-orm";
 import { Router } from "express";
 import pRetry from "p-retry";
 import { findInferenceNode } from "./_common.js";
@@ -20,9 +23,20 @@ const RequestBodySchema = v.object({
   initialPrompt: v.optional(v.string()),
 });
 
-const ResponseBodySchema = v.object({
-  id: v.string(),
-  sessionLoaded: v.optional(v.boolean()),
+const DecodeProgressSchema = v.object({
+  type: v.literal("decodeProgress"),
+  progress: v.number(), // 0-1
+});
+
+const SessionLoadProgressSchema = v.object({
+  type: v.literal("sessionLoadProgress"),
+  progress: v.number(), // 0-1
+});
+
+const EpilogueSchema = v.object({
+  type: v.literal("epilogue"),
+  sessionId: v.string(),
+  contextLength: v.number(),
 });
 
 /**
@@ -47,13 +61,66 @@ export default Router()
       return res.status(503).send("No inference node available for this model");
     }
 
+    let dumpSession: boolean | undefined;
+    if (body.output.initialPrompt) {
+      const promptHash = createHash("sha256")
+        .update(body.output.initialPrompt)
+        .digest();
+
+      dumpSession =
+        env.ALLOW_ALL_SESSION_CACHE ||
+        !!(await d.db.query.gptSessionHashes.findFirst({
+          where: eq(d.gptSessionHashes.hash, promptHash),
+        }));
+
+      if (dumpSession) {
+        konsole.log("Will dump session", {
+          promptHash: promptHash.toString("hex"),
+        });
+      } else {
+        konsole.info("Prompt's session hash not whitelisted", {
+          promptHash: promptHash.toString("hex"),
+        });
+      }
+    }
+
     const gptSessionId = randomUUID();
-    const inferenceNodeResponse = await pRetry(
-      () =>
-        inferenceNodeApi.create(node.baseUrl, {
+    const result = await pRetry(
+      async () => {
+        for await (const chunk of inferenceNodeApi.create(node.baseUrl, {
           id: gptSessionId,
           initialPrompt: body.output.initialPrompt,
-        }),
+          dumpSession,
+        })) {
+          switch (chunk.type) {
+            case "Decode":
+              res.write(
+                JSON.stringify({
+                  type: "decodeProgress",
+                  progress: chunk.progress,
+                } satisfies v.InferOutput<typeof DecodeProgressSchema>) + "\n",
+              );
+
+              break;
+            case "SessionLoad":
+              res.write(
+                JSON.stringify({
+                  type: "sessionLoadProgress",
+                  progress: chunk.progress,
+                } satisfies v.InferOutput<typeof SessionLoadProgressSchema>) +
+                  "\n",
+              );
+
+              break;
+            case "Epilogue":
+              return chunk;
+            default:
+              throw unreachable(chunk);
+          }
+        }
+
+        throw new Error("Inference node did not return epilogue");
+      },
       {
         retries: 2,
         onFailedAttempt: (error) => {
@@ -83,10 +150,13 @@ export default Router()
     )[0];
     konsole.info("Created GPT session", session);
 
-    return res.status(201).json(
-      parseTyped(ResponseBodySchema, {
-        ...session,
-        sessionLoaded: inferenceNodeResponse.sessionLoaded ?? undefined,
-      }),
+    res.write(
+      JSON.stringify({
+        type: "epilogue",
+        sessionId: session.id,
+        contextLength: result.contextLength,
+      } satisfies v.InferOutput<typeof EpilogueSchema>) + "\n",
     );
+
+    res.end();
   });

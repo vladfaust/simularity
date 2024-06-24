@@ -4,6 +4,7 @@ use simularity_tauri::static_box;
 use crate::AppState;
 
 pub mod commit;
+mod common;
 pub mod create;
 pub mod decode;
 pub mod destroy;
