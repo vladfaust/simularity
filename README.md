@@ -34,6 +34,11 @@ Paper: https://github.com/mit-han-lab/streaming-llm.
 - On KV cache size & sequences: https://github.com/ggerganov/llama.cpp/discussions/4130#discussioncomment-8053636
 - https://blog.eleuther.ai/transformer-math/
 - https://github.com/ggerganov/llama.cpp/pull/6412 (bfloat16)
+- https://www.omrimallis.com/posts/understanding-how-llm-inference-works-with-llama-cpp
+- https://kipp.ly/transformer-inference-arithmetic
+- https://www.anyscale.com/blog/continuous-batching-llm-inference (vLLM)
+- https://github.com/ggerganov/llama.cpp/discussions/7887 (RoPE)
+- https://sidshome.wordpress.com/2023/12/24/understanding-internals-of-llama-cpp/
 
 ### Roleplay
 
