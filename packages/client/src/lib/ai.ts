@@ -1,6 +1,6 @@
 import { toMilliseconds } from "duration-fns";
 import { nanoid } from "nanoid";
-import { ref } from "vue";
+import { Ref, computed, markRaw, readonly, ref } from "vue";
 import { InferenceOptionsSchema } from "./ai/common";
 import * as remoteInferenceClient from "./remoteInferenceClient";
 import * as tauri from "./tauri";
@@ -20,10 +20,7 @@ export type GptDriver =
       batchSize: number;
     };
 
-type GptJob = GptDecodeJob | GptInferJob | GptCommitJob;
-
 abstract class Job<T> {
-  abstract name: string;
   readonly deferred = new Deferred<T>();
   constructor(readonly fn: () => Promise<T>) {}
   get result() {
@@ -31,28 +28,91 @@ abstract class Job<T> {
   }
 }
 
-class GptDecodeJob extends Job<void> {
-  name = "Decode";
+export class GptInitJob extends Job<string> {
+  readonly progress = ref(0);
+
+  constructor(
+    gpt: Gpt,
+    initialPrompt?: string,
+    progressCallback_?: (event: { progress: number }) => void,
+    dumpSession?: boolean,
+  ) {
+    super(async (): Promise<string> => {
+      const progressCallback = (event: { progress: number }) => {
+        console.debug("GPT init progress", event.progress);
+        this.progress.value = event.progress;
+        progressCallback_?.(event);
+      };
+
+      switch (gpt.driver.type) {
+        case "local": {
+          const id = nanoid();
+          await tauri.gpt.create(
+            id,
+            gpt.driver.modelPath,
+            gpt.driver.contextSize,
+            gpt.driver.batchSize,
+            initialPrompt,
+            progressCallback,
+            dumpSession,
+          );
+          this.progress.value = 1;
+          return id;
+        }
+
+        case "remote": {
+          const id = (
+            await remoteInferenceClient.gpt.create(
+              gpt.driver.baseUrl,
+              {
+                model: gpt.driver.model,
+                initialPrompt,
+              },
+              { timeout: toMilliseconds({ minutes: 2 }) },
+              progressCallback,
+            )
+          ).sessionId;
+          this.progress.value = 1;
+          return id;
+        }
+
+        default:
+          throw unreachable(gpt.driver);
+      }
+    });
+  }
+}
+
+export class GptDecodeJob extends Job<void> {
+  readonly progress = ref(0);
 
   constructor(
     gpt: Gpt,
     readonly prompt: string,
-    readonly decodeCallback?: (event: { progress: number }) => void,
+    readonly decodeCallback_?: (event: { progress: number }) => void,
   ) {
     super(async (): Promise<void> => {
+      if (!gpt.isInitialized.value) {
+        throw new Error("GPT is not initialized.");
+      }
+
+      const decodeCallback = (event: { progress: number }) => {
+        this.progress.value = event.progress;
+        decodeCallback_?.(event);
+      };
+
       switch (gpt.driver.type) {
         case "local":
-          await tauri.gpt.decode(gpt.id, prompt, decodeCallback);
+          await tauri.gpt.decode(gpt.id.value!, prompt, decodeCallback);
           return;
         case "remote":
           await remoteInferenceClient.gpt.decode(
             gpt.driver.baseUrl,
-            gpt.id,
+            gpt.id.value!,
             { prompt },
             { timeout: toMilliseconds({ minutes: 2 }) },
             decodeCallback,
           );
-
           return;
         default:
           throw unreachable(gpt.driver);
@@ -61,22 +121,40 @@ class GptDecodeJob extends Job<void> {
   }
 }
 
-class GptInferJob extends Job<string> {
-  name = "Infer";
+export class GptInferJob extends Job<string> {
+  readonly decodeProgress: Ref<number | undefined>;
 
   constructor(
     gpt: Gpt,
     readonly prompt: string | null,
     readonly nEval: number,
     readonly options: v.InferInput<typeof InferenceOptionsSchema>,
-    readonly decodeCallback?: (event: { progress: number }) => void,
-    readonly inferenceCallback?: (event: { content: string }) => void,
+    readonly decodeCallback_?: (event: { progress: number }) => void,
+    readonly inferenceCallback_?: (event: { content: string }) => void,
   ) {
     super(async (): Promise<string> => {
+      if (!gpt.isInitialized.value) {
+        throw new Error("GPT is not initialized.");
+      }
+
+      const decodeCallback = (event: { progress: number }) => {
+        this.decodeProgress.value = event.progress;
+        decodeCallback_?.(event);
+      };
+
+      const inferenceCallback = (event: { content: string }) => {
+        if (this.decodeProgress.value !== 1) {
+          this.decodeProgress.value = 1;
+          decodeCallback_?.({ progress: 1 });
+        }
+
+        inferenceCallback_?.(event);
+      };
+
       switch (gpt.driver.type) {
         case "local":
           return tauri.gpt.infer(
-            gpt.id,
+            gpt.id.value!,
             prompt,
             nEval,
             options,
@@ -87,7 +165,7 @@ class GptInferJob extends Job<string> {
           return (
             await remoteInferenceClient.gpt.infer(
               gpt.driver.baseUrl,
-              gpt.id,
+              gpt.id.value!,
               { prompt, nEval, options },
               { timeout: toMilliseconds({ minutes: 2 }) },
               decodeCallback,
@@ -98,20 +176,27 @@ class GptInferJob extends Job<string> {
           throw unreachable(gpt.driver);
       }
     });
+
+    this.decodeProgress = ref(prompt ? 0 : undefined);
   }
 }
 
-class GptCommitJob extends Job<number> {
-  name = "Commit";
-
+export class GptCommitJob extends Job<number> {
   constructor(gpt: Gpt) {
     super(async (): Promise<number> => {
+      if (!gpt.isInitialized.value) {
+        throw new Error("GPT is not initialized.");
+      }
+
       switch (gpt.driver.type) {
         case "local":
-          return tauri.gpt.commit(gpt.id);
+          return tauri.gpt.commit(gpt.id.value!);
         case "remote":
           return (
-            await remoteInferenceClient.gpt.commit(gpt.driver.baseUrl, gpt.id)
+            await remoteInferenceClient.gpt.commit(
+              gpt.driver.baseUrl,
+              gpt.id.value!,
+            )
           ).kvCacheSize;
         default:
           throw unreachable(gpt.driver);
@@ -119,6 +204,8 @@ class GptCommitJob extends Job<number> {
     });
   }
 }
+
+type GptJob = GptInitJob | GptDecodeJob | GptInferJob | GptCommitJob;
 
 /**
  * A GPT instance, routing requests to the appropriate backend (local or remote).
@@ -148,76 +235,50 @@ export class Gpt {
   /**
    * Create a new GPT instance.
    *
-   * @param initialPrompt If set, would try to preload the session,
-   * otherwise decode from scratch.
+   * @param staticPrompt If set, would try to preload the session,
+   * or decode from scratch.
    *
    * @param dumpSession If set, would dump the session to disk.
    * Ignored for remote inference.
    */
   static async create(
     driver: GptDriver,
-    initialPrompt: string | undefined,
-    progressCallback: (event: { progress: number }) => void | undefined,
-    dumpSession: boolean,
+    staticPrompt: string | undefined,
+    initProgressCallback: (event: { progress: number }) => void | undefined,
+    dumpSession: boolean | undefined,
+    onInitCallback?: (id: string) => void,
   ): Promise<Gpt> {
-    let id: string;
+    const gpt = new Gpt(undefined, driver, staticPrompt);
 
-    switch (driver.type) {
-      case "local": {
-        id = nanoid();
+    gpt
+      .initialize(dumpSession, initProgressCallback)
+      .then((id) => onInitCallback?.(id));
 
-        await tauri.gpt.create(
-          id,
-          driver.modelPath,
-          driver.contextSize,
-          driver.batchSize,
-          initialPrompt,
-          progressCallback,
-          dumpSession,
-        );
-
-        break;
-      }
-
-      case "remote": {
-        id = (
-          await remoteInferenceClient.gpt.create(
-            driver.baseUrl,
-            {
-              model: driver.model,
-              initialPrompt,
-            },
-            { timeout: toMilliseconds({ minutes: 2 }) },
-            progressCallback,
-          )
-        ).sessionId;
-
-        break;
-      }
-
-      default:
-        throw unreachable(driver);
-    }
-
-    return new Gpt(id, driver);
+    return gpt;
   }
 
-  private _id: string;
-  private _jobs = ref<GptJob[]>([]);
-  private _currentJob = ref<GptJob | null>(null);
-  private _wouldDestroy = ref(false);
+  readonly driver: GptDriver;
 
-  get id() {
-    return this._id;
-  }
+  private readonly _id = ref<string | undefined>();
+  readonly id = readonly(this._id);
+  readonly isInitialized = computed(() => !!this.id.value);
 
-  get jobs() {
-    return this._jobs;
-  }
+  private readonly _jobs = ref<GptJob[]>([]);
+  readonly jobs = readonly(this._jobs);
 
-  get currentJob() {
-    return this._currentJob;
-  }
+  private readonly _currentJob = ref<GptJob | null>(null);
+  readonly currentJob = readonly(this._currentJob);
+
+  private readonly _wouldDestroy = ref(false);
+  readonly wouldDestroy = readonly(this._wouldDestroy);
+
+  readonly staticPrompt: string | undefined;
+
+  private readonly _dynamicPromptCommitted = ref("");
+  readonly dynamicPromptCommitted = readonly(this._dynamicPromptCommitted);
+
+  private readonly _dynamicPromptUncommitted = ref("");
+  readonly dynamicPromptUncommitted = readonly(this._dynamicPromptUncommitted);
 
   /**
    * Decode the prompt, updating the KV cache.
@@ -227,7 +288,8 @@ export class Gpt {
     prompt: string,
     callback?: (event: { progress: number }) => void,
   ): Promise<void> {
-    return this.pushJob(new GptDecodeJob(this, prompt, callback));
+    await this.pushJob(markRaw(new GptDecodeJob(this, prompt, callback)));
+    this._dynamicPromptCommitted.value += prompt;
   }
 
   /**
@@ -240,16 +302,31 @@ export class Gpt {
     nEval: number,
     options: v.InferInput<typeof InferenceOptionsSchema> = {},
     decodeCallback?: (event: { progress: number }) => void,
-    inferenceCallback?: (event: { content: string }) => void,
+    inferenceCallback_?: (event: { content: string }) => void,
   ): Promise<string> {
+    let decodeComplete = false;
+
     return this.pushJob(
-      new GptInferJob(
-        this,
-        prompt,
-        nEval,
-        options,
-        decodeCallback,
-        inferenceCallback,
+      markRaw(
+        new GptInferJob(
+          this,
+          prompt,
+          nEval,
+          options,
+          decodeCallback,
+          (event) => {
+            if (!decodeComplete) {
+              if (prompt) {
+                this._dynamicPromptUncommitted.value += prompt;
+              }
+
+              decodeComplete = true;
+            }
+
+            this._dynamicPromptUncommitted.value += event.content;
+            inferenceCallback_?.(event);
+          },
+        ),
       ),
     );
   }
@@ -259,7 +336,10 @@ export class Gpt {
    */
   // TODO: Return the new KV cache size.
   async commit(): Promise<number> {
-    return this.pushJob(new GptCommitJob(this));
+    const result = await this.pushJob(markRaw(new GptCommitJob(this)));
+    this._dynamicPromptCommitted.value = this._dynamicPromptUncommitted.value;
+    this._dynamicPromptUncommitted.value = "";
+    return result;
   }
 
   /**
@@ -283,13 +363,20 @@ export class Gpt {
 
     this._wouldDestroy.value = false;
 
-    switch (this.driver.type) {
-      case "local":
-        return tauri.gpt.destroy(this.id);
-      case "remote":
-        return remoteInferenceClient.gpt.destroy(this.driver.baseUrl, this.id);
-      default:
-        throw unreachable(this.driver);
+    if (this.id.value) {
+      switch (this.driver.type) {
+        case "local":
+          return tauri.gpt.destroy(this.id.value);
+        case "remote":
+          return remoteInferenceClient.gpt.destroy(
+            this.driver.baseUrl,
+            this.id.value,
+          );
+        default:
+          throw unreachable(this.driver);
+      }
+    } else {
+      console.info("GPT instance not initialized, noop destroy");
     }
   }
 
@@ -312,14 +399,28 @@ export class Gpt {
   }
 
   private constructor(
-    id: string,
-    readonly driver: GptDriver,
+    id: string | undefined,
+    driver: GptDriver,
+    staticPrompt?: string,
   ) {
-    this._id = id;
+    this._id.value = id;
+    this.driver = driver;
+    this.staticPrompt = staticPrompt;
+  }
+
+  private async initialize(
+    dumpSession?: boolean,
+    progressCallback?: (event: { progress: number }) => void,
+  ): Promise<string> {
+    return (this._id.value = await this.pushJob(
+      markRaw(
+        new GptInitJob(this, this.staticPrompt, progressCallback, dumpSession),
+      ),
+    ));
   }
 
   private async pushJob<T>(job: Job<T>): Promise<T> {
-    this._jobs.value.push(job as unknown as GptJob);
+    this._jobs.value.push(job as any);
     this.wakeUp();
     return job.result;
   }
@@ -332,14 +433,14 @@ export class Gpt {
 
     let job = this._jobs.value.shift();
     if (job) {
-      console.debug(this.id, "Performing job...", job.name);
+      console.debug(this.id.value, "Performing job...", job.constructor.name);
       this._currentJob.value = job;
 
       try {
         const result = (await job.fn()) as any;
         job.deferred.resolve(result);
       } catch (error) {
-        console.error(this.id, "Job error", job.name, error);
+        console.error(this.id, "Job error", job, error);
         this._jobs.value.length = 0; // Clear the queue.
         job.deferred.reject(error);
       } finally {

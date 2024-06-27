@@ -63,6 +63,7 @@
 - [x] feat: inference server (Sat June 15)
 - [x] feat: GPT session caching (Wed June 19)
 - [x] feat: streaming inference (Sun June 23)
+- [x] feat: streaming progress reporting (Thu June 27)
 
 ### May 2024
 

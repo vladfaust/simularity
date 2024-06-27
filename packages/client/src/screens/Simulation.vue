@@ -21,7 +21,6 @@ import {
   FastForwardIcon,
   Loader2Icon,
   MenuIcon,
-  ScrollTextIcon,
   SendHorizontalIcon,
   ShapesIcon,
   SkipForwardIcon,
@@ -157,9 +156,11 @@ const modelSettings = ref<v.InferOutput<typeof InferenceOptionsSchema>>({
   },
 });
 
-function decodeCallback(event: { progress: number }) {
-  const progress = Math.round(event.progress * 100);
-  console.log(`Decoded ${progress}%%`, event);
+function progressCallback(eventName: string) {
+  return (event: { progress: number }) => {
+    const progress = Math.round(event.progress * 100);
+    console.log(`${eventName}: ${progress}%`);
+  };
 }
 
 function consoleEventListener(event: KeyboardEvent) {
@@ -302,7 +303,7 @@ async function regenerateAssistantUpdate(updateIndex: number) {
           grammar: writerGrammar,
           ...modelSettings.value,
         },
-        decodeCallback,
+        progressCallback("Inference decoding"),
         (e) => {
           regeneratedUpdate.inProgressVariantText.value += e.content;
         },
@@ -410,7 +411,7 @@ async function sendPlayerMessage() {
           grammar: writerGrammar,
           ...modelSettings.value,
         },
-        decodeCallback,
+        progressCallback("Inference decoding"),
         (e) => {
           assistantUpdate.inProgressVariantText.value += e.content;
         },
@@ -527,7 +528,7 @@ async function advance() {
       const newWriterPrompt = `\n${AI_PREFIX}${text}`;
       committedWriterPrompt.value += newWriterPrompt;
       deferredWriter.promise.then((writer) =>
-        writer.decode(newWriterPrompt, decodeCallback),
+        writer.decode(newWriterPrompt, progressCallback("Decoding")),
       );
     } else {
       // Predict the next update.
@@ -550,7 +551,7 @@ async function advance() {
             grammar: writerGrammar,
             ...modelSettings.value,
           },
-          decodeCallback,
+          progressCallback("Inference decoding"),
           (e) => {
             assistantUpdate.inProgressVariantText.value += e.content;
           },
@@ -775,9 +776,16 @@ async function prepareGpt() {
 
     if (!gpt) {
       console.debug("Creating new GPT session", driver);
-      gpt = await Gpt.create(driver, staticPrompt, decodeCallback, true);
-      latestGptSessionId.value = gpt.id;
-      console.log("Created new GPT session", driver, gpt.id);
+      gpt = await Gpt.create(
+        driver,
+        staticPrompt,
+        progressCallback("Initializing"),
+        true,
+        (id) => {
+          latestGptSessionId.value = id;
+          console.log("Initialized new GPT session", id);
+        },
+      );
     }
 
     return { gpt, restored };
@@ -786,9 +794,10 @@ async function prepareGpt() {
   const { gpt, restored } = await findOrCreateGpt(staticPrompt);
 
   if (!restored) {
-    gpt.decode(dynamicPrompt, decodeCallback);
+    gpt.decode(dynamicPrompt, progressCallback("Decoding"));
   }
 
+  console.debug("Prepared GPT", gpt);
   writer.value = markRaw(gpt);
   deferredWriter.resolve(writer.value);
 }
@@ -1106,7 +1115,7 @@ async function inferResponse(
           grammar: writerGrammar,
           ...modelSettings.value,
         },
-        decodeCallback,
+        progressCallback("Inference decoding"),
         (e) => {
           assistantUpdate.inProgressVariantText.value += e.content;
         },
@@ -1305,12 +1314,9 @@ function toMainMenu() {
               )
                 SkipForwardIcon(:size="20")
 
-      .flex.w-full.justify-between.bg-white.bg-opacity-50.p-2
-        span {{ scenario?.name }}: {{ simulationId }}
-        .flex.gap-2
-          .flex.items-center.gap-1
-            GptStatus(:gpt="writer" :icon-size="22")
-              ScrollTextIcon(:size="18")
+      .flex.w-full.justify-center.bg-white.bg-opacity-25.p-2
+        .flex.items-center.gap-1
+          GptStatus(:gpt="writer" name="Writer")
 
   TransitionRoot.h-full.shrink-0(
     class="w-1/3"
