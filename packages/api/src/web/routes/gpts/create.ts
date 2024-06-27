@@ -143,6 +143,7 @@ export default Router()
           id: gptSessionId,
           inferenceNodeId: node.id,
           model: body.output.model,
+          initialPrompt: body.output.initialPrompt,
         })
         .returning({
           id: d.gptSessions.id,
