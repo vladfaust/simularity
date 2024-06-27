@@ -89,6 +89,12 @@ pub async fn handler(
 
     let batch_size = context_size;
 
+    let tokens = if let Some(initial_prompt) = req.initial_prompt.as_ref() {
+        state.gpt.model.tokenize(initial_prompt)
+    } else {
+        vec![]
+    };
+
     let instance = GptInstance {
         context: gpt::Context::new(
             &state.gpt.backend,
@@ -100,6 +106,7 @@ pub async fn handler(
         )
         .expect("unable to create GPT context"),
         model: state.gpt.model,
+        initial_prompt_len: tokens.len(),
     };
 
     let instance = Arc::new(std::sync::Mutex::new(instance));
@@ -119,7 +126,6 @@ pub async fn handler(
             let session_file_path = std::env::temp_dir().join(format!("{}.llama-session", hash));
 
             let mut gpt = instance.lock().unwrap();
-            let tokens = gpt.model.tokenize(&initial_prompt);
             let context_length = tokens.len();
 
             if session_file_path.exists() {

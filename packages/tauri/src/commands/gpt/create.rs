@@ -63,6 +63,11 @@ pub async fn gpt_create(
     }
 
     let model_ref = get_or_create_model_ref(model_path.clone(), &state).await?;
+    let tokens = if let Some(prompt) = initial_prompt.as_ref() {
+        model_ref.tokenize(prompt)
+    } else {
+        vec![]
+    };
 
     let mut instance = GptInstance {
         model: model_ref,
@@ -75,6 +80,7 @@ pub async fn gpt_create(
             Some(GPT_COUNTER.fetch_add(1, Ordering::Relaxed)),
         )
         .map_err(tauri::InvokeError::from_anyhow)?,
+        initial_prompt_len: tokens.len(),
     };
 
     let mut session_loaded: Option<bool> = None;
@@ -93,7 +99,6 @@ pub async fn gpt_create(
             .join(format!("{}.llama-session", session_hash));
 
         std::fs::create_dir_all(session_file_path.parent().unwrap()).unwrap();
-        let tokens = instance.model.tokenize(prompt);
 
         // Check that the file exists before trying to load it.
         if session_file_path.exists() {

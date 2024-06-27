@@ -13,6 +13,7 @@ mod sqlite;
 struct GptInstance {
     pub model: &'static gpt::Model,
     pub context: gpt::Context<'static>,
+    pub initial_prompt_len: usize,
 }
 
 struct AppState {

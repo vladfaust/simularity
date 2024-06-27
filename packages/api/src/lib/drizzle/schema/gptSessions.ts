@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import { pgTable, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import { gptDecodings } from "./gptDecodes.js";
+import { gptResets } from "./gptResets.js";
 
 export const gptSessions = pgTable("gpt_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -14,4 +15,5 @@ export const gptSessions = pgTable("gpt_sessions", {
 
 export const gptSessionRelations = relations(gptSessions, ({ one, many }) => ({
   decodes: many(gptDecodings),
+  resets: many(gptResets),
 }));

@@ -92,9 +92,10 @@ impl<'model> Context<'model> {
         })
     }
 
-    pub fn reset(&mut self) -> Result<()> {
-        self.context.clear_kv_cache();
-        self.session.clear();
+    /// Reset the KV cache starting `from` the given token index.
+    pub fn reset(&mut self, from: usize) -> Result<()> {
+        self.context.clear_kv_cache_seq(0, Some(from as u16), None);
+        self.session.truncate(from);
         self.uncommitted_session.clear();
         Ok(())
     }

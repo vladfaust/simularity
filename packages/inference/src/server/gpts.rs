@@ -12,11 +12,13 @@ pub mod create;
 pub mod decode;
 pub mod delete;
 pub mod infer;
+pub mod reset;
 pub mod token_count;
 
 pub struct GptInstance {
     pub model: &'static gpt::Model,
     pub context: gpt::Context<'static>,
+    pub initial_prompt_len: usize,
 }
 
 pub struct GptState {
@@ -53,5 +55,6 @@ pub fn router() -> Router<std::sync::Arc<AppState>> {
         .route("/gpts/:id/decode", post(decode::handler))
         .route("/gpts/:id/infer", post(infer::handler))
         .route("/gpts/:id/commit", post(commit::handler))
+        .route("/gpts/:id/reset", post(reset::handler))
         .route("/gpts/:id", delete(delete::handler))
 }

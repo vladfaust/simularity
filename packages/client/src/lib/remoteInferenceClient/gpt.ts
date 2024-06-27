@@ -32,6 +32,24 @@ export async function commit(
   return (await response.json()) as { commitId: string; kvCacheSize: number };
 }
 
+/**
+ * Reset the GPT session to its initial state (i.e. static prompt).
+ */
+export async function reset(
+  baseUrl: string,
+  gptId: string,
+): Promise<{ resetId: string }> {
+  const response = await fetch(`${baseUrl}/gpts/${gptId}/reset`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to reset: ${response.statusText}`);
+  }
+
+  return (await response.json()) as { resetId: string };
+}
+
 export async function destroy(baseUrl: string, gptId: string): Promise<void> {
   const response = await fetch(`${baseUrl}/gpts/${gptId}`, {
     method: "DELETE",

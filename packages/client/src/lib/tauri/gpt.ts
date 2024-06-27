@@ -38,6 +38,13 @@ export async function commit(gptId: string): Promise<number> {
 }
 
 /**
+ * Reset the GPT instance to its initial state (i.e. static prompt).
+ */
+export async function reset(gptId: string): Promise<void> {
+  return await invoke("gpt_reset", { gptId });
+}
+
+/**
  * Tokenize prompt and return the token count.
  */
 export async function tokenCount(

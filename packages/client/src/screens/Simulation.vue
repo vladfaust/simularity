@@ -3,7 +3,15 @@ import { type Raw, computed, markRaw, onMounted, onUnmounted, ref } from "vue";
 import { type Scenario } from "@/lib/types";
 import { DefaultScene } from "../lib/simulation/phaser/defaultScene";
 import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
-import { Deferred, clone, assert, assertFn, unreachable } from "@/lib/utils";
+import {
+  Deferred,
+  clone,
+  assert,
+  assertFn,
+  unreachable,
+  digest,
+  bufferToHex,
+} from "@/lib/utils";
 import {
   buildStaticPrompt,
   buildDynamicPrompt,
@@ -37,7 +45,7 @@ import {
   writeBinaryFile,
 } from "@tauri-apps/api/fs";
 import prettyBytes from "pretty-bytes";
-import { Gpt, type GptDriver } from "@/lib/ai";
+import { Gpt, type GptDriver, driversEqual } from "@/lib/ai";
 import { InferenceOptionsSchema } from "@/lib/ai/common";
 import SandboxConsole from "./Simulation/SandboxConsole.vue";
 import { stageCallsToLua, comparesDeltas } from "@/lib/simulation/stage";
@@ -54,7 +62,7 @@ import {
 import Menu from "./Simulation/Menu.vue";
 import router, { routeLocation } from "@/lib/router";
 import * as settings from "@/settings";
-import { latestGptSessionId } from "@/store";
+import { latestGptSession } from "@/store";
 import { v } from "@/lib/valibot";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
@@ -93,8 +101,14 @@ const busy = ref(false);
 const writer = ref<Gpt | undefined>();
 const deferredWriter = new Deferred<Gpt>();
 
-/** The committed writer prompt, always trimmed. */
-const committedWriterPrompt = ref("");
+const committedWriterPrompt = computed<string | undefined>(() => {
+  if (!writer.value) return;
+
+  return (
+    (writer.value.staticPrompt ?? "") +
+    writer.value.dynamicPromptCommitted.value
+  );
+});
 
 const uncommittedPlayerInput = ref("");
 const uncommittedAssistantText = ref("");
@@ -110,7 +124,6 @@ const uncommittedWriterPrompt = computed(() => {
 
   return value;
 });
-const uncommittedWriterKvCacheKey = ref<string | undefined>();
 
 const _canvasFade = ref(true);
 
@@ -188,15 +201,17 @@ function consoleEventListener(event: KeyboardEvent) {
 async function commitUncommitted() {
   const promises = [];
 
-  if (uncommittedWriterKvCacheKey.value) {
+  if (uncommittedWriterPrompt.value) {
     promises.push(
       deferredWriter.promise.then((writer) =>
         writer.commit().then((tokens) => {
-          console.debug("Committed to writer", tokens);
-          committedWriterPrompt.value += "\n" + uncommittedWriterPrompt.value;
+          console.debug(
+            `Committed ${tokens} tokens to writer`,
+            uncommittedWriterPrompt.value,
+          );
+
           uncommittedPlayerInput.value = "";
           uncommittedAssistantText.value = "";
-          uncommittedWriterKvCacheKey.value = undefined;
         }),
       ),
     );
@@ -318,7 +333,6 @@ async function regenerateAssistantUpdate(updateIndex: number) {
     });
 
     uncommittedAssistantText.value = writerResponse;
-    uncommittedWriterKvCacheKey.value = writerUpdate.id;
 
     regeneratedUpdate.variants.push({
       id: writerUpdate.id,
@@ -438,7 +452,6 @@ async function sendPlayerMessage() {
     assistantUpdate.inProgressVariantText.value = null;
 
     uncommittedAssistantText.value = writerResponse;
-    uncommittedWriterKvCacheKey.value = assistantUpdateId;
   } catch (e) {
     if (wouldRestorePlayerInput) {
       playerInput.value = userMessage;
@@ -526,7 +539,6 @@ async function advance() {
       updates.value.unshift(episodeUpdate);
 
       const newWriterPrompt = `\n${AI_PREFIX}${text}`;
-      committedWriterPrompt.value += newWriterPrompt;
       deferredWriter.promise.then((writer) =>
         writer.decode(newWriterPrompt, progressCallback("Decoding")),
       );
@@ -574,7 +586,6 @@ async function advance() {
       assistantUpdate.inProgressVariantText.value = null;
 
       uncommittedAssistantText.value = writerResponse;
-      uncommittedWriterKvCacheKey.value = writerUpdate.id;
     }
 
     screenshot(true).then((shot) => {
@@ -716,9 +727,11 @@ async function prepareGpt() {
 
   const staticPrompt = buildStaticPrompt(scenario.value!);
   const dynamicPrompt = buildDynamicPrompt(committedUpdates);
-  committedWriterPrompt.value += staticPrompt + dynamicPrompt;
 
-  const findOrCreateGpt = async (staticPrompt: string) => {
+  const findOrCreateGpt = async (
+    staticPrompt: string,
+    dynamicPrompt: string,
+  ) => {
     let driver: GptDriver;
     const driverType = (await settings.getGptDriver()) || "remote";
     switch (driverType) {
@@ -750,7 +763,6 @@ async function prepareGpt() {
           type: "local",
           modelPath,
           contextSize,
-          batchSize: contextSize,
         };
 
         break;
@@ -762,16 +774,69 @@ async function prepareGpt() {
 
     let gpt: Gpt | null = null;
     let restored = false;
+    let needDecode = true;
+    const staticPromptHash = bufferToHex(await digest(staticPrompt, "SHA-256"));
 
-    if (latestGptSessionId.value) {
-      console.debug(
-        "Will try restoring GPT session",
+    if (latestGptSession.value) {
+      const areDriversEqual = driversEqual(
+        latestGptSession.value.driver,
         driver,
-        latestGptSessionId.value,
       );
-      gpt = await Gpt.find(driver, latestGptSessionId.value);
-      restored = !!gpt;
-      if (restored) console.log("Restored GPT session", driver, gpt!.id);
+
+      const isStaticPromptEqual =
+        latestGptSession.value.staticPromptHash === staticPromptHash;
+
+      if (areDriversEqual && isStaticPromptEqual) {
+        console.debug(
+          "Will try restoring GPT session",
+          driver,
+          latestGptSession.value.id,
+        );
+
+        gpt = await Gpt.find(driver, latestGptSession.value.id, staticPrompt);
+        restored = !!gpt;
+
+        if (gpt) {
+          console.log("Restored GPT session", driver, gpt.id);
+
+          const dynamicPromptHash = bufferToHex(
+            await digest(dynamicPrompt, "SHA-256"),
+          );
+
+          if (latestGptSession.value.dynamicPromptHash === dynamicPromptHash) {
+            console.debug(
+              "GPT session dynamic prompt match",
+              dynamicPromptHash,
+            );
+
+            needDecode = false;
+          } else {
+            console.info(
+              "GPT session dynamic prompt mismatch, will reset",
+              latestGptSession.value.dynamicPromptHash,
+              dynamicPromptHash,
+            );
+
+            gpt.reset();
+          }
+        }
+      } else {
+        if (!areDriversEqual) {
+          console.warn(
+            "GPT driver mismatch",
+            latestGptSession.value.driver,
+            driver,
+          );
+        } else {
+          console.warn(
+            "GPT static prompt mismatch",
+            latestGptSession.value.staticPromptHash,
+            staticPromptHash,
+          );
+        }
+
+        latestGptSession.value = null;
+      }
     }
 
     if (!gpt) {
@@ -781,23 +846,24 @@ async function prepareGpt() {
         staticPrompt,
         progressCallback("Initializing"),
         true,
-        (id) => {
-          latestGptSessionId.value = id;
-          console.log("Initialized new GPT session", id);
+        (gpt) => {
+          console.log("Initialized new GPT session", gpt.id.value);
         },
       );
     }
 
-    return { gpt, restored };
+    return { gpt, restored, needDecode };
   };
 
-  const { gpt, restored } = await findOrCreateGpt(staticPrompt);
+  const { gpt, needDecode } = await findOrCreateGpt(
+    staticPrompt,
+    dynamicPrompt,
+  );
 
-  if (!restored) {
+  if (needDecode) {
     gpt.decode(dynamicPrompt, progressCallback("Decoding"));
   }
 
-  console.debug("Prepared GPT", gpt);
   writer.value = markRaw(gpt);
   deferredWriter.resolve(writer.value);
 }
@@ -1057,7 +1123,6 @@ function chooseAssistantVariant(update: AssistantUpdate, variantIndex: number) {
 
   function setUncommitted() {
     uncommittedAssistantText.value = update.variants[variantIndex].text;
-    uncommittedWriterKvCacheKey.value = update.variants[variantIndex].id;
   }
 
   if (
@@ -1140,7 +1205,6 @@ async function inferResponse(
     assistantUpdate.chosenVariantIndex.value++;
 
     uncommittedAssistantText.value = writerResponse;
-    uncommittedWriterKvCacheKey.value = assistantUpdateId;
   } finally {
     assistantUpdate.inProgressVariantText.value = null;
   }
@@ -1339,7 +1403,7 @@ function toMainMenu() {
   DeveloperConsole(
     :open="consoleModal"
     :writer="writer"
-    :writer-prompt="committedWriterPrompt"
+    :writer-prompt="committedWriterPrompt || ''"
     :uncommitted-writer-prompt="uncommittedWriterPrompt"
     :episode="currentEpisodeConsoleObject"
     :stage-state-delta="stage?.delta(previousStageState) || []"

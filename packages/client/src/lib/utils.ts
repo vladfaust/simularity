@@ -119,3 +119,24 @@ export function abortSignal(timeout: number) {
 export function filterWhitespaceStrings(strings: string[]): string[] {
   return strings.filter((s) => s.trim().length);
 }
+
+/**
+ * Return a hash digest of the given data.
+ */
+export async function digest(
+  data: string,
+  algorithm: AlgorithmIdentifier,
+): Promise<Uint8Array> {
+  const buffer = new TextEncoder().encode(data);
+  const result = await crypto.subtle.digest(algorithm, buffer);
+  return new Uint8Array(result);
+}
+
+/**
+ * Return a hex string representation of a buffer (without leading `0x`).
+ */
+export function bufferToHex(buffer: Uint8Array): string {
+  return Array.prototype.map
+    .call(buffer, (x) => x.toString(16).padStart(2, "0"))
+    .join("");
+}

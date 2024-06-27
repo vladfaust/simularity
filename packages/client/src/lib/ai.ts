@@ -1,10 +1,11 @@
+import { latestGptSession } from "@/store";
 import { toMilliseconds } from "duration-fns";
 import { nanoid } from "nanoid";
 import { Ref, computed, markRaw, readonly, ref } from "vue";
 import { InferenceOptionsSchema } from "./ai/common";
 import * as remoteInferenceClient from "./remoteInferenceClient";
 import * as tauri from "./tauri";
-import { Deferred, sleep, unreachable } from "./utils";
+import { Deferred, bufferToHex, digest, sleep, unreachable } from "./utils";
 import { v } from "./valibot";
 
 export type GptDriver =
@@ -17,7 +18,6 @@ export type GptDriver =
       type: "local";
       modelPath: string;
       contextSize: number;
-      batchSize: number;
     };
 
 abstract class Job<T> {
@@ -39,7 +39,6 @@ export class GptInitJob extends Job<string> {
   ) {
     super(async (): Promise<string> => {
       const progressCallback = (event: { progress: number }) => {
-        console.debug("GPT init progress", event.progress);
         this.progress.value = event.progress;
         progressCallback_?.(event);
       };
@@ -51,7 +50,7 @@ export class GptInitJob extends Job<string> {
             id,
             gpt.driver.modelPath,
             gpt.driver.contextSize,
-            gpt.driver.batchSize,
+            gpt.driver.contextSize,
             initialPrompt,
             progressCallback,
             dumpSession,
@@ -205,7 +204,37 @@ export class GptCommitJob extends Job<number> {
   }
 }
 
-type GptJob = GptInitJob | GptDecodeJob | GptInferJob | GptCommitJob;
+export class GptResetJob extends Job<void> {
+  constructor(gpt: Gpt) {
+    super(async (): Promise<void> => {
+      if (!gpt.isInitialized.value) {
+        throw new Error("GPT is not initialized.");
+      }
+
+      switch (gpt.driver.type) {
+        case "local":
+          await tauri.gpt.reset(gpt.id.value!);
+          return;
+        case "remote":
+          await remoteInferenceClient.gpt.reset(
+            gpt.driver.baseUrl,
+            gpt.id.value!,
+          );
+
+          return;
+        default:
+          throw unreachable(gpt.driver);
+      }
+    });
+  }
+}
+
+type GptJob =
+  | GptInitJob
+  | GptDecodeJob
+  | GptInferJob
+  | GptCommitJob
+  | GptResetJob;
 
 /**
  * A GPT instance, routing requests to the appropriate backend (local or remote).
@@ -215,7 +244,11 @@ export class Gpt {
   /**
    * Find an existing GPT instance.
    */
-  static async find(driver: GptDriver, id: string): Promise<Gpt | null> {
+  static async find(
+    driver: GptDriver,
+    id: string,
+    initialPrompt: string | undefined,
+  ): Promise<Gpt | null> {
     let found = false;
 
     switch (driver.type) {
@@ -229,7 +262,7 @@ export class Gpt {
         throw unreachable(driver);
     }
 
-    return found ? new Gpt(id, driver) : null;
+    return found ? new Gpt(driver, id, initialPrompt) : null;
   }
 
   /**
@@ -246,13 +279,13 @@ export class Gpt {
     staticPrompt: string | undefined,
     initProgressCallback: (event: { progress: number }) => void | undefined,
     dumpSession: boolean | undefined,
-    onInitCallback?: (id: string) => void,
+    onInitCallback?: (gpt: Gpt) => void,
   ): Promise<Gpt> {
-    const gpt = new Gpt(undefined, driver, staticPrompt);
+    const gpt = new Gpt(driver, undefined, staticPrompt);
 
     gpt
       .initialize(dumpSession, initProgressCallback)
-      .then((id) => onInitCallback?.(id));
+      .then(() => onInitCallback?.(gpt));
 
     return gpt;
   }
@@ -290,6 +323,7 @@ export class Gpt {
   ): Promise<void> {
     await this.pushJob(markRaw(new GptDecodeJob(this, prompt, callback)));
     this._dynamicPromptCommitted.value += prompt;
+    await this.saveSessionToLocalStorage();
   }
 
   /**
@@ -339,7 +373,18 @@ export class Gpt {
     const result = await this.pushJob(markRaw(new GptCommitJob(this)));
     this._dynamicPromptCommitted.value = this._dynamicPromptUncommitted.value;
     this._dynamicPromptUncommitted.value = "";
+    await this.saveSessionToLocalStorage();
     return result;
+  }
+
+  /**
+   * Reset the GPT's KV cache to the static prompt.
+   */
+  async reset(): Promise<void> {
+    await this.pushJob(markRaw(new GptResetJob(this)));
+    this._dynamicPromptCommitted.value = "";
+    this._dynamicPromptUncommitted.value = "";
+    await this.saveSessionToLocalStorage();
   }
 
   /**
@@ -399,9 +444,9 @@ export class Gpt {
   }
 
   private constructor(
-    id: string | undefined,
     driver: GptDriver,
-    staticPrompt?: string,
+    id: string | undefined,
+    staticPrompt: string | undefined,
   ) {
     this._id.value = id;
     this.driver = driver;
@@ -454,5 +499,48 @@ export class Gpt {
     } else {
       console.debug(this.id, "No jobs to do.");
     }
+  }
+
+  private async saveSessionToLocalStorage() {
+    if (!this.id.value) {
+      throw new Error("GPT instance not initialized");
+    }
+
+    const staticPromptHash = this.staticPrompt
+      ? bufferToHex(await digest(this.staticPrompt, "SHA-256"))
+      : undefined;
+
+    const dynamicPromptHash = this.dynamicPromptCommitted.value
+      ? bufferToHex(await digest(this.dynamicPromptCommitted.value, "SHA-256"))
+      : undefined;
+
+    latestGptSession.value = {
+      driver: this.driver,
+      id: this.id.value!,
+      staticPromptHash,
+      dynamicPromptHash,
+    };
+  }
+}
+
+/**
+ * Compare two GPT drivers for equality.
+ */
+export function driversEqual(a: GptDriver, b: GptDriver): boolean {
+  switch (a.type) {
+    case "local":
+      if (b.type !== "local") {
+        return false;
+      } else {
+        return a.modelPath === b.modelPath && a.contextSize === b.contextSize;
+      }
+    case "remote":
+      if (b.type !== "remote") {
+        return false;
+      } else {
+        return a.baseUrl === b.baseUrl && a.model === b.model;
+      }
+    default:
+      throw unreachable(a);
   }
 }

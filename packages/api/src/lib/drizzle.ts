@@ -11,5 +11,6 @@ export const d = {
     "gptInferences",
     "gptCommits",
     "gptSessionHashes",
+    "gptResets",
   ]),
 };
