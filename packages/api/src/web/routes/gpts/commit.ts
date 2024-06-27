@@ -4,7 +4,6 @@ import * as inferenceNodeApi from "@/lib/inferenceNodeApi.js";
 import { konsole } from "@/lib/konsole.js";
 import { redis } from "@/lib/redis.js";
 import { parseTyped, v } from "@/lib/valibot.js";
-import bodyParser from "body-parser";
 import cors from "cors";
 import { and, eq, isNull } from "drizzle-orm";
 import { Router } from "express";
@@ -22,7 +21,6 @@ const ResponseBodySchema = v.object({
 
 export default Router()
   .use(cors())
-  .use(bodyParser.json())
   .post("/gpts/:gptSessionId/commit", async (req, res, next) => {
     const gptSessionId = v.safeParse(
       GPT_SESSION_ID_SCHEMA,
