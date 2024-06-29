@@ -1,3 +1,4 @@
+export { abortInference } from "./inferenceNodeApi/abortInference.js";
 export { commit } from "./inferenceNodeApi/commit.js";
 export { create } from "./inferenceNodeApi/create.js";
 export { decode } from "./inferenceNodeApi/decode.js";

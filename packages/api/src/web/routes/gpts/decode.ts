@@ -3,11 +3,12 @@ import { FetchError, ResponseOkError } from "@/lib/errors.js";
 import * as inferenceNodeApi from "@/lib/inferenceNodeApi.js";
 import { konsole } from "@/lib/konsole.js";
 import { redis } from "@/lib/redis.js";
-import { unreachable } from "@/lib/utils.js";
+import { timeoutSignal, unreachable } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { and, eq, isNull } from "drizzle-orm";
+import { toMilliseconds } from "duration-fns";
 import { Router } from "express";
 import pRetry from "p-retry";
 import {
@@ -86,6 +87,7 @@ export default Router()
           inferenceNode.baseUrl,
           gptSession.id,
           { prompt: body.output.prompt },
+          { abortSignal: timeoutSignal(toMilliseconds({ minutes: 2 })) },
         )) {
           switch (chunk.type) {
             case "Progress":

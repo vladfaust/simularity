@@ -1,5 +1,8 @@
 use simularity_core::gpt;
-use std::time::Instant;
+use std::{
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 
 use super::common::DecodeProgress;
 use crate::AppState;
@@ -8,6 +11,8 @@ use crate::AppState;
 struct InferenceEventPayload {
     content: String,
 }
+
+const ABORT_SIGNAL: &str = "app://gpt/abort-inference";
 
 #[tauri::command]
 /// Predict text.
@@ -47,14 +52,31 @@ pub async fn gpt_infer(
     let inference_lock = state.inference_mutex.lock().await;
     let mut gpt = arc.lock().await;
 
+    // OPTIMIZE: Use a more efficient way to abort the inference,
+    // as we're always in the same thread?
+    let aborted = Arc::new(Mutex::new(false));
+    let aborted_clone = aborted.clone();
+    let gpt_id_quoted = format!("\"{}\"", gpt_id);
+    window.listen(ABORT_SIGNAL, move |event| {
+        println!("⚠️ Received abort signal: {:?}", event);
+
+        if let Some(payload) = event.payload() {
+            if gpt_id_quoted.eq(&payload) {
+                println!("Aborting inference");
+                *aborted_clone.lock().unwrap() = true;
+            }
+        }
+    });
+
     let window_clone = window.clone();
     let inference_callback = inference_callback_event_name.map(|event_name| {
-        move |content: &str| {
+        move |content: &str| -> bool {
             let payload = InferenceEventPayload {
                 content: content.to_string(),
             };
 
             window_clone.emit(&event_name, payload).unwrap();
+            *aborted.lock().unwrap()
         }
     });
 

@@ -3,10 +3,14 @@ use axum::{
     Router,
 };
 use simularity_core::gpt;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicBool, Arc},
+};
 
 use super::AppState;
 
+pub mod abort_inference;
 pub mod commit;
 pub mod create;
 pub mod decode;
@@ -27,6 +31,9 @@ pub struct GptState {
 
     /// {id => GptInstance}.
     pub instances: tokio::sync::Mutex<HashMap<String, Arc<std::sync::Mutex<GptInstance>>>>,
+
+    /// {id => abortion_flag}.
+    pub abortion_flags: tokio::sync::Mutex<HashMap<String, AtomicBool>>,
 }
 
 impl GptState {
@@ -44,6 +51,7 @@ impl GptState {
             backend: gpt_backend,
             model: gpt_model,
             instances: tokio::sync::Mutex::new(HashMap::new()),
+            abortion_flags: tokio::sync::Mutex::new(HashMap::new()),
         }
     }
 }
@@ -54,6 +62,7 @@ pub fn router() -> Router<std::sync::Arc<AppState>> {
         .route("/gpts/token-count", post(token_count::handler))
         .route("/gpts/:id/decode", post(decode::handler))
         .route("/gpts/:id/infer", post(infer::handler))
+        .route("/gpts/:id/abort-inference", post(abort_inference::handler))
         .route("/gpts/:id/commit", post(commit::handler))
         .route("/gpts/:id/reset", post(reset::handler))
         .route("/gpts/:id", delete(delete::handler))

@@ -107,7 +107,7 @@ export function assertFn<T>(
 /**
  * Create an AbortSignal that will be aborted after the given timeout.
  */
-export function abortSignal(timeout: number) {
+export function timeoutSignal(timeout: number): AbortSignal {
   const controller = new AbortController();
   setTimeout(() => controller.abort(), timeout);
   return controller.signal;

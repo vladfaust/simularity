@@ -1,4 +1,4 @@
-import { abortSignal, filterWhitespaceStrings, unreachable } from "@/lib/utils";
+import { filterWhitespaceStrings, unreachable } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 
 const RequestBodySchema = v.object({
@@ -23,7 +23,7 @@ export async function decode(
   baseUrl: string,
   gptId: string,
   body: v.InferInput<typeof RequestBodySchema>,
-  options: { timeout: number },
+  options: { abortSignal?: AbortSignal },
   decodeCallback?: (event: { progress: number }) => void,
 ): Promise<{
   decodeId: string;
@@ -36,7 +36,7 @@ export async function decode(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: abortSignal(options.timeout),
+    signal: options.abortSignal,
   });
 
   if (!response.ok) {

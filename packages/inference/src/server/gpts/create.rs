@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use simularity_core::gpt;
 use std::{
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     time::Instant,
@@ -109,8 +109,14 @@ pub async fn handler(
         initial_prompt_len: tokens.len(),
     };
 
+    // Insert the instance into the hashmap.
     let instance = Arc::new(std::sync::Mutex::new(instance));
     hash_map_lock.insert(req.id.clone(), instance.clone());
+    drop(hash_map_lock);
+
+    // Insert the abortion flag into the hashmap.
+    let mut hash_map_lock = state.gpt.abortion_flags.lock().await;
+    hash_map_lock.insert(req.id.clone(), AtomicBool::new(false));
     drop(hash_map_lock);
 
     // Chunks are expected to be yielded rarely.

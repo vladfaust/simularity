@@ -64,6 +64,7 @@
 - [x] feat: GPT session caching (Wed June 19)
 - [x] feat: streaming inference (Sun June 23)
 - [x] feat: streaming progress reporting (Thu June 27)
+- [x] feat: abort inference (Sat June 29)
 
 ### May 2024
 

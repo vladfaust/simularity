@@ -1,7 +1,6 @@
 import { env } from "@/env.js";
-import { toMilliseconds } from "duration-fns";
 import { FetchError, ResponseOkError } from "../errors.js";
-import { abortSignal, filterWhitespaceStrings } from "../utils.js";
+import { filterWhitespaceStrings } from "../utils.js";
 import { v } from "../valibot.js";
 
 const RequestBodySchema = v.object({
@@ -36,9 +35,7 @@ const ChunkSchema = v.union([
 export async function* create(
   baseUrl: string,
   args: v.InferInput<typeof RequestBodySchema>,
-  options: { timeout: number } = {
-    timeout: toMilliseconds({ minutes: 2 }),
-  },
+  options?: { abortSignal: AbortSignal },
 ): AsyncGenerator<v.InferOutput<typeof ChunkSchema>> {
   let response;
   try {
@@ -49,7 +46,7 @@ export async function* create(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(args),
-      signal: abortSignal(options.timeout),
+      signal: options?.abortSignal,
     });
   } catch (e: any) {
     throw new FetchError(e.message);

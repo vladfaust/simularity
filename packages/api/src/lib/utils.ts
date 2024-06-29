@@ -25,7 +25,7 @@ export function safeParseJson(json: string) {
 /**
  * Create an AbortSignal that will be aborted after the given timeout.
  */
-export function abortSignal(timeout: number) {
+export function timeoutSignal(timeout: number) {
   const controller = new AbortController();
   setTimeout(() => controller.abort(), timeout);
   return controller.signal;

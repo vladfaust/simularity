@@ -6,7 +6,7 @@ use llama_cpp_2::{
     model::{AddBos, Special},
     token::data_array::LlamaTokenDataArray,
 };
-use std::str::FromStr;
+use std::{borrow::BorrowMut, str::FromStr};
 
 use super::{Context, EvalCallback};
 use crate::gpt::context::{register_eval_callback, unregister_eval_callback};
@@ -45,13 +45,16 @@ impl<'model> Context<'model> {
     /// * `decode_callback` - A callback to be called after a token
     ///   is decoded during the pre-inference phase.
     ///
+    /// * `infer_callback` - A callback to be called after a token
+    ///   is inferred. If the callback returns `true`, the inference stops.
+    ///
     pub fn infer(
         &mut self,
         prompt: Option<&str>,
         n_eval: usize,
         options: InferOptions,
         decode_callback: Option<EvalCallback>,
-        infer_callback: Option<impl Fn(&str)>,
+        mut infer_callback: Option<impl FnMut(&str) -> bool>,
     ) -> Result<String> {
         let mut grammar = match &options.grammar {
             Some(grammar) => Some(
@@ -261,17 +264,19 @@ impl<'model> Context<'model> {
                     }
                 }
 
-                // TODO: Put it to the end of block, stop if it returns false.
-                if let Some(f) = &infer_callback {
-                    f(&output_string)
-                }
-
                 // Set the batch head to the new token.
                 batch.clear();
                 batch.add(new_token, n_session as i32, &[0], true)?;
 
                 // NOTE: The stop sequence is NOT added to the uncommitted session.
                 self.uncommitted_session.push(new_token);
+
+                if let Some(f) = infer_callback.borrow_mut() {
+                    if f(&output_string) {
+                        eprintln!("Stopping at callback.");
+                        break;
+                    }
+                }
             }
 
             n_session += 1;

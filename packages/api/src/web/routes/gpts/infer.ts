@@ -4,11 +4,12 @@ import * as inferenceNodeApi from "@/lib/inferenceNodeApi.js";
 import { OptionsSchema as InferenceOptionsSchema } from "@/lib/inferenceNodeApi/infer.js";
 import { konsole } from "@/lib/konsole.js";
 import { redis } from "@/lib/redis.js";
-import { unreachable } from "@/lib/utils.js";
+import { timeoutSignal, unreachable } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { and, eq, isNull } from "drizzle-orm";
+import { toMilliseconds } from "duration-fns";
 import { Router } from "express";
 import pRetry from "p-retry";
 import {
@@ -100,6 +101,7 @@ export default Router()
             nEval: body.output.nEval,
             options: body.output.options,
           },
+          { abortSignal: timeoutSignal(toMilliseconds({ minutes: 2 })) },
         )) {
           switch (chunk.type) {
             case "Decoding":
@@ -155,6 +157,8 @@ export default Router()
           options: body.output.options,
           nEval: body.output.nEval,
           stream: true,
+          aborted: inferenceNodeResponse.aborted,
+          // tokenLength: inferenceNodeResponse.tokenLength, // TODO:
           result,
           inferenceDuration: inferenceNodeResponse.duration,
         })

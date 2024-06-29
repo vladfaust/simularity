@@ -33,6 +33,9 @@ export const gptInferences = pgTable("gpt_inferences", {
   /** Whether the inference was streamed. */
   stream: boolean("stream").notNull(),
 
+  /** Whether the inference was aborted. */
+  aborted: boolean("aborted").notNull(),
+
   /** The inference result. */
   result: text("result").notNull(),
 

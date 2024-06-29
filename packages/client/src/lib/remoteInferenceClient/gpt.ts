@@ -1,6 +1,6 @@
 export { create } from "./gpt/create";
 export { decode } from "./gpt/decode";
-export { infer } from "./gpt/infer";
+export { abortInference, infer } from "./gpt/infer";
 
 /**
  * Return whether a GPT session exists.

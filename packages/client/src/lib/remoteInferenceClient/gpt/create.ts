@@ -1,4 +1,4 @@
-import { abortSignal, filterWhitespaceStrings, unreachable } from "@/lib/utils";
+import { filterWhitespaceStrings, unreachable } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 
 const RequestBodySchema = v.object({
@@ -36,7 +36,7 @@ const ChunkSchema = v.union([
 export async function create(
   baseUrl: string,
   body: v.InferInput<typeof RequestBodySchema>,
-  options: { timeout: number },
+  options: { abortSignal?: AbortSignal },
   progressCallback?: (event: { progress: number }) => void,
 ): Promise<{
   sessionId: string;
@@ -48,7 +48,7 @@ export async function create(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: abortSignal(options.timeout),
+    signal: options.abortSignal,
   });
 
   if (!response.ok) {

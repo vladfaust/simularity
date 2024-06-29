@@ -26,12 +26,12 @@ import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { Stage, type StageCall, type StageState } from "@/lib/simulation/stage";
 import GptStatus from "./Simulation/GptStatus.vue";
 import {
-  FastForwardIcon,
   Loader2Icon,
   MenuIcon,
   SendHorizontalIcon,
   ShapesIcon,
   SkipForwardIcon,
+  SquareIcon,
   XIcon,
 } from "lucide-vue-next";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
@@ -96,7 +96,20 @@ const updates = ref<Raw<Update>[]>([]);
  */
 const latestUpdate = computed(() => updates.value.at(0));
 
+/**
+ * A generic busy state, e.g. when saving updates to the database.
+ */
 const busy = ref(false);
+
+/**
+ * Whether the AI is currently inferring.
+ */
+const inferenceAbortController = ref<AbortController | null>(null);
+
+/**
+ * Inference decoding progress, from 0 to 1, if inferring.
+ */
+const inferenceDecodingProgress = ref<number | undefined>();
 
 const writer = ref<Gpt | undefined>();
 const deferredWriter = new Deferred<Gpt>();
@@ -167,6 +180,20 @@ const modelSettings = ref<v.InferOutput<typeof InferenceOptionsSchema>>({
     tau: 5,
     eta: 0.1,
   },
+});
+
+const sendButtonState = computed(() => {
+  if (inferenceAbortController.value) {
+    if (inferenceDecodingProgress.value === 1) {
+      return "inferring";
+    } else {
+      return "inferenceDecoding";
+    }
+  } else {
+    if (playerInput.value) return "sendMessage";
+    if (busy.value) return "busy";
+    return "skip";
+  }
 });
 
 function progressCallback(eventName: string) {
@@ -292,6 +319,8 @@ async function regenerateAssistantUpdate(updateIndex: number) {
   }
 
   busy.value = true;
+  inferenceAbortController.value = new AbortController();
+  inferenceDecodingProgress.value = 0;
   regeneratedUpdate.inProgressVariantText.value = "";
   try {
     // OPTIMIZE: Infer while waiting for the fade.
@@ -318,10 +347,14 @@ async function regenerateAssistantUpdate(updateIndex: number) {
           grammar: writerGrammar,
           ...modelSettings.value,
         },
-        progressCallback("Inference decoding"),
+        (e) => {
+          progressCallback("Inference decoding")(e);
+          inferenceDecodingProgress.value = e.progress;
+        },
         (e) => {
           regeneratedUpdate.inProgressVariantText.value += e.content;
         },
+        inferenceAbortController.value!.signal,
       ),
     );
 
@@ -345,6 +378,8 @@ async function regenerateAssistantUpdate(updateIndex: number) {
       regeneratedUpdate.variants.length - 1;
   } finally {
     regeneratedUpdate.inProgressVariantText.value = null;
+    inferenceDecodingProgress.value = undefined;
+    inferenceAbortController.value = null;
     busy.value = false;
   }
 }
@@ -376,6 +411,8 @@ async function sendPlayerMessage() {
   let wouldRestorePlayerInput = true;
 
   busy.value = true;
+  inferenceAbortController.value = new AbortController();
+  inferenceDecodingProgress.value = 0;
   try {
     await commitUncommitted();
 
@@ -425,10 +462,14 @@ async function sendPlayerMessage() {
           grammar: writerGrammar,
           ...modelSettings.value,
         },
-        progressCallback("Inference decoding"),
+        (e) => {
+          progressCallback("Inference decoding")(e);
+          inferenceDecodingProgress.value = e.progress;
+        },
         (e) => {
           assistantUpdate.inProgressVariantText.value += e.content;
         },
+        inferenceAbortController.value!.signal,
       ),
     );
 
@@ -459,6 +500,8 @@ async function sendPlayerMessage() {
 
     throw e;
   } finally {
+    inferenceDecodingProgress.value = undefined;
+    inferenceAbortController.value = null;
     busy.value = false;
   }
 }
@@ -547,6 +590,9 @@ async function advance() {
       // Do not commit it to GPT yet.
       //
 
+      inferenceAbortController.value = new AbortController();
+      inferenceDecodingProgress.value = 0;
+
       const assistantUpdate = markRaw(new AssistantUpdate(parentUpdateId, []));
       assistantUpdate.inProgressVariantText.value = "";
       updates.value.unshift(assistantUpdate);
@@ -563,10 +609,14 @@ async function advance() {
             grammar: writerGrammar,
             ...modelSettings.value,
           },
-          progressCallback("Inference decoding"),
+          (e) => {
+            progressCallback("Inference decoding")(e);
+            inferenceDecodingProgress.value = e.progress;
+          },
           (e) => {
             assistantUpdate.inProgressVariantText.value += e.content;
           },
+          inferenceAbortController.value!.signal,
         ),
       );
 
@@ -594,6 +644,8 @@ async function advance() {
       }
     });
   } finally {
+    inferenceDecodingProgress.value = undefined;
+    inferenceAbortController.value = null;
     busy.value = false;
   }
 }
@@ -1146,6 +1198,7 @@ function chooseAssistantVariant(update: AssistantUpdate, variantIndex: number) {
 async function inferResponse(
   userUpdate: UserUpdate,
   assistantUpdate: AssistantUpdate | null,
+  abortSignal: AbortSignal,
 ) {
   console.trace({ userUpdate, assistantUpdate });
   let userMessageContent = userUpdate.chosenVariant.text;
@@ -1180,10 +1233,14 @@ async function inferResponse(
           grammar: writerGrammar,
           ...modelSettings.value,
         },
-        progressCallback("Inference decoding"),
+        (e) => {
+          progressCallback("Inference decoding")(e);
+          inferenceDecodingProgress.value = e.progress;
+        },
         (e) => {
           assistantUpdate.inProgressVariantText.value += e.content;
         },
+        abortSignal,
       ),
     );
 
@@ -1215,6 +1272,8 @@ async function onUserUpdateEdit(update: UserUpdate, newText: string) {
 
   try {
     busy.value = true;
+    inferenceAbortController.value = new AbortController();
+    inferenceDecodingProgress.value = 0;
 
     const { writerUpdate: newWriterUpdate } = await saveUpdatesToDb({
       writerUpdate: {
@@ -1233,14 +1292,17 @@ async function onUserUpdateEdit(update: UserUpdate, newText: string) {
     await inferResponse(
       update,
       latestUpdate.value instanceof AssistantUpdate ? latestUpdate.value : null,
+      inferenceAbortController.value!.signal,
     );
   } finally {
+    inferenceDecodingProgress.value = undefined;
+    inferenceAbortController.value = null;
     busy.value = false;
   }
 }
 
 async function onAssistantUpdateEdit(update: AssistantUpdate, newText: string) {
-  console.debug("onUserUpdateEdit", newText);
+  console.debug("onAssistantUpdateEdit", newText);
 
   try {
     busy.value = true;
@@ -1261,6 +1323,19 @@ async function onAssistantUpdateEdit(update: AssistantUpdate, newText: string) {
 
 function toMainMenu() {
   router.push(routeLocation({ name: "MainMenu" }));
+}
+
+async function onSendButtonClick() {
+  if (inferenceAbortController.value) {
+    inferenceAbortController.value.abort();
+    inferenceAbortController.value = null;
+  } else if (!busy.value) {
+    if (playerInput.value) {
+      await sendPlayerMessage();
+    } else {
+      await advance();
+    }
+  }
 }
 </script>
 
@@ -1333,12 +1408,24 @@ function toMainMenu() {
             )
 
             button.relative.grid.aspect-square.h-full.place-items-center.rounded-lg.bg-white.shadow-lg.transition.pressable(
-              @click="playerInput ? sendPlayerMessage() : advance()"
-              :disabled="busy"
+              @click="onSendButtonClick"
+              :disabled="busy && !inferenceAbortController"
             )
               //- REFACTOR: Make a component for such multi-state animations.
               TransitionRoot.absolute(
-                :show="busy"
+                :show="sendButtonState === 'inferring' || sendButtonState === 'inferenceDecoding'"
+                enter="duration-100 ease-out"
+                enter-from="scale-0 opacity-0"
+                enter-to="scale-100 opacity-100"
+                leave="duration-100 ease-in"
+                leave-from="scale-100 opacity-100"
+                leave-to="scale-0 opacity-0"
+              )
+                .relative.grid.h-full.w-full.place-items-center
+                  Loader2Icon.absolute.animate-spin(:size="30")
+                  SquareIcon.absolute.fill-inherit(:size="10")
+              TransitionRoot.absolute(
+                :show="sendButtonState === 'busy'"
                 enter="duration-100 ease-out"
                 enter-from="scale-0 opacity-0"
                 enter-to="scale-100 opacity-100"
@@ -1348,7 +1435,7 @@ function toMainMenu() {
               )
                 Loader2Icon.animate-spin(:size="20")
               TransitionRoot.absolute(
-                :show="!busy && !!playerInput"
+                :show="sendButtonState === 'sendMessage'"
                 enter="duration-100 ease-out"
                 enter-from="scale-0 opacity-0"
                 enter-to="scale-100 opacity-100"
@@ -1358,17 +1445,7 @@ function toMainMenu() {
               )
                 SendHorizontalIcon(:size="20")
               TransitionRoot.absolute(
-                :show="!busy && !playerInput && !state.currentEpisode"
-                enter="duration-100 ease-out"
-                enter-from="scale-0 opacity-0"
-                enter-to="scale-100 opacity-100"
-                leave="duration-100 ease-in"
-                leave-from="scale-100 opacity-100"
-                leave-to="scale-0 opacity-0"
-              )
-                FastForwardIcon(:size="20")
-              TransitionRoot.absolute(
-                :show="!busy && !playerInput && !!state.currentEpisode"
+                :show="sendButtonState === 'skip'"
                 enter="duration-100 ease-out"
                 enter-from="scale-0 opacity-0"
                 enter-to="scale-100 opacity-100"

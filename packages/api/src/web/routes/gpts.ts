@@ -1,5 +1,6 @@
 import { Router } from "express";
 
+import abortInference from "./gpts/abortInference.js";
 import commit from "./gpts/commit.js";
 import create from "./gpts/create.js";
 import decode from "./gpts/decode.js";
@@ -10,6 +11,7 @@ import reset from "./gpts/reset.js";
 import tokenCount from "./gpts/tokenCount.js";
 
 export default Router()
+  .use(abortInference)
   .use(commit)
   .use(create)
   .use(decode)

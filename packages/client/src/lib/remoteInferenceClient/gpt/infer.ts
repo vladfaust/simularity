@@ -1,5 +1,5 @@
 import { InferenceOptionsSchema } from "@/lib/ai/common";
-import { abortSignal, filterWhitespaceStrings, unreachable } from "@/lib/utils";
+import { filterWhitespaceStrings, unreachable } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 
 const RequestBodySchema = v.object({
@@ -35,7 +35,7 @@ export async function infer(
   baseUrl: string,
   gptId: string,
   body: v.InferInput<typeof RequestBodySchema>,
-  options: { timeout: number },
+  options: { abortSignal?: AbortSignal },
   decodeCallback?: (event: { progress: number }) => void,
   inferenceCallback?: (event: { content: string }) => void,
 ): Promise<{
@@ -48,7 +48,7 @@ export async function infer(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: abortSignal(options.timeout),
+    signal: options.abortSignal,
   });
 
   if (!response.ok) {
@@ -90,4 +90,17 @@ export async function infer(
   }
 
   throw new Error("Stream ended unexpectedly.");
+}
+
+export async function abortInference(
+  baseUrl: string,
+  gptId: string,
+): Promise<void> {
+  const response = await fetch(`${baseUrl}/gpts/${gptId}/abort-inference`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to abort inference: ${response.statusText}`);
+  }
 }

@@ -5,7 +5,14 @@ import { Ref, computed, markRaw, readonly, ref } from "vue";
 import { InferenceOptionsSchema } from "./ai/common";
 import * as remoteInferenceClient from "./remoteInferenceClient";
 import * as tauri from "./tauri";
-import { Deferred, bufferToHex, digest, sleep, unreachable } from "./utils";
+import {
+  Deferred,
+  bufferToHex,
+  digest,
+  sleep,
+  timeoutSignal,
+  unreachable,
+} from "./utils";
 import { v } from "./valibot";
 
 export type GptDriver =
@@ -36,6 +43,7 @@ export class GptInitJob extends Job<string> {
     initialPrompt?: string,
     progressCallback_?: (event: { progress: number }) => void,
     dumpSession?: boolean,
+    abortSignal?: AbortSignal,
   ) {
     super(async (): Promise<string> => {
       const progressCallback = (event: { progress: number }) => {
@@ -46,6 +54,7 @@ export class GptInitJob extends Job<string> {
       switch (gpt.driver.type) {
         case "local": {
           const id = nanoid();
+          // TODO: Handle `abortSignal`.
           await tauri.gpt.create(
             id,
             gpt.driver.modelPath,
@@ -67,7 +76,7 @@ export class GptInitJob extends Job<string> {
                 model: gpt.driver.model,
                 initialPrompt,
               },
-              { timeout: toMilliseconds({ minutes: 2 }) },
+              { abortSignal },
               progressCallback,
             )
           ).sessionId;
@@ -89,6 +98,7 @@ export class GptDecodeJob extends Job<void> {
     gpt: Gpt,
     readonly prompt: string,
     readonly decodeCallback_?: (event: { progress: number }) => void,
+    abortSignal?: AbortSignal,
   ) {
     super(async (): Promise<void> => {
       if (!gpt.isInitialized.value) {
@@ -102,6 +112,7 @@ export class GptDecodeJob extends Job<void> {
 
       switch (gpt.driver.type) {
         case "local":
+          // TODO: Handle `abortSignal`.
           await tauri.gpt.decode(gpt.id.value!, prompt, decodeCallback);
           return;
         case "remote":
@@ -109,7 +120,7 @@ export class GptDecodeJob extends Job<void> {
             gpt.driver.baseUrl,
             gpt.id.value!,
             { prompt },
-            { timeout: toMilliseconds({ minutes: 2 }) },
+            { abortSignal },
             decodeCallback,
           );
           return;
@@ -128,8 +139,10 @@ export class GptInferJob extends Job<string> {
     readonly prompt: string | null,
     readonly nEval: number,
     readonly options: v.InferInput<typeof InferenceOptionsSchema>,
-    readonly decodeCallback_?: (event: { progress: number }) => void,
-    readonly inferenceCallback_?: (event: { content: string }) => void,
+    decodeCallback_?: (event: { progress: number }) => void,
+    inferenceCallback_?: (event: { content: string }) => void,
+    inferenceAbortSignal?: AbortSignal,
+    fetchAbortSignal?: AbortSignal,
   ) {
     super(async (): Promise<string> => {
       if (!gpt.isInitialized.value) {
@@ -159,14 +172,31 @@ export class GptInferJob extends Job<string> {
             options,
             decodeCallback,
             inferenceCallback,
+            inferenceAbortSignal,
           );
         case "remote":
+          // There is no way to abort inference on
+          // the remote host inside the same request.
+          // Therefore, we need to send another, abort, request.
+          //
+
+          inferenceAbortSignal?.addEventListener("abort", () => {
+            if (gpt.driver.type !== "remote") {
+              throw new Error("(Bug) GPT driver type is not remote");
+            }
+
+            remoteInferenceClient.gpt.abortInference(
+              gpt.driver.baseUrl,
+              gpt.id.value!,
+            );
+          });
+
           return (
             await remoteInferenceClient.gpt.infer(
               gpt.driver.baseUrl,
               gpt.id.value!,
               { prompt, nEval, options },
-              { timeout: toMilliseconds({ minutes: 2 }) },
+              { abortSignal: fetchAbortSignal },
               decodeCallback,
               inferenceCallback,
             )
@@ -321,7 +351,16 @@ export class Gpt {
     prompt: string,
     callback?: (event: { progress: number }) => void,
   ): Promise<void> {
-    await this.pushJob(markRaw(new GptDecodeJob(this, prompt, callback)));
+    await this.pushJob(
+      markRaw(
+        new GptDecodeJob(
+          this,
+          prompt,
+          callback,
+          timeoutSignal(toMilliseconds({ minutes: 2 })),
+        ),
+      ),
+    );
     this._dynamicPromptCommitted.value += prompt;
     await this.saveSessionToLocalStorage();
   }
@@ -330,6 +369,8 @@ export class Gpt {
    * Infer text from the prompt.
    * @param prompt If null, would infer from the current context.
    * @param nEval Number of evaluations to perform.
+   * @param inferenceAbortSignal Signal to abort the inference.
+   * @param fetchAbortSignal Signal to abort the fetch.
    */
   async infer(
     prompt: string | null,
@@ -337,6 +378,12 @@ export class Gpt {
     options: v.InferInput<typeof InferenceOptionsSchema> = {},
     decodeCallback?: (event: { progress: number }) => void,
     inferenceCallback_?: (event: { content: string }) => void,
+    inferenceAbortSignal?: AbortSignal,
+    fetchAbortSignal: AbortSignal | undefined = timeoutSignal(
+      toMilliseconds({
+        minutes: 2,
+      }),
+    ),
   ): Promise<string> {
     let decodeComplete = false;
 
@@ -360,6 +407,8 @@ export class Gpt {
             this._dynamicPromptUncommitted.value += event.content;
             inferenceCallback_?.(event);
           },
+          inferenceAbortSignal,
+          fetchAbortSignal,
         ),
       ),
     );
@@ -456,10 +505,19 @@ export class Gpt {
   private async initialize(
     dumpSession?: boolean,
     progressCallback?: (event: { progress: number }) => void,
+    abortSignal: AbortSignal | undefined = timeoutSignal(
+      toMilliseconds({ minutes: 2 }),
+    ),
   ): Promise<string> {
     return (this._id.value = await this.pushJob(
       markRaw(
-        new GptInitJob(this, this.staticPrompt, progressCallback, dumpSession),
+        new GptInitJob(
+          this,
+          this.staticPrompt,
+          progressCallback,
+          dumpSession,
+          abortSignal,
+        ),
       ),
     ));
   }

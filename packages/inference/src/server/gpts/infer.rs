@@ -4,8 +4,12 @@ use axum::{
     Json,
 };
 use axum_streams::StreamBodyAsOptions;
+use log::warn;
 use simularity_core::gpt::InferOptions;
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{atomic::AtomicU16, Arc},
+    time::Instant,
+};
 use tokio::sync::mpsc::channel;
 
 use crate::server::{AppError, AppState};
@@ -37,6 +41,12 @@ pub struct Epilogue {
     /// Inference duration in milliseconds.
     duration: u32,
 
+    /// Whether the inference was aborted.
+    aborted: bool,
+
+    /// Inferenced token length.
+    token_length: usize,
+
     /// New (potentially committed) context length in tokens.
     context_length: usize,
 }
@@ -62,17 +72,30 @@ pub async fn handler(
         .get(&id)
         .ok_or_else(|| AppError(anyhow::anyhow!("gpt not found")))?
         .clone();
+    drop(hash_map_lock);
 
     let (sender, receiver) = channel::<Chunk>(req.n_eval);
 
     tokio::task::spawn_blocking(move || {
         let mut gpt = arc.lock().unwrap();
+        let token_length = AtomicU16::new(0);
 
-        let inference_callback = Some(|content: &str| {
+        let inference_callback = Some(|content: &str| -> bool {
             let chunk = Chunk::Inference(Inference {
                 content: content.to_string(),
             });
+
             sender.blocking_send(chunk).unwrap();
+            token_length.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+            let hash_map_lock = state.gpt.abortion_flags.blocking_lock();
+            let abortion_flag = hash_map_lock.get(&id).unwrap();
+            if abortion_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                warn!("abortion flag set, aborting inference");
+                true
+            } else {
+                false
+            }
         });
 
         let start = Instant::now();
@@ -127,12 +150,21 @@ pub async fn handler(
                 .expect("unable to perform inference");
         }
 
+        let hash_map_lock = state.gpt.abortion_flags.blocking_lock();
+        let abortion_flag = hash_map_lock.get(&id).unwrap();
+
+        // Send the epilogue.
         sender
             .blocking_send(Chunk::Epilogue(Epilogue {
                 duration: start.elapsed().as_millis() as u32,
+                aborted: abortion_flag.load(std::sync::atomic::Ordering::Relaxed),
+                token_length: token_length.load(std::sync::atomic::Ordering::Relaxed) as usize,
                 context_length: gpt.context.kv_cache_size(),
             }))
-            .unwrap()
+            .unwrap();
+
+        // Unset the abortion flag.
+        abortion_flag.store(false, std::sync::atomic::Ordering::Relaxed);
     });
 
     let stream = tokio_stream::wrappers::ReceiverStream::new(receiver);
