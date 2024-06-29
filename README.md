@@ -32,6 +32,7 @@ Paper: https://github.com/mit-han-lab/streaming-llm.
 ### Llama.cpp
 
 - On KV cache size & sequences: https://github.com/ggerganov/llama.cpp/discussions/4130#discussioncomment-8053636
+- https://www.youtube.com/watch?v=80bIUggRJf4 (contains math for KV cache size)
 - https://blog.eleuther.ai/transformer-math/
 - https://github.com/ggerganov/llama.cpp/pull/6412 (bfloat16)
 - https://www.omrimallis.com/posts/understanding-how-llm-inference-works-with-llama-cpp
@@ -43,3 +44,9 @@ Paper: https://github.com/mit-han-lab/streaming-llm.
 ### Roleplay
 
 - https://github.com/Neph0s/awesome-llm-role-playing-with-persona
+
+### Training
+
+- https://www.kaggle.com/code/aisuko/fine-tuning-t5-small-with-lora
+- https://www.philschmid.de/fine-tune-flan-t5-peft
+- https://towardsdatascience.com/training-t5-for-paraphrase-generation-ab3b5be151a2
