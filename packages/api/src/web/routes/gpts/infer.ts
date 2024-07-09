@@ -24,17 +24,22 @@ const RequestBodySchema = v.object({
   options: InferenceOptionsSchema,
 });
 
-const DecodeProgressSchema = v.object({
+const ErrorChunkSchema = v.object({
+  type: v.literal("error"),
+  error: v.string(),
+});
+
+const DecodeProgressChunkSchema = v.object({
   type: v.literal("decodeProgress"),
   progress: v.number(),
 });
 
-const InferenceSchema = v.object({
+const InferenceChunkSchema = v.object({
   type: v.literal("inference"),
   content: v.string(),
 });
 
-const EpilogueSchema = v.object({
+const EpilogueChunkSchema = v.object({
   type: v.literal("epilogue"),
   inferenceId: v.string(),
   duration: v.number(),
@@ -95,21 +100,32 @@ export default Router()
       async () => {
         for await (const chunk of inferenceNodeApi.infer(
           inferenceNode.baseUrl,
-          gptSession.id,
+          gptSession.inferenceNodeSessionId,
           {
             prompt: body.output.prompt,
             nEval: body.output.nEval,
             options: body.output.options,
           },
-          { abortSignal: timeoutSignal(toMilliseconds({ minutes: 2 })) },
+          { abortSignal: timeoutSignal(toMilliseconds({ minutes: 5 })) },
         )) {
           switch (chunk.type) {
+            case "Error":
+              res.write(
+                JSON.stringify({
+                  type: "error",
+                  error: chunk.error,
+                } satisfies v.InferOutput<typeof ErrorChunkSchema>) + "\n",
+              );
+
+              return;
+
             case "Decoding":
               res.write(
                 JSON.stringify({
                   type: "decodeProgress",
                   progress: chunk.progress,
-                } satisfies v.InferOutput<typeof DecodeProgressSchema>) + "\n",
+                } satisfies v.InferOutput<typeof DecodeProgressChunkSchema>) +
+                  "\n",
               );
 
               break;
@@ -120,7 +136,7 @@ export default Router()
                 JSON.stringify({
                   type: "inference",
                   content: chunk.content,
-                } satisfies v.InferOutput<typeof InferenceSchema>) + "\n",
+                } satisfies v.InferOutput<typeof InferenceChunkSchema>) + "\n",
               );
 
               break;
@@ -148,6 +164,11 @@ export default Router()
       },
     );
 
+    if (!inferenceNodeResponse) {
+      res.end();
+      return;
+    }
+
     const gptInference = (
       await d.db
         .insert(d.gptInferences)
@@ -158,7 +179,7 @@ export default Router()
           nEval: body.output.nEval,
           stream: true,
           aborted: inferenceNodeResponse.aborted,
-          // tokenLength: inferenceNodeResponse.tokenLength, // TODO:
+          tokenLength: inferenceNodeResponse.tokenLength,
           result,
           inferenceDuration: inferenceNodeResponse.duration,
         })
@@ -174,7 +195,7 @@ export default Router()
         inferenceId: gptInference.id,
         duration: inferenceNodeResponse.duration,
         contextLength: inferenceNodeResponse.contextLength,
-      } satisfies v.InferOutput<typeof EpilogueSchema>) + "\n",
+      } satisfies v.InferOutput<typeof EpilogueChunkSchema>) + "\n",
     );
 
     res.end();

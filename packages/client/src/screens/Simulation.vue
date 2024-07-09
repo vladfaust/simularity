@@ -174,9 +174,9 @@ useScroll(updatesRef, {
 });
 
 const modelSettings = ref<v.InferOutput<typeof InferenceOptionsSchema>>({
-  temp: 1.15,
   minP: 0.1,
   mirostat: {
+    version: "v1",
     tau: 5,
     eta: 0.1,
   },
@@ -809,12 +809,12 @@ async function prepareGpt() {
         if (!modelPath) throw new Error("Local model path not set");
 
         const contextSize = await settings.getGptLocalContextSize();
-        if (!contextSize) throw new Error("Local context size not set");
+        // if (!contextSize) throw new Error("Local context size not set");
 
         driver = {
           type: "local",
           modelPath,
-          contextSize,
+          contextSize: contextSize ?? 0,
         };
 
         break;

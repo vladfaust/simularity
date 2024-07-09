@@ -59,21 +59,3 @@ export async function destroy(baseUrl: string, gptId: string): Promise<void> {
     throw new Error(`Failed to destroy GPT session: ${response.statusText}`);
   }
 }
-
-export async function tokenCount(
-  baseUrl: string,
-  model: string,
-  prompt: string,
-): Promise<number> {
-  const response = await fetch(`${baseUrl}/gpts/token-count`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, prompt }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to get token count: ${response.statusText}`);
-  }
-
-  return ((await response.json()) as { count: number }).count;
-}

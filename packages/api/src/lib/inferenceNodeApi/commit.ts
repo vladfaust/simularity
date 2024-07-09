@@ -4,14 +4,14 @@ import { v } from "../valibot.js";
 
 const ResponseSchema = v.object({
   /**
-   * New KV cache size.
+   * New context length.
    */
-  kvCacheSize: v.number(),
+  contextLength: v.number(),
 });
 
 export async function commit(
   baseUrl: string,
-  sessionId: string,
+  sessionId: number,
 ): Promise<v.InferOutput<typeof ResponseSchema>> {
   let response;
   try {

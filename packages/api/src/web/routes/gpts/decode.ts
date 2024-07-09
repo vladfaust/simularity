@@ -21,12 +21,17 @@ const RequestBodySchema = v.object({
   prompt: v.string(),
 });
 
-const ProgressSchema = v.object({
+const ErrorChunkSchema = v.object({
+  type: v.literal("error"),
+  error: v.string(),
+});
+
+const ProgressChunkSchema = v.object({
   type: v.literal("progress"),
   progress: v.number(),
 });
 
-const EpilogueSchema = v.object({
+const EpilogueChunkSchema = v.object({
   type: v.literal("epilogue"),
   decodeId: v.string(),
   duration: v.number(),
@@ -85,17 +90,26 @@ export default Router()
       async () => {
         for await (const chunk of inferenceNodeApi.decode(
           inferenceNode.baseUrl,
-          gptSession.id,
+          gptSession.inferenceNodeSessionId,
           { prompt: body.output.prompt },
-          { abortSignal: timeoutSignal(toMilliseconds({ minutes: 2 })) },
+          { abortSignal: timeoutSignal(toMilliseconds({ minutes: 5 })) },
         )) {
           switch (chunk.type) {
+            case "Error":
+              res.write(
+                JSON.stringify({
+                  type: "error",
+                  error: chunk.error,
+                } satisfies v.InferOutput<typeof ErrorChunkSchema>) + "\n",
+              );
+
+              return;
             case "Progress":
               res.write(
                 JSON.stringify({
                   type: "progress",
                   progress: chunk.progress,
-                } satisfies v.InferOutput<typeof ProgressSchema>) + "\n",
+                } satisfies v.InferOutput<typeof ProgressChunkSchema>) + "\n",
               );
 
               break;
@@ -123,6 +137,11 @@ export default Router()
       },
     );
 
+    if (!inferenceNodeResult) {
+      res.end();
+      return;
+    }
+
     const gptDecoding = (
       await d.db
         .insert(d.gptDecodings)
@@ -142,7 +161,7 @@ export default Router()
         decodeId: gptDecoding.id,
         duration: inferenceNodeResult.duration,
         contextLength: inferenceNodeResult.contextLength,
-      } satisfies v.InferOutput<typeof EpilogueSchema>) + "\n",
+      } satisfies v.InferOutput<typeof EpilogueChunkSchema>) + "\n",
     );
 
     res.end();

@@ -4,34 +4,59 @@ import { filterWhitespaceStrings } from "../utils.js";
 import { v } from "../valibot.js";
 
 export const OptionsSchema = v.object({
-  stopSequences: v.optional(v.array(v.string())),
-  grammar: v.optional(v.string()),
-  temp: v.optional(v.number()),
+  nPrev: v.optional(v.number()),
+  nProbs: v.optional(v.number()),
+  minKeep: v.optional(v.number()),
   topK: v.optional(v.number()),
-  minP: v.optional(v.number()),
   topP: v.optional(v.number()),
+  minP: v.optional(v.number()),
   tfsZ: v.optional(v.number()),
   typicalP: v.optional(v.number()),
-  mirostat: v.optional(
+  temp: v.optional(v.number()),
+  dynatemp: v.optional(
     v.object({
-      tau: v.number(),
-      eta: v.number(),
+      range: v.optional(v.number()),
+      exponent: v.optional(v.number()),
     }),
   ),
+  penalty: v.optional(
+    v.object({
+      lastN: v.optional(v.number()),
+      repeat: v.optional(v.number()),
+      freq: v.optional(v.number()),
+      present: v.optional(v.number()),
+      penalizeNl: v.optional(v.boolean()),
+    }),
+  ),
+  mirostat: v.optional(
+    v.object({
+      version: v.picklist(["v1", "v2"]),
+      tau: v.optional(v.number()),
+      eta: v.optional(v.number()),
+    }),
+  ),
+  seed: v.optional(v.number()),
+  grammar: v.optional(v.string()),
+  stopSequences: v.optional(v.array(v.string())),
 });
 
 const RequestBodySchema = v.object({
   prompt: v.nullable(v.string()),
   nEval: v.number(),
-  options: OptionsSchema,
+  options: v.optional(OptionsSchema),
 });
 
-const DecodeProgressSchema = v.object({
+const ErrorChunkSchema = v.object({
+  type: v.literal("Error"),
+  error: v.string(),
+});
+
+const DecodeProgressChunkSchema = v.object({
   type: v.literal("Decoding"),
   progress: v.number(),
 });
 
-const InferenceSchema = v.object({
+const InferenceChunkSchema = v.object({
   type: v.literal("Inference"),
   content: v.string(),
 });
@@ -45,14 +70,15 @@ const EpilogueSchema = v.object({
 });
 
 const ChunkSchema = v.union([
-  DecodeProgressSchema,
-  InferenceSchema,
+  ErrorChunkSchema,
+  DecodeProgressChunkSchema,
+  InferenceChunkSchema,
   EpilogueSchema,
 ]);
 
 export async function* infer(
   baseUrl: string,
-  sessionId: string,
+  sessionId: number,
   args: v.InferInput<typeof RequestBodySchema>,
   options?: { abortSignal: AbortSignal },
 ): AsyncGenerator<v.InferOutput<typeof ChunkSchema>> {

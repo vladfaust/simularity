@@ -57,7 +57,11 @@ export default Router()
       }
 
       await pRetry(
-        () => inferenceNodeApi.delete(inferenceNode.baseUrl, gptSession.id),
+        () =>
+          inferenceNodeApi.destroy(
+            inferenceNode.baseUrl,
+            gptSession.inferenceNodeSessionId,
+          ),
         {
           retries: 2,
           onFailedAttempt: (error) => {

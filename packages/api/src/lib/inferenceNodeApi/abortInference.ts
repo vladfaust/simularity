@@ -3,7 +3,7 @@ import { FetchError, ResponseOkError } from "../errors.js";
 
 export async function abortInference(
   baseUrl: string,
-  sessionId: string,
+  sessionId: number,
 ): Promise<void> {
   let response;
   try {

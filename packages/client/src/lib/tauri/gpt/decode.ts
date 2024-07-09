@@ -6,7 +6,7 @@ type Response = {
   kvCacheSize: number;
 };
 
-type Progress = {
+type ProgressEventPayload = {
   progress: number;
 };
 
@@ -17,18 +17,18 @@ const DECODING_EVENT_NAME = "app://gpt/decoding";
  * Decode prompt, updating the KV cache.
  */
 export async function decode(
-  gptId: string,
+  sessionId: string,
   prompt: string,
-  decodeCallback?: (event: Progress) => void,
+  decodeCallback?: (event: ProgressEventPayload) => void,
 ): Promise<Response> {
   const unlisten = decodeCallback
     ? await listen(DECODING_EVENT_NAME, (event) => {
-        decodeCallback(event.payload as Progress);
+        decodeCallback(event.payload as ProgressEventPayload);
       })
     : undefined;
 
   const result = (await invoke(COMMAND_NAME, {
-    gptId,
+    sessionId,
     prompt,
     callbackEventName: decodeCallback ? DECODING_EVENT_NAME : undefined,
   })) as Response;

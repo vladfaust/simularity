@@ -7,22 +7,31 @@ const RequestBodySchema = v.object({
   prompt: v.string(),
 });
 
-const ProgressSchema = v.object({
+const ErrorChunkSchema = v.object({
+  type: v.literal("Error"),
+  error: v.string(),
+});
+
+const ProgressChunkSchema = v.object({
   type: v.literal("Progress"),
   progress: v.number(),
 });
 
-const EpilogueSchema = v.object({
+const EpilogueChunkSchema = v.object({
   type: v.literal("Epilogue"),
   duration: v.number(),
   contextLength: v.number(),
 });
 
-const ChunkSchema = v.union([ProgressSchema, EpilogueSchema]);
+const ChunkSchema = v.union([
+  ErrorChunkSchema,
+  ProgressChunkSchema,
+  EpilogueChunkSchema,
+]);
 
 export async function* decode(
   baseUrl: string,
-  sessionId: string,
+  sessionId: number,
   args: v.InferInput<typeof RequestBodySchema>,
   options?: { abortSignal: AbortSignal },
 ): AsyncGenerator<v.InferOutput<typeof ChunkSchema>> {

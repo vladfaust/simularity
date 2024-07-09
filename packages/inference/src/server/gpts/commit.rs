@@ -1,39 +1,34 @@
-use crate::server::{AppError, AppState};
-use axum::{
-    extract::{Path, State},
-    Json,
-};
-use std::sync::Arc;
+use crate::server::AppError;
+use axum::{extract::Path, Json};
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitResponseBody {
-    /// New KV cache size in tokens.
-    // TODO: Rename to `context_length`.
-    kv_cache_size: usize,
+    /// New context length in tokens.
+    context_length: u32,
 }
 
 /// Commit a recently inferred prompt.
 /// Path: `POST /gpts/:id/commit`.
 #[axum::debug_handler]
-pub async fn handler(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Result<Json<CommitResponseBody>, AppError> {
-    let hash_map_lock = state.gpt.instances.lock().await;
-    let arc = hash_map_lock
-        .get(&id)
-        .ok_or_else(|| AppError(anyhow::anyhow!("gpt not found")))?
-        .clone();
+pub async fn handler(Path(id): Path<u32>) -> Result<Json<CommitResponseBody>, AppError> {
+    let context_length =
+        tokio::task::spawn_blocking(move || simularity_core::gpt::commit(id)).await?;
 
-    let kv_cache_size = tokio::task::spawn_blocking(move || {
-        let mut gpt = arc.lock().unwrap();
-        let _ = gpt.context.commit();
-        gpt.context.kv_cache_size()
-    })
-    .await?;
+    if let Err(err) = context_length {
+        return match err {
+            simularity_core::gpt::CommitError::SessionNotFound => {
+                Err(AppError(anyhow::anyhow!("Session not found")))
+            }
+            simularity_core::gpt::CommitError::Unknown(code) => {
+                panic!("Unknown error code: {}", code)
+            }
+        };
+    }
 
-    let body = Json(CommitResponseBody { kv_cache_size });
+    let body = Json(CommitResponseBody {
+        context_length: context_length.unwrap(),
+    });
 
     Ok(body)
 }

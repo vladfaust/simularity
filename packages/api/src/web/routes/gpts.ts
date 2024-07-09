@@ -8,7 +8,6 @@ import delete_ from "./gpts/delete.js";
 import find from "./gpts/find.js";
 import infer from "./gpts/infer.js";
 import reset from "./gpts/reset.js";
-import tokenCount from "./gpts/tokenCount.js";
 
 export default Router()
   .use(abortInference)
@@ -18,5 +17,4 @@ export default Router()
   .use(delete_)
   .use(find)
   .use(infer)
-  .use(reset)
-  .use(tokenCount);
+  .use(reset);

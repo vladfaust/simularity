@@ -7,7 +7,7 @@ import { timeoutSignal, unreachable } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import bodyParser from "body-parser";
 import cors from "cors";
-import { createHash, randomUUID } from "crypto";
+import { createHash } from "crypto";
 import { eq } from "drizzle-orm";
 import { toMilliseconds } from "duration-fns";
 import { Router } from "express";
@@ -24,17 +24,17 @@ const RequestBodySchema = v.object({
   initialPrompt: v.optional(v.string()),
 });
 
-const DecodeProgressSchema = v.object({
-  type: v.literal("decodeProgress"),
+const ErrorChunkSchema = v.object({
+  type: v.literal("error"),
+  error: v.string(),
+});
+
+const ProgressChunkSchema = v.object({
+  type: v.literal("progress"),
   progress: v.number(), // 0-1
 });
 
-const SessionLoadProgressSchema = v.object({
-  type: v.literal("sessionLoadProgress"),
-  progress: v.number(), // 0-1
-});
-
-const EpilogueSchema = v.object({
+const EpilogueChunkSchema = v.object({
   type: v.literal("epilogue"),
   sessionId: v.string(),
   contextLength: v.number(),
@@ -85,35 +85,33 @@ export default Router()
       }
     }
 
-    const gptSessionId = randomUUID();
     const result = await pRetry(
       async () => {
         for await (const chunk of inferenceNodeApi.create(
           node.baseUrl,
           {
-            id: gptSessionId,
+            modelId: body.output.model,
             initialPrompt: body.output.initialPrompt,
             dumpSession,
           },
-          { abortSignal: timeoutSignal(toMilliseconds({ minutes: 2 })) },
+          { abortSignal: timeoutSignal(toMilliseconds({ minutes: 5 })) },
         )) {
           switch (chunk.type) {
-            case "Decode":
+            case "Error":
               res.write(
                 JSON.stringify({
-                  type: "decodeProgress",
-                  progress: chunk.progress,
-                } satisfies v.InferOutput<typeof DecodeProgressSchema>) + "\n",
+                  type: "error",
+                  error: chunk.error,
+                } satisfies v.InferOutput<typeof ErrorChunkSchema>) + "\n",
               );
 
-              break;
-            case "SessionLoad":
+              return;
+            case "Progress":
               res.write(
                 JSON.stringify({
-                  type: "sessionLoadProgress",
+                  type: "progress",
                   progress: chunk.progress,
-                } satisfies v.InferOutput<typeof SessionLoadProgressSchema>) +
-                  "\n",
+                } satisfies v.InferOutput<typeof ProgressChunkSchema>) + "\n",
               );
 
               break;
@@ -141,12 +139,17 @@ export default Router()
       },
     );
 
+    if (!result) {
+      res.end();
+      return;
+    }
+
     const session = (
       await d.db
         .insert(d.gptSessions)
         .values({
-          id: gptSessionId,
           inferenceNodeId: node.id,
+          inferenceNodeSessionId: result.sessionId,
           model: body.output.model,
           initialPrompt: body.output.initialPrompt,
         })
@@ -161,7 +164,7 @@ export default Router()
         type: "epilogue",
         sessionId: session.id,
         contextLength: result.contextLength,
-      } satisfies v.InferOutput<typeof EpilogueSchema>) + "\n",
+      } satisfies v.InferOutput<typeof EpilogueChunkSchema>) + "\n",
     );
 
     res.end();

@@ -1,0 +1,17 @@
+BasedOnStyle: LLVM
+IndentWidth: 2
+AlignAfterOpenBracket: BlockIndent
+ColumnLimit: 80
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AlignConsecutiveAssignments: AcrossEmptyLines
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+BinPackArguments: false
+BinPackParameters: false
+AllowAllParametersOfDeclarationOnNextLine: true
+BreakConstructorInitializers: AfterColon
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+SortIncludes: true

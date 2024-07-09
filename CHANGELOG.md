@@ -58,6 +58,14 @@
 
 ## History 📜
 
+### July 2024
+
+- [x] feat: C++ core (Tue 9)
+      Drops the llama-cpp-rs crate dependency.
+      Allows to use Whisper, Bark and other GGML-based models.
+      Improved state loading speed, unlocked flash attention.
+      Reuses management code among Tauri and Inference Server.
+
 ### June 2024
 
 - [x] feat: inference server (Sat June 15)

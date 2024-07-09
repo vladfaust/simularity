@@ -5,8 +5,12 @@
       "path": "."
     },
     {
-      "name": "core",
-      "path": "packages/core"
+      "name": "core-cpp",
+      "path": "packages/core-cpp"
+    },
+    {
+      "name": "core-rs",
+      "path": "packages/core-rs"
     },
     {
       "name": "tauri",
@@ -25,5 +29,7 @@
       "path": "packages/inference"
     }
   ],
-  "settings": {}
+  "settings": {
+    "clangd.arguments": ["-compile-commands-dir=packages/core-cpp/build"]
+  }
 }

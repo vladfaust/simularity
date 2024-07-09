@@ -7,25 +7,32 @@ export { infer } from "./gpt/infer";
  * Load a GPT model from a file path.
  */
 export async function loadModel(modelPath: string) {
-  return (await invoke("gpt_load_model", {
+  const result = (await invoke("gpt_load_model", {
     modelPath,
   })) as {
+    modelId: string;
     trainContextSize: number;
   };
+
+  // // ADHOC: Wait for the model to be loaded.
+  // // Something something threads.
+  // await sleep(100);
+
+  return result;
 }
 
 /**
- * Return whether a GPT instance exists.
+ * Return whether a GPT session exists.
  */
-export async function find(gptId: string) {
-  return (await invoke("gpt_find", { gptId })) as boolean;
+export async function find(sessionId: string) {
+  return (await invoke("gpt_find", { sessionId })) as boolean;
 }
 
 /**
- * Destroy a GPT instance.
+ * Destroy a GPT session.
  */
-export async function destroy(gptId: string): Promise<void> {
-  return await invoke("gpt_destroy", { gptId });
+export async function destroy(sessionId: string): Promise<void> {
+  return await invoke("gpt_destroy", { sessionId });
 }
 
 /**
@@ -33,23 +40,13 @@ export async function destroy(gptId: string): Promise<void> {
  * Returns the number of tokens committed.
  */
 // TODO: Return the new KV cache size.
-export async function commit(gptId: string): Promise<number> {
-  return await invoke("gpt_commit", { gptId });
+export async function commit(sessionId: string): Promise<number> {
+  return await invoke("gpt_commit", { sessionId });
 }
 
 /**
- * Reset the GPT instance to its initial state (i.e. static prompt).
+ * Reset the GPT session to its initial state (i.e. static prompt).
  */
-export async function reset(gptId: string): Promise<void> {
-  return await invoke("gpt_reset", { gptId });
-}
-
-/**
- * Tokenize prompt and return the token count.
- */
-export async function tokenCount(
-  modelPath: string,
-  prompt: string,
-): Promise<number> {
-  return await invoke("gpt_token_count", { modelPath, prompt });
+export async function reset(sessionId: string): Promise<void> {
+  return await invoke("gpt_reset", { sessionId });
 }

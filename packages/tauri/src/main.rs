@@ -1,33 +1,18 @@
+#![feature(let_chains)]
 #![cfg_attr(
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"
 )]
 
-use simularity_core::gpt;
 use std::{collections::HashMap, sync::Arc};
 use tauri::async_runtime::Mutex;
 
 mod commands;
 mod sqlite;
 
-struct GptInstance {
-    pub model: &'static gpt::Model,
-    pub context: gpt::Context<'static>,
-    pub initial_prompt_len: usize,
-}
-
 struct AppState {
-    gpt_backend: gpt::Backend,
-
-    /// {model_path => model tuple}.
-    /// TODO: Hash by actual model hash (e.g. sha256 of the model file).
-    pub gpt_models: Mutex<HashMap<String, (Box<gpt::Model>, &'static gpt::Model)>>,
-
-    /// {id => GptInstance}.
-    pub gpt_instances: Mutex<HashMap<String, Arc<Mutex<GptInstance>>>>,
-
-    /// ADHOC: Limit the number of simultaneous inferences to 1.
-    pub inference_mutex: Mutex<()>,
+    /// { id => created }.
+    pub gpt_sessions: Mutex<HashMap<u32, ()>>,
 
     /// { uri => connection }. A connection will be held until it is closed.
     pub sqlite_connections: Mutex<HashMap<String, Arc<Mutex<rusqlite::Connection>>>>,
@@ -74,10 +59,7 @@ fn migrate_up(sqlite_uri: &str) {
 impl AppState {
     pub fn new() -> Self {
         Self {
-            gpt_backend: gpt::Backend::new().expect("unable to create the llama backend"),
-            gpt_models: Mutex::new(HashMap::new()),
-            gpt_instances: Mutex::new(HashMap::new()),
-            inference_mutex: Mutex::new(()),
+            gpt_sessions: Mutex::new(HashMap::new()),
             sqlite_connections: Mutex::new(HashMap::new()),
         }
     }
@@ -95,6 +77,7 @@ fn main() {
                 .unwrap()
                 .join("test.db");
             migrate_up(sqlite_uri.to_str().unwrap());
+            simularity_core::init(None, None);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -105,7 +88,6 @@ fn main() {
             commands::gpt::infer::gpt_infer,
             commands::gpt::commit::gpt_commit,
             commands::gpt::destroy::gpt_destroy,
-            commands::gpt::token_count::gpt_token_count,
             commands::gpt::reset::gpt_reset,
             commands::sqlite::sqlite_open,
             commands::sqlite::sqlite_execute,

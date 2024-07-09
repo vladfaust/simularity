@@ -7,15 +7,17 @@ use axum::{
 use log::info;
 use std::sync::Arc;
 
+use crate::env::ENV;
+
 mod gpts;
 
 pub struct AppState {
     gpt: gpts::GptState,
 }
 
-fn init_state(model_path: &str) -> Arc<AppState> {
+fn init_state() -> Arc<AppState> {
     Arc::new(AppState {
-        gpt: gpts::GptState::new(model_path),
+        gpt: gpts::GptState::new(),
     })
 }
 
@@ -45,18 +47,17 @@ where
 }
 
 pub async fn run_server() {
-    let model_path =
-        std::env::var("GPT_MODEL_PATH").expect("GPT_MODEL_PATH env variable is not set");
+    simularity_core::init(
+        Some(ENV.simularity_gpt_session_ttl.try_into().unwrap()),
+        Some(ENV.simularity_gpt_session_max.try_into().unwrap()),
+    );
 
     let app = Router::new()
         .route("/", get(|| async { "OK" }))
         .merge(gpts::router())
-        .with_state(init_state(model_path.as_str()));
+        .with_state(init_state());
 
-    let host = std::env::var("HOST").expect("HOST env variable is not set");
-    let port = std::env::var("PORT").expect("PORT env variable is not set");
-    let addr = format!("{}:{}", host, port);
-
+    let addr = format!("{}:{}", ENV.host, ENV.port);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     info!("Listening on: http://{addr}");
 

@@ -53,7 +53,11 @@ export default Router()
     }
 
     await pRetry(
-      () => inferenceNodeApi.reset(inferenceNode.baseUrl, gptSession.id),
+      () =>
+        inferenceNodeApi.reset(
+          inferenceNode.baseUrl,
+          gptSession.inferenceNodeSessionId,
+        ),
       {
         retries: 2,
         onFailedAttempt: (error) => {

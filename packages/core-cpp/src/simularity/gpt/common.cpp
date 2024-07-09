@@ -1,0 +1,131 @@
+#pragma once
+
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <utility>
+#include <vector>
+
+#include <llama.h>
+#include <simularity.h>
+
+#include "../../llama.cpp"
+#include "spdlog/spdlog.h"
+
+unsigned GPT_SESSIONS_TTL;
+unsigned GPT_SESSIONS_MAX;
+
+class Session {
+public:
+  Session(struct llama_context *ctx) : context(ctx) { this->touch(); }
+  ~Session() { llama_free(this->context); }
+
+  struct llama_context *context;
+  std::mutex mutex;
+
+  size_t initial_prompt_size                  = 0;
+  std::vector<llama_token> committed_prompt   = {};
+  std::vector<llama_token> uncommitted_prompt = {};
+
+  std::chrono::time_point<std::chrono::system_clock> expired_at;
+
+  // Decode progress callback (used internally to connect llama's
+  // `cb_eval` with user-defined callbacks). See
+  // `llama_universal_cb_eval` in `./create.cpp`.
+  std::function<void()> decode_progress_callback;
+
+  // Prolong the session expiration time by `GPT_SESSIONS_TTL` seconds.
+  void touch() {
+    if (GPT_SESSIONS_TTL) {
+      expired_at = std::chrono::system_clock::now() +
+                   std::chrono::seconds(GPT_SESSIONS_TTL);
+    }
+  }
+
+  // Remove the uncommitted prompt tokens from the KV cache, if any.
+  void clear_uncommitted_kv_cache() {
+    llama_kv_cache_seq_rm(this->context, 0, this->committed_prompt.size(), -1);
+  }
+
+  const llama_model *model() { return llama_get_model(this->context); }
+};
+
+static std::atomic<unsigned> GPT_SESSIONS_COUNTER = 0;
+static std::unordered_map<unsigned, std::shared_ptr<Session>> GPT_SESSIONS;
+static std::mutex GPT_SESSIONS_MUTEX;
+
+/**
+  Lock a session by ID.
+
+  @return A pair of session mutex lock and session pointer, or `std::nullopt`
+    if the session does not exist.
+
+  SAFETY: The sessions mutex is implicitly acquired.
+ */
+static std::optional<std::pair<std::unique_lock<std::mutex>, Session *>>
+try_locking_session(unsigned session_id) {
+  std::unique_lock sessions_lock(GPT_SESSIONS_MUTEX);
+  auto it = GPT_SESSIONS.find(session_id);
+  if (it == GPT_SESSIONS.end()) {
+    return std::nullopt;
+  } else {
+    return std::make_pair(
+        std::unique_lock(it->second->mutex), it->second.get()
+    );
+  }
+}
+
+/**
+  Wrap `llama_decode` call with a progress callback.
+
+  @param session The session.
+  @param batch The batch to decode.
+  @param progress_callback The progress callback.
+
+  @return The result of the `llama_decode` call.
+ */
+static int decode_with_progress(
+    Session *session,
+    llama_batch &batch,
+    unsigned max_calls,
+    void(progress_callback)(float, void *),
+    void *progress_callback_user_data
+) {
+  spdlog::info("Decoding batch of size {}", batch.n_tokens);
+
+  unsigned current_call = 0;
+  if (!max_calls) max_calls = 1; // Avoid division by zero.
+
+  // Set the session's decode progress callback.
+  if (progress_callback != NULL) {
+    session->decode_progress_callback = [&current_call,
+                                         progress_callback,
+                                         max_calls,
+                                         progress_callback_user_data]() {
+      progress_callback(
+          (float)++current_call / max_calls, progress_callback_user_data
+      );
+    };
+  } else {
+    session->decode_progress_callback = NULL;
+  }
+
+  // Decode the batch.
+  auto start = std::chrono::high_resolution_clock::now();
+  int result = llama_decode(session->context, batch);
+  auto end   = std::chrono::high_resolution_clock::now();
+  spdlog::info(
+      "Decoded batch of size {} in {}ms (result: {})",
+      batch.n_tokens,
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+          .count(),
+      result
+  );
+
+  // Clear the session's decode progress callback.
+  session->decode_progress_callback = NULL;
+
+  return result;
+}

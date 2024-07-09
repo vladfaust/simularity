@@ -8,17 +8,22 @@ const RequestBodySchema = v.object({
   options: InferenceOptionsSchema,
 });
 
-const DecodeProgressSchema = v.object({
+const ErrorChunkSchema = v.object({
+  type: v.literal("error"),
+  error: v.string(),
+});
+
+const DecodeProgressChunkSchema = v.object({
   type: v.literal("decodeProgress"),
   progress: v.number(),
 });
 
-const InferenceSchema = v.object({
+const InferenceChunkSchema = v.object({
   type: v.literal("inference"),
   content: v.string(),
 });
 
-const EpilogueSchema = v.object({
+const EpilogueChunkSchema = v.object({
   type: v.literal("epilogue"),
   inferenceId: v.string(),
   duration: v.number(),
@@ -26,9 +31,10 @@ const EpilogueSchema = v.object({
 });
 
 const ChunkSchema = v.union([
-  DecodeProgressSchema,
-  InferenceSchema,
-  EpilogueSchema,
+  ErrorChunkSchema,
+  DecodeProgressChunkSchema,
+  InferenceChunkSchema,
+  EpilogueChunkSchema,
 ]);
 
 export async function infer(
@@ -71,6 +77,8 @@ export async function infer(
       const chunk = v.parse(ChunkSchema, json);
 
       switch (chunk.type) {
+        case "error":
+          throw new Error(`Failed to infer: ${chunk.error}`);
         case "decodeProgress":
           decodeCallback?.(chunk);
           break;

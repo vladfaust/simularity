@@ -54,7 +54,11 @@ export default Router()
     }
 
     const inferenceNodeResponse = await pRetry(
-      () => inferenceNodeApi.commit(inferenceNode.baseUrl, gptSession.id),
+      () =>
+        inferenceNodeApi.commit(
+          inferenceNode.baseUrl,
+          gptSession.inferenceNodeSessionId,
+        ),
       {
         retries: 2,
         onFailedAttempt: (error) => {
@@ -80,7 +84,7 @@ export default Router()
     res.status(200).json(
       parseTyped(ResponseBodySchema, {
         commitId: gptCommit.id,
-        kvCacheSize: inferenceNodeResponse.kvCacheSize,
+        kvCacheSize: inferenceNodeResponse.contextLength,
       }),
     );
   });

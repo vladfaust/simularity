@@ -2,12 +2,13 @@ import { invoke } from "@tauri-apps/api";
 import { listen } from "@tauri-apps/api/event";
 
 type Response = {
+  sessionId: string;
   sessionLoaded?: boolean;
   sessionDumpSize?: number;
   contextLength: number;
 };
 
-type Progress = {
+type ProgressEventPayload = {
   progress: number;
 };
 
@@ -18,25 +19,21 @@ const PROGRESS_EVENT_NAME = "app://gpt/progress";
  * Create a new GPT instance.
  */
 export async function create(
-  gptId: string,
-  modelPath: string,
+  modelId: string,
   contextSize: number,
-  batchSize: number,
   initialPrompt?: string,
-  progressCallback?: (event: Progress) => void,
+  progressCallback?: (event: ProgressEventPayload) => void,
   dumpSession?: boolean,
 ): Promise<Response> {
   const unlisten = progressCallback
     ? await listen(PROGRESS_EVENT_NAME, (event) => {
-        progressCallback(event.payload as Progress);
+        progressCallback(event.payload as ProgressEventPayload);
       })
     : undefined;
 
   const result = (await invoke(COMMAND_NAME, {
-    gptId,
-    modelPath,
+    modelId,
     contextSize,
-    batchSize,
     initialPrompt,
     progressEventName: progressCallback ? PROGRESS_EVENT_NAME : undefined,
     dumpSession,

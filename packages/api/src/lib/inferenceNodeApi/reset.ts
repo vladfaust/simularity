@@ -1,7 +1,7 @@
 import { env } from "@/env.js";
 import { FetchError, ResponseOkError } from "../errors.js";
 
-export async function reset(baseUrl: string, sessionId: string): Promise<void> {
+export async function reset(baseUrl: string, sessionId: number): Promise<void> {
   let response;
   try {
     response = await fetch(`${baseUrl}/gpts/${sessionId}/reset`, {

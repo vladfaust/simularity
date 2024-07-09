@@ -1,21 +1,18 @@
 use sha2::{Digest, Sha256};
-use simularity_core::gpt;
-use std::{
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-    time::Instant,
-};
-use tauri::async_runtime::Mutex;
+use std::time::Instant;
 
-use super::common::DecodeProgress;
-use super::get_or_create_model_ref;
-use crate::{AppState, GptInstance};
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressEventPayload {
+    pub progress: f32,
+}
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
+    /// The session ID.
+    session_id: String,
+
     /// Whether was the session loaded, if `initial_prompt` was set.
     /// False means a session file was not found, and decoding was done.
     session_loaded: Option<bool>,
@@ -28,174 +25,135 @@ pub struct Response {
     context_length: usize,
 }
 
-static GPT_COUNTER: AtomicUsize = AtomicUsize::new(0);
-
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 /// Create a new GPT instance.
-/// Errors if an instance with the same ID already exists.
 ///
 /// # Arguments
 ///
-/// * `initial_prompt` if set, would try to load the session
+/// * `model_id` - The model ID, obtained from `gpt_load_model`.
+/// * `context_size` - Context size, or `None` for default by model.
+/// * `initial_prompt` - If set, would try to load the session
 ///    from cache, otherwise decode from scratch.
+/// * `progress_event_name` - If set, would emit progress events.
+/// * `dump_session` - If set, would dump the session to cache.
 ///
 pub async fn gpt_create(
-    gpt_id: String,
-    model_path: String,
+    model_id: &str,
     context_size: usize,
-    batch_size: usize,
-    initial_prompt: Option<String>,
-    progress_event_name: Option<String>,
+    initial_prompt: Option<&str>,
+    progress_event_name: Option<&str>,
     dump_session: Option<bool>,
-    state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
     window: tauri::Window,
+    state: tauri::State<'_, crate::AppState>,
 ) -> Result<Response, tauri::InvokeError> {
     println!(
-        "gpt_create(gpt_id: {:?}, model_path: {}, context_size: {}, batch_size: {}, initial_prompt: {:?}, progress_event_name: {}, dump_session: {})",
-        gpt_id, model_path, context_size, batch_size, if initial_prompt.is_some() { "Some(_)" } else { "None" }, progress_event_name.as_deref().unwrap_or("None"), dump_session.unwrap_or(false),
+        "gpt_create(model_id: {}, context_size: {}, initial_prompt: {}, progress_event_name: {}, dump_session: {:?})",
+        model_id, context_size,
+        if initial_prompt.is_some() {
+            "Some"
+        } else {
+            "None"
+        },
+        progress_event_name.unwrap_or("None"), dump_session
     );
 
-    let mut hash_map_lock = state.gpt_instances.lock().await;
-
-    if hash_map_lock.contains_key(&gpt_id) {
-        return Err(tauri::InvokeError::from("gpt already exists"));
-    }
-
-    let model_ref = get_or_create_model_ref(model_path.clone(), &state).await?;
-    let tokens = if let Some(prompt) = initial_prompt.as_ref() {
-        model_ref.tokenize(prompt)
-    } else {
-        vec![]
-    };
-
-    let mut instance = GptInstance {
-        model: model_ref,
-        context: gpt::Context::new(
-            &state.gpt_backend,
-            model_ref,
-            context_size,
-            batch_size,
-            None,
-            Some(GPT_COUNTER.fetch_add(1, Ordering::Relaxed)),
-        )
-        .map_err(tauri::InvokeError::from_anyhow)?,
-        initial_prompt_len: tokens.len(),
-    };
-
-    let mut session_loaded: Option<bool> = None;
-    let mut session_dump_size: Option<usize> = None;
-
-    if let Some(prompt) = initial_prompt.as_ref() {
+    let state_file_path = if dump_session.unwrap_or(false)
+        && let Some(prompt) = initial_prompt.as_ref()
+    {
         let mut hasher = Sha256::new();
         hasher.update(prompt.as_bytes());
-        let session_hash = format!("{:x}", hasher.finalize());
+        let state_hash = format!("{:x}", hasher.finalize());
 
-        // TODO: Extract to a function, use `gpt` subdir.
-        let session_file_path = app
+        let state_file_path = app
             .path_resolver()
             .app_cache_dir()
-            .expect("failed to get app cache dir")
-            .join(format!("{}.llama-session", session_hash));
+            .expect("app cache dir is available")
+            .join(format!("{}.llama-state", state_hash));
 
-        std::fs::create_dir_all(session_file_path.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(
+            state_file_path
+                .parent()
+                .expect("state file path has parent directory"),
+        )
+        .expect("state file path is valid");
 
-        // Check that the file exists before trying to load it.
-        if session_file_path.exists() {
-            println!("Will load llama.cpp session from {:?}", session_file_path);
-            let start = std::time::Instant::now();
+        Some(
+            state_file_path
+                .to_str()
+                .expect("state file path is valid utf-8")
+                .to_string(),
+        )
+    } else {
+        None
+    };
 
-            instance
-                .context
-                .load_session(&session_file_path, tokens)
-                .map_err(tauri::InvokeError::from_anyhow)?;
+    let progress_callback = if let Some(event_name) = progress_event_name.as_ref() {
+        let throttle = std::time::Duration::from_millis(500);
+        let mut last_emit: Option<Instant> = None;
 
-            println!(
-                "loaded llama.cpp session from {:?} in {}s",
-                session_file_path,
-                start.elapsed().as_secs()
-            );
-
-            session_loaded = Some(true);
-        } else {
-            println!(
-                "llama.cpp session file does not exist at {:?}",
-                session_file_path
-            );
-
-            if let Some(event_name) = progress_event_name.as_ref() {
-                let event_name = event_name.clone();
-                let mut cur_node: usize = 0;
-                let total_tokens = tokens.len();
-
-                // NOTE: The callback itself is throttled on the llama.cpp side.
-                let throttle = std::time::Duration::from_millis(500);
-                let mut last_emit: Option<Instant> = None;
-
-                let callback_fn = move || -> bool {
-                    cur_node += 1;
-
-                    // Throttle the event emission.
-                    if let Some(last_emit) = last_emit {
-                        if last_emit.elapsed() < throttle {
-                            return true;
-                        }
-                    }
-
-                    let payload = DecodeProgress {
-                        progress: cur_node as f32 / (total_tokens as f32 * 2.0),
-                    };
-
-                    window.emit(&event_name, payload).unwrap();
-                    last_emit = Some(std::time::Instant::now());
-
-                    true
-                };
-                let callback_fn = Box::new(callback_fn);
-
-                instance
-                    .context
-                    .decode(prompt.clone(), Some(callback_fn))
-                    .map_err(tauri::InvokeError::from_anyhow)?;
-            } else {
-                instance
-                    .context
-                    .decode(prompt.clone(), None)
-                    .map_err(tauri::InvokeError::from_anyhow)?;
+        Some(move |progress: f32| -> bool {
+            // Throttle the event emission.
+            if let Some(last_emit) = last_emit {
+                if last_emit.elapsed() < throttle {
+                    return true;
+                }
             }
 
-            session_loaded = Some(true);
+            let payload = ProgressEventPayload { progress };
 
-            if let Some(dump) = dump_session {
-                if dump {
-                    let start = std::time::Instant::now();
+            window.emit(event_name, payload).unwrap();
+            last_emit = Some(std::time::Instant::now());
 
-                    instance
-                        .context
-                        .save_session_file(&session_file_path, &tokens)
-                        .map_err(tauri::InvokeError::from_anyhow)?;
+            true
+        })
+    } else {
+        None
+    };
 
-                    session_dump_size = Some(
-                        std::fs::metadata(&session_file_path)
-                            .expect("failed to get metadata for session file")
-                            .len() as usize,
-                    );
+    let create_result = simularity_core::gpt::create(
+        model_id,
+        Some(context_size as u32),
+        initial_prompt,
+        state_file_path.as_deref(),
+        progress_callback,
+    );
 
-                    println!(
-                        "dumped llama.cpp session to {:?} in {}s ({})",
-                        session_file_path,
-                        start.elapsed().as_secs(),
-                        bytesize::ByteSize(session_dump_size.unwrap() as u64)
-                    );
-                }
+    if let Err(err) = create_result {
+        match err {
+            simularity_core::gpt::CreateError::ModelNotFound => {
+                return Err(tauri::InvokeError::from("Model not found"));
+            }
+            simularity_core::gpt::CreateError::SessionLimitReached => {
+                return Err(tauri::InvokeError::from("Session limit reached"));
+            }
+            simularity_core::gpt::CreateError::ContextCreationFailed => {
+                return Err(tauri::InvokeError::from("Context creation failed"));
+            }
+            simularity_core::gpt::CreateError::DecodeFailed => {
+                return Err(tauri::InvokeError::from("Decode failed"));
+            }
+            simularity_core::gpt::CreateError::Unknown(code) => {
+                return Err(tauri::InvokeError::from(format!(
+                    "Unknown error code {}",
+                    code
+                )));
             }
         }
     }
 
-    let context_length = instance.context.kv_cache_size();
-    hash_map_lock.insert(gpt_id, Arc::new(Mutex::new(instance)));
+    // TODO: Return rich information about the session.
+    let session_id = create_result.unwrap() as u32;
+    let session_loaded: Option<bool> = None;
+    let session_dump_size: Option<usize> = None;
+    let context_length = 0;
+
+    let mut hash_map_lock = state.gpt_sessions.lock().await;
+    hash_map_lock.insert(session_id, ());
 
     Ok(Response {
+        session_id: session_id.to_string(),
         session_loaded,
         context_length,
         session_dump_size,

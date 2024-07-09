@@ -5,11 +5,11 @@ import { emit, listen } from "@tauri-apps/api/event";
 
 type Response = string;
 
-type DecodingProgress = {
+type DecodeProgressEventPayload = {
   progress: number;
 };
 
-type InferenceContent = {
+type InferenceEventPayload = {
   content: string;
 };
 
@@ -22,37 +22,39 @@ const ABORT_INFERENCE_EVENT_NAME = "app://gpt/abort-inference";
  * Predict text. Does not update the KV cache.
  */
 export async function infer(
-  gptId: string,
+  sessionId: string,
   prompt: string | null,
   numEval: number,
   inferOptions: v.InferInput<typeof InferenceOptionsSchema> = {},
-  decodeCallback?: (event: DecodingProgress) => void,
-  inferenceCallback?: (event: InferenceContent) => void,
+  decodeCallback?: (event: DecodeProgressEventPayload) => void,
+  inferenceCallback?: (event: InferenceEventPayload) => void,
   abortSignal?: AbortSignal,
 ): Promise<Response> {
   const unlistenDecode = decodeCallback
     ? await listen(DECODING_EVENT_NAME, (event) => {
-        decodeCallback(event.payload as DecodingProgress);
+        decodeCallback(event.payload as DecodeProgressEventPayload);
       })
     : undefined;
 
   const unlistenInference = inferenceCallback
     ? await listen(INFERENCE_EVENT_NAME, (event) => {
-        inferenceCallback(event.payload as InferenceContent);
+        inferenceCallback(event.payload as InferenceEventPayload);
       })
     : undefined;
 
   if (abortSignal) {
     abortSignal.addEventListener("abort", () => {
-      console.log("aborting inference");
-      emit(ABORT_INFERENCE_EVENT_NAME, gptId).then(() => {
-        console.log(`Sent ${ABORT_INFERENCE_EVENT_NAME} event to ${gptId}.`);
+      console.log("Aborting inference");
+      emit(ABORT_INFERENCE_EVENT_NAME, sessionId).then(() => {
+        console.log(
+          `Sent ${ABORT_INFERENCE_EVENT_NAME} event to ${sessionId}.`,
+        );
       });
     });
   }
 
   const result = (await invoke(COMMAND_NAME, {
-    gptId,
+    sessionId,
 
     // NOTE: Only send the prompt if it is truthy.
     prompt: prompt ? prompt : undefined,

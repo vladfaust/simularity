@@ -1,6 +1,5 @@
 import { latestGptSession } from "@/store";
 import { toMilliseconds } from "duration-fns";
-import { nanoid } from "nanoid";
 import { Ref, computed, markRaw, readonly, ref } from "vue";
 import { InferenceOptionsSchema } from "./ai/common";
 import * as remoteInferenceClient from "./remoteInferenceClient";
@@ -53,19 +52,19 @@ export class GptInitJob extends Job<string> {
 
       switch (gpt.driver.type) {
         case "local": {
-          const id = nanoid();
+          const { modelId } = await tauri.gpt.loadModel(gpt.driver.modelPath);
+
           // TODO: Handle `abortSignal`.
-          await tauri.gpt.create(
-            id,
-            gpt.driver.modelPath,
-            gpt.driver.contextSize,
+          const { sessionId } = await tauri.gpt.create(
+            modelId,
             gpt.driver.contextSize,
             initialPrompt,
             progressCallback,
             dumpSession,
           );
+
           this.progress.value = 1;
-          return id;
+          return sessionId;
         }
 
         case "remote": {
@@ -471,24 +470,6 @@ export class Gpt {
       }
     } else {
       console.info("GPT instance not initialized, noop destroy");
-    }
-  }
-
-  /**
-   * Returns the number of tokens in the prompt.
-   */
-  async tokenCount(prompt: string): Promise<number> {
-    switch (this.driver.type) {
-      case "local":
-        return tauri.gpt.tokenCount(this.driver.modelPath, prompt);
-      case "remote":
-        return remoteInferenceClient.gpt.tokenCount(
-          this.driver.baseUrl,
-          this.driver.model,
-          prompt,
-        );
-      default:
-        throw unreachable(this.driver);
     }
   }
 

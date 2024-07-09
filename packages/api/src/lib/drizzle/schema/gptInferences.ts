@@ -39,6 +39,9 @@ export const gptInferences = pgTable("gpt_inferences", {
   /** The inference result. */
   result: text("result").notNull(),
 
+  /** The token length of the result. */
+  tokenLength: integer("token_length").notNull(),
+
   /** Actual inference duration, in milliseconds. */
   inferenceDuration: integer("inference_duration").notNull(),
 

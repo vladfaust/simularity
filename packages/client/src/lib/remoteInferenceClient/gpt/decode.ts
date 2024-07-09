@@ -5,19 +5,28 @@ const RequestBodySchema = v.object({
   prompt: v.string(),
 });
 
-const ProgressSchema = v.object({
+const ErrorChunkSchema = v.object({
+  type: v.literal("error"),
+  error: v.string(),
+});
+
+const ProgressChunkSchema = v.object({
   type: v.literal("progress"),
   progress: v.number(),
 });
 
-const EpilogueSchema = v.object({
+const EpilogueChunkSchema = v.object({
   type: v.literal("epilogue"),
   decodeId: v.string(),
   duration: v.number(),
   contextLength: v.number(),
 });
 
-const ChunkSchema = v.union([ProgressSchema, EpilogueSchema]);
+const ChunkSchema = v.union([
+  ErrorChunkSchema,
+  ProgressChunkSchema,
+  EpilogueChunkSchema,
+]);
 
 export async function decode(
   baseUrl: string,
@@ -58,6 +67,8 @@ export async function decode(
       const chunk = v.parse(ChunkSchema, json);
 
       switch (chunk.type) {
+        case "error":
+          throw new Error(`Failed to decode prompt: ${chunk.error}`);
         case "progress":
           decodeCallback?.(chunk);
           break;

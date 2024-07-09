@@ -4,32 +4,33 @@ import { filterWhitespaceStrings } from "../utils.js";
 import { v } from "../valibot.js";
 
 const RequestBodySchema = v.object({
-  id: v.string(),
+  modelId: v.string(),
   initialPrompt: v.optional(v.string()),
   dumpSession: v.optional(v.boolean()),
 });
 
-const DecodeProgressSchema = v.object({
-  type: v.literal("Decode"),
+const ErrorChunkSchema = v.object({
+  type: v.literal("Error"),
+  error: v.string(),
+});
+
+const ProgressChunkSchema = v.object({
+  type: v.literal("Progress"),
   progress: v.number(),
 });
 
-const SessionLoadProgressSchema = v.object({
-  type: v.literal("SessionLoad"),
-  progress: v.number(),
-});
-
-const EpilogueSchema = v.object({
+const EpilogueChunkSchema = v.object({
   type: v.literal("Epilogue"),
+  sessionId: v.number(),
   sessionLoaded: v.nullable(v.boolean()),
   sessionDumpSize: v.nullable(v.number()),
   contextLength: v.number(),
 });
 
 const ChunkSchema = v.union([
-  DecodeProgressSchema,
-  SessionLoadProgressSchema,
-  EpilogueSchema,
+  ErrorChunkSchema,
+  ProgressChunkSchema,
+  EpilogueChunkSchema,
 ]);
 
 export async function* create(

@@ -1,7 +1,10 @@
 use std::time::Instant;
 
-use super::common::DecodeProgress;
-use crate::AppState;
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressEventPayload {
+    pub progress: f32,
+}
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -9,51 +12,33 @@ pub struct Response {
     /// Decode duration in milliseconds.
     duration: u32,
 
-    /// New KV cache size in tokens.
-    kv_cache_size: usize,
+    /// New context length.
+    context_length: u32,
 }
 
 #[tauri::command]
 /// Decode prompt, updating the KV cache.
 pub async fn gpt_decode(
-    gpt_id: &str,
-    prompt: String,
-    callback_event_name: Option<String>,
-    state: tauri::State<'_, AppState>,
+    session_id: &str,
+    prompt: &str,
+    callback_event_name: Option<&str>,
     window: tauri::Window,
 ) -> Result<Response, tauri::InvokeError> {
     println!(
-        "gpt_decode(gpt_id: {:?}, callback_event_name: {})",
-        gpt_id,
-        callback_event_name.as_deref().unwrap_or("None"),
+        "gpt_decode(session_id: {}, callback_event_name: {})",
+        session_id,
+        callback_event_name.unwrap_or("None"),
     );
 
-    let mut hash_map_lock = state.gpt_instances.lock().await;
+    let session_id = session_id
+        .parse::<u32>()
+        .map_err(|_| tauri::InvokeError::from(format!("Invalid session ID: {}", session_id)))?;
 
-    let arc = hash_map_lock
-        .get_mut(gpt_id)
-        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?
-        .clone();
-
-    drop(hash_map_lock);
-
-    // ADHOC: Limit the number of simultaneous inferences to 1.
-    let inference_lock = state.inference_mutex.lock().await;
-    let mut gpt = arc.lock().await;
-
-    let start = std::time::Instant::now();
-    let tokens = gpt.model.tokenize(&prompt);
-
-    if let Some(event_name) = callback_event_name.as_ref() {
-        let event_name = event_name.clone();
-        let mut cur_node: usize = 0;
-        let total_tokens = tokens.len();
+    let progress_callback = if let Some(event_name) = callback_event_name.as_ref() {
         let throttle = std::time::Duration::from_millis(500);
         let mut last_emit: Option<Instant> = None;
 
-        let callback_fn = move || -> bool {
-            cur_node += 1;
-
+        Some(move |progress: f32| -> bool {
             // Throttle the event emission.
             if let Some(last_emit) = last_emit {
                 if last_emit.elapsed() < throttle {
@@ -61,31 +46,39 @@ pub async fn gpt_decode(
                 }
             }
 
-            let payload = DecodeProgress {
-                progress: cur_node as f32 / (total_tokens as f32 * 2.0),
-            };
+            let payload = ProgressEventPayload { progress };
 
-            window.emit(&event_name, payload).unwrap();
+            window.emit(event_name, payload).unwrap();
             last_emit = Some(std::time::Instant::now());
 
             true
-        };
-        let callback_fn = Box::new(callback_fn);
-
-        gpt.context
-            .decode(prompt.clone(), Some(callback_fn))
-            .map_err(tauri::InvokeError::from_anyhow)?;
+        })
     } else {
-        gpt.context
-            .decode(prompt.clone(), None)
-            .map_err(tauri::InvokeError::from_anyhow)?;
-    }
+        None
+    };
 
-    let kv_cache_size = gpt.context.kv_cache_size();
-    drop(inference_lock);
+    let start = Instant::now();
+    let decode_result = simularity_core::gpt::decode(session_id, prompt, progress_callback);
+
+    if let Err(err) = decode_result {
+        match err {
+            simularity_core::gpt::DecodeError::SessionNotFound => {
+                return Err(tauri::InvokeError::from("Session not found"));
+            }
+            simularity_core::gpt::DecodeError::ContextOverflow => {
+                return Err(tauri::InvokeError::from("Context overflow"));
+            }
+            simularity_core::gpt::DecodeError::Unknown(code) => {
+                return Err(tauri::InvokeError::from(format!(
+                    "Unknown error code {}",
+                    code
+                )));
+            }
+        }
+    }
 
     Ok(Response {
         duration: start.elapsed().as_millis() as u32,
-        kv_cache_size,
+        context_length: decode_result.unwrap(),
     })
 }

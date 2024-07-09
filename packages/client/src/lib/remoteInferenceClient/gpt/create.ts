@@ -11,26 +11,26 @@ const RequestBodySchema = v.object({
   initialPrompt: v.optional(v.string()),
 });
 
-const DecodeProgressSchema = v.object({
-  type: v.literal("decodeProgress"),
+const ErrorChunkSchema = v.object({
+  type: v.literal("error"),
+  error: v.string(),
+});
+
+const ProgressChunkSchema = v.object({
+  type: v.literal("progress"),
   progress: v.number(), // 0-1
 });
 
-const SessionLoadProgressSchema = v.object({
-  type: v.literal("sessionLoadProgress"),
-  progress: v.number(), // 0-1
-});
-
-const EpilogueSchema = v.object({
+const EpilogueChunkSchema = v.object({
   type: v.literal("epilogue"),
   sessionId: v.string(),
   contextLength: v.number(),
 });
 
 const ChunkSchema = v.union([
-  DecodeProgressSchema,
-  SessionLoadProgressSchema,
-  EpilogueSchema,
+  ErrorChunkSchema,
+  ProgressChunkSchema,
+  EpilogueChunkSchema,
 ]);
 
 export async function create(
@@ -69,8 +69,11 @@ export async function create(
       const chunk = v.parse(ChunkSchema, json);
 
       switch (chunk.type) {
-        case "decodeProgress":
-        case "sessionLoadProgress":
+        case "error":
+          throw new Error(
+            `Failed to create remote GPT session: ${chunk.error}`,
+          );
+        case "progress":
           progressCallback?.(chunk);
           break;
         case "epilogue":

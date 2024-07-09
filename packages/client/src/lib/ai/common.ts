@@ -1,18 +1,38 @@
 import { v } from "../valibot";
 
 export const InferenceOptionsSchema = v.object({
-  stopSequences: v.optional(v.array(v.string())),
-  grammar: v.optional(v.string()),
-  temp: v.optional(v.number()),
+  nPrev: v.optional(v.number()),
+  nProbs: v.optional(v.number()),
+  minKeep: v.optional(v.number()),
   topK: v.optional(v.number()),
-  minP: v.optional(v.number()),
   topP: v.optional(v.number()),
+  minP: v.optional(v.number()),
   tfsZ: v.optional(v.number()),
   typicalP: v.optional(v.number()),
-  mirostat: v.optional(
+  temp: v.optional(v.number()),
+  dynatemp: v.optional(
     v.object({
-      tau: v.number(),
-      eta: v.number(),
+      range: v.optional(v.number()),
+      exponent: v.optional(v.number()),
     }),
   ),
+  penalty: v.optional(
+    v.object({
+      lastN: v.optional(v.number()),
+      repeat: v.optional(v.number()),
+      freq: v.optional(v.number()),
+      present: v.optional(v.number()),
+      penalizeNl: v.optional(v.boolean()),
+    }),
+  ),
+  mirostat: v.optional(
+    v.object({
+      version: v.picklist(["v1", "v2"]),
+      tau: v.optional(v.number()),
+      eta: v.optional(v.number()),
+    }),
+  ),
+  seed: v.optional(v.number()),
+  grammar: v.optional(v.string()),
+  stopSequences: v.optional(v.array(v.string())),
 });

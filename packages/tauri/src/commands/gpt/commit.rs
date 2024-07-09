@@ -1,24 +1,19 @@
-use crate::AppState;
-
 #[tauri::command]
 /// Commit the latest inference update.
-/// Returns the number of tokens committed.
-pub async fn gpt_commit(
-    gpt_id: &str,
-    state: tauri::State<'_, AppState>,
-) -> Result<usize, tauri::InvokeError> {
-    println!("gpt_commit(gpt_id: {:?})", gpt_id);
+/// Returns new context length.
+pub async fn gpt_commit(session_id: &str) -> Result<u32, tauri::InvokeError> {
+    println!("gpt_commit(session_id: {})", session_id);
 
-    let mut hash_map_lock = state.gpt_instances.lock().await;
-    let arc = hash_map_lock
-        .get_mut(gpt_id)
-        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?
-        .clone();
+    let session_id = session_id
+        .parse::<u32>()
+        .map_err(|_| tauri::InvokeError::from(format!("Invalid session ID: {}", session_id)))?;
 
-    drop(hash_map_lock);
-    let mut gpt = arc.lock().await;
-
-    gpt.context
-        .commit()
-        .map_err(tauri::InvokeError::from_anyhow)
+    simularity_core::gpt::commit(session_id).map_err(|e| match e {
+        simularity_core::gpt::CommitError::SessionNotFound => {
+            tauri::InvokeError::from("Session not found")
+        }
+        simularity_core::gpt::CommitError::Unknown(code) => {
+            tauri::InvokeError::from(format!("Unknown error code {}", code))
+        }
+    })
 }

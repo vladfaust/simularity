@@ -1,15 +1,18 @@
-use simularity_core::gpt;
 use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
 
-use super::common::DecodeProgress;
-use crate::AppState;
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DecodeProgressEventPayload {
+    pub progress: f32,
+}
 
 #[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct InferenceEventPayload {
-    content: String,
+    pub content: String,
 }
 
 const ABORT_SIGNAL: &str = "app://gpt/abort-inference";
@@ -20,48 +23,37 @@ const ABORT_SIGNAL: &str = "app://gpt/abort-inference";
 /// If not committed afterwards, then the resulting KV cache updates
 /// will be discarded (as if there was no inference).
 ///
-/// If `event_name` is provided, then the inference results will be
-/// emitted as events with the given name.
 pub async fn gpt_infer(
-    gpt_id: &str,
+    session_id: &str,
     prompt: Option<&str>,
-    n_eval: usize,
-    options: gpt::InferOptions,
-    decode_callback_event_name: Option<String>,
-    inference_callback_event_name: Option<String>,
-    state: tauri::State<'_, AppState>,
+    n_eval: u32,
+    options: Option<simularity_core::gpt::InferOptions>,
+    decode_callback_event_name: Option<&str>,
+    inference_callback_event_name: Option<&str>,
     window: tauri::Window,
 ) -> Result<String, tauri::InvokeError> {
     println!(
-        "gpt_infer(gpt_id: {:?}, prompt: {}, n_eval: {})",
-        gpt_id,
-        if prompt.is_some() { "Some(_)" } else { "None" },
+        "gpt_infer(gpt_id: {}, prompt: {}, n_eval: {})",
+        session_id,
+        if prompt.is_some() { "Some" } else { "None" },
         n_eval
     );
 
-    let mut hash_map_lock = state.gpt_instances.lock().await;
-
-    let arc = hash_map_lock
-        .get_mut(gpt_id)
-        .ok_or_else(|| tauri::InvokeError::from("gpt not found"))?
-        .clone();
-
-    drop(hash_map_lock);
-
-    // ADHOC: Limit the number of simultaneous inferences to 1.
-    let inference_lock = state.inference_mutex.lock().await;
-    let mut gpt = arc.lock().await;
+    let session_id = session_id
+        .parse::<u32>()
+        .map_err(|_| tauri::InvokeError::from(format!("Invalid session ID: {}", session_id)))?;
 
     // OPTIMIZE: Use a more efficient way to abort the inference,
     // as we're always in the same thread?
     let aborted = Arc::new(Mutex::new(false));
     let aborted_clone = aborted.clone();
-    let gpt_id_quoted = format!("\"{}\"", gpt_id);
+    // NOTE: A string is wrapped in quotes in an event payload.
+    let session_id_str = format!("\"{}\"", session_id);
     window.listen(ABORT_SIGNAL, move |event| {
         println!("⚠️ Received abort signal: {:?}", event);
 
         if let Some(payload) = event.payload() {
-            if gpt_id_quoted.eq(&payload) {
+            if session_id_str.eq(&payload) {
                 println!("Aborting inference");
                 *aborted_clone.lock().unwrap() = true;
             }
@@ -69,32 +61,29 @@ pub async fn gpt_infer(
     });
 
     let window_clone = window.clone();
-    let inference_callback = inference_callback_event_name.map(|event_name| {
-        move |content: &str| -> bool {
-            let payload = InferenceEventPayload {
-                content: content.to_string(),
-            };
+    let mut resulting_string = String::new();
+    let inference_callback = Some(|content: &str| -> bool {
+        resulting_string.push_str(content);
 
-            window_clone.emit(&event_name, payload).unwrap();
-            *aborted.lock().unwrap()
+        if let Some(event_name) = inference_callback_event_name.as_ref() {
+            window_clone
+                .emit(
+                    event_name,
+                    InferenceEventPayload {
+                        content: content.to_string(),
+                    },
+                )
+                .unwrap();
         }
+
+        !*aborted.lock().unwrap()
     });
 
-    let result = if let Some(event_name) = decode_callback_event_name.as_ref() {
-        let total_tokens = if let Some(prompt) = prompt {
-            gpt.model.tokenize(prompt).len()
-        } else {
-            0
-        };
-
-        let event_name = event_name.clone();
-        let mut cur_node: usize = 0;
+    let decode_progress_callback = if let Some(event_name) = decode_callback_event_name.as_ref() {
         let throttle = std::time::Duration::from_millis(500);
         let mut last_emit: Option<Instant> = None;
 
-        let decode_callback = move || -> bool {
-            cur_node += 1;
-
+        Some(move |progress| -> bool {
             // Throttle the event emission.
             if let Some(last_emit) = last_emit {
                 if last_emit.elapsed() < throttle {
@@ -102,33 +91,42 @@ pub async fn gpt_infer(
                 }
             }
 
-            let payload = DecodeProgress {
-                progress: cur_node as f32 / (total_tokens as f32 * 2.0),
-            };
+            let payload = DecodeProgressEventPayload { progress };
 
-            window.emit(&event_name, payload).unwrap();
+            window.emit(event_name, payload).unwrap();
             last_emit = Some(std::time::Instant::now());
 
             true
-        };
-
-        let decode_callback = Box::new(decode_callback);
-
-        gpt.context
-            .infer(
-                prompt,
-                n_eval,
-                options,
-                Some(decode_callback),
-                inference_callback,
-            )
-            .map_err(tauri::InvokeError::from_anyhow)
+        })
     } else {
-        gpt.context
-            .infer(prompt, n_eval, options, None, inference_callback)
-            .map_err(tauri::InvokeError::from_anyhow)
+        None
     };
 
-    drop(inference_lock);
-    result
+    let inference_result = simularity_core::gpt::infer(
+        session_id,
+        prompt,
+        n_eval,
+        options,
+        decode_progress_callback,
+        inference_callback,
+    );
+
+    if let Err(err) = inference_result {
+        match err {
+            simularity_core::gpt::InferError::SessionNotFound => {
+                return Err(tauri::InvokeError::from("Session not found"));
+            }
+            simularity_core::gpt::InferError::ContextOverflow => {
+                return Err(tauri::InvokeError::from("Context overflow"));
+            }
+            simularity_core::gpt::InferError::Unknown(code) => {
+                return Err(tauri::InvokeError::from(format!(
+                    "Unknown error code {}",
+                    code
+                )));
+            }
+        }
+    }
+
+    Ok(resulting_string)
 }

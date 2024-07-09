@@ -16,11 +16,8 @@ use std::sync::Arc;
 /// * 404 Not Found if the GPT instance does not exist.
 ///
 #[axum::debug_handler]
-pub async fn handler(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
-    let hash_map_lock = state.gpt.abortion_flags.lock().await;
+pub async fn handler(State(state): State<Arc<AppState>>, Path(id): Path<u32>) -> impl IntoResponse {
+    let hash_map_lock = state.gpt.abort_flags.lock().await;
     let abortion_flag = hash_map_lock.get(&id);
     if let Some(abortion_flag) = abortion_flag {
         let previous = abortion_flag.swap(true, std::sync::atomic::Ordering::Relaxed);
