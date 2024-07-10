@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Gpt } from "@/lib/ai";
+import { Gpt } from "@/lib/simularity/gpt";
 import { useClipboard } from "@vueuse/core";
 import {
   ClipboardCheckIcon,

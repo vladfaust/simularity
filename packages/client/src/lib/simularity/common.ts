@@ -1,4 +1,4 @@
-import { v } from "../valibot";
+import { v } from "@/lib/valibot";
 
 export const InferenceOptionsSchema = v.object({
   nPrev: v.optional(v.number()),

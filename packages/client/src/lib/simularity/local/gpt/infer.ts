@@ -1,7 +1,7 @@
-import { InferenceOptionsSchema } from "@/lib/ai/common";
 import { v } from "@/lib/valibot";
 import { invoke } from "@tauri-apps/api";
 import { emit, listen } from "@tauri-apps/api/event";
+import { InferenceOptionsSchema } from "../../common";
 
 type Response = string;
 

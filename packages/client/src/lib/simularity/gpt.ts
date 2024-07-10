@@ -1,9 +1,3 @@
-import { latestGptSession } from "@/store";
-import { toMilliseconds } from "duration-fns";
-import { Ref, computed, markRaw, readonly, ref } from "vue";
-import { InferenceOptionsSchema } from "./ai/common";
-import * as remoteInferenceClient from "./remoteInferenceClient";
-import * as tauri from "./tauri";
 import {
   Deferred,
   bufferToHex,
@@ -11,8 +5,14 @@ import {
   sleep,
   timeoutSignal,
   unreachable,
-} from "./utils";
-import { v } from "./valibot";
+} from "@/lib/utils";
+import { v } from "@/lib/valibot";
+import { latestGptSession } from "@/store";
+import { toMilliseconds } from "duration-fns";
+import { Ref, computed, markRaw, readonly, ref } from "vue";
+import { InferenceOptionsSchema } from "./common";
+import * as local from "./local";
+import * as remote from "./remote";
 
 export type GptDriver =
   | {
@@ -52,10 +52,10 @@ export class GptInitJob extends Job<string> {
 
       switch (gpt.driver.type) {
         case "local": {
-          const { modelId } = await tauri.gpt.loadModel(gpt.driver.modelPath);
+          const { modelId } = await local.gpt.loadModel(gpt.driver.modelPath);
 
           // TODO: Handle `abortSignal`.
-          const { sessionId } = await tauri.gpt.create(
+          const { sessionId } = await local.gpt.create(
             modelId,
             gpt.driver.contextSize,
             initialPrompt,
@@ -69,7 +69,7 @@ export class GptInitJob extends Job<string> {
 
         case "remote": {
           const id = (
-            await remoteInferenceClient.gpt.create(
+            await remote.gpt.create(
               gpt.driver.baseUrl,
               {
                 model: gpt.driver.model,
@@ -112,10 +112,10 @@ export class GptDecodeJob extends Job<void> {
       switch (gpt.driver.type) {
         case "local":
           // TODO: Handle `abortSignal`.
-          await tauri.gpt.decode(gpt.id.value!, prompt, decodeCallback);
+          await local.gpt.decode(gpt.id.value!, prompt, decodeCallback);
           return;
         case "remote":
-          await remoteInferenceClient.gpt.decode(
+          await remote.gpt.decode(
             gpt.driver.baseUrl,
             gpt.id.value!,
             { prompt },
@@ -164,7 +164,7 @@ export class GptInferJob extends Job<string> {
 
       switch (gpt.driver.type) {
         case "local":
-          return tauri.gpt.infer(
+          return local.gpt.infer(
             gpt.id.value!,
             prompt,
             nEval,
@@ -184,14 +184,11 @@ export class GptInferJob extends Job<string> {
               throw new Error("(Bug) GPT driver type is not remote");
             }
 
-            remoteInferenceClient.gpt.abortInference(
-              gpt.driver.baseUrl,
-              gpt.id.value!,
-            );
+            remote.gpt.abortInference(gpt.driver.baseUrl, gpt.id.value!);
           });
 
           return (
-            await remoteInferenceClient.gpt.infer(
+            await remote.gpt.infer(
               gpt.driver.baseUrl,
               gpt.id.value!,
               { prompt, nEval, options },
@@ -218,14 +215,10 @@ export class GptCommitJob extends Job<number> {
 
       switch (gpt.driver.type) {
         case "local":
-          return tauri.gpt.commit(gpt.id.value!);
+          return local.gpt.commit(gpt.id.value!);
         case "remote":
-          return (
-            await remoteInferenceClient.gpt.commit(
-              gpt.driver.baseUrl,
-              gpt.id.value!,
-            )
-          ).kvCacheSize;
+          return (await remote.gpt.commit(gpt.driver.baseUrl, gpt.id.value!))
+            .kvCacheSize;
         default:
           throw unreachable(gpt.driver);
       }
@@ -242,13 +235,10 @@ export class GptResetJob extends Job<void> {
 
       switch (gpt.driver.type) {
         case "local":
-          await tauri.gpt.reset(gpt.id.value!);
+          await local.gpt.reset(gpt.id.value!);
           return;
         case "remote":
-          await remoteInferenceClient.gpt.reset(
-            gpt.driver.baseUrl,
-            gpt.id.value!,
-          );
+          await remote.gpt.reset(gpt.driver.baseUrl, gpt.id.value!);
 
           return;
         default:
@@ -282,10 +272,10 @@ export class Gpt {
 
     switch (driver.type) {
       case "local":
-        found = await tauri.gpt.find(id);
+        found = await local.gpt.find(id);
         break;
       case "remote":
-        found = await remoteInferenceClient.gpt.find(driver.baseUrl, id);
+        found = await remote.gpt.find(driver.baseUrl, id);
         break;
       default:
         throw unreachable(driver);
@@ -459,12 +449,9 @@ export class Gpt {
     if (this.id.value) {
       switch (this.driver.type) {
         case "local":
-          return tauri.gpt.destroy(this.id.value);
+          return local.gpt.destroy(this.id.value);
         case "remote":
-          return remoteInferenceClient.gpt.destroy(
-            this.driver.baseUrl,
-            this.id.value,
-          );
+          return remote.gpt.destroy(this.driver.baseUrl, this.id.value);
         default:
           throw unreachable(this.driver);
       }

@@ -1,6 +1,6 @@
-import { InferenceOptionsSchema } from "@/lib/ai/common";
 import { filterWhitespaceStrings, unreachable } from "@/lib/utils";
 import { v } from "@/lib/valibot";
+import { InferenceOptionsSchema } from "../../common";
 
 const RequestBodySchema = v.object({
   prompt: v.nullable(v.string()),

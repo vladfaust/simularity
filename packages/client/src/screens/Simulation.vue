@@ -45,8 +45,8 @@ import {
   writeBinaryFile,
 } from "@tauri-apps/api/fs";
 import prettyBytes from "pretty-bytes";
-import { Gpt, type GptDriver, driversEqual } from "@/lib/ai";
-import { InferenceOptionsSchema } from "@/lib/ai/common";
+import { Gpt, type GptDriver, driversEqual } from "@/lib/simularity/gpt";
+import { InferenceOptionsSchema } from "@/lib/simularity/common";
 import SandboxConsole from "./Simulation/SandboxConsole.vue";
 import { stageCallsToLua, comparesDeltas } from "@/lib/simulation/stage";
 import { useInfiniteScroll, useScroll } from "@vueuse/core";

@@ -7,7 +7,7 @@ import {
 } from "@headlessui/vue";
 import { ref } from "vue";
 import Prompt from "./DeveloperConsole/Prompt.vue";
-import { Gpt } from "@/lib/ai";
+import { Gpt } from "@/lib/simularity/gpt";
 import { type StageCall, stageCallsToLua } from "@/lib/simulation/stage";
 
 defineProps<{

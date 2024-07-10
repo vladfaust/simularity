@@ -7,7 +7,7 @@ import {
   HardDriveIcon,
   SaveIcon,
 } from "lucide-vue-next";
-import * as tauri from "@/lib/tauri";
+import * as local from "@/lib/simularity/local";
 import * as settings from "@/settings";
 import { unreachable } from "@/lib/utils";
 
@@ -63,7 +63,7 @@ async function openLocalModelSelectionDialog() {
 
   if (typeof modelPath === "string") {
     localModelPath.value = modelPath;
-    const model = await tauri.gpt.loadModel(modelPath);
+    const model = await local.gpt.loadModel(modelPath);
     await settings.setGptLocalModelPath(modelPath);
 
     // TODO: Set the context size manually.
@@ -97,7 +97,7 @@ onMounted(async () => {
       localModelPath.value = await settings.getGptLocalModelPath();
 
       if (localModelPath.value) {
-        const model = await tauri.gpt.loadModel(localModelPath.value);
+        const model = await local.gpt.loadModel(localModelPath.value);
         localModelContextSize.value = model.trainContextSize;
       }
 

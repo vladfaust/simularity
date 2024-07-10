@@ -5,7 +5,7 @@ import {
   GptDecodeJob,
   GptInferJob,
   GptCommitJob,
-} from "@/lib/ai";
+} from "@/lib/simularity/gpt";
 import { computed } from "vue";
 
 enum Status {
