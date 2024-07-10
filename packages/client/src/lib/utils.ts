@@ -140,3 +140,14 @@ export function bufferToHex(buffer: Uint8Array): string {
     .call(buffer, (x) => x.toString(16).padStart(2, "0"))
     .join("");
 }
+
+/**
+ * A simple template literal tag for SQL queries which doesn't really do anything.
+ * @example sql`SELECT * FROM table WHERE id = ${id}`
+ */
+export function sql(strings: TemplateStringsArray, ...values: any[]): string {
+  return strings.reduce(
+    (acc, string, index) => acc + string + (values[index] ?? ""),
+    "",
+  );
+}

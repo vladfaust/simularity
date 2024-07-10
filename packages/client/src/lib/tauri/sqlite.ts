@@ -24,11 +24,11 @@ export function queryResultToObjects(result: QueryResult): any[] {
   );
 }
 
-export async function sqlite_open(uri: string): Promise<void> {
+export async function sqliteOpen(uri: string): Promise<void> {
   return await invoke("sqlite_open", { uri });
 }
 
-export async function sqlite_execute(
+export async function sqliteExecute(
   uri: string,
   sql: string,
   params: any[] = [],
@@ -36,7 +36,14 @@ export async function sqlite_execute(
   return await invoke("sqlite_execute", { uri, sql, params });
 }
 
-export async function sqlite_query(
+export async function sqliteExecuteBatch(
+  uri: string,
+  sql: string,
+): Promise<void> {
+  return await invoke("sqlite_execute_batch", { uri, sql });
+}
+
+export async function sqliteQuery(
   uri: string,
   sql: string,
   params: any[] = [],
@@ -44,27 +51,31 @@ export async function sqlite_query(
   return await invoke("sqlite_query", { uri, sql, params });
 }
 
-export async function sqlite_close(uri: string): Promise<void> {
+export async function sqliteClose(uri: string): Promise<void> {
   return await invoke("sqlite_close", { uri });
 }
 
 export class Sqlite {
   static async open(uri: string): Promise<Sqlite> {
-    await sqlite_open(uri);
+    await sqliteOpen(uri);
     return new Sqlite(uri);
   }
 
   private constructor(readonly uri: string) {}
 
   async execute(sql: string, params: any[] = []): Promise<void> {
-    return await sqlite_execute(this.uri, sql, params);
+    return await sqliteExecute(this.uri, sql, params);
+  }
+
+  async executeBatch(sql: string): Promise<void> {
+    return await sqliteExecuteBatch(this.uri, sql);
   }
 
   async query(sql: string, params: any[] = []): Promise<QueryResult> {
-    return await sqlite_query(this.uri, sql, params);
+    return await sqliteQuery(this.uri, sql, params);
   }
 
   async close(): Promise<void> {
-    return await sqlite_close(this.uri);
+    return await sqliteClose(this.uri);
   }
 }

@@ -31,6 +31,9 @@ pub async fn sqlite_open(
 }
 
 /// Execute an SQLite query that does not return rows.
+///
+/// WARN: Would silently ignore batch queries.
+/// Use `sqlite_execute_batch` instead.
 #[tauri::command]
 pub async fn sqlite_execute(
     uri: &str,
@@ -38,8 +41,6 @@ pub async fn sqlite_execute(
     params: Vec<SqliteValue>,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), tauri::InvokeError> {
-    // println!("sqlite_execute: {} {:?}", sql, params);
-
     let hash_map_lock = state.sqlite_connections.lock().await;
     let arc = hash_map_lock
         .get(uri)
@@ -51,6 +52,27 @@ pub async fn sqlite_execute(
 
     let params = rusqlite::params_from_iter(params);
     conn.execute(sql, params).map_err(RusqliteError)?;
+
+    Ok(())
+}
+
+/// Execute a batch of SQLite query; won't accept any parameters.
+#[tauri::command]
+pub async fn sqlite_execute_batch(
+    uri: &str,
+    sql: &str,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), tauri::InvokeError> {
+    let hash_map_lock = state.sqlite_connections.lock().await;
+    let arc = hash_map_lock
+        .get(uri)
+        .ok_or(tauri::InvokeError::from("connection not found"))?
+        .clone();
+
+    drop(hash_map_lock);
+    let conn = arc.lock().await;
+
+    conn.execute_batch(sql).map_err(RusqliteError)?;
 
     Ok(())
 }
@@ -76,8 +98,6 @@ pub async fn sqlite_query(
     params: Vec<SqliteValue>,
     state: tauri::State<'_, AppState>,
 ) -> Result<QueryResult, tauri::InvokeError> {
-    // println!("sqlite_query: {} {:?}", sql, params);
-
     let hash_map_lock = state.sqlite_connections.lock().await;
     let conn_arc = hash_map_lock
         .get(uri)
@@ -105,11 +125,11 @@ pub async fn sqlite_query(
     while let Some(row) = rows.next().map_err(RusqliteError)? {
         let mut columns: Vec<SqliteValue> = Vec::new();
 
-        for i in 0..column_count {
+        for (i, column_name) in column_names.iter().enumerate().take(column_count) {
             let value = SqliteValue::column_result(row.get_ref_unwrap(i)).map_err(|e| {
                 tauri::InvokeError::from(format!(
                     "SQLite error converting column {}: {}",
-                    column_names[i], e
+                    column_name, e
                 ))
             })?;
 

@@ -82,6 +82,17 @@
         "timestampUrl": ""
       }
     },
+    "cli": {
+      "args": [
+        {
+          "name": "migrate",
+          "short": "m",
+          "takesValue": true,
+          "description": "Apply migration to the database at this index",
+          "required": false
+        }
+      ]
+    },
     "security": {
       "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost"
     },

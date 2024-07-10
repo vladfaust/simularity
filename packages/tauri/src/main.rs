@@ -18,44 +18,6 @@ struct AppState {
     pub sqlite_connections: Mutex<HashMap<String, Arc<Mutex<rusqlite::Connection>>>>,
 }
 
-/// Macro for both the up and down migrations.
-/// ```
-/// migration!("foo")
-/// // is equivalent to
-/// M::up(include_str!("../db/migrations/foo/up.sql"))
-///    .down(include_str!("../db/migrations/foo/down.sql"))
-/// ```
-macro_rules! migration {
-    ($name:literal) => {
-        rusqlite_migration::M::up(include_str!(concat!("../db/migrations/", $name, "/up.sql")))
-            .down(include_str!(concat!(
-                "../db/migrations/",
-                $name,
-                "/down.sql"
-            )))
-    };
-}
-
-fn migrate_up(sqlite_uri: &str) {
-    println!("Migrating SQLite database up at {}", sqlite_uri);
-
-    let migrations = rusqlite_migration::Migrations::new(vec![
-        migration!("001_create_simulations"),
-        migration!("002_create_llama_inferences"),
-        migration!("003_create_story_updates"),
-        migration!("004_create_code_updates"),
-        migration!("005_add_created_by_player_to_story_updates"),
-        migration!("006_add_simulation_head_tracking"),
-        migration!("007_drop_screenshot_column"),
-        migration!("008_rename_updates"),
-        migration!("009_rename_update_columns"),
-    ]);
-
-    assert!(migrations.validate().is_ok());
-    let mut conn = rusqlite::Connection::open(sqlite_uri).unwrap();
-    migrations.to_latest(&mut conn).unwrap();
-}
-
 impl AppState {
     pub fn new() -> Self {
         Self {
@@ -70,13 +32,7 @@ fn main() {
         .manage(AppState::new())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_persisted_scope::init())
-        .setup(|app| {
-            let sqlite_uri = app
-                .path_resolver()
-                .app_local_data_dir()
-                .unwrap()
-                .join("test.db");
-            migrate_up(sqlite_uri.to_str().unwrap());
+        .setup(|_| {
             simularity_core::init(None, None);
             Ok(())
         })
@@ -91,6 +47,7 @@ fn main() {
             commands::gpt::reset::gpt_reset,
             commands::sqlite::sqlite_open,
             commands::sqlite::sqlite_execute,
+            commands::sqlite::sqlite_execute_batch,
             commands::sqlite::sqlite_query,
             commands::sqlite::sqlite_close,
         ])

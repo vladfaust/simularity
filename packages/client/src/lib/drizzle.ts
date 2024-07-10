@@ -3,8 +3,26 @@ import { InferSelectModel } from "drizzle-orm";
 import { SQLiteTable, TableConfig } from "drizzle-orm/sqlite-core";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import * as schema from "./drizzle/schema";
+import { Migration, migrate as migrate_ } from "./drizzle/scripts/migrate.js";
 import { Sqlite, queryResultToObjects } from "./tauri/sqlite";
 import { pick } from "./utils";
+
+const MIGRATIONS_TABLE = "meta";
+const MIGRATIONS_KEY = "current_migration_index";
+
+const MIGRATIONS: Migration[] = [
+  await import("./drizzle/migrations/000_create_simulations.js"),
+  await import("./drizzle/migrations/001_create_llama_inferences.js"),
+  await import("./drizzle/migrations/002_create_story_updates.js"),
+  await import("./drizzle/migrations/003_create_code_updates.js"),
+  await import(
+    "./drizzle/migrations/004_add_created_by_player_to_story_updates.js"
+  ),
+  await import("./drizzle/migrations/005_add_simulation_head_tracking.js"),
+  await import("./drizzle/migrations/006_drop_screenshot_column.js"),
+  await import("./drizzle/migrations/007_rename_updates.js"),
+  await import("./drizzle/migrations/008_rename_update_columns.js"),
+];
 
 const databaseUrl = await join(
   await appLocalDataDir(),
@@ -115,4 +133,8 @@ export function parseSelectResult<
 
     return obj;
   });
+}
+
+export async function migrate(toIndex = MIGRATIONS.length - 1) {
+  return migrate_(MIGRATIONS, MIGRATIONS_TABLE, MIGRATIONS_KEY, toIndex);
 }
