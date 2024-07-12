@@ -19,14 +19,25 @@ std::vector<llama_token> llama_tokenize(
 ) {
   std::vector<llama_token> tokens;
   auto text_len       = strlen(text);
-  size_t n_tokens_max = text_len;
+  size_t n_tokens_max = text_len + 1;
   tokens.resize(n_tokens_max);
 
-  spdlog::debug("Before llama_tokenize");
-  auto n_tokens = llama_tokenize(
-      model, text, text_len, tokens.data(), text_len, add_special, parse_special
+  spdlog::debug(
+      "llama_tokenize(n_tokens_max: {}, add_special: {}, parse_special: {})",
+      n_tokens_max,
+      add_special,
+      parse_special
   );
-  spdlog::debug("After llama_tokenize: {}", n_tokens);
+  auto n_tokens = llama_tokenize(
+      model,
+      text,
+      text_len,
+      tokens.data(),
+      n_tokens_max,
+      add_special,
+      parse_special
+  );
+  spdlog::debug("llama_tokenize -> {}", n_tokens);
 
   if (n_tokens >= 0) {
     tokens.resize(n_tokens);

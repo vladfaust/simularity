@@ -14,6 +14,7 @@ defineProps<{
   gpt: Gpt | undefined;
   content: string;
   uncommittedContent: string;
+  tempContent: string;
 }>();
 
 const textWrap = ref(true);
@@ -22,7 +23,7 @@ const textWrap = ref(true);
 <template lang="pug">
 .flex.flex-col.overflow-hidden
   .flex.items-center.justify-between.p-2.text-white(class="bg-black/50")
-    span.font-bold.uppercase.tracking-wide {{ gpt?.id }}
+    span.font-bold.uppercase.tracking-wide Session ID: {{ gpt?.id.value }}
     .flex.gap-1
       button.transition-transform.pressable(@click="textWrap = !textWrap")
         WrapTextIcon(:size="20" :class="{ 'text-blue-500': !textWrap }")
@@ -37,4 +38,6 @@ const textWrap = ref(true);
       | {{ content }}
       span.bg-white.bg-opacity-50(v-if="uncommittedContent")
         | {{ uncommittedContent }}
+      span.bg-green-500.bg-opacity-25(v-if="tempContent")
+        | {{ tempContent }}
 </template>

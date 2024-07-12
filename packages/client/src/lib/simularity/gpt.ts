@@ -4,6 +4,7 @@ import {
   digest,
   sleep,
   timeoutSignal,
+  trimEndAny,
   unreachable,
 } from "@/lib/utils";
 import { v } from "@/lib/valibot";
@@ -380,8 +381,7 @@ export class Gpt {
     ),
   ): Promise<string> {
     let decodeComplete = false;
-
-    return this.pushJob(
+    let result = await this.pushJob(
       markRaw(
         new GptInferJob(
           this,
@@ -398,7 +398,6 @@ export class Gpt {
               decodeComplete = true;
             }
 
-            this._dynamicPromptUncommitted.value += event.content;
             inferenceCallback_?.(event);
           },
           inferenceAbortSignal,
@@ -406,6 +405,16 @@ export class Gpt {
         ),
       ),
     );
+
+    // Trim the result by the stop sequences (they're returned by the inference,
+    // but not saved to the uncommitted prompt on GPT side).
+    if (options.stopSequences) {
+      result = trimEndAny(result, options.stopSequences);
+    }
+
+    this._dynamicPromptUncommitted.value += result;
+
+    return result;
   }
 
   /**
@@ -468,7 +477,7 @@ export class Gpt {
   private constructor(
     driver: GptDriver,
     id: string | undefined,
-    staticPrompt: string | undefined,
+    staticPrompt?: string,
     dynamicPrompt?: string,
   ) {
     this._id.value = id;

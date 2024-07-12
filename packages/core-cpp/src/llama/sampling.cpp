@@ -5,6 +5,20 @@
 
 #include "sampling.h"
 
+class LlamaSamplingContext {
+public:
+  llama_sampling_context *context;
+  LlamaSamplingContext(llama_sampling_context *context) : context(context) {}
+  ~LlamaSamplingContext() { llama_sampling_free(context); }
+  void reset() { llama_sampling_reset(context); }
+  llama_token sample(llama_context *llama_ctx, const int idx = -1) {
+    return llama_sampling_sample(context, llama_ctx, NULL, idx);
+  }
+  void accept(llama_context *llama_ctx, llama_token token) {
+    llama_sampling_accept(context, llama_ctx, token, true);
+  }
+};
+
 std::string llama_token_to_piece(
     const struct llama_model *model, const llama_token token, bool special
 );
@@ -24,11 +38,12 @@ llama_sampling_init(const struct llama_sampling_params &params) {
 
   // if there is a grammar, parse it
   if (!params.grammar.empty()) {
+    spdlog::debug("Parsing grammar: {}", params.grammar);
     result->parsed_grammar = grammar_parser::parse(params.grammar.c_str());
 
     // will be empty (default) if there are parse errors
     if (result->parsed_grammar.rules.empty()) {
-      fprintf(stderr, "%s: failed to parse grammar\n", __func__);
+      spdlog::warn("Failed to parse grammar");
       delete result;
       return nullptr;
     }
@@ -36,9 +51,7 @@ llama_sampling_init(const struct llama_sampling_params &params) {
     // Ensure that there is a "root" node.
     if (result->parsed_grammar.symbol_ids.find("root") ==
         result->parsed_grammar.symbol_ids.end()) {
-      fprintf(
-          stderr, "%s: grammar does not contain a 'root' symbol\n", __func__
-      );
+      spdlog::warn("Grammar does not contain a 'root' symbol");
       delete result;
       return nullptr;
     }

@@ -16,8 +16,9 @@ import {
 defineProps<{
   open: boolean;
   writer: Gpt | undefined;
-  writerPrompt: string;
+  committedWriterPrompt: string;
   uncommittedWriterPrompt: string;
+  tempWriterPrompt: string;
   episode: {
     id: string;
     chunks: {
@@ -85,8 +86,9 @@ Dialog.relative.z-50(
             //- Writer prompt.
             Prompt.col-span-2.rounded-lg(
               :gpt="writer"
-              :content="writerPrompt"
+              :content="committedWriterPrompt"
               :uncommitted-content="uncommittedWriterPrompt"
+              :temp-content="tempWriterPrompt"
               class="bg-black/50"
             )
 </template>

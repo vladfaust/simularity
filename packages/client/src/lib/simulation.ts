@@ -1,6 +1,5 @@
 import * as settings from "@/settings";
 import { latestGptSession } from "@/store";
-import { asyncComputed } from "@vueuse/core";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { Raw, computed, markRaw, readonly, ref } from "vue";
@@ -26,6 +25,7 @@ import {
   bufferToHex,
   clone,
   digest,
+  trimEndAny,
   unreachable,
 } from "./utils";
 
@@ -35,15 +35,16 @@ export type { Scenario };
 export class Simulation {
   //#region Private fields
   private readonly _deferredWriter = new Deferred<Gpt>();
+  private readonly _writer = ref<Gpt | undefined>();
   private readonly _headWriterUpdateId = ref<string | null>(null);
   private readonly _updates = ref<Raw<Update>[]>([]);
   private _previousState = ref<StateDto | null>(null);
-  private _uncommittedUserInput = ref("");
-  private _uncommittedAssistantText = ref("");
+  private _tempUserInput = ref("");
+  private _tempAssistantText = ref("");
   private _busy = ref(false);
   //#endregion
 
-  readonly writer = asyncComputed(() => this._deferredWriter.promise);
+  readonly writer = this._writer;
 
   readonly state: State;
 
@@ -85,35 +86,50 @@ export class Simulation {
           : null,
   );
 
-  readonly committedWriterPrompt = asyncComputed<string | undefined>(
-    async () => {
-      const writer = await this._deferredWriter.promise;
-      return (writer.staticPrompt ?? "") + writer.dynamicPromptCommitted.value;
-    },
-  );
-
   /**
-   * The uncommitted user input, if any.
+   * A proxy to the writer's committed prompt composed of
+   * the static and committed dynamic parts.
    */
-  readonly uncommittedUserInput = readonly(this._uncommittedUserInput);
+  readonly committedWriterPrompt = computed<string | undefined>(() => {
+    if (!this._writer.value) return;
+
+    return (
+      (this._writer.value.staticPrompt ?? "") +
+      this._writer.value.dynamicPromptCommitted.value
+    );
+  });
 
   /**
-   * The uncommitted assistant text, if any.
+   * A proxy to the writer's uncommitted dynamic prompt.
    */
-  readonly uncommittedAssistantText = readonly(this._uncommittedAssistantText);
+  readonly uncommittedWriterPrompt = computed<string | undefined>(() => {
+    return this._writer.value?.dynamicPromptUncommitted.value;
+  });
 
   /**
-   * The dynamically computed uncommitted writer prompt payload,
+   * The temporary user input, if any.
+   */
+  readonly tempUserInput = readonly(this._tempUserInput);
+
+  /**
+   * The temporary assistant text, if any.
+   */
+  readonly tempAssistantText = readonly(this._tempAssistantText);
+
+  /**
+   * The dynamically computed temporary writer prompt,
    * consisting of the uncommitted user input and assistant text.
    */
-  readonly uncommittedWriterPayload = computed(() => {
+  readonly tempWriterPrompt = computed(() => {
     let value = "";
 
-    if (this.uncommittedUserInput.value)
-      value += writer.USER_PREFIX + this.uncommittedUserInput.value + "\n";
+    if (this.tempUserInput.value) {
+      value += "\n" + writer.USER_PREFIX + this.tempUserInput.value;
+    }
 
-    if (this.uncommittedAssistantText.value)
-      value += writer.AI_PREFIX + this.uncommittedAssistantText.value + "\n";
+    if (this.tempAssistantText.value) {
+      value += "\n" + writer.AI_PREFIX + this.tempAssistantText.value;
+    }
 
     return value;
   });
@@ -301,15 +317,11 @@ export class Simulation {
       const assistantUpdate = markRaw(new AssistantUpdate(userUpdateId, []));
       this._updates.value.unshift(assistantUpdate);
 
-      this._uncommittedUserInput.value = userMessage;
+      this._tempUserInput.value = userMessage;
       const prompt =
-        "\n" +
-        (this.uncommittedWriterPayload.value
-          ? this.uncommittedWriterPayload.value + "\n"
-          : "") +
-        writer.RESPONSE_PREFIX;
+        this.tempWriterPrompt.value + "\n\n" + writer.RESPONSE_PREFIX;
 
-      this._uncommittedAssistantText.value =
+      this._tempAssistantText.value =
         await this._inferAssistantUpdateVariantImpl(
           assistantUpdate,
           prompt,
@@ -345,7 +357,7 @@ export class Simulation {
         .where(eq(d.writerUpdates.id, update.chosenVariant.id));
 
       update.chosenVariant.text = newText;
-      this._uncommittedUserInput.value = newText;
+      this._tempUserInput.value = newText;
     } finally {
       this._busy.value = false;
     }
@@ -381,7 +393,7 @@ export class Simulation {
       // all that is required is the prefix.
       const prompt = "\n\n" + writer.RESPONSE_PREFIX;
 
-      this._uncommittedAssistantText.value =
+      this._tempAssistantText.value =
         await this._inferAssistantUpdateVariantImpl(
           assistantUpdate,
           prompt,
@@ -429,17 +441,12 @@ export class Simulation {
       });
 
       // As we're regenerating, the uncommitted assistant text is cleared.
-      this._uncommittedAssistantText.value = "";
+      this._tempAssistantText.value = "";
 
       const prompt =
-        "\n" +
-        (this.uncommittedWriterPayload.value
-          ? this.uncommittedWriterPayload.value + "\n"
-          : "") +
-        writer.RESPONSE_PREFIX;
-      console.log("Prompt", prompt);
+        this.tempWriterPrompt.value + "\n\n" + writer.RESPONSE_PREFIX;
 
-      this._uncommittedAssistantText.value =
+      this._tempAssistantText.value =
         await this._inferAssistantUpdateVariantImpl(
           update,
           prompt,
@@ -479,7 +486,7 @@ export class Simulation {
     const actualDelta = this.state.delta(this._previousState.value);
 
     const setUncommitted = () => {
-      this._uncommittedAssistantText.value = update.variants[variantIndex].text;
+      this._tempAssistantText.value = update.variants[variantIndex].text;
     };
 
     if (
@@ -524,7 +531,7 @@ export class Simulation {
         .where(eq(d.writerUpdates.id, update.chosenVariant.id));
 
       update.chosenVariant.text = newText;
-      this._uncommittedAssistantText.value = newText;
+      this._tempAssistantText.value = newText;
     } finally {
       this._busy.value = false;
     }
@@ -640,7 +647,7 @@ export class Simulation {
   private async fetchInitialUpdates() {
     const writerUpdates = await Simulation.fetchWriterUpdatesAsc(
       this._headWriterUpdateId.value,
-      10, // TODO: Fetch until the latest checkpoint.
+      100, // TODO: Fetch until the latest checkpoint.
     );
 
     console.debug("Fetched writer updates", writerUpdates);
@@ -726,6 +733,8 @@ export class Simulation {
         (index) => index >= 0,
         "Chosen variant not found in siblings",
       );
+    } else if (this.latestUpdate.value instanceof UserUpdate) {
+      this._tempUserInput.value = this.latestUpdate.value.chosenVariant.text;
     }
   }
 
@@ -754,7 +763,7 @@ export class Simulation {
     // then the previous update is committed, but not the latest.
     else if (latestUpdate instanceof UserUpdate) {
       if (previousUpdate) committedUpdates.push(previousUpdate);
-      this._uncommittedUserInput.value = latestUpdate.chosenVariant.text;
+      this._tempUserInput.value = latestUpdate.chosenVariant.text;
     }
 
     // If the latest update is an assistant update,
@@ -762,13 +771,13 @@ export class Simulation {
     else if (latestUpdate instanceof AssistantUpdate) {
       if (previousUpdate instanceof UserUpdate) {
         // Again, a user update is not committed.
-        this._uncommittedUserInput.value = previousUpdate.chosenVariant.text;
+        this._tempUserInput.value = previousUpdate.chosenVariant.text;
       } else if (previousUpdate) {
         // Otherwise (assistant or episode update) it is committed.
         committedUpdates.push(previousUpdate);
       }
 
-      this._uncommittedAssistantText.value = latestUpdate.chosenVariant.text;
+      this._tempAssistantText.value = latestUpdate.chosenVariant.text;
     }
 
     const staticPrompt = writer.buildStaticPrompt(this.scenario);
@@ -915,11 +924,14 @@ export class Simulation {
       dynamicPrompt,
     );
 
+    const writer_ = markRaw(gpt);
+
     if (needDecode && dynamicPrompt) {
-      gpt.decode(dynamicPrompt, progressCallback);
+      writer_.decode(dynamicPrompt, progressCallback);
     }
 
-    this._deferredWriter.resolve(markRaw(gpt));
+    this._deferredWriter.resolve(writer_);
+    this._writer.value = writer_;
   }
 
   /**
@@ -989,17 +1001,14 @@ export class Simulation {
     // Commit the uncommitted writer prompt.
     promises.push(
       this._deferredWriter.promise.then(async (writer) => {
-        if (this.uncommittedWriterPayload.value) {
+        if (this.tempWriterPrompt.value) {
           await writer.commit();
 
-          console.debug(
-            `Committed to writer`,
-            this.uncommittedWriterPayload.value,
-          );
+          console.debug(`Committed to writer`, this.tempWriterPrompt.value);
         }
 
-        this._uncommittedUserInput.value = "";
-        this._uncommittedAssistantText.value = "";
+        this._tempUserInput.value = "";
+        this._tempAssistantText.value = "";
       }),
     );
 
@@ -1126,17 +1135,18 @@ export class Simulation {
 
     try {
       const writerResponse = await this._deferredWriter.promise.then(
-        (writer_) => {
+        async (writer_) => {
+          const stopSequences = ["\n"];
+
           const options: InferenceOptions = {
-            stopSequences: ["\n"],
+            stopSequences,
             grammar: writer.GRAMMAR,
             ...inferenceOptions,
           };
 
           console.log("Infering assistant update", prompt, nEval, options);
 
-          // FIXME: Trim on the inference side for proper KV caching.
-          return writer_.infer(
+          const result = await writer_.infer(
             prompt,
             nEval,
             options,
@@ -1146,8 +1156,12 @@ export class Simulation {
             },
             inferenceAbortSignal,
           );
+
+          return trimEndAny(result, stopSequences);
         },
       );
+
+      console.log("Inferred assistant update", writerResponse);
 
       const { writerUpdate } = await this._saveUpdatesToDb({
         writerUpdate: {

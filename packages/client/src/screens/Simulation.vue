@@ -46,6 +46,8 @@ let simulation = shallowRef<Simulation | undefined>();
 let gameInstance: Game;
 let scene: DefaultScene;
 
+const N_EVAL = 128;
+
 const assetBaseUrl = ref<URL | undefined>();
 
 /**
@@ -169,7 +171,7 @@ async function regenerateAssistantUpdate(regeneratedUpdate: AssistantUpdate) {
     await simulation.value.createAssistantUpdateVariant(
       regeneratedUpdate,
       fadeCanvas,
-      128,
+      N_EVAL,
       modelSettings.value,
       (e) => (inferenceDecodingProgress.value = e.progress),
       inferenceAbortController.value!.signal,
@@ -203,7 +205,7 @@ async function sendPlayerMessage() {
   try {
     await simulation.value.createUserUpdate(
       userMessage,
-      128,
+      N_EVAL,
       modelSettings.value,
       (e) => (inferenceDecodingProgress.value = e.progress),
       inferenceAbortController.value!.signal,
@@ -236,7 +238,7 @@ async function advance() {
 
   busy.value = true;
   try {
-    if (simulation.value.state.currentEpisode.value) {
+    if (simulation.value.state.shallAdvanceEpisode.value) {
       await simulation.value.advanceCurrentEpisode(
         progressCallback("Decoding"),
       );
@@ -244,7 +246,7 @@ async function advance() {
       inferenceAbortController.value = new AbortController();
 
       await simulation.value.createAssistantUpdate(
-        128,
+        N_EVAL,
         modelSettings.value,
         (e) => (inferenceDecodingProgress.value = e.progress),
         inferenceAbortController.value!.signal,
@@ -536,10 +538,11 @@ async function onSendButtonClick() {
   DeveloperConsole(
     :open="consoleModal"
     :writer="simulation?.writer.value"
-    :writer-prompt="simulation?.committedWriterPrompt.value || ''"
-    :uncommitted-writer-prompt="simulation?.uncommittedWriterPayload.value || ''"
+    :committed-writer-prompt="simulation?.committedWriterPrompt.value ?? ''"
+    :uncommitted-writer-prompt="simulation?.uncommittedWriterPrompt.value ?? ''"
+    :temp-writer-prompt="simulation?.tempWriterPrompt.value ?? ''"
     :episode="currentEpisodeConsoleObject"
-    :stage-state-delta="simulation?.previousStateDelta.value || []"
+    :stage-state-delta="simulation?.previousStateDelta.value ?? []"
     @close="consoleModal = false"
   )
 

@@ -21,7 +21,7 @@ export type Message =
 export const SYSTEM_PREFIX = "<|system|> ";
 export const USER_PREFIX = "<|user|> ";
 export const AI_PREFIX = "<|assistant|> ";
-export const GRAMMAR = `root ::= [^\n\\[\\]|<>]+ "\n"`;
+export const GRAMMAR = `root ::= ["A-Za-z*] [a-zA-Z .,!?*"'-]+ "\n"`;
 export const RESPONSE_PREFIX = `### Response:\n${AI_PREFIX}`;
 
 /**

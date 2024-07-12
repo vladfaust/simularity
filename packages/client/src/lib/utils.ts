@@ -151,3 +151,20 @@ export function sql(strings: TemplateStringsArray, ...values: any[]): string {
     "",
   );
 }
+
+/**
+ * Remove a sequence from the end of the source string.
+ *
+ * @example
+ * trimEndAny("hello world", ["world"]) // => "hello "
+ * trimEndAny("hello world", ["foo"]) // => "hello world"
+ */
+export function trimEndAny(source: string, sequences: string[]): string {
+  for (const stopSequence of sequences) {
+    if (source.endsWith(stopSequence)) {
+      return source.slice(0, -stopSequence.length);
+    }
+  }
+
+  return source;
+}

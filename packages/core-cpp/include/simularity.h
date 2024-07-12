@@ -128,9 +128,9 @@ struct simularity_gpt_inference_options {
   unsigned seed           = 0xFFFFFFFF; // the seed used to initialize
                                         // llama_sampling_context
 
-  const char *grammar;
-  const unsigned stop_sequences_len;
-  const char **stop_sequences;
+  const char *grammar               = nullptr;
+  const unsigned stop_sequences_len = 0;
+  const char **stop_sequences       = nullptr;
 };
 
 /**
@@ -156,9 +156,12 @@ simularity_gpt_inference_options_default() {
   @returns # of tokens generated on success.
   @returns -1 when session not found.
   @returns -2 on context overflow.
-  @returns <0 on other decode error.
+  @returns -3 on failure to initialize sampling (likely a grammar error).
+  @returns <0 on other error.
 
   SAFETY: `simularity_gpt_*` functions are thread-safe.
+  NOTE: Stop sequences are NOT added to the KV cache, yet yielded in the output.
+  It's a client's responsibility to trim the output's end.
  */
 int simularity_gpt_infer(
     unsigned session_id,

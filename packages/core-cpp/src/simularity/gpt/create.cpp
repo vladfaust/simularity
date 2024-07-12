@@ -163,9 +163,11 @@ int simularity_gpt_create(
         state_loaded = llama_state_load_file(
             ctx, state_file_path, tokens_list.data(), max_tokens, &n_tokens
         );
-        spdlog::debug("State loaded: {}", state_loaded);
+        spdlog::debug("State loaded: {} ({} tokens)", state_loaded, n_tokens);
 
         if (state_loaded) {
+          tokens_list.resize(n_tokens);
+
           if (progress_callback != NULL) {
             spdlog::debug("Calling progress callback with value 1");
             progress_callback(1, progress_callback_user_data);
@@ -187,7 +189,7 @@ int simularity_gpt_create(
 
       // Tokenize the initial prompt.
       auto tokens_list =
-          llama_tokenize(LLAMA_MODELS[model_id], initial_prompt, true, true);
+          llama_tokenize(LLAMA_MODELS[model_id], initial_prompt, false, true);
 
       session->initial_prompt_size = tokens_list.size();
 
