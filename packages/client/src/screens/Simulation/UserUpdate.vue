@@ -53,7 +53,7 @@ const rAnyChanges = computed(
 </script>
 
 <template lang="pug">
-.flex.flex-col.place-self-end.rounded-lg.rounded-br-none.bg-white.px-3.py-3.transition-opacity(
+.flex.max-w-md.flex-col.place-self-end.rounded-lg.rounded-br-none.bg-green-100.px-3.py-3.transition-opacity(
   class="hover:opacity-100"
   :class="{ 'opacity-90': !rContenteditable, 'opacity-100': rContenteditable }"
 )

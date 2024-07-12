@@ -114,7 +114,7 @@ const rAnyChanges = computed(
 </script>
 
 <template lang="pug">
-.flex.flex-col.gap-2.place-self-start.rounded-lg.rounded-bl-none.bg-white.px-3.py-3.opacity-90.transition-opacity(
+.flex.max-w-md.flex-col.gap-2.place-self-start.rounded-lg.rounded-bl-none.bg-white.px-3.py-3.opacity-90.transition-opacity(
   class="hover:opacity-100"
 )
   p.leading-snug

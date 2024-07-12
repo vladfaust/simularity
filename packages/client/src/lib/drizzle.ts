@@ -22,6 +22,9 @@ const MIGRATIONS: Migration[] = [
   await import("./drizzle/migrations/006_drop_screenshot_column.js"),
   await import("./drizzle/migrations/007_rename_updates.js"),
   await import("./drizzle/migrations/008_rename_update_columns.js"),
+  await import(
+    "./drizzle/migrations/009_add_character_id_to_writer_updates.js"
+  ),
 ];
 
 const databaseUrl = await join(

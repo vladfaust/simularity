@@ -214,7 +214,7 @@ export class Simulation {
     try {
       await this._commitUncommitted();
 
-      const { episodeId, text, chunkIndex, commands } =
+      const { episodeId, text, chunkIndex, commands, characterId } =
         await this.state.advanceCurrentEpisode();
 
       this._saveState();
@@ -222,6 +222,7 @@ export class Simulation {
       const incoming = await this._saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId: this.parentUpdateId.value,
+          characterId,
           text,
           episodeId,
           episodeChunkIndex: chunkIndex,
@@ -235,6 +236,12 @@ export class Simulation {
           this.parentUpdateId.value,
           episodeId,
           chunkIndex,
+          characterId,
+
+          // NOTE: If the character is the main character,
+          // the update is treated as if created by the user.
+          characterId === this.scenario.mainCharacterId,
+
           text,
           incoming.directorUpdate ?? null,
         ),
@@ -559,6 +566,7 @@ export class Simulation {
                 ${d.writerUpdates.id.name},
                 ${d.writerUpdates.parentUpdateId.name},
                 ${d.writerUpdates.createdByPlayer.name},
+                ${d.writerUpdates.characterId.name},
                 ${d.writerUpdates.text.name},
                 ${d.writerUpdates.episodeId.name},
                 ${d.writerUpdates.episodeChunkIndex.name},
@@ -573,6 +581,7 @@ export class Simulation {
                 parent.${d.writerUpdates.id.name},
                 parent.${d.writerUpdates.parentUpdateId.name},
                 parent.${d.writerUpdates.createdByPlayer.name},
+                parent.${d.writerUpdates.characterId.name},
                 parent.${d.writerUpdates.text.name},
                 parent.${d.writerUpdates.episodeId.name},
                 parent.${d.writerUpdates.episodeChunkIndex.name},
@@ -669,6 +678,8 @@ export class Simulation {
             writerUpdate.parentUpdateId,
             writerUpdate.episodeId,
             writerUpdate.episodeChunkIndex!,
+            writerUpdate.characterId,
+            writerUpdate.characterId === this.scenario.mainCharacterId,
             writerUpdate.text,
             directorUpdates.find(
               (directorUpdate) =>
@@ -1067,6 +1078,7 @@ export class Simulation {
   private async _saveUpdatesToDb(updates: {
     writerUpdate: {
       parentUpdateId: string | undefined | null;
+      characterId?: string | null;
       text: string;
     } & (
       | {

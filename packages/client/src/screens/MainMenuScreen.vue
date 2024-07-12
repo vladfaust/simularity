@@ -43,7 +43,8 @@ async function newSimulation() {
         .insert(d.writerUpdates)
         .values({
           simulationId: simulation.id,
-          text: chunk.writerUpdateText,
+          characterId: chunk.characterId,
+          text: chunk.text,
           episodeId: startEpisode.id,
           episodeChunkIndex: 0,
         })

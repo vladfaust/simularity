@@ -375,7 +375,7 @@ export class State {
     }
 
     console.debug("Advancing episode", currentEpisode);
-    const { writerUpdateText, commands } = currentEpisode.chunks[chunkIndex];
+    const { characterId, text, commands } = currentEpisode.chunks[chunkIndex];
 
     if (commands?.length) {
       console.debug("Applying stage commands", stateCommandsToCode(commands));
@@ -386,7 +386,8 @@ export class State {
     return {
       episodeId: currentEpisode.id,
       chunkIndex: currentEpisode.nextChunkIndex++,
-      text: writerUpdateText,
+      characterId,
+      text,
       commands,
     };
   }

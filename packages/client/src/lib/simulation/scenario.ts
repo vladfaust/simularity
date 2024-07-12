@@ -59,11 +59,13 @@ export type Scenario = {
       id: string;
       chunks: [
         {
-          writerUpdateText: string;
+          characterId: string;
+          text: string;
           commands?: StateCommand[];
         },
       ];
     },
   ];
   startEpisodeId: string;
+  mainCharacterId: string;
 };

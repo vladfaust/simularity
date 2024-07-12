@@ -21,7 +21,11 @@ export type Message =
 export const SYSTEM_PREFIX = "<|system|> ";
 export const USER_PREFIX = "<|user|> ";
 export const AI_PREFIX = "<|assistant|> ";
+
+// TODO: Allow (some) emojis.
+// @see https://stackoverflow.com/questions/30470079/emoji-value-range.
 export const GRAMMAR = `root ::= ["A-Za-z*] [a-zA-Z .,!?*"'-]+ "\n"`;
+
 export const RESPONSE_PREFIX = `### Response:\n${AI_PREFIX}`;
 
 /**
@@ -39,21 +43,16 @@ export const RESPONSE_PREFIX = `### Response:\n${AI_PREFIX}`;
  */
 export function buildStaticPrompt(scenario: Scenario): string {
   // NOTE: This is an Alpaca template.
-  let prompt = `The following is never-ending conversation between a user (${USER_PREFIX.trim()}) and the AI assistant (${AI_PREFIX.trim()}). As an AI assistant, you must follow the instructions below and obey system messages (${SYSTEM_PREFIX.trim()}). Respond with a message to continue the conversation.\n\n### Instructions:\n${scenario.instructions}\n\n`;
-
-  const messages: Message[] = [];
+  let prompt = `The following is never-ending roleplay chat between a user (${USER_PREFIX.trim()}) and the AI assistant (${AI_PREFIX.trim()}). As an AI assistant, you must follow the instructions below. Respond with a message to continue the conversation.\n\n### Instructions:\n${scenario.instructions}\n`;
 
   // Global scenario prompt.
-  messages.push({
-    role: "system",
-    content: new XmlNode("GlobalPrompt", scenario.globalPrompt).toString(),
-  });
+  prompt +=
+    new XmlNode("GlobalPrompt", scenario.globalPrompt).toString() + "\n";
 
   // Locations.
   for (const location of scenario.locations) {
-    messages.push({
-      role: "system",
-      content: new XmlNode("Location", location.prompt)
+    prompt +=
+      new XmlNode("Location", location.prompt)
         .addAttribute("id", location.id)
         .addAttribute("name", location.name)
         .addChildren(
@@ -68,17 +67,15 @@ export function buildStaticPrompt(scenario: Scenario): string {
             new XmlNode("Connection").addAttribute("to", connection),
           ) ?? [],
         )
-        .toString(),
-    });
+        .toString() + "\n";
   }
 
   // Characters.
   for (const character of scenario.characters.filter(
     (character) => !character.locked,
   )) {
-    messages.push({
-      role: "system",
-      content: new XmlNode("Character", character.scenarioPrompt)
+    prompt +=
+      new XmlNode("Character", character.scenarioPrompt)
         .addAttribute("id", character.id)
         .addAttribute("name", character.fullName)
         .addChild(
@@ -113,11 +110,10 @@ export function buildStaticPrompt(scenario: Scenario): string {
                 )
             : [],
         )
-        .toString(),
-    });
+        .toString() + "\n";
   }
 
-  return prompt + formatMessages(messages) + "\n";
+  return prompt;
 }
 
 /**
@@ -130,7 +126,7 @@ export function buildDynamicPrompt(
   const messages: Message[] = history.map((update) => {
     if (update instanceof EpisodeUpdate) {
       return {
-        role: "assistant",
+        role: update.asIfCreatedByUser ? "user" : "assistant",
         content: update.text,
       };
     } else if (update instanceof AssistantUpdate) {

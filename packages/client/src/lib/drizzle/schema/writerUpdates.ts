@@ -36,6 +36,11 @@ export const writerUpdates = sqliteTable(
       { onDelete: "set null" },
     ),
 
+    /**
+     * The character authoring this update.
+     */
+    characterId: text("character_id", { length: 32 }),
+
     text: text("text").notNull(),
 
     createdAt: text("created_at")
