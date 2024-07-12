@@ -80,14 +80,13 @@ int simularity_gpt_infer(
   auto n_prompt    = prompt_tokens.size();
   auto n_target    = n_committed + n_prompt + n_eval;
 
-  struct llama_batch batch = llama_batch_init(n_target, 0, 1);
+  auto batch = new Batch(n_target, 0, 1);
   spdlog::debug("Batch initialized");
 
   if (n_committed) {
     spdlog::debug("Adding committed prompt to the batch");
 
-    llama_batch_add(
-        batch,
+    batch->add(
         session->committed_prompt[n_committed - 1],
         n_committed - 1,
         {0},
@@ -101,8 +100,7 @@ int simularity_gpt_infer(
     spdlog::debug("Adding prompt to the batch");
 
     for (unsigned i = 0; i < n_prompt; i++) {
-      llama_batch_add(
-          batch,
+      batch->add(
           prompt_tokens[i],
           n_committed + i,
           {0},
@@ -119,7 +117,7 @@ int simularity_gpt_infer(
 
   int err = decode_with_progress(
       session,
-      batch,
+      batch->batch,
       (n_committed + n_prompt) * 2,
       decode_progress_callback,
       decode_progress_callback_user_data
@@ -169,12 +167,12 @@ int simularity_gpt_infer(
     }
 
     // Clear the batch and add the single next token to it.
-    batch.n_tokens = 0;
-    llama_batch_add(batch, next, n_committed + n_decoded, {0}, true);
+    batch->batch.n_tokens = 0;
+    batch->add(next, n_committed + n_decoded, {0}, true);
 
     // Decode the next token.
     // OPTIMIZE: Try removing it?
-    auto err = llama_decode(session->context, batch);
+    auto err = llama_decode(session->context, batch->batch);
     if (err == -1) return -2;
     else if (err) return err;
 

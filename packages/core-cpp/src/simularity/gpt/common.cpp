@@ -52,6 +52,37 @@ public:
   const llama_model *model() { return llama_get_model(this->context); }
 };
 
+/// A `llama_batch` wrapper with a destructor.
+class Batch {
+public:
+  struct llama_batch batch;
+
+  Batch(int n_tokens, int embd, int n_seq_max) :
+      batch(llama_batch_init(n_tokens, embd, n_seq_max)) {}
+
+  /// Add a token to the batch.
+  /// @returns The new number of tokens in the batch.
+  int add(
+      llama_token id,
+      llama_pos pos,
+      const std::vector<llama_seq_id> &seq_ids,
+      bool logits
+  ) {
+    batch.token[batch.n_tokens]    = id;
+    batch.pos[batch.n_tokens]      = pos;
+    batch.n_seq_id[batch.n_tokens] = seq_ids.size();
+
+    for (size_t i = 0; i < seq_ids.size(); ++i) {
+      batch.seq_id[batch.n_tokens][i] = seq_ids[i];
+    }
+
+    batch.logits[batch.n_tokens] = logits;
+    return ++batch.n_tokens;
+  }
+
+  ~Batch() { llama_batch_free(this->batch); }
+};
+
 static std::atomic<unsigned> GPT_SESSIONS_COUNTER = 0;
 static std::unordered_map<unsigned, std::shared_ptr<Session>> GPT_SESSIONS;
 static std::mutex GPT_SESSIONS_MUTEX;

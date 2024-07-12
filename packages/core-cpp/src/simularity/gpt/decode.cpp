@@ -43,16 +43,15 @@ static int simularity_gpt_decode_internal(
     void(progress_callback)(float, void *),
     void *progress_callback_user_data
 ) {
-  auto n_session           = session->committed_prompt.size();
-  struct llama_batch batch = llama_batch_init(n_session + tokens.size(), 0, 1);
+  auto n_session = session->committed_prompt.size();
+  auto batch     = new Batch(n_session + tokens.size(), 0, 1);
 
   if (!n_session) {
     // When the session is empty, set the tokens as the committed prompt.
     spdlog::debug("Session is empty");
 
     for (unsigned i = 0; i < tokens.size(); i++) {
-      llama_batch_add(
-          batch,
+      batch->add(
           tokens[i],
           i,
           {0},
@@ -65,7 +64,7 @@ static int simularity_gpt_decode_internal(
 
     int err = decode_with_progress(
         session,
-        batch,
+        batch->batch,
         tokens.size() * 2,
         progress_callback,
         progress_callback_user_data
@@ -81,8 +80,7 @@ static int simularity_gpt_decode_internal(
     spdlog::debug("Session is not empty");
 
     // Add the current head.
-    llama_batch_add(
-        batch,
+    batch->add(
         session->committed_prompt.back(),
         n_session - 1,
         {0},
@@ -93,8 +91,7 @@ static int simularity_gpt_decode_internal(
 
     // Add the prompt tokens.
     for (unsigned i = 0; i < tokens.size(); i++) {
-      llama_batch_add(
-          batch,
+      batch->add(
           tokens[i],
           n_session + i,
           {0},
@@ -107,7 +104,7 @@ static int simularity_gpt_decode_internal(
     // Decode the batch, caching the new head logits.
     int err = decode_with_progress(
         session,
-        batch,
+        batch->batch,
         tokens.size() * 2,
         progress_callback,
         progress_callback_user_data
