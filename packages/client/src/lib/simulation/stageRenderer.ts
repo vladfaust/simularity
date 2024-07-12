@@ -1,9 +1,9 @@
-import { StageState } from "./stage";
+import { Stage } from "./state";
 
 /**
- * An abstract render scene object.
+ * An abstract {@link Stage} renderer object.
  */
-export interface Scene {
+export interface StageRenderer {
   setScene(qualifiedId: string | null, clear: boolean): void;
   addCharacter(
     characterId: string,
@@ -15,7 +15,7 @@ export interface Scene {
   removeCharacter(characterId: string): void;
 
   /**
-   * Set the scene to given state.
+   * Set the scene to given stage.
    */
-  setState(state: StageState | null): void;
+  setStage(stage: Stage | null): void;
 }

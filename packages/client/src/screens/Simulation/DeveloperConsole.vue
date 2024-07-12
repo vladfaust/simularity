@@ -8,7 +8,10 @@ import {
 import { ref } from "vue";
 import Prompt from "./DeveloperConsole/Prompt.vue";
 import { Gpt } from "@/lib/simularity/gpt";
-import { type StageCall, stageCallsToLua } from "@/lib/simulation/stage";
+import {
+  type StateCommand,
+  stateCommandsToCode,
+} from "@/lib/simulation/state/commands";
 
 defineProps<{
   open: boolean;
@@ -22,7 +25,7 @@ defineProps<{
       total: number;
     };
   } | null;
-  stageStateDelta: StageCall[];
+  stageStateDelta: StateCommand[];
 }>();
 
 const consoleRef = ref<HTMLInputElement | null>(null);
@@ -75,7 +78,7 @@ Dialog.relative.z-50(
                   span.font-bold.uppercase.tracking-wide Stage delta
 
                 textarea.h-full.resize-none.overflow-scroll.bg-transparent.p-2.font-mono.text-white(
-                  :value="stageCallsToLua(stageStateDelta)"
+                  :value="stateCommandsToCode(stageStateDelta)"
                   readonly
                 )
 

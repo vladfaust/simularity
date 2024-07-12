@@ -1,4 +1,4 @@
-import { StageCall } from "@/lib/simulation/stage";
+import { StateCommand } from "@/lib/simulation/state/commands";
 import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
@@ -23,7 +23,7 @@ export const directorUpdates = sqliteTable(
       { onDelete: "set null" },
     ),
 
-    code: text("code", { mode: "json" }).$type<StageCall[]>().notNull(),
+    code: text("code", { mode: "json" }).$type<StateCommand[]>().notNull(),
 
     createdAt: text("created_at")
       .notNull()

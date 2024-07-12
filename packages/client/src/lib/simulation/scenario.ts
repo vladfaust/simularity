@@ -1,4 +1,4 @@
-import { StageCall } from "./simulation/stage";
+import { StateCommand } from "./state/commands";
 
 export type Scenario = {
   name: string;
@@ -60,22 +60,10 @@ export type Scenario = {
       chunks: [
         {
           writerUpdateText: string;
-          stageCalls?: StageCall[];
+          commands?: StateCommand[];
         },
       ];
     },
   ];
   startEpisodeId: string;
-};
-
-export type Stage = {
-  scene: {
-    locationId: string;
-    sceneId: string;
-  };
-  characters: {
-    id: string;
-    outfitId: string;
-    expressionId: string;
-  }[];
 };

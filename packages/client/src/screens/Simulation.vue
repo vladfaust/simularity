@@ -1,30 +1,24 @@
 <script setup lang="ts">
-import { type Raw, computed, markRaw, onMounted, onUnmounted, ref } from "vue";
-import { type Scenario } from "@/lib/types";
-import { DefaultScene } from "../lib/simulation/phaser/defaultScene";
-import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
+import router, { routeLocation } from "@/lib/router";
+import { type InferenceOptions } from "@/lib/simularity/common";
+import { Simulation } from "@/lib/simulation";
+import { DefaultScene } from "@/lib/simulation/phaser/defaultScene";
+import { Game } from "@/lib/simulation/phaser/game";
 import {
-  Deferred,
-  clone,
-  assert,
-  assertFn,
-  unreachable,
-  digest,
-  bufferToHex,
-} from "@/lib/utils";
+  AssistantUpdate,
+  EpisodeUpdate,
+  UserUpdate,
+} from "@/lib/simulation/updates";
+
+import { TransitionRoot } from "@headlessui/vue";
 import {
-  buildStaticPrompt,
-  buildDynamicPrompt,
-  writerResponsePrefix,
-  USER_PREFIX,
-  AI_PREFIX,
-  writerGrammar,
-} from "@/lib/ai/writer";
-import { Game } from "../lib/simulation/phaser/game";
-import { d, sqlite, parseSelectResult } from "@/lib/drizzle";
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { Stage, type StageCall, type StageState } from "@/lib/simulation/stage";
-import GptStatus from "./Simulation/GptStatus.vue";
+  BaseDirectory,
+  createDir,
+  exists,
+  writeBinaryFile,
+} from "@tauri-apps/api/fs";
+import { appLocalDataDir, join } from "@tauri-apps/api/path";
+import { useInfiniteScroll, useScroll } from "@vueuse/core";
 import {
   Loader2Icon,
   MenuIcon,
@@ -34,67 +28,25 @@ import {
   SquareIcon,
   XIcon,
 } from "lucide-vue-next";
-import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
-import { writerUpdatesTableName } from "@/lib/drizzle/schema/writerUpdates";
-import { TransitionRoot } from "@headlessui/vue";
-import { appLocalDataDir, join } from "@tauri-apps/api/path";
-import {
-  BaseDirectory,
-  createDir,
-  exists,
-  writeBinaryFile,
-} from "@tauri-apps/api/fs";
 import prettyBytes from "pretty-bytes";
-import { Gpt, type GptDriver, driversEqual } from "@/lib/simularity/gpt";
-import { InferenceOptionsSchema } from "@/lib/simularity/common";
-import SandboxConsole from "./Simulation/SandboxConsole.vue";
-import { stageCallsToLua, comparesDeltas } from "@/lib/simulation/stage";
-import { useInfiniteScroll, useScroll } from "@vueuse/core";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+
 import AssistantUpdateVue from "./Simulation/AssistantUpdate.vue";
-import UserUpdateVue from "./Simulation/UserUpdate.vue";
+import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
 import EpisodeUpdateVue from "./Simulation/EpisodeUpdate.vue";
-import {
-  AssistantUpdate,
-  UserUpdate,
-  EpisodeUpdate,
-  type Update,
-} from "@/lib/simulation/updates";
+import GptStatus from "./Simulation/GptStatus.vue";
 import Menu from "./Simulation/Menu.vue";
-import router, { routeLocation } from "@/lib/router";
-import * as settings from "@/settings";
-import { latestGptSession } from "@/store";
-import { v } from "@/lib/valibot";
+import SandboxConsole from "./Simulation/SandboxConsole.vue";
+import UserUpdateVue from "./Simulation/UserUpdate.vue";
+import { shallowRef } from "vue";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
+let simulation = shallowRef<Simulation | undefined>();
 let gameInstance: Game;
-let stage: Stage;
 let scene: DefaultScene;
 
-let scenario = ref<Scenario | undefined>();
 const assetBaseUrl = ref<URL | undefined>();
-
-/**
- * The runtime simulation state object.
- */
-const state = ref<{
-  currentEpisode: (Scenario["episodes"][0] & { nextChunkIndex: number }) | null;
-}>({ currentEpisode: null });
-
-/**
- * Previous meaningful stage state.
- */
-const previousStageState = ref<StageState | undefined | null>();
-
-/**
- * Simulation updates, ordered from the newest to the oldest.
- */
-const updates = ref<Raw<Update>[]>([]);
-
-/**
- * The latest (i.e. the first) update, if any.
- */
-const latestUpdate = computed(() => updates.value.at(0));
 
 /**
  * A generic busy state, e.g. when saving updates to the database.
@@ -111,44 +63,19 @@ const inferenceAbortController = ref<AbortController | null>(null);
  */
 const inferenceDecodingProgress = ref<number | undefined>();
 
-const writer = ref<Gpt | undefined>();
-const deferredWriter = new Deferred<Gpt>();
-
-const committedWriterPrompt = computed<string | undefined>(() => {
-  if (!writer.value) return;
-
-  return (
-    (writer.value.staticPrompt ?? "") +
-    writer.value.dynamicPromptCommitted.value
-  );
-});
-
-const uncommittedPlayerInput = ref("");
-const uncommittedAssistantText = ref("");
-
-/** The uncommitted writer prompt, always trimmed. */
-const uncommittedWriterPrompt = computed(() => {
-  let value = "";
-
-  if (uncommittedPlayerInput.value)
-    value += USER_PREFIX + uncommittedPlayerInput.value + "\n";
-  if (uncommittedAssistantText.value)
-    value += AI_PREFIX + uncommittedAssistantText.value + "\n";
-
-  return value;
-});
-
 const _canvasFade = ref(true);
 
 const consoleModal = ref(false);
+
 // FIXME: Proper episode display.
 const currentEpisodeConsoleObject = computed(() =>
-  state.value.currentEpisode
+  simulation.value?.state.currentEpisode.value
     ? {
-        id: state.value.currentEpisode.id,
+        id: simulation.value?.state.currentEpisode.value.id,
         chunks: {
-          current: state.value.currentEpisode.nextChunkIndex - 1,
-          total: state.value.currentEpisode.chunks.length,
+          current:
+            simulation.value?.state.currentEpisode.value.nextChunkIndex - 1,
+          total: simulation.value?.state.currentEpisode.value.totalChunks,
         },
       }
     : null,
@@ -159,7 +86,10 @@ const showMenu = ref(false);
 
 const playerInput = ref("");
 const userInputEnabled = computed(
-  () => !busy.value && !state.value.currentEpisode,
+  () =>
+    simulation.value &&
+    !busy.value &&
+    !simulation.value.state.shallAdvanceEpisode.value,
 );
 
 const updatesScrollOffsetY = ref(0);
@@ -173,7 +103,7 @@ useScroll(updatesRef, {
   },
 });
 
-const modelSettings = ref<v.InferOutput<typeof InferenceOptionsSchema>>({
+const modelSettings = ref<InferenceOptions>({
   minP: 0.1,
   mirostat: {
     version: "v1",
@@ -213,83 +143,8 @@ function consoleEventListener(event: KeyboardEvent) {
 }
 
 /**
- * Prerequisites: can only be called when the latest update
- * is assistant-created, and there is no inference in-progress.
- *
- * 1. Commit the changes generated by latest inference.
- * If not committed, pending changes will be discarded
- * upon the next inference /decoding.
- *
- * 2. If the stage state delta is different from the director update,
- * save the new director update to database.
- *
- * 3. Save the stage state to be able to reset it later.
+ * Fade the canvas and then execute a callback.
  */
-async function commitUncommitted() {
-  const promises = [];
-
-  if (uncommittedWriterPrompt.value) {
-    promises.push(
-      deferredWriter.promise.then((writer) =>
-        writer.commit().then((tokens) => {
-          console.debug(
-            `Committed ${tokens} tokens to writer`,
-            uncommittedWriterPrompt.value,
-          );
-
-          uncommittedPlayerInput.value = "";
-          uncommittedAssistantText.value = "";
-        }),
-      ),
-    );
-  }
-
-  // Check if the actual stage delta differs from the latest director update.
-  // If so, save the actual delta as a new director update.
-  if (latestUpdate.value instanceof AssistantUpdate) {
-    const update = latestUpdate.value as AssistantUpdate;
-
-    const actualDelta = stage.delta(previousStageState.value);
-    console.debug("Actual delta", actualDelta);
-
-    console.debug(
-      "Latest director update delta",
-      update.chosenVariant.directorUpdate?.code,
-    );
-
-    const deltasEqual = update.chosenVariant.directorUpdate
-      ? comparesDeltas(
-          stage.state.value,
-          actualDelta,
-          update.chosenVariant.directorUpdate.code,
-        )
-      : actualDelta.length === 0;
-    console.log("Deltas equal?", deltasEqual);
-
-    if (!deltasEqual) {
-      console.log("Saving actual delta as a new director update", actualDelta);
-
-      promises.push(
-        d.db
-          .insert(d.directorUpdates)
-          .values({
-            writerUpdateId: update.chosenVariant.id,
-            code: actualDelta,
-          })
-          .returning()
-          .then((directorUpdates) => {
-            update.chosenVariant.directorUpdate = directorUpdates[0];
-          }),
-      );
-    }
-  }
-
-  await Promise.all(promises);
-
-  previousStageState.value = clone(stage.state.value);
-  console.debug("Saved stage state", previousStageState.value);
-}
-
 async function fadeCanvas(callback: () => Promise<void>): Promise<void> {
   try {
     _canvasFade.value = true;
@@ -302,85 +157,26 @@ async function fadeCanvas(callback: () => Promise<void>): Promise<void> {
 /**
  * Explicitly regenerate an assistant update.
  */
-async function regenerateAssistantUpdate(updateIndex: number) {
-  if (busy.value) {
-    throw new Error("Cannot regenerate while busy");
+async function regenerateAssistantUpdate(regeneratedUpdate: AssistantUpdate) {
+  if (!simulation.value) {
+    throw new Error("Simulation is not ready");
   }
 
-  if (updateIndex !== 0) {
-    throw new Error("Only the latest assistant update can be regenerated");
-  }
-
-  const regeneratedUpdate = updates.value[updateIndex];
-  if (!(regeneratedUpdate instanceof AssistantUpdate)) {
-    throw new Error(
-      "`regenerateAssistantUpdate()` requires an assistant update",
-    );
-  }
-
-  busy.value = true;
   inferenceAbortController.value = new AbortController();
   inferenceDecodingProgress.value = 0;
-  regeneratedUpdate.inProgressVariantText.value = "";
+
   try {
-    // OPTIMIZE: Infer while waiting for the fade.
-    await fadeCanvas(async () => {
-      stage.setState(previousStageState.value ?? null);
-    });
-
-    uncommittedAssistantText.value = "";
-
-    const prompt =
-      "\n" +
-      (uncommittedWriterPrompt.value
-        ? uncommittedWriterPrompt.value + "\n"
-        : "") +
-      writerResponsePrefix;
-    console.log("Prompt", prompt);
-
-    const writerResponse = await deferredWriter.promise.then((writer) =>
-      writer.infer(
-        prompt,
-        128,
-        {
-          stopSequences: ["\n"],
-          grammar: writerGrammar,
-          ...modelSettings.value,
-        },
-        (e) => {
-          progressCallback("Inference decoding")(e);
-          inferenceDecodingProgress.value = e.progress;
-        },
-        (e) => {
-          regeneratedUpdate.inProgressVariantText.value += e.content;
-        },
-        inferenceAbortController.value!.signal,
-      ),
+    await simulation.value.createAssistantUpdateVariant(
+      regeneratedUpdate,
+      fadeCanvas,
+      128,
+      modelSettings.value,
+      (e) => (inferenceDecodingProgress.value = e.progress),
+      inferenceAbortController.value!.signal,
     );
-
-    const { writerUpdate } = await saveUpdatesToDb({
-      writerUpdate: {
-        parentUpdateId: regeneratedUpdate.parentId,
-        text: writerResponse,
-      },
-    });
-
-    uncommittedAssistantText.value = writerResponse;
-
-    regeneratedUpdate.variants.push({
-      id: writerUpdate.id,
-      text: writerUpdate.text,
-      createdAt: writerUpdate.createdAt,
-      directorUpdate: null,
-    });
-
-    regeneratedUpdate.chosenVariantIndex.value =
-      regeneratedUpdate.variants.length - 1;
   } finally {
-    regeneratedUpdate.inProgressVariantText.value = null;
     inferenceDecodingProgress.value = undefined;
     inferenceAbortController.value = null;
-    busy.value = false;
   }
 }
 
@@ -389,17 +185,8 @@ async function regenerateAssistantUpdate(updateIndex: number) {
  * The message may be edited, so is not committed to GPT yet.
  */
 async function sendPlayerMessage() {
-  if (state.value.currentEpisode) {
-    throw new Error("Player input not allowed during episode");
-  }
-
-  if (
-    !(
-      latestUpdate.value instanceof AssistantUpdate ||
-      latestUpdate.value instanceof EpisodeUpdate
-    )
-  ) {
-    throw new Error("Player input not allowed after player input");
+  if (!simulation.value) {
+    throw new Error("Simulation is not ready");
   }
 
   let userMessage = playerInput.value;
@@ -414,85 +201,13 @@ async function sendPlayerMessage() {
   inferenceAbortController.value = new AbortController();
   inferenceDecodingProgress.value = 0;
   try {
-    await commitUncommitted();
-
-    // If the latest update is an episode update, use its ID as the parent ID.
-    // Otherwise, use the latest assistant update's chosen variant ID.
-    const parentUpdateId =
-      latestUpdate.value instanceof AssistantUpdate
-        ? latestUpdate.value.chosenVariant.id
-        : latestUpdate.value.id;
-
-    // Save the player update.
-    let saved = await saveUpdatesToDb({
-      writerUpdate: {
-        parentUpdateId,
-        text: userMessage,
-        createdByPlayer: true,
-      },
-    });
-
-    const userUpdateId = saved.writerUpdate.id;
-    const userUpdate = markRaw(
-      new UserUpdate(parentUpdateId, saved.writerUpdate),
+    await simulation.value.createUserUpdate(
+      userMessage,
+      128,
+      modelSettings.value,
+      (e) => (inferenceDecodingProgress.value = e.progress),
+      inferenceAbortController.value!.signal,
     );
-    updates.value.unshift(userUpdate);
-
-    // TODO: Here, the empty updates array, it's cocky.
-    const assistantUpdate = markRaw(new AssistantUpdate(userUpdateId, []));
-    assistantUpdate.inProgressVariantText.value = "";
-    updates.value.unshift(assistantUpdate);
-
-    uncommittedPlayerInput.value = userMessage;
-
-    const prompt =
-      "\n" +
-      (uncommittedWriterPrompt.value
-        ? uncommittedWriterPrompt.value + "\n"
-        : "") +
-      writerResponsePrefix;
-    console.log("Prompt", prompt);
-
-    const writerResponse = await deferredWriter.promise.then((writer) =>
-      writer.infer(
-        prompt,
-        128,
-        {
-          stopSequences: ["\n"],
-          grammar: writerGrammar,
-          ...modelSettings.value,
-        },
-        (e) => {
-          progressCallback("Inference decoding")(e);
-          inferenceDecodingProgress.value = e.progress;
-        },
-        (e) => {
-          assistantUpdate.inProgressVariantText.value += e.content;
-        },
-        inferenceAbortController.value!.signal,
-      ),
-    );
-
-    // Save the assistant update.
-    saved = await saveUpdatesToDb({
-      writerUpdate: {
-        parentUpdateId: userUpdateId,
-        text: writerResponse,
-      },
-    });
-
-    const assistantUpdateId = saved.writerUpdate.id;
-    assistantUpdate.variants.push({
-      id: assistantUpdateId,
-      text: saved.writerUpdate.text,
-      createdAt: saved.writerUpdate.createdAt,
-      directorUpdate: null,
-    });
-
-    assistantUpdate.chosenVariantIndex.value = 0;
-    assistantUpdate.inProgressVariantText.value = null;
-
-    uncommittedAssistantText.value = writerResponse;
   } catch (e) {
     if (wouldRestorePlayerInput) {
       playerInput.value = userMessage;
@@ -511,143 +226,41 @@ async function sendPlayerMessage() {
  * or by predicting the next update from the latent space.
  */
 async function advance() {
+  if (!simulation.value) {
+    throw new Error("Simulation is not ready");
+  }
+
   if (playerInput.value) {
     throw new Error("To advance, player input must be empty");
   }
 
-  let parentUpdateId: string | null = null;
-  if (latestUpdate.value instanceof AssistantUpdate) {
-    parentUpdateId = latestUpdate.value.chosenVariant.id;
-  } else if (latestUpdate.value instanceof UserUpdate) {
-    parentUpdateId = latestUpdate.value.chosenVariant.id;
-  } else if (latestUpdate.value instanceof EpisodeUpdate) {
-    parentUpdateId = latestUpdate.value.id;
-  }
-
   busy.value = true;
   try {
-    await commitUncommitted();
-
-    if (state.value.currentEpisode) {
-      console.debug("Advancing episode", state.value.currentEpisode);
-
-      const currentEpisode = state.value.currentEpisode;
-      const episodeId = currentEpisode.id;
-      const episodeChunkIndex = currentEpisode.nextChunkIndex;
-
-      // Advance the episode.
-      //
-
-      const text =
-        currentEpisode.chunks[currentEpisode.nextChunkIndex].writerUpdateText;
-
-      const code =
-        currentEpisode.chunks[currentEpisode.nextChunkIndex].stageCalls;
-
-      if (code?.length) {
-        const luaCode = stageCallsToLua(code);
-        console.debug("Applying stage calls", luaCode);
-        stage.apply(code);
-        if (scene.busy) await scene.busy;
-      }
-
-      if (++currentEpisode.nextChunkIndex >= currentEpisode.chunks.length) {
-        state.value.currentEpisode = null;
-      }
-
-      previousStageState.value = clone(stage.state.value);
-      console.debug("Saved stage state", previousStageState.value);
-
-      const incoming = await saveUpdatesToDb({
-        writerUpdate: {
-          parentUpdateId,
-          text,
-          episodeId,
-          episodeChunkIndex,
-        },
-        directorUpdate: code ? { code } : undefined,
-      });
-
-      const episodeUpdate = markRaw(
-        new EpisodeUpdate(
-          incoming.writerUpdate.id,
-          parentUpdateId,
-          episodeId,
-          episodeChunkIndex,
-          text,
-          incoming.directorUpdate ?? null,
-        ),
-      );
-
-      updates.value.unshift(episodeUpdate);
-
-      const newWriterPrompt = `\n${AI_PREFIX}${text}`;
-      deferredWriter.promise.then((writer) =>
-        writer.decode(newWriterPrompt, progressCallback("Decoding")),
+    if (simulation.value.state.currentEpisode.value) {
+      await simulation.value.advanceCurrentEpisode(
+        progressCallback("Decoding"),
       );
     } else {
-      // Predict the next update.
-      // Do not commit it to GPT yet.
-      //
-
       inferenceAbortController.value = new AbortController();
-      inferenceDecodingProgress.value = 0;
 
-      const assistantUpdate = markRaw(new AssistantUpdate(parentUpdateId, []));
-      assistantUpdate.inProgressVariantText.value = "";
-      updates.value.unshift(assistantUpdate);
-
-      const prompt = "\n\n" + writerResponsePrefix;
-      console.log("Prompt", prompt);
-
-      const writerResponse = await deferredWriter.promise.then((writer) =>
-        writer.infer(
-          prompt,
-          128,
-          {
-            stopSequences: ["\n"],
-            grammar: writerGrammar,
-            ...modelSettings.value,
-          },
-          (e) => {
-            progressCallback("Inference decoding")(e);
-            inferenceDecodingProgress.value = e.progress;
-          },
-          (e) => {
-            assistantUpdate.inProgressVariantText.value += e.content;
-          },
-          inferenceAbortController.value!.signal,
-        ),
+      await simulation.value.createAssistantUpdate(
+        128,
+        modelSettings.value,
+        (e) => (inferenceDecodingProgress.value = e.progress),
+        inferenceAbortController.value!.signal,
       );
-
-      const { writerUpdate } = await saveUpdatesToDb({
-        writerUpdate: {
-          parentUpdateId,
-          text: writerResponse,
-        },
-      });
-
-      assistantUpdate.variants.push({
-        id: writerUpdate.id,
-        text: writerUpdate.text,
-        createdAt: writerUpdate.createdAt,
-        directorUpdate: null,
-      });
-      assistantUpdate.inProgressVariantText.value = null;
-
-      uncommittedAssistantText.value = writerResponse;
     }
-
-    screenshot(true).then((shot) => {
-      if (shot) {
-        console.log("Saved screenshot", shot.path, prettyBytes(shot.size));
-      }
-    });
   } finally {
     inferenceDecodingProgress.value = undefined;
     inferenceAbortController.value = null;
     busy.value = false;
   }
+
+  screenshot(true).then((shot) => {
+    if (shot) {
+      console.log("Saved screenshot", shot.path, prettyBytes(shot.size));
+    }
+  });
 }
 
 /**
@@ -680,475 +293,26 @@ async function screenshot(
   return { path, size: buffer.length };
 }
 
-/**
- * Save updates to the database.
- */
-async function saveUpdatesToDb(updates: {
-  writerUpdate: {
-    parentUpdateId: string | undefined | null;
-    text: string;
-  } & (
-    | {
-        episodeId: string;
-        episodeChunkIndex: number;
-      }
-    | {
-        createdByPlayer: true;
-      }
-    | {}
-  );
-  directorUpdate?: {
-    code: StageCall[];
-  };
-}) {
-  return d.db.transaction(async (tx) => {
-    const writerUpdate = (
-      await tx
-        .insert(d.writerUpdates)
-        .values({
-          simulationId,
-          ...updates.writerUpdate,
-        })
-        .returning()
-    )[0];
-
-    let directorUpdate;
-    if (updates.directorUpdate) {
-      directorUpdate = (
-        await tx
-          .insert(d.directorUpdates)
-          .values({
-            writerUpdateId: writerUpdate.id,
-            ...updates.directorUpdate,
-          })
-          .returning()
-      )[0];
-    }
-
-    await tx
-      .update(d.simulations)
-      .set({
-        headWriterUpdateId: writerUpdate.id,
-        updatedAt: sql`CURRENT_TIMESTAMP`,
-      })
-      .where(eq(d.simulations.id, simulationId));
-
-    return { writerUpdate, directorUpdate };
-  });
-}
-
-/**
- * Prepare GPT backend for the simulation.
- */
-async function prepareGpt() {
-  const latestUpdate = updates.value.at(0);
-  const previousUpdate = updates.value.at(1);
-
-  /**
-   * Committed updates, sorted from oldest to newest.
-   */
-  const committedUpdates: Update[] = updates.value.slice(2).reverse();
-
-  // If the latest update is an episode update,
-  // then it and the previous update are both committed.
-  if (latestUpdate instanceof EpisodeUpdate) {
-    if (previousUpdate) committedUpdates.push(previousUpdate);
-    committedUpdates.push(latestUpdate);
-  }
-
-  // If the latest update is a user update,
-  // then the previous update is committed, but not the latest.
-  else if (latestUpdate instanceof UserUpdate) {
-    if (previousUpdate) committedUpdates.push(previousUpdate);
-    uncommittedPlayerInput.value = latestUpdate.chosenVariant.text;
-  }
-
-  // If the latest update is an assistant update,
-  // then it is not committed... Should also check the previous update.
-  else if (latestUpdate instanceof AssistantUpdate) {
-    if (previousUpdate instanceof UserUpdate) {
-      // Again, a user update is not committed.
-      uncommittedPlayerInput.value = previousUpdate.chosenVariant.text;
-    } else if (previousUpdate) {
-      // Otherwise (assistant or episode update) it is committed.
-      committedUpdates.push(previousUpdate);
-    }
-
-    uncommittedAssistantText.value = latestUpdate.chosenVariant.text;
-  }
-
-  const staticPrompt = buildStaticPrompt(scenario.value!);
-  const dynamicPrompt = buildDynamicPrompt(committedUpdates);
-
-  const findOrCreateGpt = async (
-    staticPrompt: string,
-    dynamicPrompt: string,
-  ) => {
-    let driver: GptDriver;
-    const driverType = (await settings.getGptDriver()) || "remote";
-    switch (driverType) {
-      case "remote": {
-        const baseUrl =
-          (await settings.getGptRemoteBaseUrl()) ||
-          import.meta.env.VITE_DEFAULT_REMOTE_INFERENCE_SERVER_BASE_URL;
-        const model =
-          (await settings.getGptRemoteModel()) ||
-          import.meta.env.VITE_DEFAULT_REMOTE_GPT_INFERENCE_MODEL;
-
-        driver = {
-          type: "remote",
-          baseUrl,
-          model,
-        };
-
-        break;
-      }
-
-      case "local": {
-        const modelPath = await settings.getGptLocalModelPath();
-        if (!modelPath) throw new Error("Local model path not set");
-
-        const contextSize = await settings.getGptLocalContextSize();
-        // if (!contextSize) throw new Error("Local context size not set");
-
-        driver = {
-          type: "local",
-          modelPath,
-          contextSize: contextSize ?? 0,
-        };
-
-        break;
-      }
-
-      default:
-        throw unreachable(driverType);
-    }
-
-    let gpt: Gpt | null = null;
-    let restored = false;
-    let needDecode = true;
-    const staticPromptHash = bufferToHex(await digest(staticPrompt, "SHA-256"));
-
-    if (latestGptSession.value) {
-      const areDriversEqual = driversEqual(
-        latestGptSession.value.driver,
-        driver,
-      );
-
-      const isStaticPromptEqual =
-        latestGptSession.value.staticPromptHash === staticPromptHash;
-
-      if (areDriversEqual && isStaticPromptEqual) {
-        console.debug(
-          "Will try restoring GPT session",
-          driver,
-          latestGptSession.value.id,
-        );
-
-        gpt = await Gpt.find(driver, latestGptSession.value.id, staticPrompt);
-        restored = !!gpt;
-
-        if (gpt) {
-          console.log("Restored GPT session", driver, gpt.id);
-
-          const dynamicPromptHash = bufferToHex(
-            await digest(dynamicPrompt, "SHA-256"),
-          );
-
-          if (latestGptSession.value.dynamicPromptHash === dynamicPromptHash) {
-            console.debug(
-              "GPT session dynamic prompt match",
-              dynamicPromptHash,
-            );
-
-            needDecode = false;
-          } else {
-            console.info(
-              "GPT session dynamic prompt mismatch, will reset",
-              latestGptSession.value.dynamicPromptHash,
-              dynamicPromptHash,
-            );
-
-            gpt.reset();
-          }
-        }
-      } else {
-        if (!areDriversEqual) {
-          console.warn(
-            "GPT driver mismatch",
-            latestGptSession.value.driver,
-            driver,
-          );
-        } else {
-          console.warn(
-            "GPT static prompt mismatch",
-            latestGptSession.value.staticPromptHash,
-            staticPromptHash,
-          );
-        }
-
-        latestGptSession.value = null;
-      }
-    }
-
-    if (!gpt) {
-      console.debug("Creating new GPT session", driver);
-      gpt = await Gpt.create(
-        driver,
-        staticPrompt,
-        progressCallback("Initializing"),
-        true,
-        (gpt) => {
-          console.log("Initialized new GPT session", gpt.id.value);
-        },
-      );
-    }
-
-    return { gpt, restored, needDecode };
-  };
-
-  const { gpt, needDecode } = await findOrCreateGpt(
-    staticPrompt,
-    dynamicPrompt,
-  );
-
-  if (needDecode) {
-    gpt.decode(dynamicPrompt, progressCallback("Decoding"));
-  }
-
-  writer.value = markRaw(gpt);
-  deferredWriter.resolve(writer.value);
-}
-
-async function fetchDirectorUpdates(writerUpdateIds: string[]) {
-  return d.db
-    .select({
-      id: d.directorUpdates.id,
-      writerUpdateId: d.directorUpdates.writerUpdateId,
-      code: d.directorUpdates.code,
-      createdAt: sql<string>`max(${d.directorUpdates.createdAt})`,
-      llamaInferenceId: d.directorUpdates.llamaInferenceId,
-    })
-    .from(d.directorUpdates)
-    .where(inArray(d.directorUpdates.writerUpdateId, writerUpdateIds))
-    .groupBy(d.directorUpdates.writerUpdateId)
-    .orderBy(asc(d.directorUpdates.createdAt))
-    .all();
-}
-
 onMounted(async () => {
-  const simulation = await d.db.query.simulations.findFirst({
-    where: eq(d.simulations.id, simulationId),
-  });
-
-  if (!simulation) {
-    throw new Error(`Simulation not found: ${simulationId}`);
-  } else {
-    console.log("Queried simulation", simulation);
-  }
-
-  scenario.value = await fetch(
-    `/scenarios/${simulation.scenarioId}/manifest.json`,
-  ).then((response) => response.json());
-  if (!scenario.value) {
-    throw new Error(`Scenario not found: ${simulation.scenarioId}`);
-  } else {
-    console.log("Fetched scenario", scenario.value);
-  }
-
-  // TODO: Fetch until `simulation.latestSnapshotId`.
-  // NOTE: The ordering is from the oldest to the latest.
-  const query = new SQLiteSyncDialect().sqlToQuery(
-    sql.raw(`
-      WITH
-        writer_updates_tree AS (
-          SELECT
-            ${d.writerUpdates.id.name},
-            ${d.writerUpdates.parentUpdateId.name},
-            ${d.writerUpdates.createdByPlayer.name},
-            ${d.writerUpdates.text.name},
-            ${d.writerUpdates.episodeId.name},
-            ${d.writerUpdates.episodeChunkIndex.name},
-            ${d.writerUpdates.llamaInferenceId.name},
-            ${d.writerUpdates.createdAt.name}
-          FROM
-            ${writerUpdatesTableName}
-          WHERE
-            ${d.writerUpdates.id.name} = ?
-          UNION ALL
-          SELECT
-            parent.${d.writerUpdates.id.name},
-            parent.${d.writerUpdates.parentUpdateId.name},
-            parent.${d.writerUpdates.createdByPlayer.name},
-            parent.${d.writerUpdates.text.name},
-            parent.${d.writerUpdates.episodeId.name},
-            parent.${d.writerUpdates.episodeChunkIndex.name},
-            parent.${d.writerUpdates.llamaInferenceId.name},
-            parent.${d.writerUpdates.createdAt.name}
-          FROM
-            ${writerUpdatesTableName} parent
-            JOIN writer_updates_tree child ON child.${d.writerUpdates.parentUpdateId.name} = parent.${d.writerUpdates.id.name}
-        )
-      SELECT
-        *
-      FROM
-        writer_updates_tree;
-  `),
-  );
-
-  const result = await sqlite.query(query.sql, [simulation.headWriterUpdateId]);
-  const writerUpdates = parseSelectResult(d.writerUpdates, result);
-
-  // Assign the latest code updates to the writer updates.
-  //
-
-  const directorUpdates = await fetchDirectorUpdates(
-    writerUpdates.map((u) => u.id),
-  );
-
-  updates.value = writerUpdates.map((writerUpdate) => {
-    if (writerUpdate.createdByPlayer) {
-      return markRaw(new UserUpdate(writerUpdate.parentUpdateId, writerUpdate));
-    } else if (writerUpdate.episodeId) {
-      return markRaw(
-        new EpisodeUpdate(
-          writerUpdate.id,
-          writerUpdate.parentUpdateId,
-          writerUpdate.episodeId,
-          writerUpdate.episodeChunkIndex!,
-          writerUpdate.text,
-          directorUpdates.find(
-            (directorUpdate) =>
-              directorUpdate.writerUpdateId === writerUpdate.id,
-          ) ?? null,
-        ),
-      );
-    } else {
-      return markRaw(
-        new AssistantUpdate(writerUpdate.parentUpdateId, [
-          {
-            ...writerUpdate,
-            directorUpdate:
-              directorUpdates.find(
-                (directorUpdate) =>
-                  directorUpdate.writerUpdateId === writerUpdate.id,
-              ) ?? null,
-          },
-        ]),
-      );
-    }
-  });
-
-  // If the newest update is an assistant update, also fetch its siblings.
-  if (latestUpdate.value instanceof AssistantUpdate) {
-    const preservedVariantId = latestUpdate.value.chosenVariant.id;
-
-    const siblings = await d.db.query.writerUpdates.findMany({
-      where: and(
-        latestUpdate.value.parentId
-          ? eq(d.writerUpdates.parentUpdateId, latestUpdate.value.parentId)
-          : isNull(d.writerUpdates.parentUpdateId),
-        eq(d.writerUpdates.simulationId, simulationId),
-      ),
-    });
-
-    // Because it includes the latest update itself.
-    assert(siblings.length > 0);
-
-    // OPTIMIZE: Merge director update queries into one (see above).
-    const directorUpdates = await fetchDirectorUpdates(
-      siblings.map((u) => u.id),
-    );
-
-    latestUpdate.value.variants = siblings.map((writerUpdate) => ({
-      ...writerUpdate,
-      directorUpdate:
-        directorUpdates.find(
-          (directorUpdate) => directorUpdate.writerUpdateId === writerUpdate.id,
-        ) || null,
-    }));
-
-    latestUpdate.value.chosenVariantIndex.value = assertFn(
-      latestUpdate.value.variants.findIndex((v) => v.id === preservedVariantId),
-      (index) => index >= 0,
-    );
-  }
-
-  // TODO: Get initial stage value from the latest snapshot.
-  stage = new Stage(scenario.value);
-  await stage.initCodeEngine();
-
-  if (updates.value.length) {
-    // Apply existing director updates to the stage,
-    // from oldest to newest (i.e. reverse).
-    //
-
-    // REFACTOR: It'd be more readable to do `i = updates.value.length`,
-    // but the `i++` logic within the loop is not trivial.
-    let i = updates.value.length;
-    while (i > 0) {
-      const update = updates.value[--i];
-      let directorUpdate;
-
-      if (update instanceof AssistantUpdate) {
-        directorUpdate = update.chosenVariant.directorUpdate;
-      } else if (update instanceof EpisodeUpdate) {
-        directorUpdate = update.directorUpdate;
-      }
-
-      if (directorUpdate) {
-        const luaCode = stageCallsToLua(directorUpdate.code);
-        console.debug("Applying stage code", luaCode);
-        stage.apply(directorUpdate.code);
-      }
-
-      // For the sake of regeneration, save the stage state at previous update.
-      // But when there only one update, save the latest.
-      if (updates.value.length == 1 || i === 1) {
-        previousStageState.value = clone(stage.state.value);
-        console.debug("Saved stage state", previousStageState.value);
-      }
-    }
-
-    // If the latest update's (single) variant
-    // has an episode ID, resume from there.
-    if (latestUpdate.value instanceof EpisodeUpdate) {
-      const episodeUpdate = latestUpdate.value;
-
-      const episode = scenario.value.episodes.find(
-        (e) => e.id === episodeUpdate.episodeId,
-      );
-
-      if (!episode) {
-        throw new Error(`Episode not found: ${episodeUpdate.episodeId}`);
-      }
-
-      if (episodeUpdate.chunkIndex! < episode.chunks.length - 1) {
-        state.value.currentEpisode = {
-          ...episode,
-          nextChunkIndex: episodeUpdate.chunkIndex! + 1,
-        };
-      }
-    }
-  }
+  simulation.value = await Simulation.load(simulationId);
 
   assetBaseUrl.value = new URL(
-    `/scenarios/${simulation.scenarioId}/`,
+    `/scenarios/${simulation.value.scenarioId}/`,
     window.location.origin,
   );
 
   // REFACTOR: Scene creation shall be incapsulated.
   gameInstance = new Game();
   scene = new DefaultScene(
-    scenario.value,
+    simulation.value.scenario,
     assetBaseUrl.value.toString(),
-    clone(stage.state.value),
+    simulation.value.state.stage.value,
     () => (_canvasFade.value = false),
   );
   await gameInstance.createScene(scene, "default");
 
-  // Connect the stage to the scene.
-  stage.connectScene(scene);
+  // Connect the simulation to the scene.
+  simulation.value.setStageRenderer(scene);
 
   // Register a console event listener.
   window.addEventListener("keypress", consoleEventListener);
@@ -1161,8 +325,6 @@ onMounted(async () => {
       console.log("Saved screenshot", shot.path, prettyBytes(shot.size));
     }
   });
-
-  await prepareGpt();
 });
 
 onUnmounted(() => {
@@ -1170,130 +332,28 @@ onUnmounted(() => {
 });
 
 function chooseAssistantVariant(update: AssistantUpdate, variantIndex: number) {
-  const code = update.variants[variantIndex].directorUpdate?.code;
-  const actualDelta = stage.delta(previousStageState.value);
-
-  function setUncommitted() {
-    uncommittedAssistantText.value = update.variants[variantIndex].text;
+  if (!simulation.value) {
+    throw new Error("Simulation is not ready");
   }
 
-  if (
-    comparesDeltas(previousStageState.value ?? null, actualDelta, code ?? [])
-  ) {
-    fadeCanvas(async () => {
-      stage.setState(previousStageState.value ?? null);
-      const code = update.variants[variantIndex].directorUpdate?.code;
-      if (code) stage.apply(code);
-      setUncommitted();
-    });
-  } else {
-    setUncommitted();
-  }
-}
-
-/**
- * Inference a message in response to user input.
- */
-// REFACTOR: Merge with `sendPlayerMessage`.
-async function inferResponse(
-  userUpdate: UserUpdate,
-  assistantUpdate: AssistantUpdate | null,
-  abortSignal: AbortSignal,
-) {
-  console.trace({ userUpdate, assistantUpdate });
-  let userMessageContent = userUpdate.chosenVariant.text;
-
-  if (!assistantUpdate) {
-    assistantUpdate = markRaw(
-      new AssistantUpdate(userUpdate.chosenVariant.id, []),
-    );
-
-    updates.value.unshift(assistantUpdate);
-  }
-
-  assistantUpdate.inProgressVariantText.value = "";
-
-  try {
-    uncommittedPlayerInput.value = userMessageContent;
-
-    const prompt =
-      "\n" +
-      (uncommittedWriterPrompt.value
-        ? uncommittedWriterPrompt.value + "\n"
-        : "") +
-      writerResponsePrefix;
-    console.log("Prompt", prompt);
-
-    const writerResponse = await deferredWriter.promise.then((writer) =>
-      writer.infer(
-        prompt,
-        128,
-        {
-          stopSequences: ["\n"],
-          grammar: writerGrammar,
-          ...modelSettings.value,
-        },
-        (e) => {
-          progressCallback("Inference decoding")(e);
-          inferenceDecodingProgress.value = e.progress;
-        },
-        (e) => {
-          assistantUpdate.inProgressVariantText.value += e.content;
-        },
-        abortSignal,
-      ),
-    );
-
-    // Save the assistant update.
-    const saved = await saveUpdatesToDb({
-      writerUpdate: {
-        parentUpdateId: userUpdate.chosenVariant.id,
-        text: writerResponse,
-      },
-    });
-
-    const assistantUpdateId = saved.writerUpdate.id;
-    assistantUpdate.variants.push({
-      id: assistantUpdateId,
-      text: saved.writerUpdate.text,
-      createdAt: saved.writerUpdate.createdAt,
-      directorUpdate: null,
-    });
-    assistantUpdate.chosenVariantIndex.value++;
-
-    uncommittedAssistantText.value = writerResponse;
-  } finally {
-    assistantUpdate.inProgressVariantText.value = null;
-  }
+  simulation.value.chooseAssistantUpdateVariant(
+    update,
+    variantIndex,
+    fadeCanvas,
+  );
 }
 
 async function onUserUpdateEdit(update: UserUpdate, newText: string) {
-  console.debug("onUserUpdateEdit", newText);
+  if (!simulation.value) {
+    throw new Error("Simulation is not ready");
+  }
+
+  busy.value = true;
+  inferenceAbortController.value = new AbortController();
+  inferenceDecodingProgress.value = 0;
 
   try {
-    busy.value = true;
-    inferenceAbortController.value = new AbortController();
-    inferenceDecodingProgress.value = 0;
-
-    const { writerUpdate: newWriterUpdate } = await saveUpdatesToDb({
-      writerUpdate: {
-        createdByPlayer: true,
-        parentUpdateId: update.parentId,
-        text: newText,
-      },
-    });
-
-    update.chosenVariant = {
-      id: newWriterUpdate.id,
-      text: newWriterUpdate.text,
-      createdAt: newWriterUpdate.createdAt,
-    };
-
-    await inferResponse(
-      update,
-      latestUpdate.value instanceof AssistantUpdate ? latestUpdate.value : null,
-      inferenceAbortController.value!.signal,
-    );
+    await simulation.value.editUserUpdateText(update, newText);
   } finally {
     inferenceDecodingProgress.value = undefined;
     inferenceAbortController.value = null;
@@ -1302,20 +362,13 @@ async function onUserUpdateEdit(update: UserUpdate, newText: string) {
 }
 
 async function onAssistantUpdateEdit(update: AssistantUpdate, newText: string) {
-  console.debug("onAssistantUpdateEdit", newText);
+  if (!simulation.value) {
+    throw new Error("Simulation is not ready");
+  }
 
   try {
     busy.value = true;
-
-    await d.db
-      .update(d.writerUpdates)
-      .set({
-        text: newText,
-      })
-      .where(eq(d.writerUpdates.id, update.chosenVariant.id));
-
-    update.chosenVariant.text = newText;
-    uncommittedAssistantText.value = newText;
+    await simulation.value.editAssistantUpdateVariantText(update, newText);
   } finally {
     busy.value = false;
   }
@@ -1374,14 +427,17 @@ async function onSendButtonClick() {
           ref="updatesRef"
           :style="{ '-webkit-mask-size': `100% calc(100% - ${updatesScrollOffsetY}px)`, 'max-height': `40%` }"
         )
-          template(v-for="update, i of updates" :key="update.parentId")
+          template(
+            v-for="update, i of simulation?.updates.value"
+            :key="update.parentId"
+          )
             AssistantUpdateVue(
               v-if="AssistantUpdate.is(update)"
               :update="update"
               :can-regenerate="i === 0"
               :can-edit="i === 0"
               :show-variant-navigation="i === 0"
-              @regenerate="regenerateAssistantUpdate(i)"
+              @regenerate="regenerateAssistantUpdate(update)"
               @edit="(newText) => onAssistantUpdateEdit(update, newText)"
               @choose-variant="(variantIndex) => chooseAssistantVariant(update, variantIndex)"
             )
@@ -1457,7 +513,7 @@ async function onSendButtonClick() {
 
       .flex.w-full.justify-center.bg-white.bg-opacity-25.p-2
         .flex.items-center.gap-1
-          GptStatus(:gpt="writer" name="Writer")
+          GptStatus(:gpt="simulation?.writer.value" name="Writer")
 
   TransitionRoot.h-full.shrink-0(
     class="w-1/3"
@@ -1471,19 +527,19 @@ async function onSendButtonClick() {
     leave-to="opacity-0 translate-x-full"
   )
     SandboxConsole.h-full(
-      v-if="scenario && assetBaseUrl"
+      v-if="simulation?.scenario && assetBaseUrl"
       :asset-base-url="assetBaseUrl"
-      :scenario="scenario"
-      :stage="stage"
+      :scenario="simulation.scenario"
+      :state="simulation.state"
     )
 
   DeveloperConsole(
     :open="consoleModal"
-    :writer="writer"
-    :writer-prompt="committedWriterPrompt || ''"
-    :uncommitted-writer-prompt="uncommittedWriterPrompt"
+    :writer="simulation?.writer.value"
+    :writer-prompt="simulation?.committedWriterPrompt.value || ''"
+    :uncommitted-writer-prompt="simulation?.uncommittedWriterPayload.value || ''"
     :episode="currentEpisodeConsoleObject"
-    :stage-state-delta="stage?.delta(previousStageState) || []"
+    :stage-state-delta="simulation?.previousStateDelta.value || []"
     @close="consoleModal = false"
   )
 

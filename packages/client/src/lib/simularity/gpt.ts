@@ -262,11 +262,15 @@ type GptJob =
 export class Gpt {
   /**
    * Find an existing GPT instance.
+   *
+   * @param staticPrompt If GPT is found, would set its static prompt.
+   * @param dynamicPrompt If GPT is found, would set its dynamic prompt.
    */
   static async find(
     driver: GptDriver,
     id: string,
-    initialPrompt: string | undefined,
+    staticPrompt: string | undefined,
+    dynamicPrompt: string | undefined,
   ): Promise<Gpt | null> {
     let found = false;
 
@@ -281,7 +285,7 @@ export class Gpt {
         throw unreachable(driver);
     }
 
-    return found ? new Gpt(driver, id, initialPrompt) : null;
+    return found ? new Gpt(driver, id, staticPrompt, dynamicPrompt) : null;
   }
 
   /**
@@ -334,6 +338,7 @@ export class Gpt {
 
   /**
    * Decode the prompt, updating the KV cache.
+   * @param prompt After decoding, is added to {@link dynamicPromptCommitted}.
    */
   // TODO: Return the new KV cache size.
   async decode(
@@ -409,7 +414,7 @@ export class Gpt {
   // TODO: Return the new KV cache size.
   async commit(): Promise<number> {
     const result = await this.pushJob(markRaw(new GptCommitJob(this)));
-    this._dynamicPromptCommitted.value = this._dynamicPromptUncommitted.value;
+    this._dynamicPromptCommitted.value += this._dynamicPromptUncommitted.value;
     this._dynamicPromptUncommitted.value = "";
     await this.saveSessionToLocalStorage();
     return result;
@@ -464,10 +469,12 @@ export class Gpt {
     driver: GptDriver,
     id: string | undefined,
     staticPrompt: string | undefined,
+    dynamicPrompt?: string,
   ) {
     this._id.value = id;
     this.driver = driver;
     this.staticPrompt = staticPrompt;
+    this._dynamicPromptCommitted.value = dynamicPrompt ?? "";
   }
 
   private async initialize(

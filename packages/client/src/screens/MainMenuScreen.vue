@@ -2,7 +2,7 @@
 import { RouterLink, useRouter } from "vue-router";
 import { routeLocation } from "../lib/router";
 import { d } from "@/lib/drizzle";
-import { type Scenario } from "@/lib/types";
+import { type Scenario } from "@/lib/simulation";
 import { eq } from "drizzle-orm";
 import { BookMarkedIcon, BookOpenIcon, SettingsIcon } from "lucide-vue-next";
 
@@ -52,10 +52,10 @@ async function newSimulation() {
         })
     )[0];
 
-    if (chunk.stageCalls) {
+    if (chunk.commands) {
       await tx.insert(d.directorUpdates).values({
         writerUpdateId: writerUpdate.id,
-        code: chunk.stageCalls,
+        code: chunk.commands,
       });
     }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type Scenario } from "@/lib/types";
+import { type Scenario } from "@/lib/simulation";
 import {
   Disclosure,
   DisclosureButton,
@@ -11,7 +11,8 @@ import { ChevronDownIcon, XIcon } from "lucide-vue-next";
 import { computed, onUnmounted, ref } from "vue";
 import CharacterImage from "@/components/CharacterImage.vue";
 import LocationImage from "@/components/LocationImage.vue";
-import { Stage, toSceneQualifiedId } from "@/lib/simulation/stage";
+import { toSceneQualifiedId } from "@/lib/simulation/state";
+import { State } from "@/lib/simulation";
 import { watchImmediate, onClickOutside } from "@vueuse/core";
 import { sleep } from "@/lib/utils";
 
@@ -20,7 +21,7 @@ const HIDE_MODAL_DURATION = 200;
 const props = defineProps<{
   assetBaseUrl: URL;
   scenario: Scenario;
-  stage: Stage;
+  state: State;
 }>();
 
 //#region Character
@@ -61,7 +62,7 @@ const unlistenSelectedCharacterOnClickOutside = onClickOutside(
 );
 
 function isCharacterOnStage(characterId: string) {
-  return props.stage.state.value.characters.find((c) => c.id === characterId);
+  return props.state.stage.value.characters.find((c) => c.id === characterId);
 }
 
 function addCharacterToStage(characterId: string) {
@@ -74,16 +75,16 @@ function addCharacterToStage(characterId: string) {
     props.scenario.characters.find((c) => c.id === characterId)!.expressions[0]
       .id;
 
-  props.stage.addCharacter(characterId, outfitId, expressionId);
+  props.state.addCharacter(characterId, outfitId, expressionId);
 }
 
 function removeCharacterFromStage(characterId: string) {
-  props.stage.removeCharacter(characterId);
+  props.state.removeCharacter(characterId);
 }
 
 const selectedCharacterOutfitIds = ref<Record<string, string>>({});
 watchImmediate(
-  () => props.stage.state.value.characters,
+  () => props.state.stage.value.characters,
   (characters) => {
     selectedCharacterOutfitIds.value = {};
 
@@ -95,7 +96,7 @@ watchImmediate(
 
 const selectedCharacterExpressionIds = ref<Record<string, string>>({});
 watchImmediate(
-  () => props.stage.state.value.characters,
+  () => props.state.stage.value.characters,
   (characters) => {
     selectedCharacterExpressionIds.value = {};
 
@@ -110,7 +111,7 @@ function changeCharacterOutfit(characterId: string, outfitId: string) {
   selectedCharacterOutfitIds.value[characterId] = outfitId;
 
   if (isCharacterOnStage(characterId)) {
-    props.stage.setOutfit(characterId, outfitId);
+    props.state.setOutfit(characterId, outfitId);
   }
 }
 
@@ -118,7 +119,7 @@ function changeCharacterExpression(characterId: string, expressionId: string) {
   selectedCharacterExpressionIds.value[characterId] = expressionId;
 
   if (isCharacterOnStage(characterId)) {
-    props.stage.setExpression(characterId, expressionId);
+    props.state.setExpression(characterId, expressionId);
   }
 }
 
@@ -164,7 +165,7 @@ const unlistenSelectedLocationOnClickOutside = onClickOutside(
 
 const selectedLocationSceneIds = ref<Record<string, string>>({});
 watchImmediate(
-  () => props.stage.state.value.scene,
+  () => props.state.stage.value.scene,
   (scene) => {
     if (scene) {
       selectedLocationSceneIds.value[scene.locationId] = scene.sceneId;
@@ -175,7 +176,7 @@ watchImmediate(
 );
 
 function isLocationSetAsScene(locationId: string) {
-  return props.stage.state.value.scene?.locationId === locationId;
+  return props.state.stage.value.scene?.locationId === locationId;
 }
 
 function setLocationAsScene(locationId: string) {
@@ -183,14 +184,14 @@ function setLocationAsScene(locationId: string) {
     selectedLocationSceneIds.value[locationId] ||
     props.scenario.locations.find((l) => l.id === locationId)!.scenes[0].id;
 
-  props.stage.setScene(toSceneQualifiedId(locationId, sceneId), false);
+  props.state.setScene(toSceneQualifiedId(locationId, sceneId), false);
 }
 
 function changeLocationScene(locationId: string, sceneId: string) {
   selectedLocationSceneIds.value[locationId] = sceneId;
 
   if (isLocationSetAsScene(locationId)) {
-    props.stage.setScene(toSceneQualifiedId(locationId, sceneId), false);
+    props.state.setScene(toSceneQualifiedId(locationId, sceneId), false);
   }
 }
 

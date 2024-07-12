@@ -1,15 +1,16 @@
-import { Scenario } from "@/lib/types";
+import { Scenario } from "@/lib/simulation";
 import { throwError } from "@/lib/utils";
 import Phaser from "phaser";
-import { Scene } from "../scene";
-import { StageState, toSceneQualifiedId } from "../stage";
+import { DeepReadonly } from "vue";
+import { StageRenderer } from "../stageRenderer";
+import { Stage, toSceneQualifiedId } from "../state";
 
 /**
  * An unexpected scene error.
  */
 export class SceneError extends Error {}
 
-export class DefaultScene extends Phaser.Scene implements Scene {
+export class DefaultScene extends Phaser.Scene implements StageRenderer {
   private stageScene: {
     qualifiedId: string;
     bg: Phaser.GameObjects.Image;
@@ -42,7 +43,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
   constructor(
     readonly scenario: Scenario,
     private readonly assetBasePath: string,
-    private readonly initialState: StageState | null = null,
+    private readonly initialState: DeepReadonly<Stage> | null = null,
     private readonly onCreate?: () => void,
   ) {
     super();
@@ -106,12 +107,12 @@ export class DefaultScene extends Phaser.Scene implements Scene {
     }
   }
 
-  setState(state: StageState | null) {
-    if (state) {
-      if (state.scene) {
+  setStage(stage: Stage | null) {
+    if (stage) {
+      if (stage.scene) {
         this.setScene(
-          toSceneQualifiedId(state.scene.locationId, state.scene.sceneId),
-          state.characters.length === 0,
+          toSceneQualifiedId(stage.scene.locationId, stage.scene.sceneId),
+          stage.characters.length === 0,
         );
       } else {
         this.stageScene?.bg.destroy();
@@ -119,7 +120,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
       }
 
       // Add or update characters.
-      for (const { id, outfitId, expressionId } of state.characters) {
+      for (const { id, outfitId, expressionId } of stage.characters) {
         if (!this.stageCharacters.has(id)) {
           this.addCharacter(id, outfitId, expressionId);
         } else {
@@ -130,7 +131,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
 
       // Remove those characters which are not in the state.
       for (const characterId of this.stageCharacters.keys()) {
-        if (!state.characters.find((c) => c.id === characterId)) {
+        if (!stage.characters.find((c) => c.id === characterId)) {
           this.removeCharacter(characterId);
         }
       }
@@ -153,7 +154,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
    * @param clear Whether to clear the scene.
    */
   setScene(qualifiedId: string | null, clear: boolean) {
-    console.debug("setScene", { qualifiedId, clear });
+    console.log("setScene", { qualifiedId, clear });
 
     if (qualifiedId) {
       const [locationId, sceneId] = qualifiedId.split("/");
@@ -268,7 +269,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
         this.game.canvas.width / 2 +
         chunk * k * proximityModifier ** Math.abs(k);
 
-      console.debug("Set character position X", {
+      console.log("Set character position X", {
         chunk,
         k,
         characterId,
@@ -354,7 +355,7 @@ export class DefaultScene extends Phaser.Scene implements Scene {
    * Remove a character from the stage.
    */
   removeCharacter(characterId: string) {
-    console.debug("removeCharacter", { characterId });
+    console.log("removeCharacter", { characterId });
 
     const character = this.stageCharacters.get(characterId);
     if (!character) {

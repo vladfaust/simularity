@@ -2,7 +2,7 @@ import { d } from "@/lib/drizzle";
 import { computed, ref } from "vue";
 
 /**
- * An assistant-generated update.
+ * An assistant-generated update can be edited, or regenerated.
  */
 export class AssistantUpdate {
   readonly chosenVariantIndex = ref(0);

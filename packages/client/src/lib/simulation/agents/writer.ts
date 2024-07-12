@@ -1,12 +1,8 @@
-import {
-  AssistantUpdate,
-  EpisodeUpdate,
-  UserUpdate,
-} from "@/lib/simulation/updates";
-import { toSceneQualifiedId } from "../simulation/stage";
-import { Scenario } from "../types";
-import { assert, unreachable } from "../utils";
-import { XmlNode } from "../xmlNode";
+import { assert, unreachable } from "@/lib/utils";
+import { XmlNode } from "@/lib/xmlNode";
+import { Scenario } from "../scenario";
+import { toSceneQualifiedId } from "../state";
+import { AssistantUpdate, EpisodeUpdate, UserUpdate } from "../updates";
 
 export type Message =
   | {
@@ -25,10 +21,8 @@ export type Message =
 export const SYSTEM_PREFIX = "<|system|> ";
 export const USER_PREFIX = "<|user|> ";
 export const AI_PREFIX = "<|assistant|> ";
-
-export const writerGrammar = `root ::= [^\n\\[\\]|<>]+ "\n"`;
-
-export const writerResponsePrefix = `### Response:\n${AI_PREFIX}`;
+export const GRAMMAR = `root ::= [^\n\\[\\]|<>]+ "\n"`;
+export const RESPONSE_PREFIX = `### Response:\n${AI_PREFIX}`;
 
 /**
  * A static prompt is re-used throughout the simulation.

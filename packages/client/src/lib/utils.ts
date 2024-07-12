@@ -68,7 +68,7 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Clones an object using JSON serialization.
+ * Clone an object via JSON serialization.
  */
 export function clone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));

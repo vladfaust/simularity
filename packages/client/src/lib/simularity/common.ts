@@ -36,3 +36,5 @@ export const InferenceOptionsSchema = v.object({
   grammar: v.optional(v.string()),
   stopSequences: v.optional(v.array(v.string())),
 });
+
+export type InferenceOptions = v.InferOutput<typeof InferenceOptionsSchema>;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type Scenario } from "@/lib/types";
+import { type Scenario } from "@/lib/simulation";
 import { computed } from "vue";
 
 const props = defineProps<{

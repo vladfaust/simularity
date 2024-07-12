@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { buildGnbf } from "@/lib/ai/director";
+import { buildGnbf } from "@/lib/simulation/agents/director";
 import { computed, ref } from "vue";
 
 const scenario = ref<Parameters<typeof buildGnbf>[0]>({

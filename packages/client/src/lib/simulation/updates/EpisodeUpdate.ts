@@ -1,7 +1,7 @@
 import { d } from "@/lib/drizzle";
 
 /**
- * An episode (i.e. predefined) update.
+ * An episode update can not be edited, nor regenerated.
  */
 export class EpisodeUpdate {
   static is(obj: any): obj is EpisodeUpdate {

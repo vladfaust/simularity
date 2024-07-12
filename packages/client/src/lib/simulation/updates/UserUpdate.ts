@@ -1,7 +1,7 @@
 import { d } from "@/lib/drizzle";
 
 /**
- * A user-generated update.
+ * A user-generated update can only be edited.
  */
 export class UserUpdate {
   static is(obj: any): obj is UserUpdate {
