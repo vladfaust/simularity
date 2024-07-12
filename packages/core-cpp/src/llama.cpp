@@ -46,10 +46,15 @@ std::vector<llama_token> llama_tokenize(
   auto n_tokens = llama_tokenize(
       model, text, text_len, tokens.data(), text_len, add_special, parse_special
   );
-  spdlog::debug("After llama_tokenize", n_tokens);
+  spdlog::debug("After llama_tokenize: {}", n_tokens);
 
-  if (n_tokens >= 0) tokens.resize(n_tokens);
-  else throw std::runtime_error("Failed to tokenize the text.");
+  if (n_tokens >= 0) {
+    tokens.resize(n_tokens);
+  } else {
+    spdlog::error("Failed to tokenize the text");
+    // FIXME: Catch the exception outside.
+    throw std::runtime_error("Failed to tokenize the text.");
+  }
 
   return tokens;
 }
