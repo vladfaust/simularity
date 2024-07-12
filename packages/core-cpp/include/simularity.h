@@ -80,7 +80,7 @@ int simularity_gpt_create(
 );
 
 /**
-  Decode prompt.
+  Clear the uncommitted prompt, and decode the given prompt.
 
   @param session_id The session ID.
   @param prompt The prompt to decode.
@@ -143,6 +143,7 @@ simularity_gpt_inference_options_default() {
 
 /**
   Infer from the given prompt, or continue the inference from the last prompt.
+  Would clear the uncommitted prompt.
 
   @param session_id The session ID.
   @param prompt The prompt to infer from (may be NULL).

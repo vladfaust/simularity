@@ -10,6 +10,7 @@ pub enum Error {
 }
 
 /// Decode the GPT session with the given prompt.
+/// Clears the uncommitted prompt.
 ///
 /// # Arguments
 ///

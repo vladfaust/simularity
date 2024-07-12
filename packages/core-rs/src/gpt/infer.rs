@@ -62,6 +62,7 @@ pub enum Error {
 }
 
 /// Infer the GPT session with the given prompt.
+/// Clears the uncommitted prompt.
 ///
 /// # Arguments
 ///

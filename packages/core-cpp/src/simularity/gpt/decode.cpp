@@ -43,6 +43,10 @@ static int simularity_gpt_decode_internal(
     void(progress_callback)(float, void *),
     void *progress_callback_user_data
 ) {
+  session->clear_uncommitted_kv_cache();
+  session->uncommitted_prompt.clear();
+  spdlog::debug("Cleared uncommitted prompt");
+
   auto n_session = session->committed_prompt.size();
   auto batch     = new Batch(n_session + tokens.size(), 0, 1);
 
