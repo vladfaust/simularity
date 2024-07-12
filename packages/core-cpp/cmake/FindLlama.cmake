@@ -5,3 +5,5 @@ add_subdirectory(vendor/llama.cpp/src)
 
 set(Llama_INCLUDE_DIR vendor/llama.cpp/include)
 list(APPEND Llama_LIBRARIES llama)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
