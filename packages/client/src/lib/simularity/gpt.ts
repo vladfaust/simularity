@@ -339,6 +339,7 @@ export class Gpt {
 
   /**
    * Decode the prompt, updating the KV cache.
+   * Clears the uncommitted prompt.
    * @param prompt After decoding, is added to {@link dynamicPromptCommitted}.
    */
   // TODO: Return the new KV cache size.
@@ -357,6 +358,7 @@ export class Gpt {
       ),
     );
     this._dynamicPromptCommitted.value += prompt;
+    this._dynamicPromptUncommitted.value = "";
     await this.saveSessionToLocalStorage();
   }
 
@@ -391,12 +393,14 @@ export class Gpt {
           decodeCallback,
           (event) => {
             if (!decodeComplete) {
-              if (prompt) {
-                this._dynamicPromptUncommitted.value += prompt;
-              }
-
+              // Reset the uncommitted prompt.
+              this._dynamicPromptUncommitted.value = prompt || "";
               decodeComplete = true;
             }
+
+            // [^1]: Would've appended to the uncommitted prompt here,
+            // but the result has to be trimmed by the stop sequences.
+            //
 
             inferenceCallback_?.(event);
           },
@@ -412,6 +416,7 @@ export class Gpt {
       result = trimEndAny(result, options.stopSequences);
     }
 
+    // [^1]: Append the trimmed result to the uncommitted prompt.
     this._dynamicPromptUncommitted.value += result;
 
     return result;

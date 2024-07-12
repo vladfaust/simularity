@@ -342,7 +342,6 @@ export class Simulation {
    * @assert The update is the latest one, or the one before the latest (NIY).
    */
   // TODO: Implement the index check.
-  // FIXME: Reset GPT, so that the old message is not committed.
   async editUserUpdateText(update: UserUpdate, newText: string) {
     if (this.busy.value) {
       throw new Error("Simulation is busy");
@@ -509,7 +508,6 @@ export class Simulation {
    * @assert The simulation is not busy.
    * @assert The update is the latest one.
    */
-  // FIXME: Reset GPT, so that the old message is not committed.
   async editAssistantUpdateVariantText(
     update: AssistantUpdate,
     newText: string,
@@ -525,6 +523,7 @@ export class Simulation {
     try {
       this._busy.value = true;
 
+      // TODO: Preserve original text.
       await d.db
         .update(d.writerUpdates)
         .set({ text: newText })
@@ -998,12 +997,13 @@ export class Simulation {
   private async _commitUncommitted() {
     const promises = [];
 
-    // Commit the uncommitted writer prompt.
+    // Decode the temprorary writer prompt. We're using `decode`
+    // instead of `commit`, because the uncommitted prompt
+    // contains instructions unusable for the history.
     promises.push(
       this._deferredWriter.promise.then(async (writer) => {
         if (this.tempWriterPrompt.value) {
-          await writer.commit();
-
+          await writer.decode(this.tempWriterPrompt.value);
           console.debug(`Committed to writer`, this.tempWriterPrompt.value);
         }
 
