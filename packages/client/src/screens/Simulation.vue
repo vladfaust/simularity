@@ -11,7 +11,6 @@ import {
   writeBinaryFile,
 } from "@tauri-apps/api/fs";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
-import { MenuIcon, ShapesIcon, XIcon } from "lucide-vue-next";
 import prettyBytes from "pretty-bytes";
 import { computed, onMounted, onUnmounted, ref, shallowRef } from "vue";
 import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
@@ -156,21 +155,16 @@ onUnmounted(() => {
 
       #game-screen.h-full.w-full
 
-    .absolute.top-0.z-20.flex.h-full.w-full.flex-col.items-center.justify-between.gap-2.p-2
-      //- Top buttons.
-      .flex.w-full.justify-between.gap-2
-        button.rounded-lg.bg-black.bg-opacity-50.px-2.py-1.shadow.transition-transform.pressable(
-          @click="showMenu = !showMenu"
-        )
-          MenuIcon.text-white(:size="20")
-
-        button.rounded-lg.bg-black.bg-opacity-50.px-2.py-1.shadow.transition-transform.pressable(
-          @click="showSandboxConsole = !showSandboxConsole"
-        )
-          ShapesIcon.text-white(v-if="!showSandboxConsole" :size="20")
-          XIcon.text-white(v-else :size="20")
-
-      GameConsole(v-if="simulation" :simulation :fade-canvas :screenshot)
+    .absolute.top-0.z-20.flex.h-full.w-full.flex-col.items-center.justify-end.p-2
+      GameConsole(
+        v-if="simulation"
+        :simulation
+        :fade-canvas
+        :screenshot
+        @main-menu="showMenu = true"
+        @screenshot="screenshot"
+        @sandbox="showSandboxConsole = !showSandboxConsole"
+      )
 
   TransitionRoot.h-full.shrink-0(
     class="w-1/3"

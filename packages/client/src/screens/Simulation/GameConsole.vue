@@ -8,8 +8,10 @@ import {
   ChevronUpIcon,
   ListEndIcon,
   Loader2Icon,
+  MenuIcon,
   RedoDotIcon,
   SendHorizontalIcon,
+  ShapesIcon,
   SkipForwardIcon,
   SquareIcon,
   UndoDotIcon,
@@ -31,6 +33,11 @@ const { simulation, fadeCanvas, screenshot } = defineProps<{
   simulation: Simulation;
   fadeCanvas: (callback: () => Promise<void>) => Promise<void>;
   screenshot: (rewrite: boolean) => Promise<any>;
+}>();
+
+const emit = defineEmits<{
+  (event: "mainMenu"): void;
+  (event: "sandbox"): void;
 }>();
 
 const modelSettings = ref<InferenceOptions>({
@@ -368,14 +375,23 @@ function switchUpdatesFullscreen() {
           SkipForwardIcon(:size="20")
 
   //- Status.
-  .flex.w-full.justify-center.p-2(class="bg-white/25")
+  .flex.w-full.justify-between.p-2(class="bg-black/20")
     .flex.items-center.gap-1
-      GptStatus(:gpt="simulation.writer.value" name="Writer")
+      GptStatus.h-full(:gpt="simulation.writer.value" name="Writer")
+    .flex.gap-2
+      button._status-button(@click="emit('sandbox')")
+        ShapesIcon(:size="20")
+      button._status-button(@click="emit('mainMenu')")
+        MenuIcon(:size="20")
 </template>
 
 <style lang="scss" scoped>
 ._button {
-  @apply grid place-items-center rounded-lg bg-white transition pressable;
+  @apply grid place-items-center rounded-lg bg-white shadow transition pressable;
   @apply disabled:opacity-50;
+}
+
+._status-button {
+  @apply rounded bg-white px-2 py-1 shadow transition-transform pressable;
 }
 </style>
