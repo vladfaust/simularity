@@ -11,11 +11,16 @@ import {
 import { computed, ref } from "vue";
 import Contenteditable from "vue-contenteditable";
 
+// TODO: Scroll text while generating new variant.
+//
+
 const props = defineProps<{
   update: AssistantUpdate;
   canRegenerate: boolean;
   showVariantNavigation: boolean;
   canEdit: boolean;
+  isSingle: boolean;
+  selected?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -23,6 +28,11 @@ const emit = defineEmits<{
   (event: "chooseVariant", variantIndex: number): void;
   (event: "edit", newContent: string): void;
 }>();
+
+const rootClass = computed(() => ({
+  "border-red-500": props.selected,
+  "border-white": !props.selected,
+}));
 
 function onClickPreviousVariant() {
   if (props.update.newVariantInProgress.value) {
@@ -114,10 +124,11 @@ const rAnyChanges = computed(
 </script>
 
 <template lang="pug">
-.flex.max-w-md.flex-col.gap-2.place-self-start.rounded-lg.rounded-bl-none.bg-white.px-3.py-3.opacity-90.transition-opacity(
+.flex.flex-col.gap-2.place-self-start.rounded-lg.rounded-bl-none.border-2.bg-white.px-3.py-3.opacity-90.transition-opacity(
   class="hover:opacity-100"
+  :class="rootClass"
 )
-  p.leading-snug
+  p.leading-snug(:class="{ 'h-full overflow-y-scroll': isSingle }")
     template(v-if="update.newVariantInProgress.value")
       p
         | {{ update.inProgressVariantText.value }}

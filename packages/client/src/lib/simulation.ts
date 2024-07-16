@@ -42,6 +42,7 @@ export class Simulation {
   private _tempUserInput = ref("");
   private _tempAssistantText = ref("");
   private _busy = ref(false);
+  private _currentUpdateIndex = ref(0);
   //#endregion
 
   readonly writer = this._writer;
@@ -72,6 +73,42 @@ export class Simulation {
    * The latest update.
    */
   readonly latestUpdate = computed(() => this._updates.value.at(0));
+
+  /**
+   * Current update index.
+   */
+  readonly currentUpdateIndex = readonly(this._currentUpdateIndex);
+
+  /**
+   * The current update.
+   */
+  readonly currentUpdate = computed(() => {
+    return this._updates.value.at(this._currentUpdateIndex.value);
+  });
+
+  /**
+   * Would be false if {@link currentUpdate} is the oldest update.
+   */
+  readonly canGoBack = computed(
+    () => this._currentUpdateIndex.value < this._updates.value.length - 1,
+  );
+
+  /**
+   * Would be false if {@link currentUpdate} is the latest update.
+   */
+  readonly canGoForward = computed(() => this._currentUpdateIndex.value !== 0);
+
+  /**
+   * A complex condition that allows creating a new user update.
+   */
+  readonly canCreateUserUpdate = computed(() => {
+    return (
+      !this.busy.value &&
+      !this.state.shallAdvanceEpisode.value &&
+      this.currentUpdate.value instanceof AssistantUpdate &&
+      !this.canGoForward.value
+    );
+  });
 
   /**
    * The parent update ID of the latest update.
@@ -320,9 +357,11 @@ export class Simulation {
         new UserUpdate(parentUpdateId, saved.writerUpdate),
       );
       this._updates.value.unshift(userUpdate);
+      this.skipToEnd(); // Something may happen between user & assistant updates.
 
       const assistantUpdate = markRaw(new AssistantUpdate(userUpdateId, []));
       this._updates.value.unshift(assistantUpdate);
+      this.skipToEnd();
 
       this._tempUserInput.value = userMessage;
       const prompt =
@@ -394,6 +433,7 @@ export class Simulation {
 
       const assistantUpdate = markRaw(new AssistantUpdate(parentUpdateId, []));
       this._updates.value.unshift(assistantUpdate);
+      this.skipToEnd();
 
       // As the prompt has been just committed,
       // all that is required is the prefix.
@@ -444,6 +484,7 @@ export class Simulation {
       // OPTIMIZE: Infer while waiting for the fade.
       await fadeFn(async () => {
         this.state.setState(this._previousState.value);
+        this.skipToEnd();
       });
 
       // As we're regenerating, the uncommitted assistant text is cleared.
@@ -502,9 +543,11 @@ export class Simulation {
         this.state.setState(this._previousState.value);
         const code = update.variants[variantIndex].directorUpdate?.code;
         if (code) this.state.apply(code);
+        this.skipToEnd();
         setUncommitted();
       });
     } else {
+      this.skipToEnd();
       setUncommitted();
     }
   }
@@ -544,6 +587,31 @@ export class Simulation {
   }
 
   // TODO: async editAssistantUpdateVariantCode() {}
+
+  /**
+   * Go back to the previous (older) update.
+   */
+  goBack() {
+    if (this.canGoBack.value) {
+      this._currentUpdateIndex.value++;
+    }
+  }
+
+  /**
+   * Go forward to the next (newer) update.
+   */
+  goForward() {
+    if (this.canGoForward.value) {
+      this._currentUpdateIndex.value--;
+    }
+  }
+
+  /**
+   * Skip to the latest update.
+   */
+  skipToEnd() {
+    this._currentUpdateIndex.value = 0;
+  }
 
   //#region Private methods
   //
@@ -746,6 +814,8 @@ export class Simulation {
     } else if (this.latestUpdate.value instanceof UserUpdate) {
       this._tempUserInput.value = this.latestUpdate.value.chosenVariant.text;
     }
+
+    this.skipToEnd();
   }
 
   /**

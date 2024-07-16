@@ -7,6 +7,8 @@ import Contenteditable from "vue-contenteditable";
 const props = defineProps<{
   update: UserUpdate;
   canEdit: boolean;
+  isSingle: boolean;
+  selected?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -17,6 +19,14 @@ const emit = defineEmits<{
 const rContenteditable = ref(false);
 const rTextElement = ref<HTMLParagraphElement | null>(null);
 const rText = ref(props.update.chosenVariant.text);
+const rootClass = computed(() => ({
+  "opacity-90": !rContenteditable.value,
+  "opacity-100": rContenteditable.value,
+  "h-full w-full": props.isSingle,
+  "max-w-md": !props.isSingle,
+  "border-red-500": props.selected,
+  "border-green-100": !props.selected,
+}));
 
 function switchContentEditable() {
   rContenteditable.value = !rContenteditable.value;
@@ -53,9 +63,9 @@ const rAnyChanges = computed(
 </script>
 
 <template lang="pug">
-.flex.max-w-md.flex-col.place-self-end.rounded-lg.rounded-br-none.bg-green-100.px-3.py-3.transition-opacity(
+.flex.flex-col.place-self-end.rounded-lg.rounded-br-none.border-2.bg-green-100.px-3.py-3.transition-opacity(
   class="hover:opacity-100"
-  :class="{ 'opacity-90': !rContenteditable, 'opacity-100': rContenteditable }"
+  :class="rootClass"
 )
   Contenteditable.leading-snug(
     tag="p"
@@ -64,7 +74,7 @@ const rAnyChanges = computed(
     :contenteditable="rContenteditable"
     :no-nl="true"
     :no-html="true"
-    :class="{ 'font-mono bg-neutral-200 rounded p-2': rContenteditable }"
+    :class="{ 'font-mono bg-neutral-200 rounded p-2': rContenteditable, 'h-full': isSingle }"
     @returned="onCommit"
   ) {{ update.chosenVariant.text }}
 
