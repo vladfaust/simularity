@@ -52,7 +52,7 @@ onMounted(() => {
     v-for="update, i of simulation?.updates.value"
     :key="update.parentId"
   )
-    AssistantUpdateVue.max-w-md(
+    AssistantUpdateVue(
       v-if="AssistantUpdate.is(update)"
       :update="update"
       :can-regenerate="i === 0"
@@ -64,7 +64,7 @@ onMounted(() => {
       @edit="(newText) => emit('onAssistantUpdateEdit', update, newText)"
       @choose-variant="(variantIndex) => emit('chooseAssistantVariant', update, variantIndex)"
     )
-    UserUpdateVue.max-w-md(
+    UserUpdateVue(
       v-else-if="UserUpdate.is(update)"
       :update="update"
       :can-edit="i === 0 || i === 1"
@@ -73,7 +73,7 @@ onMounted(() => {
       :selected="i === simulation.currentUpdateIndex.value"
       @edit="(newText) => emit('onUserUpdateEdit', update, newText)"
     )
-    EpisodeUpdateVue.max-w-md(
+    EpisodeUpdateVue(
       v-else-if="EpisodeUpdate.is(update)"
       :update="update"
       :is-single="false"

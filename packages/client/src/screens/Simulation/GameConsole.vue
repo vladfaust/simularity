@@ -230,43 +230,102 @@ function switchUpdatesFullscreen() {
 </script>
 
 <template lang="pug">
-.flex.max-h-full.w-full.max-w-xl.grow.flex-col.justify-end.gap-2.overflow-hidden.px-2
-  //- Top row.
-  .flex.max-h-full.gap-2.overflow-hidden(
-    :class="updatesFullscreen ? 'h-full' : 'h-36'"
-  )
-    //- History of updates.
-    UpdatesHistory.w-full(
-      v-if="updatesFullscreen"
-      :simulation
-      :fullscreen="true"
-      @choose-assistant-variant="chooseAssistantVariant"
-      @regenerate-assistant-update="regenerateAssistantUpdate"
-      @on-user-update-edit="onUserUpdateEdit"
-      @on-assistant-update-edit="onAssistantUpdateEdit"
-      :class="updatesFullscreen ? 'overflow-y-scroll' : 'overflow-y-hidden h-full'"
-    )
-
-    //- Single update.
-    //- FIXME: `can-edit-user-update` shall be true only in specific cases.
-    SingleUpdate.h-full.w-full(
-      v-else-if="simulation.currentUpdate.value"
-      :update="simulation.currentUpdate.value"
-      :key="simulation.currentUpdate.value.parentId || 'root'"
-      :can-regenerate-assistant-update="!simulation.canGoForward.value"
-      :can-edit-assistant-update="!simulation.canGoForward.value"
-      :can-edit-user-update="true"
-      :show-variant-navigation="!simulation.canGoForward.value"
-    )
-
-    .flex.h-full.w-8.shrink-0.flex-col.justify-between.gap-1
-      //- Expand updates button.
-      button._button.relative.aspect-square.w-full(
-        title="Expand"
-        @click="switchUpdatesFullscreen"
+.flex.max-h-full.w-full.max-w-xl.flex-col.overflow-hidden.rounded-lg.shadow-lg(
+  class="bg-black/10"
+)
+  .flex.h-full.flex-col.gap-2.overflow-hidden.p-2
+    //- Top row.
+    .flex.gap-2.overflow-hidden(:class="updatesFullscreen ? 'h-full' : 'h-36'")
+      //- History of updates.
+      UpdatesHistory.w-full(
+        v-if="updatesFullscreen"
+        :simulation
+        :fullscreen="true"
+        @choose-assistant-variant="chooseAssistantVariant"
+        @regenerate-assistant-update="regenerateAssistantUpdate"
+        @on-user-update-edit="onUserUpdateEdit"
+        @on-assistant-update-edit="onAssistantUpdateEdit"
+        :class="updatesFullscreen ? 'overflow-y-scroll' : 'overflow-y-hidden h-full'"
       )
+
+      //- Single update.
+      //- FIXME: `can-edit-user-update` shall be true only in specific cases.
+      SingleUpdate.h-full.w-full(
+        v-else-if="simulation.currentUpdate.value"
+        :update="simulation.currentUpdate.value"
+        :key="simulation.currentUpdate.value.parentId || 'root'"
+        :can-regenerate-assistant-update="!simulation.canGoForward.value"
+        :can-edit-assistant-update="!simulation.canGoForward.value"
+        :can-edit-user-update="true"
+        :show-variant-navigation="!simulation.canGoForward.value"
+      )
+
+      .flex.h-full.w-8.shrink-0.flex-col.justify-between.gap-1
+        //- Expand updates button.
+        button._button.relative.aspect-square.w-full(
+          title="Expand"
+          @click="switchUpdatesFullscreen"
+        )
+          TransitionRoot.absolute(
+            :show="updatesFullscreen"
+            enter="duration-100 ease-out"
+            enter-from="scale-0 opacity-0"
+            enter-to="scale-100 opacity-100"
+            leave="duration-100 ease-in"
+            leave-from="scale-100 opacity-100"
+            leave-to="scale-0 opacity-0"
+          )
+            ChevronDownIcon(:size="20")
+          TransitionRoot.absolute(
+            :show="!updatesFullscreen"
+            enter="duration-100 ease-out"
+            enter-from="scale-0 opacity-0"
+            enter-to="scale-100 opacity-100"
+            leave="duration-100 ease-in"
+            leave-from="scale-100 opacity-100"
+            leave-to="scale-0 opacity-0"
+          )
+            ChevronUpIcon(:size="20")
+
+        .flex.flex-col.gap-1
+          button._button.aspect-square.w-full(
+            title="Go back"
+            :disabled="!simulation.canGoBack.value"
+            @click="simulation.goBack()"
+          )
+            UndoDotIcon(:size="20")
+
+          button._button.aspect-square.w-full(
+            title="Go forward"
+            :disabled="!simulation.canGoForward.value"
+            @click="simulation.goForward()"
+          )
+            RedoDotIcon(:size="20")
+
+          button._button.aspect-square.w-full(
+            title="Skip to the end"
+            :disabled="!simulation.canGoForward.value"
+            @click="simulation.skipToEnd()"
+          )
+            ListEndIcon(:size="20")
+
+    //- User input.
+    .flex.h-12.w-full.gap-2.rounded
+      input.h-full.w-full.rounded-lg.px-3.shadow-lg(
+        v-model="userInput"
+        placeholder="User input"
+        :disabled="!userInputEnabled"
+        class="disabled:opacity-50"
+        @keydown.enter.exact="userInput ? sendUserMessage() : advance()"
+      )
+
+      button._button.relative.aspect-square.h-full(
+        @click="onSendButtonClick"
+        :disabled="(busy && !inferenceAbortController) || simulation.canGoForward.value"
+      )
+        //- REFACTOR: Make a component for such multi-state animations.
         TransitionRoot.absolute(
-          :show="updatesFullscreen"
+          :show="sendButtonState === SendButtonState.Inferring"
           enter="duration-100 ease-out"
           enter-from="scale-0 opacity-0"
           enter-to="scale-100 opacity-100"
@@ -274,9 +333,11 @@ function switchUpdatesFullscreen() {
           leave-from="scale-100 opacity-100"
           leave-to="scale-0 opacity-0"
         )
-          ChevronDownIcon(:size="20")
+          .relative.grid.h-full.w-full.place-items-center
+            Loader2Icon.absolute.animate-spin(:size="30")
+            SquareIcon.absolute.fill-inherit(:size="10")
         TransitionRoot.absolute(
-          :show="!updatesFullscreen"
+          :show="busy && sendButtonState !== SendButtonState.Inferring"
           enter="duration-100 ease-out"
           enter-from="scale-0 opacity-0"
           enter-to="scale-100 opacity-100"
@@ -284,90 +345,30 @@ function switchUpdatesFullscreen() {
           leave-from="scale-100 opacity-100"
           leave-to="scale-0 opacity-0"
         )
-          ChevronUpIcon(:size="20")
-
-      .flex.flex-col.gap-1
-        button._button.aspect-square.w-full(
-          title="Go back"
-          :disabled="!simulation.canGoBack.value"
-          @click="simulation.goBack()"
+          Loader2Icon.animate-spin(:size="20")
+        TransitionRoot.absolute(
+          :show="!busy && sendButtonState === SendButtonState.WillSendMessage"
+          enter="duration-100 ease-out"
+          enter-from="scale-0 opacity-0"
+          enter-to="scale-100 opacity-100"
+          leave="duration-100 ease-in"
+          leave-from="scale-100 opacity-100"
+          leave-to="scale-0 opacity-0"
         )
-          UndoDotIcon(:size="20")
-
-        button._button.aspect-square.w-full(
-          title="Go forward"
-          :disabled="!simulation.canGoForward.value"
-          @click="simulation.goForward()"
+          SendHorizontalIcon(:size="20")
+        TransitionRoot.absolute(
+          :show="!busy && sendButtonState === SendButtonState.WillSkipTurn"
+          enter="duration-100 ease-out"
+          enter-from="scale-0 opacity-0"
+          enter-to="scale-100 opacity-100"
+          leave="duration-100 ease-in"
+          leave-from="scale-100 opacity-100"
+          leave-to="scale-0 opacity-0"
         )
-          RedoDotIcon(:size="20")
-
-        button._button.aspect-square.w-full(
-          title="Skip to the end"
-          :disabled="!simulation.canGoForward.value"
-          @click="simulation.skipToEnd()"
-        )
-          ListEndIcon(:size="20")
-
-  //- User input.
-  .flex.h-12.w-full.gap-2.rounded
-    input.h-full.w-full.rounded-lg.px-3.shadow-lg(
-      v-model="userInput"
-      placeholder="User input"
-      :disabled="!userInputEnabled"
-      class="disabled:opacity-50"
-      @keydown.enter.exact="userInput ? sendUserMessage() : advance()"
-    )
-
-    button._button.relative.aspect-square.h-full(
-      @click="onSendButtonClick"
-      :disabled="(busy && !inferenceAbortController) || simulation.canGoForward.value"
-    )
-      //- REFACTOR: Make a component for such multi-state animations.
-      TransitionRoot.absolute(
-        :show="sendButtonState === SendButtonState.Inferring"
-        enter="duration-100 ease-out"
-        enter-from="scale-0 opacity-0"
-        enter-to="scale-100 opacity-100"
-        leave="duration-100 ease-in"
-        leave-from="scale-100 opacity-100"
-        leave-to="scale-0 opacity-0"
-      )
-        .relative.grid.h-full.w-full.place-items-center
-          Loader2Icon.absolute.animate-spin(:size="30")
-          SquareIcon.absolute.fill-inherit(:size="10")
-      TransitionRoot.absolute(
-        :show="busy && sendButtonState !== SendButtonState.Inferring"
-        enter="duration-100 ease-out"
-        enter-from="scale-0 opacity-0"
-        enter-to="scale-100 opacity-100"
-        leave="duration-100 ease-in"
-        leave-from="scale-100 opacity-100"
-        leave-to="scale-0 opacity-0"
-      )
-        Loader2Icon.animate-spin(:size="20")
-      TransitionRoot.absolute(
-        :show="!busy && sendButtonState === SendButtonState.WillSendMessage"
-        enter="duration-100 ease-out"
-        enter-from="scale-0 opacity-0"
-        enter-to="scale-100 opacity-100"
-        leave="duration-100 ease-in"
-        leave-from="scale-100 opacity-100"
-        leave-to="scale-0 opacity-0"
-      )
-        SendHorizontalIcon(:size="20")
-      TransitionRoot.absolute(
-        :show="!busy && sendButtonState === SendButtonState.WillSkipTurn"
-        enter="duration-100 ease-out"
-        enter-from="scale-0 opacity-0"
-        enter-to="scale-100 opacity-100"
-        leave="duration-100 ease-in"
-        leave-from="scale-100 opacity-100"
-        leave-to="scale-0 opacity-0"
-      )
-        SkipForwardIcon(:size="20")
+          SkipForwardIcon(:size="20")
 
   //- Status.
-  .flex.w-full.justify-center.bg-white.bg-opacity-25.p-2
+  .flex.w-full.justify-center.p-2(class="bg-white/25")
     .flex.items-center.gap-1
       GptStatus(:gpt="simulation.writer.value" name="Writer")
 </template>

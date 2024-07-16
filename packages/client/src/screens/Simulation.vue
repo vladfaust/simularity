@@ -156,9 +156,9 @@ onUnmounted(() => {
 
       #game-screen.h-full.w-full
 
-    .absolute.top-0.z-20.flex.h-full.w-full.flex-col.items-center.gap-2
+    .absolute.top-0.z-20.flex.h-full.w-full.flex-col.items-center.justify-between.gap-2.p-2
       //- Top buttons.
-      .flex.w-full.justify-between.gap-2.px-2.pt-2
+      .flex.w-full.justify-between.gap-2
         button.rounded-lg.bg-black.bg-opacity-50.px-2.py-1.shadow.transition-transform.pressable(
           @click="showMenu = !showMenu"
         )
