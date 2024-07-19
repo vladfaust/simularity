@@ -8,12 +8,10 @@ use super::AppState;
 use crate::env::ENV;
 
 pub mod abort_inference;
-pub mod commit;
 pub mod create;
 pub mod decode;
 pub mod destroy;
 pub mod infer;
-pub mod reset;
 
 pub struct GptState {
     pub abort_flags: tokio::sync::Mutex<HashMap<u32, AtomicBool>>,
@@ -40,7 +38,5 @@ pub fn router() -> Router<std::sync::Arc<AppState>> {
         .route("/gpts/:id/decode", post(decode::handler))
         .route("/gpts/:id/infer", post(infer::handler))
         .route("/gpts/:id/abort-inference", post(abort_inference::handler))
-        .route("/gpts/:id/commit", post(commit::handler))
-        .route("/gpts/:id/reset", post(reset::handler))
         .route("/gpts/:id", delete(destroy::handler))
 }

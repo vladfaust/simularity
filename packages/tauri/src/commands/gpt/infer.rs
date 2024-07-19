@@ -18,16 +18,12 @@ struct InferenceEventPayload {
 const ABORT_SIGNAL: &str = "app://gpt/abort-inference";
 
 #[tauri::command]
-/// Predict text.
-///
-/// If not committed afterwards, then the resulting KV cache updates
-/// will be discarded (as if there was no inference).
-///
+/// Predict the next token(s) given a prompt.
 pub async fn gpt_infer(
     session_id: &str,
     prompt: Option<&str>,
     n_eval: u32,
-    options: Option<simularity_core::gpt::InferOptions>,
+    options: Option<simularity_core::gpt::infer::Options>,
     decode_callback_event_name: Option<&str>,
     inference_callback_event_name: Option<&str>,
     window: tauri::Window,
@@ -113,13 +109,13 @@ pub async fn gpt_infer(
 
     if let Err(err) = inference_result {
         match err {
-            simularity_core::gpt::InferError::SessionNotFound => {
+            simularity_core::gpt::infer::Error::SessionNotFound => {
                 return Err(tauri::InvokeError::from("Session not found"));
             }
-            simularity_core::gpt::InferError::ContextOverflow => {
+            simularity_core::gpt::infer::Error::ContextOverflow => {
                 return Err(tauri::InvokeError::from("Context overflow"));
             }
-            simularity_core::gpt::InferError::Unknown(code) => {
+            simularity_core::gpt::infer::Error::Unknown(code) => {
                 return Err(tauri::InvokeError::from(format!(
                     "Unknown error code {}",
                     code

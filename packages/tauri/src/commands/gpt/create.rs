@@ -122,19 +122,19 @@ pub async fn gpt_create(
 
     if let Err(err) = create_result {
         match err {
-            simularity_core::gpt::CreateError::ModelNotFound => {
+            simularity_core::gpt::create::Error::ModelNotFound => {
                 return Err(tauri::InvokeError::from("Model not found"));
             }
-            simularity_core::gpt::CreateError::SessionLimitReached => {
+            simularity_core::gpt::create::Error::SessionLimitReached => {
                 return Err(tauri::InvokeError::from("Session limit reached"));
             }
-            simularity_core::gpt::CreateError::ContextCreationFailed => {
+            simularity_core::gpt::create::Error::ContextCreationFailed => {
                 return Err(tauri::InvokeError::from("Context creation failed"));
             }
-            simularity_core::gpt::CreateError::DecodeFailed => {
+            simularity_core::gpt::create::Error::DecodeFailed => {
                 return Err(tauri::InvokeError::from("Decode failed"));
             }
-            simularity_core::gpt::CreateError::Unknown(code) => {
+            simularity_core::gpt::create::Error::Unknown(code) => {
                 return Err(tauri::InvokeError::from(format!(
                     "Unknown error code {}",
                     code

@@ -118,6 +118,9 @@ export function buildStaticPrompt(scenario: Scenario): string {
 
 /**
  * A dynamic prompt is generated based on the history of the simulation.
+ *
+ * @param history The history of the simulation,
+ * from the oldest to the newest update.
  */
 // TODO: Add events in time, such as stage updates, summaries, etc.
 export function buildDynamicPrompt(
@@ -144,7 +147,17 @@ export function buildDynamicPrompt(
     }
   });
 
-  return formatMessages(messages);
+  return `${formatMessages(messages)}\n\n${RESPONSE_PREFIX}`;
+}
+
+/**
+ * A literal sum of {@link buildStaticPrompt} and {@link buildDynamicPrompt}.
+ */
+export function buildFullPrompt(
+  scenario: Scenario,
+  history: (AssistantUpdate | EpisodeUpdate | UserUpdate)[],
+): string {
+  return buildStaticPrompt(scenario) + buildDynamicPrompt(history);
 }
 
 /**

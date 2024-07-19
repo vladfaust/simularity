@@ -37,10 +37,11 @@ export class Simulation {
   private readonly _deferredWriter = new Deferred<Gpt>();
   private readonly _writer = ref<Gpt | undefined>();
   private readonly _headWriterUpdateId = ref<string | null>(null);
+  /**
+   * Simulation updates, ordered from newest to the oldest.
+   */
   private readonly _updates = ref<Raw<Update>[]>([]);
   private _previousState = ref<StateDto | null>(null);
-  private _tempUserInput = ref("");
-  private _tempAssistantText = ref("");
   private _busy = ref(false);
   private _currentUpdateIndex = ref(0);
   //#endregion
@@ -124,51 +125,10 @@ export class Simulation {
   );
 
   /**
-   * A proxy to the writer's committed prompt composed of
-   * the static and committed dynamic parts.
+   * The committed writer prompt.
    */
-  readonly committedWriterPrompt = computed<string | undefined>(() => {
-    if (!this._writer.value) return;
-
-    return (
-      (this._writer.value.staticPrompt ?? "") +
-      this._writer.value.dynamicPromptCommitted.value
-    );
-  });
-
-  /**
-   * A proxy to the writer's uncommitted dynamic prompt.
-   */
-  readonly uncommittedWriterPrompt = computed<string | undefined>(() => {
-    return this._writer.value?.dynamicPromptUncommitted.value;
-  });
-
-  /**
-   * The temporary user input, if any.
-   */
-  readonly tempUserInput = readonly(this._tempUserInput);
-
-  /**
-   * The temporary assistant text, if any.
-   */
-  readonly tempAssistantText = readonly(this._tempAssistantText);
-
-  /**
-   * The dynamically computed temporary writer prompt,
-   * consisting of the uncommitted user input and assistant text.
-   */
-  readonly tempWriterPrompt = computed(() => {
-    let value = "";
-
-    if (this.tempUserInput.value) {
-      value += "\n" + writer.USER_PREFIX + this.tempUserInput.value;
-    }
-
-    if (this.tempAssistantText.value) {
-      value += "\n" + writer.AI_PREFIX + this.tempAssistantText.value;
-    }
-
-    return value;
+  readonly writerPrompt = computed(() => {
+    return this.writer.value?.prompt.value;
   });
 
   /**
@@ -249,7 +209,7 @@ export class Simulation {
 
     this._busy.value = true;
     try {
-      await this._commitUncommitted();
+      await this._checkAndCommitState();
 
       const { episodeId, text, chunkIndex, commands, characterId } =
         await this.state.advanceCurrentEpisode();
@@ -333,7 +293,7 @@ export class Simulation {
 
     this._busy.value = true;
     try {
-      await this._commitUncommitted();
+      await this._checkAndCommitState();
 
       // If the latest update is an episode update, use its ID as the parent ID.
       // Otherwise, use the latest assistant update's chosen variant ID.
@@ -363,19 +323,19 @@ export class Simulation {
       this._updates.value.unshift(assistantUpdate);
       this.skipToEnd();
 
-      this._tempUserInput.value = userMessage;
-      const prompt =
-        this.tempWriterPrompt.value + "\n\n" + writer.RESPONSE_PREFIX;
+      const prompt = writer.buildFullPrompt(
+        this.scenario,
+        this._updates.value.slice(1).reverse(), // Skip the assistant update.
+      );
 
-      this._tempAssistantText.value =
-        await this._inferAssistantUpdateVariantImpl(
-          assistantUpdate,
-          prompt,
-          nEval,
-          inferenceOptions,
-          onDecodeProgress,
-          inferenceAbortSignal,
-        );
+      await this._inferAssistantUpdateVariantImpl(
+        assistantUpdate,
+        prompt,
+        nEval,
+        inferenceOptions,
+        onDecodeProgress,
+        inferenceAbortSignal,
+      );
     } finally {
       this._busy.value = false;
     }
@@ -402,7 +362,6 @@ export class Simulation {
         .where(eq(d.writerUpdates.id, update.chosenVariant.id));
 
       update.chosenVariant.text = newText;
-      this._tempUserInput.value = newText;
     } finally {
       this._busy.value = false;
     }
@@ -427,7 +386,7 @@ export class Simulation {
     }
 
     try {
-      await this._commitUncommitted();
+      await this._checkAndCommitState();
 
       const parentUpdateId = this.parentUpdateId.value;
 
@@ -435,19 +394,19 @@ export class Simulation {
       this._updates.value.unshift(assistantUpdate);
       this.skipToEnd();
 
-      // As the prompt has been just committed,
-      // all that is required is the prefix.
-      const prompt = "\n\n" + writer.RESPONSE_PREFIX;
+      const prompt = writer.buildFullPrompt(
+        this.scenario,
+        this._updates.value.slice(1).reverse(), // Skip this update.
+      );
 
-      this._tempAssistantText.value =
-        await this._inferAssistantUpdateVariantImpl(
-          assistantUpdate,
-          prompt,
-          nEval,
-          inferenceOptions,
-          onDecodeProgress,
-          inferenceAbortSignal,
-        );
+      await this._inferAssistantUpdateVariantImpl(
+        assistantUpdate,
+        prompt,
+        nEval,
+        inferenceOptions,
+        onDecodeProgress,
+        inferenceAbortSignal,
+      );
     } finally {
       this._busy.value = false;
     }
@@ -487,21 +446,19 @@ export class Simulation {
         this.skipToEnd();
       });
 
-      // As we're regenerating, the uncommitted assistant text is cleared.
-      this._tempAssistantText.value = "";
+      const prompt = writer.buildFullPrompt(
+        this.scenario,
+        this._updates.value.slice(1).reverse(), // Skip the current update.
+      );
 
-      const prompt =
-        this.tempWriterPrompt.value + "\n\n" + writer.RESPONSE_PREFIX;
-
-      this._tempAssistantText.value =
-        await this._inferAssistantUpdateVariantImpl(
-          update,
-          prompt,
-          nEval,
-          inferenceOptions,
-          onInferenceDecodingProgress,
-          inferenceAbortSignal,
-        );
+      await this._inferAssistantUpdateVariantImpl(
+        update,
+        prompt,
+        nEval,
+        inferenceOptions,
+        onInferenceDecodingProgress,
+        inferenceAbortSignal,
+      );
     } finally {
       this._busy.value = false;
     }
@@ -532,23 +489,21 @@ export class Simulation {
     const code = update.variants[variantIndex].directorUpdate?.code;
     const actualDelta = this.state.delta(this._previousState.value);
 
-    const setUncommitted = () => {
-      this._tempAssistantText.value = update.variants[variantIndex].text;
-    };
-
+    // If the state deltas differ between
+    // the previous and the chosen variant...
     if (
       comparesStateDeltas(this._previousState.value, actualDelta, code ?? [])
     ) {
+      // ...reset the state to the previous one,
+      // and then apply the chosen variant.
       fadeFn(async () => {
         this.state.setState(this._previousState.value);
         const code = update.variants[variantIndex].directorUpdate?.code;
         if (code) this.state.apply(code);
         this.skipToEnd();
-        setUncommitted();
       });
     } else {
       this.skipToEnd();
-      setUncommitted();
     }
   }
 
@@ -580,7 +535,6 @@ export class Simulation {
         .where(eq(d.writerUpdates.id, update.chosenVariant.id));
 
       update.chosenVariant.text = newText;
-      this._tempAssistantText.value = newText;
     } finally {
       this._busy.value = false;
     }
@@ -811,8 +765,6 @@ export class Simulation {
         (index) => index >= 0,
         "Chosen variant not found in siblings",
       );
-    } else if (this.latestUpdate.value instanceof UserUpdate) {
-      this._tempUserInput.value = this.latestUpdate.value.chosenVariant.text;
     }
 
     this.skipToEnd();
@@ -824,123 +776,110 @@ export class Simulation {
   private async initWriter(
     progressCallback: (event: { progress: number }) => void,
   ) {
-    const latestUpdate = this._updates.value.at(0);
-    const previousUpdate = this._updates.value.at(1);
-
-    /**
-     * Committed updates, sorted from oldest to newest.
-     */
-    const committedUpdates: Update[] = this._updates.value.slice(2).reverse();
-
-    // If the latest update is an episode update,
-    // then it and the previous update are both committed.
-    if (latestUpdate instanceof EpisodeUpdate) {
-      if (previousUpdate) committedUpdates.push(previousUpdate);
-      committedUpdates.push(latestUpdate);
-    }
-
-    // If the latest update is a user update,
-    // then the previous update is committed, but not the latest.
-    else if (latestUpdate instanceof UserUpdate) {
-      if (previousUpdate) committedUpdates.push(previousUpdate);
-      this._tempUserInput.value = latestUpdate.chosenVariant.text;
-    }
-
-    // If the latest update is an assistant update,
-    // then it is not committed... Should also check the previous update.
-    else if (latestUpdate instanceof AssistantUpdate) {
-      if (previousUpdate instanceof UserUpdate) {
-        // Again, a user update is not committed.
-        this._tempUserInput.value = previousUpdate.chosenVariant.text;
-      } else if (previousUpdate) {
-        // Otherwise (assistant or episode update) it is committed.
-        committedUpdates.push(previousUpdate);
-      }
-
-      this._tempAssistantText.value = latestUpdate.chosenVariant.text;
-    }
-
     const staticPrompt = writer.buildStaticPrompt(this.scenario);
-    const dynamicPrompt = writer.buildDynamicPrompt(committedUpdates);
 
-    const findOrCreateGpt = async (
-      staticPrompt: string,
-      dynamicPrompt: string,
-    ) => {
-      let driver: GptDriver;
-      const driverType = (await settings.getGptDriver()) || "remote";
-      switch (driverType) {
-        case "remote": {
-          const baseUrl =
-            (await settings.getGptRemoteBaseUrl()) ||
-            import.meta.env.VITE_DEFAULT_REMOTE_INFERENCE_SERVER_BASE_URL;
-          const model =
-            (await settings.getGptRemoteModel()) ||
-            import.meta.env.VITE_DEFAULT_REMOTE_GPT_INFERENCE_MODEL;
+    // Reverse the updates to go from the oldest to the newest.
+    this._updates.value.reverse();
+    const dynamicPrompt = writer.buildDynamicPrompt(this._updates.value);
+    this._updates.value.reverse();
 
-          driver = {
-            type: "remote",
-            baseUrl,
-            model,
-          };
+    const fullPrompt = staticPrompt + dynamicPrompt;
 
-          break;
-        }
+    const { gpt, needDecode } = await this._findOrCreateGpt(
+      staticPrompt,
+      dynamicPrompt,
+      fullPrompt,
+      progressCallback,
+    );
 
-        case "local": {
-          const modelPath = await settings.getGptLocalModelPath();
-          if (!modelPath) throw new Error("Local model path not set");
+    const writer_ = markRaw(gpt);
 
-          const contextSize = await settings.getGptLocalContextSize();
-          // if (!contextSize) throw new Error("Local context size not set");
+    if (needDecode) {
+      writer_.decode(fullPrompt, progressCallback).then(async () => {
+        latestGptSession.value = {
+          ...latestGptSession.value!,
+          dynamicPromptHash: bufferToHex(
+            await digest(dynamicPrompt, "SHA-256"),
+          ),
+        };
 
-          driver = {
-            type: "local",
-            modelPath,
-            contextSize: contextSize ?? 0,
-          };
+        console.info(
+          "Updated latest GPT session dynamic prompt hash",
+          latestGptSession.value!.dynamicPromptHash,
+        );
+      });
+    }
 
-          break;
-        }
+    this._deferredWriter.resolve(writer_);
+    this._writer.value = writer_;
+  }
 
-        default:
-          throw unreachable(driverType);
+  private async _findOrCreateGpt(
+    staticPrompt: string,
+    dynamicPrompt: string,
+    fullPrompt: string,
+    progressCallback: (event: { progress: number }) => void,
+  ) {
+    let driver: GptDriver;
+    const driverType = (await settings.getGptDriver()) || "remote";
+    switch (driverType) {
+      case "remote": {
+        const baseUrl =
+          (await settings.getGptRemoteBaseUrl()) ||
+          import.meta.env.VITE_DEFAULT_REMOTE_INFERENCE_SERVER_BASE_URL;
+        const model =
+          (await settings.getGptRemoteModel()) ||
+          import.meta.env.VITE_DEFAULT_REMOTE_GPT_INFERENCE_MODEL;
+
+        driver = {
+          type: "remote",
+          baseUrl,
+          model,
+        };
+
+        break;
       }
 
-      let gpt: Gpt | null = null;
-      let restored = false;
-      let needDecode = true;
-      const staticPromptHash = bufferToHex(
-        await digest(staticPrompt, "SHA-256"),
+      case "local": {
+        const modelPath = await settings.getGptLocalModelPath();
+        if (!modelPath) throw new Error("Local model path not set");
+
+        const contextSize = await settings.getGptLocalContextSize();
+        // if (!contextSize) throw new Error("Local context size not set");
+
+        driver = {
+          type: "local",
+          modelPath,
+          contextSize: contextSize ?? 0,
+        };
+
+        break;
+      }
+
+      default:
+        throw unreachable(driverType);
+    }
+
+    let gpt: Gpt | null = null;
+    let restored = false;
+    let needDecode = true;
+
+    const staticPromptHash = bufferToHex(await digest(staticPrompt, "SHA-256"));
+
+    if (latestGptSession.value) {
+      const areDriversEqual = driversEqual(
+        latestGptSession.value.driver,
+        driver,
       );
 
-      if (latestGptSession.value) {
-        const areDriversEqual = driversEqual(
-          latestGptSession.value.driver,
-          driver,
-        );
+      if (areDriversEqual) {
+        gpt = await Gpt.find(driver, latestGptSession.value.id, fullPrompt);
+        restored = !!gpt;
 
-        const isStaticPromptEqual =
-          latestGptSession.value.staticPromptHash === staticPromptHash;
+        if (gpt) {
+          console.log("Found GPT session", driver, gpt.id);
 
-        if (areDriversEqual && isStaticPromptEqual) {
-          console.debug(
-            "Will try restoring GPT session",
-            driver,
-            latestGptSession.value.id,
-          );
-
-          gpt = await Gpt.find(
-            driver,
-            latestGptSession.value.id,
-            staticPrompt,
-            dynamicPrompt,
-          );
-          restored = !!gpt;
-
-          if (gpt) {
-            console.log("Restored GPT session", driver, gpt.id);
-
+          if (latestGptSession.value.staticPromptHash === staticPromptHash) {
             const dynamicPromptHash = bufferToHex(
               await digest(dynamicPrompt, "SHA-256"),
             );
@@ -948,70 +887,61 @@ export class Simulation {
             if (
               latestGptSession.value.dynamicPromptHash === dynamicPromptHash
             ) {
-              console.debug(
-                "GPT session dynamic prompt match",
-                dynamicPromptHash,
-              );
-
+              console.info("GPT session full prompt match", dynamicPromptHash);
               needDecode = false;
             } else {
               console.info(
-                "GPT session dynamic prompt mismatch, will reset",
+                "GPT session dynamic prompt mismatch, need decode",
                 latestGptSession.value.dynamicPromptHash,
                 dynamicPromptHash,
               );
-
-              gpt.reset();
             }
-          }
-        } else {
-          if (!areDriversEqual) {
-            console.warn(
-              "GPT driver mismatch",
-              latestGptSession.value.driver,
-              driver,
-            );
           } else {
-            console.warn(
-              "GPT static prompt mismatch",
+            console.info(
+              "GPT static prompt mismatch, will destroy the session",
               latestGptSession.value.staticPromptHash,
               staticPromptHash,
             );
+
+            gpt.destroy();
+            gpt = null;
+            restored = false;
+            latestGptSession.value = null;
           }
-
-          latestGptSession.value = null;
         }
-      }
-
-      if (!gpt) {
-        console.debug("Creating new GPT session", driver);
-        gpt = await Gpt.create(
+      } else {
+        console.warn(
+          "GPT driver mismatch",
+          latestGptSession.value.driver,
           driver,
-          staticPrompt,
-          progressCallback,
-          true,
-          (gpt) => {
-            console.log("Initialized new GPT session", gpt.id.value);
-          },
         );
+
+        latestGptSession.value = null;
       }
-
-      return { gpt, restored, needDecode };
-    };
-
-    const { gpt, needDecode } = await findOrCreateGpt(
-      staticPrompt,
-      dynamicPrompt,
-    );
-
-    const writer_ = markRaw(gpt);
-
-    if (needDecode && dynamicPrompt) {
-      writer_.decode(dynamicPrompt, progressCallback);
     }
 
-    this._deferredWriter.resolve(writer_);
-    this._writer.value = writer_;
+    if (!gpt) {
+      console.debug("Creating new GPT session", driver);
+
+      gpt = await Gpt.create(
+        driver,
+        staticPrompt,
+        progressCallback,
+        true,
+        async (gpt) => {
+          console.log("Initialized new GPT session", gpt.id.value);
+
+          latestGptSession.value = {
+            id: gpt.id.value!,
+            driver,
+            staticPromptHash,
+            dynamicPromptHash: undefined,
+          };
+        },
+      );
+    }
+
+    return { gpt, restored, needDecode };
   }
 
   /**
@@ -1073,26 +1003,11 @@ export class Simulation {
   }
 
   /**
-   * Commit the uncommitted data (after inference).
+   * Check the current state, and save it as a new director update if
+   * it differs from the latest director update (e.g. the user has changed it
+   * from the sandbox console).
    */
-  private async _commitUncommitted() {
-    const promises = [];
-
-    // Decode the temprorary writer prompt. We're using `decode`
-    // instead of `commit`, because the uncommitted prompt
-    // contains instructions unusable for the history.
-    promises.push(
-      this._deferredWriter.promise.then(async (writer) => {
-        if (this.tempWriterPrompt.value) {
-          await writer.decode(this.tempWriterPrompt.value);
-          console.debug(`Committed to writer`, this.tempWriterPrompt.value);
-        }
-
-        this._tempUserInput.value = "";
-        this._tempAssistantText.value = "";
-      }),
-    );
-
+  private async _checkAndCommitState() {
     // Check if the actual stage delta differs from the latest director update
     // (a player may change the state from the sandbox console for example).
     // If if differs, save the actual delta as a new director update.
@@ -1123,22 +1038,19 @@ export class Simulation {
           actualDelta,
         );
 
-        promises.push(
-          d.db
-            .insert(d.directorUpdates)
-            .values({
-              writerUpdateId: update.chosenVariant.id,
-              code: actualDelta,
-            })
-            .returning()
-            .then((directorUpdates) => {
-              update.chosenVariant.directorUpdate = directorUpdates[0];
-            }),
-        );
+        await d.db
+          .insert(d.directorUpdates)
+          .values({
+            writerUpdateId: update.chosenVariant.id,
+            code: actualDelta,
+          })
+          .returning()
+          .then((directorUpdates) => {
+            update.chosenVariant.directorUpdate = directorUpdates[0];
+          });
       }
     }
 
-    await Promise.all(promises);
     this._saveState();
   }
 

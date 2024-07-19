@@ -4,7 +4,6 @@ import {
   GptInitJob,
   GptDecodeJob,
   GptInferJob,
-  GptCommitJob,
 } from "@/lib/simularity/gpt";
 import { computed } from "vue";
 
@@ -53,8 +52,6 @@ const statusText = computed<string | undefined>(() => {
     } else {
       return "Inferring...";
     }
-  } else if (currentJob instanceof GptCommitJob) {
-    return `Committing...`;
   } else {
     return "Ready";
   }

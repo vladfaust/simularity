@@ -1,20 +1,11 @@
-mod commit;
-pub use commit::{commit, Error as CommitError};
+pub mod create;
+pub use create::create;
 
-mod create;
-pub use create::{create, Error as CreateError};
+pub mod decode;
+pub use decode::decode;
 
-mod decode;
-pub use decode::{decode, Error as DecodeError};
+pub mod destroy;
+pub use destroy::destroy;
 
-mod destroy;
-pub use destroy::{destroy, Error as DestroyError};
-
-mod infer;
-pub use infer::{
-    infer, Dynatemp, Error as InferError, Mirostat, MirostatVersion, Options as InferOptions,
-    Penalty,
-};
-
-mod reset;
-pub use reset::{reset, Error as ResetError};
+pub mod infer;
+pub use infer::infer;

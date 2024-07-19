@@ -1,14 +1,11 @@
 import {
   Deferred,
-  bufferToHex,
-  digest,
   sleep,
   timeoutSignal,
   trimEndAny,
   unreachable,
 } from "@/lib/utils";
 import { v } from "@/lib/valibot";
-import { latestGptSession } from "@/store";
 import { toMilliseconds } from "duration-fns";
 import { Ref, computed, markRaw, readonly, ref } from "vue";
 import { InferenceOptionsSchema } from "./common";
@@ -207,54 +204,7 @@ export class GptInferJob extends Job<string> {
   }
 }
 
-export class GptCommitJob extends Job<number> {
-  constructor(gpt: Gpt) {
-    super(async (): Promise<number> => {
-      if (!gpt.isInitialized.value) {
-        throw new Error("GPT is not initialized.");
-      }
-
-      switch (gpt.driver.type) {
-        case "local":
-          return local.gpt.commit(gpt.id.value!);
-        case "remote":
-          return (await remote.gpt.commit(gpt.driver.baseUrl, gpt.id.value!))
-            .kvCacheSize;
-        default:
-          throw unreachable(gpt.driver);
-      }
-    });
-  }
-}
-
-export class GptResetJob extends Job<void> {
-  constructor(gpt: Gpt) {
-    super(async (): Promise<void> => {
-      if (!gpt.isInitialized.value) {
-        throw new Error("GPT is not initialized.");
-      }
-
-      switch (gpt.driver.type) {
-        case "local":
-          await local.gpt.reset(gpt.id.value!);
-          return;
-        case "remote":
-          await remote.gpt.reset(gpt.driver.baseUrl, gpt.id.value!);
-
-          return;
-        default:
-          throw unreachable(gpt.driver);
-      }
-    });
-  }
-}
-
-type GptJob =
-  | GptInitJob
-  | GptDecodeJob
-  | GptInferJob
-  | GptCommitJob
-  | GptResetJob;
+type GptJob = GptInitJob | GptDecodeJob | GptInferJob;
 
 /**
  * A GPT instance, routing requests to the appropriate backend (local or remote).
@@ -262,16 +212,13 @@ type GptJob =
  */
 export class Gpt {
   /**
-   * Find an existing GPT instance.
-   *
-   * @param staticPrompt If GPT is found, would set its static prompt.
-   * @param dynamicPrompt If GPT is found, would set its dynamic prompt.
+   * Find an existing GPT instance by ID.
+   * @param prompt Set the found GPT's prompt value.
    */
   static async find(
     driver: GptDriver,
     id: string,
-    staticPrompt: string | undefined,
-    dynamicPrompt: string | undefined,
+    prompt: string | undefined,
   ): Promise<Gpt | null> {
     let found = false;
 
@@ -286,13 +233,14 @@ export class Gpt {
         throw unreachable(driver);
     }
 
-    return found ? new Gpt(driver, id, staticPrompt, dynamicPrompt) : null;
+    return found ? new Gpt(driver, id, prompt) : null;
   }
 
   /**
-   * Create a new GPT instance.
+   * Create a new GPT instance. Returns immediately
+   * after the session is created, initializing in background.
    *
-   * @param staticPrompt If set, would try to preload the session,
+   * @param initialPrompt If set, would try to preload the session,
    * or decode from scratch.
    *
    * @param dumpSession If set, would dump the session to disk.
@@ -300,12 +248,12 @@ export class Gpt {
    */
   static async create(
     driver: GptDriver,
-    staticPrompt: string | undefined,
+    initialPrompt: string | undefined,
     initProgressCallback: (event: { progress: number }) => void | undefined,
     dumpSession: boolean | undefined,
     onInitCallback?: (gpt: Gpt) => void,
   ): Promise<Gpt> {
-    const gpt = new Gpt(driver, undefined, staticPrompt);
+    const gpt = new Gpt(driver, undefined, initialPrompt);
 
     gpt
       .initialize(dumpSession, initProgressCallback)
@@ -329,18 +277,16 @@ export class Gpt {
   private readonly _wouldDestroy = ref(false);
   readonly wouldDestroy = readonly(this._wouldDestroy);
 
-  readonly staticPrompt: string | undefined;
-
-  private readonly _dynamicPromptCommitted = ref("");
-  readonly dynamicPromptCommitted = readonly(this._dynamicPromptCommitted);
-
-  private readonly _dynamicPromptUncommitted = ref("");
-  readonly dynamicPromptUncommitted = readonly(this._dynamicPromptUncommitted);
+  private readonly _prompt = ref("");
 
   /**
-   * Decode the prompt, updating the KV cache.
-   * Clears the uncommitted prompt.
-   * @param prompt After decoding, is added to {@link dynamicPromptCommitted}.
+   * The committed (i.e. KV-cached) prompt, synchronized with the GPT instance.
+   */
+  readonly prompt = readonly(this._prompt);
+
+  /**
+   * Decode the prompt, updating the session KV cache.
+   * @param prompt *Whole* prompt to decode.
    */
   // TODO: Return the new KV cache size.
   async decode(
@@ -357,14 +303,14 @@ export class Gpt {
         ),
       ),
     );
-    this._dynamicPromptCommitted.value += prompt;
-    this._dynamicPromptUncommitted.value = "";
-    await this.saveSessionToLocalStorage();
+
+    this._prompt.value = prompt;
   }
 
   /**
-   * Infer text from the prompt.
-   * @param prompt If null, would infer from the current context.
+   * Predict the next token(s) given a prompt.
+   *
+   * @param prompt *Whole* prompt to infer from.
    * @param nEval Number of evaluations to perform.
    * @param inferenceAbortSignal Signal to abort the inference.
    * @param fetchAbortSignal Signal to abort the fetch.
@@ -393,14 +339,13 @@ export class Gpt {
           decodeCallback,
           (event) => {
             if (!decodeComplete) {
-              // Reset the uncommitted prompt.
-              this._dynamicPromptUncommitted.value = prompt || "";
+              // Reset the committed prompt.
+              this._prompt.value = prompt || "";
               decodeComplete = true;
             }
 
-            // [^1]: Would've appended to the uncommitted prompt here,
-            // but the result has to be trimmed by the stop sequences.
-            //
+            // Append the result to the committed prompt.
+            this._prompt.value += event.content;
 
             inferenceCallback_?.(event);
           },
@@ -410,38 +355,12 @@ export class Gpt {
       ),
     );
 
-    // Trim the result by the stop sequences (they're returned by the inference,
-    // but not saved to the uncommitted prompt on GPT side).
+    // Trim the result by the stop sequences, if any.
     if (options.stopSequences) {
       result = trimEndAny(result, options.stopSequences);
     }
 
-    // [^1]: Append the trimmed result to the uncommitted prompt.
-    this._dynamicPromptUncommitted.value += result;
-
     return result;
-  }
-
-  /**
-   * Commit the latest inference result to the GPT's KV cache.
-   */
-  // TODO: Return the new KV cache size.
-  async commit(): Promise<number> {
-    const result = await this.pushJob(markRaw(new GptCommitJob(this)));
-    this._dynamicPromptCommitted.value += this._dynamicPromptUncommitted.value;
-    this._dynamicPromptUncommitted.value = "";
-    await this.saveSessionToLocalStorage();
-    return result;
-  }
-
-  /**
-   * Reset the GPT's KV cache to the static prompt.
-   */
-  async reset(): Promise<void> {
-    await this.pushJob(markRaw(new GptResetJob(this)));
-    this._dynamicPromptCommitted.value = "";
-    this._dynamicPromptUncommitted.value = "";
-    await this.saveSessionToLocalStorage();
   }
 
   /**
@@ -482,13 +401,11 @@ export class Gpt {
   private constructor(
     driver: GptDriver,
     id: string | undefined,
-    staticPrompt?: string,
-    dynamicPrompt?: string,
+    prompt: string | undefined,
   ) {
     this._id.value = id;
     this.driver = driver;
-    this.staticPrompt = staticPrompt;
-    this._dynamicPromptCommitted.value = dynamicPrompt ?? "";
+    this._prompt.value = prompt ?? "";
   }
 
   private async initialize(
@@ -502,7 +419,7 @@ export class Gpt {
       markRaw(
         new GptInitJob(
           this,
-          this.staticPrompt,
+          this.prompt.value,
           progressCallback,
           dumpSession,
           abortSignal,
@@ -546,27 +463,6 @@ export class Gpt {
     } else {
       console.debug(this.id, "No jobs to do.");
     }
-  }
-
-  private async saveSessionToLocalStorage() {
-    if (!this.id.value) {
-      throw new Error("GPT instance not initialized");
-    }
-
-    const staticPromptHash = this.staticPrompt
-      ? bufferToHex(await digest(this.staticPrompt, "SHA-256"))
-      : undefined;
-
-    const dynamicPromptHash = this.dynamicPromptCommitted.value
-      ? bufferToHex(await digest(this.dynamicPromptCommitted.value, "SHA-256"))
-      : undefined;
-
-    latestGptSession.value = {
-      driver: this.driver,
-      id: this.id.value!,
-      staticPromptHash,
-      dynamicPromptHash,
-    };
   }
 }
 

@@ -19,7 +19,7 @@ const DECODING_EVENT_NAME = "app://gpt/decoding";
 const ABORT_INFERENCE_EVENT_NAME = "app://gpt/abort-inference";
 
 /**
- * Predict text. Does not update the KV cache.
+ * Predict the next token(s) given a prompt.
  */
 export async function infer(
   sessionId: string,

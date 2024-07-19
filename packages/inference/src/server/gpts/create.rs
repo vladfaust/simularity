@@ -5,7 +5,7 @@ use axum::{
 };
 use axum_streams::StreamBodyAsOptions;
 use sha2::{Digest, Sha256};
-use simularity_core::gpt::CreateError;
+use simularity_core::gpt::create::Error as CreateError;
 use std::sync::{atomic::AtomicBool, Arc};
 use tokio::sync::mpsc::channel;
 
@@ -140,7 +140,9 @@ pub async fn handler(State(state): State<Arc<AppState>>, req: Json<RequestBody>)
                         CreateError::SessionLimitReached => "Session limit reached".to_string(),
                         CreateError::ContextCreationFailed => "Context creation failed".to_string(),
                         CreateError::DecodeFailed => "Decode failed".to_string(),
-                        CreateError::Unknown(code) => panic!("Unknown error code: {}", code),
+                        CreateError::Unknown(code) => {
+                            panic!("Unknown error code: {}", code)
+                        }
                     },
                 }))
                 .unwrap();

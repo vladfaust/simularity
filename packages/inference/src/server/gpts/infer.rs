@@ -5,7 +5,7 @@ use axum::{
 };
 use axum_streams::StreamBodyAsOptions;
 use log::warn;
-use simularity_core::gpt::InferOptions;
+use simularity_core::gpt::infer::{Error as InferError, Options as InferOptions};
 use std::{
     sync::{atomic::AtomicU16, Arc},
     time::Instant,
@@ -130,13 +130,9 @@ pub async fn handler(
         if let Err(err) = num_decoded {
             let chunk = Chunk::Error(ErrorChunk {
                 error: match err {
-                    simularity_core::gpt::InferError::SessionNotFound => {
-                        "Session not found".to_string()
-                    }
-                    simularity_core::gpt::InferError::ContextOverflow => {
-                        "Context overflow".to_string()
-                    }
-                    simularity_core::gpt::InferError::Unknown(code) => {
+                    InferError::SessionNotFound => "Session not found".to_string(),
+                    InferError::ContextOverflow => "Context overflow".to_string(),
+                    InferError::Unknown(code) => {
                         panic!("Unknown error code: {}", code)
                     }
                 },

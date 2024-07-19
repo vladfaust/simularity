@@ -34,19 +34,3 @@ export async function find(sessionId: string) {
 export async function destroy(sessionId: string): Promise<void> {
   return await invoke("gpt_destroy", { sessionId });
 }
-
-/**
- * Commit the latest inference result to the KV cache.
- * Returns the number of tokens committed.
- */
-// TODO: Return the new KV cache size.
-export async function commit(sessionId: string): Promise<number> {
-  return await invoke("gpt_commit", { sessionId });
-}
-
-/**
- * Reset the GPT session to its initial state (i.e. static prompt).
- */
-export async function reset(sessionId: string): Promise<void> {
-  return await invoke("gpt_reset", { sessionId });
-}

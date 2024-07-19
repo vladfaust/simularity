@@ -4,7 +4,7 @@ use axum::{
     Json,
 };
 use axum_streams::StreamBodyAsOptions;
-use simularity_core::gpt::DecodeError;
+use simularity_core::gpt::decode::Error as DecodeError;
 use tokio::sync::mpsc::channel;
 
 #[derive(serde::Deserialize)]

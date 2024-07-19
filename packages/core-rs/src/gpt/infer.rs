@@ -67,7 +67,10 @@ pub enum Error {
 /// # Arguments
 ///
 /// * `session_id` - GPT session ID.
-/// * `prompt` - Prompt to infer. May be `None`.
+/// * `prompt` - The *whole* prompt to inference from.
+///   The function will take care of reusing and/or updating the KV cache.
+///   The more the prompt mismatches existing KV cache,
+///   the longer it takes to decode.
 /// * `n_eval` - Number of tokens to decode.
 /// * `options` - Inference options.
 /// * `decode_progress_callback` - Decode progress callback.

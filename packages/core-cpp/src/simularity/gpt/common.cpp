@@ -25,10 +25,10 @@ public:
   struct llama_context *context;
   std::mutex mutex;
 
-  size_t initial_prompt_size                  = 0;
-  std::vector<llama_token> committed_prompt   = {};
-  std::vector<llama_token> uncommitted_prompt = {};
+  /// The committed (i.e. KV-cached) prompt tokens.
+  std::vector<llama_token> prompt = {};
 
+  /// When the session expires.
   std::chrono::time_point<std::chrono::system_clock> expired_at;
 
   // Decode progress callback (used internally to connect llama's
@@ -44,39 +44,29 @@ public:
     }
   }
 
-  // Remove the uncommitted prompt tokens from the KV cache, if any.
-  void clear_uncommitted_kv_cache() {
-    llama_kv_cache_seq_rm(this->context, 0, this->committed_prompt.size(), -1);
+  // Clear KV cache. Does not affect the `prompt`.
+  bool clear_cache(int p0 = -1, int p1 = -1) {
+    return llama_kv_cache_seq_rm(this->context, 0, p0, p1);
   }
 
   const llama_model *model() { return llama_get_model(this->context); }
 };
 
-/// A `llama_batch` wrapper with a destructor.
+/// A single-sequence `llama_batch` wrapper with a destructor.
 class Batch {
 public:
   struct llama_batch batch;
 
-  Batch(int n_tokens, int embd, int n_seq_max) :
-      batch(llama_batch_init(n_tokens, embd, n_seq_max)) {}
+  Batch(int n_tokens) : batch(llama_batch_init(n_tokens, 0, 1)) {}
 
   /// Add a token to the batch.
   /// @returns The new number of tokens in the batch.
-  int add(
-      llama_token id,
-      llama_pos pos,
-      const std::vector<llama_seq_id> &seq_ids,
-      bool logits
-  ) {
-    batch.token[batch.n_tokens]    = id;
-    batch.pos[batch.n_tokens]      = pos;
-    batch.n_seq_id[batch.n_tokens] = seq_ids.size();
-
-    for (size_t i = 0; i < seq_ids.size(); ++i) {
-      batch.seq_id[batch.n_tokens][i] = seq_ids[i];
-    }
-
-    batch.logits[batch.n_tokens] = logits;
+  int add(llama_token id, llama_pos pos, bool logits) {
+    batch.token[batch.n_tokens]     = id;
+    batch.pos[batch.n_tokens]       = pos;
+    batch.n_seq_id[batch.n_tokens]  = 1;
+    batch.seq_id[batch.n_tokens][0] = 0;
+    batch.logits[batch.n_tokens]    = logits;
     return ++batch.n_tokens;
   }
 
@@ -113,6 +103,7 @@ try_locking_session(unsigned session_id) {
 
   @param session The session.
   @param batch The batch to decode.
+  @param n_tokens The number of tokens expected to be decoded.
   @param progress_callback The progress callback.
 
   @return The result of the `llama_decode` call.
@@ -120,14 +111,16 @@ try_locking_session(unsigned session_id) {
 static int decode_with_progress(
     Session *session,
     llama_batch &batch,
-    unsigned max_calls,
+    unsigned n_tokens,
     void(progress_callback)(float, void *),
     void *progress_callback_user_data
 ) {
-  spdlog::info("Decoding batch of size {}", batch.n_tokens);
+  spdlog::info(
+      "Decoding {} tokens in a batch of size {}", n_tokens, batch.n_tokens
+  );
 
   unsigned current_call = 0;
-  if (!max_calls) max_calls = 1; // Avoid division by zero.
+  unsigned max_calls = n_tokens * 2 | 1; // Two calls per token (Key + Value).
 
   // Set the session's decode progress callback.
   if (progress_callback != NULL) {
@@ -148,12 +141,12 @@ static int decode_with_progress(
   int result = llama_decode(session->context, batch);
   auto end   = std::chrono::high_resolution_clock::now();
   spdlog::info(
-      "Decoded batch of size {} in {:.3f}s ({:.2f} tok/s) -> {}",
-      batch.n_tokens,
+      "Decoded {} tokens in {:.3f}s ({:.2f} tok/s) -> {}",
+      n_tokens,
       (float)std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
               .count() /
           1000,
-      (float)batch.n_tokens /
+      (float)n_tokens /
           std::chrono::duration_cast<std::chrono::seconds>(end - start).count(),
       result
   );

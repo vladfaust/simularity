@@ -173,8 +173,7 @@ int simularity_gpt_create(
             progress_callback(1, progress_callback_user_data);
           }
 
-          session->initial_prompt_size = n_tokens;
-          session->committed_prompt    = tokens_list;
+          session->prompt = tokens_list;
         } else {
           // Not fatal, the file may be corrupted.
           spdlog::error(
@@ -189,23 +188,24 @@ int simularity_gpt_create(
 
       // Tokenize the initial prompt.
       auto tokens_list =
-          llama_tokenize(LLAMA_MODELS[model_id], initial_prompt, false, true);
-
-      session->initial_prompt_size = tokens_list.size();
+          llama_tokenize(LLAMA_MODELS[model_id], initial_prompt, false, false);
 
       // Decode the initial prompt.
-      auto context_size = simularity_gpt_decode_internal(
-          session.get(),
-          tokens_list,
-          progress_callback,
-          progress_callback_user_data
-      );
-      spdlog::info("Decoded initial prompt: {}", context_size);
-
-      if (context_size == -2) {
-        return -4; // Could not find a KV slot for the batch.
-      } else if (context_size < 0) {
-        return context_size; // Error decoding the prompt.
+      try {
+        simularity_gpt_decode_internal(
+            session.get(),
+            tokens_list,
+            tokens_list.size(),
+            progress_callback,
+            progress_callback_user_data
+        );
+        spdlog::info("Decoded initial prompt");
+      } catch (ContextOverflowError &e) {
+        spdlog::error("Context overflow");
+        return -4;
+      } catch (UnknownDecodeError &e) {
+        spdlog::error("Unknown decode error: {}", e.code);
+        return e.code;
       }
 
       if (state_file_path && !file_exists) {

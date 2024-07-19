@@ -62,13 +62,13 @@ pub async fn gpt_decode(
 
     if let Err(err) = decode_result {
         match err {
-            simularity_core::gpt::DecodeError::SessionNotFound => {
+            simularity_core::gpt::decode::Error::SessionNotFound => {
                 return Err(tauri::InvokeError::from("Session not found"));
             }
-            simularity_core::gpt::DecodeError::ContextOverflow => {
+            simularity_core::gpt::decode::Error::ContextOverflow => {
                 return Err(tauri::InvokeError::from("Context overflow"));
             }
-            simularity_core::gpt::DecodeError::Unknown(code) => {
+            simularity_core::gpt::decode::Error::Unknown(code) => {
                 return Err(tauri::InvokeError::from(format!(
                     "Unknown error code {}",
                     code

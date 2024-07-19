@@ -82,10 +82,14 @@ extern "C" {
     pub fn simularity_gpt_inference_options_default() -> SimularityGptInferenceOptions;
 
     // int simularity_gpt_infer(
-    //     unsigned session_id, const char *prompt, unsigned n_eval,
+    //     unsigned session_id,
+    //     const char *prompt,
+    //     unsigned n_eval,
     //     const struct simularity_gpt_inference_options options,
-    //     void(decode_progress_callback)(float),
-    //     bool(inference_callback)(const char *output)
+    //     void(decode_progress_callback)(float, void *),
+    //     void *decode_progress_callback_user_data,
+    //     bool(inference_callback)(const char *output, void *),
+    //     void *inference_callback_user_data
     // );
     pub fn simularity_gpt_infer(
         session_id: c_uint,
@@ -97,12 +101,6 @@ extern "C" {
         inference_callback: Option<extern "C" fn(*const c_char, *mut c_void) -> bool>,
         inference_callback_user_data: *mut c_void,
     ) -> c_int;
-
-    // int simularity_gpt_commit(unsigned session_id);
-    pub fn simularity_gpt_commit(session_id: c_uint) -> c_int;
-
-    // int simularity_gpt_reset(unsigned session_id);
-    pub fn simularity_gpt_reset(session_id: c_uint) -> c_int;
 
     // int simularity_gpt_destroy(unsigned session_id);
     pub fn simularity_gpt_destroy(session_id: c_uint) -> c_int;

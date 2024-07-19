@@ -15,9 +15,11 @@ pub enum Error {
 /// # Arguments
 ///
 /// * `session_id` - GPT session ID.
-/// * `prompt` - Prompt to decode.
-/// * `progress_callback` - Progress callback.
-///   Return `true` to continue, or `false` to cancel (not implemented yet).
+/// * `prompt` - The *full* prompt to decode. The function will take care of
+///   reusing and/or updating the KV cache. The more the prompt mismatches
+///   existing KV cache, the longer it takes to decode.
+/// * `progress_callback` - Return `true` to continue,
+///   or `false` to cancel (not implemented yet).
 ///
 /// # Returns
 /// New context length.

@@ -13,8 +13,6 @@ const clipboard = useClipboard();
 defineProps<{
   gpt: Gpt | undefined;
   content: string;
-  uncommittedContent: string;
-  tempContent: string;
 }>();
 
 const textWrap = ref(true);
@@ -34,10 +32,5 @@ const textWrap = ref(true);
   .flex.flex-col.overflow-x-scroll.px-3.py-2.text-white
     code.overflow-x-scroll.text-sm.leading-snug(
       :class="{ 'whitespace-pre': textWrap, 'whitespace-pre-line': !textWrap }"
-    )
-      | {{ content }}
-      span.bg-white.bg-opacity-50(v-if="uncommittedContent")
-        | {{ uncommittedContent }}
-      span.bg-green-500.bg-opacity-25(v-if="tempContent")
-        | {{ tempContent }}
+    ) {{ content }}
 </template>

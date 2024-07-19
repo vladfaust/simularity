@@ -216,6 +216,7 @@ async function regenerateAssistantUpdate(regeneratedUpdate: AssistantUpdate) {
   inferenceDecodingProgress.value = 0;
 
   try {
+    console.log("Regenerating assistant update");
     await simulation.createAssistantUpdateVariant(
       regeneratedUpdate,
       fadeCanvas,
@@ -265,6 +266,10 @@ function switchUpdatesFullscreen() {
         :can-edit-assistant-update="!simulation.canGoForward.value"
         :can-edit-user-update="true"
         :show-variant-navigation="!simulation.canGoForward.value"
+        @choose-assistant-variant="chooseAssistantVariant"
+        @regenerate-assistant-update="regenerateAssistantUpdate"
+        @on-user-update-edit="onUserUpdateEdit"
+        @on-assistant-update-edit="onAssistantUpdateEdit"
       )
 
       .flex.h-full.w-8.shrink-0.flex-col.justify-between.gap-1

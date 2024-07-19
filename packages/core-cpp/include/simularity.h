@@ -54,9 +54,9 @@ int simularity_model_unload(const char *model_id);
   @param context_size The context size, zero for default.
   @param initial_prompt The initial prompt, may be NULL.
   @param state_file_path The path to a file to load the session state from
-    or save it to. May be NULL. Ignored if initial prompt is NULL.
+    or save it to. May be NULL. Ignored if `initial_prompt` is NULL.
   @param progress_callback Callback function to report progress from 0 to 1.
-    Ignored if initial prompt is NULL.
+    Ignored if `initial_prompt` is NULL.
 
   @return The session ID on success.
   @return -1 if the model was not found.
@@ -80,11 +80,14 @@ int simularity_gpt_create(
 );
 
 /**
-  Clear the uncommitted prompt, and decode the given prompt.
+  Warm up the KV session cache by decoding given prompt.
 
   @param session_id The session ID.
-  @param prompt The prompt to decode.
-  @param progress_callback Callback function to report progress from 0 to 1.
+  @param prompt The *whole* prompt to decode. The function will take care of
+    reusing and/or updating the KV cache. The more the prompt mismatches
+    existing KV cache, the longer it takes to decode.
+  @param progress_callback Callback function to report decoding progress from 0
+    to 1.
 
   @returns New context length on success.
   @returns -1 when session not found.
@@ -101,58 +104,54 @@ int simularity_gpt_decode(
 );
 
 struct simularity_gpt_inference_options {
-  int n_prev           = 64; // number of previous tokens to remember
-  int n_probs          = 0;  // if greater than 0,
-                             // output the probabilities of top n_probs tokens.
-  int min_keep         = 0; // 0 = disabled, otherwise samplers should return at
-                            // least min_keep tokens
-  int top_k            = 40;       // <= 0 to use vocab size
-  float top_p          = 0.95f;    // 1.0 = disabled
-  float min_p          = 0.05f;    // 0.0 = disabled
-  float tfs_z          = 1.00f;    // 1.0 = disabled
-  float typical_p      = 1.00f;    // 1.0 = disabled
-  float temp           = 0.80f;    // <= 0.0 to sample greedily,
-                                   // 0.0 to not output probabilities
-  float dynatemp_range = 0.00f;    // 0.0 = disabled
-  float dynatemp_exponent = 1.00f; // controls how entropy maps to temperature
-                                   // in dynamic temperature sampler
-  int penalty_last_n      = 64;    // last n tokens to penalize
-                                   // (0 = disable penalty, -1 = context size)
-  float penalty_repeat    = 1.00f; // 1.0 = disabled
-  float penalty_freq      = 0.00f; // 0.0 = disabled
-  float penalty_present   = 0.00f; // 0.0 = disabled
-  int mirostat            = 0; // 0 = disabled, 1 = mirostat, 2 = mirostat 2.0
-  float mirostat_tau      = 5.00f; // target entropy
-  float mirostat_eta      = 0.10f; // learning rate
-  bool penalize_nl        = false; // consider newlines as a repeatable token
-  unsigned seed           = 0xFFFFFFFF; // the seed used to initialize
-                                        // llama_sampling_context
+  int n_prev;      // number of previous tokens to remember
+  int n_probs;     // if greater than 0, output the probabilities of top n_probs
+                   // tokens.
+  int min_keep;    // 0 = disabled, otherwise samplers should return at
+                   // least min_keep tokens
+  int top_k;       // <= 0 to use vocab size
+  float top_p;     // 1.0 = disabled
+  float min_p;     // 0.0 = disabled
+  float tfs_z;     // 1.0 = disabled
+  float typical_p; // 1.0 = disabled
+  float temp;      // <= 0.0 to sample greedily, 0.0 to not output probabilities
+  float dynatemp_range;    // 0.0 = disabled
+  float dynatemp_exponent; // controls how entropy maps to temperature in
+                           // dynamic temperature sampler
+  int penalty_last_n;    // last n tokens to penalize (0 = disable penalty, -1 =
+                         // context size)
+  float penalty_repeat;  // 1.0 = disabled
+  float penalty_freq;    // 0.0 = disabled
+  float penalty_present; // 0.0 = disabled
+  int mirostat;          // 0 = disabled, 1 = mirostat, 2 = mirostat 2.0
+  float mirostat_tau;    // target entropy
+  float mirostat_eta;    // learning rate
+  bool penalize_nl;      // consider newlines as a repeatable token
+  unsigned seed;         // the seed used to initialize llama_sampling_context
 
-  const char *grammar               = nullptr;
-  const unsigned stop_sequences_len = 0;
-  const char **stop_sequences       = nullptr;
+  const char *grammar;
+  const unsigned stop_sequences_len;
+  const char **stop_sequences;
 };
 
 /**
   Get the default inference options.
  */
-struct simularity_gpt_inference_options
-simularity_gpt_inference_options_default() {
-  return simularity_gpt_inference_options{};
-}
+simularity_gpt_inference_options simularity_gpt_inference_options_default();
 
 /**
-  Infer from the given prompt, or continue the inference from the last prompt.
-  Would clear the uncommitted prompt.
+  Inference from the given prompt.
 
   @param session_id The session ID.
-  @param prompt The prompt to infer from (may be NULL).
+  @param prompt The *whole* prompt to inference from. The function will take
+    care of reusing and/or updating the KV cache. The more the prompt mismatches
+    existing KV cache, the longer it takes to decode.
   @param n_eval The number of evaluations to perform.
   @param options Inference options.
-  @param decode_progress_callback Callback function to report
-    decode progress from 0 to 1.
-  @param inference_callback Callback function to report inference output.
-    Return true to continue inference, false to stop.
+  @param decode_progress_callback Callback function to report decode progress
+    from 0 to 1.
+  @param inference_callback Callback function to report inference output. Return
+    true to continue inference, false to stop.
 
   @returns # of tokens generated on success.
   @returns -1 when session not found.
@@ -174,26 +173,6 @@ int simularity_gpt_infer(
     bool(inference_callback)(const char *output, void *),
     void *inference_callback_user_data
 );
-
-/**
-  Commit the uncommitted prompt to the session.
-
-  @param session_id The session ID.
-  @return New context length on success, -1 when session not found.
-
-  SAFETY: `simularity_gpt_*` functions are thread-safe.
- */
-int simularity_gpt_commit(unsigned session_id);
-
-/**
-  Reset the GPT session to its initial prompt.
-
-  @param session_id The session ID.
-  @return New context length on success, -1 when session not found.
-
-  SAFETY: `simularity_gpt_*` functions are thread-safe.
- */
-int simularity_gpt_reset(unsigned session_id);
 
 /**
   Destroy the GPT session.

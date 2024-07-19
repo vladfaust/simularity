@@ -10,10 +10,10 @@ pub async fn gpt_destroy(session_id: &str) -> Result<(), tauri::InvokeError> {
         .map_err(|_| tauri::InvokeError::from(format!("Invalid session ID: {}", session_id)))?;
 
     simularity_core::gpt::destroy(session_id).map_err(|e| match e {
-        simularity_core::gpt::DestroyError::SessionNotFound => {
+        simularity_core::gpt::destroy::Error::SessionNotFound => {
             tauri::InvokeError::from("Session not found")
         }
-        simularity_core::gpt::DestroyError::Unknown(code) => {
+        simularity_core::gpt::destroy::Error::Unknown(code) => {
             tauri::InvokeError::from(format!("Unknown error code {}", code))
         }
     })

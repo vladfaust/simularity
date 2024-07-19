@@ -1,6 +1,6 @@
 use crate::server::AppError;
 use axum::extract::Path;
-use simularity_core::gpt::DestroyError;
+use simularity_core::gpt::destroy::Error as DestroyError;
 
 /// Destroy a GPT instance.
 /// Path: `DELETE /gpts/:id`.

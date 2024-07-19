@@ -9,7 +9,36 @@
 #include "../../llama/grammar-parser.cpp"
 #include "../../llama/sampling.cpp"
 #include "common.cpp"
+#include "decode.cpp"
 #include "llama.h"
+
+simularity_gpt_inference_options simularity_gpt_inference_options_default() {
+  return simularity_gpt_inference_options{
+      .n_prev             = 64,
+      .n_probs            = 0,
+      .min_keep           = 0,
+      .top_k              = 40,
+      .top_p              = 0.95f,
+      .min_p              = 0.05f,
+      .tfs_z              = 1.00f,
+      .typical_p          = 1.00f,
+      .temp               = 0.80f,
+      .dynatemp_range     = 0.00f,
+      .dynatemp_exponent  = 1.00f,
+      .penalty_last_n     = 64,
+      .penalty_repeat     = 1.00f,
+      .penalty_freq       = 0.00f,
+      .penalty_present    = 0.00f,
+      .mirostat           = 0,
+      .mirostat_tau       = 5.00f,
+      .mirostat_eta       = 0.10f,
+      .penalize_nl        = false,
+      .seed               = 0,
+      .grammar            = nullptr,
+      .stop_sequences_len = 0,
+      .stop_sequences     = nullptr,
+  };
+}
 
 int simularity_gpt_infer(
     unsigned session_id,
@@ -27,6 +56,7 @@ int simularity_gpt_infer(
   auto [_, session] = std::move(locking_result.value());
   spdlog::info("Inferencing for session {}", session_id);
 
+  // Prepare sampling params.
   struct llama_sampling_params sampling_params = {
       .n_prev            = options.n_prev,
       .n_probs           = options.n_probs,
@@ -49,10 +79,12 @@ int simularity_gpt_infer(
       .penalize_nl       = options.penalize_nl,
       .seed              = options.seed};
 
+  // Set grammar, if provided.
   if (options.grammar != nullptr) {
     sampling_params.grammar = std::string(options.grammar);
   }
 
+  // Create the sampling context.
   struct llama_sampling_context *raw_sampling_ctx;
   try {
     raw_sampling_ctx = llama_sampling_init(sampling_params);
@@ -66,6 +98,7 @@ int simularity_gpt_infer(
   auto sampling_ctx = new LlamaSamplingContext(raw_sampling_ctx);
   spdlog::debug("Sampling context initialized");
 
+  // Add stop sequences.
   std::vector<std::vector<llama_token>> stop_sequences;
   spdlog::debug("Adding stop sequences");
   for (unsigned i = 0; i < options.stop_sequences_len; i++) {
@@ -87,75 +120,36 @@ int simularity_gpt_infer(
     stop_sequences.push_back(tokens);
   }
 
-  spdlog::debug("Tokenizing prompt");
+  // Tokenize the prompt.
+  spdlog::debug("Tokenizing the prompt");
   auto prompt_tokens =
       prompt == NULL ? std::vector<llama_token>()
-                     : llama_tokenize(session->model(), prompt, false, true);
+                     : llama_tokenize(session->model(), prompt, false, false);
 
-  auto n_committed = session->committed_prompt.size();
-  auto n_prompt    = prompt_tokens.size();
-  auto n_target    = n_committed + n_prompt + n_eval;
+  auto n_prompt = prompt_tokens.size();
+  auto n_target = n_prompt + n_eval;
 
-  spdlog::debug(
-      "n_committed: {}, n_prompt: {}, n_eval: {}, n_target: {}",
-      n_committed,
-      n_prompt,
-      n_eval,
-      n_target
-  );
-
-  auto batch = new Batch(n_target, 0, 1);
-  spdlog::debug("Batch initialized");
-
-  if (n_committed) {
-    spdlog::debug("Adding the latest committed prompt token to the batch");
-
-    batch->add(
-        session->committed_prompt[n_committed - 1],
-        n_committed - 1,
-        {0},
-
-        // The latest session token must have logits.
-        true
+  std::unique_ptr<Batch> batch;
+  try {
+    batch = simularity_gpt_decode_internal(
+        session,
+        prompt_tokens,
+        n_target,
+        decode_progress_callback,
+        decode_progress_callback_user_data
     );
+  } catch (ContextOverflowError &e) {
+    spdlog::error("Context overflow");
+    return -2;
+  } catch (UnknownDecodeError &e) {
+    spdlog::error("Unknown decode error: {}", e.code);
+    return -4;
   }
 
-  if (n_prompt) {
-    spdlog::debug("Adding {} prompt tokens to the batch", n_prompt);
-
-    for (unsigned i = 0; i < n_prompt; i++) {
-      batch->add(
-          prompt_tokens[i],
-          n_committed + i,
-          {0},
-
-          // The latest token will become the new (temporary) head.
-          i == n_prompt - 1
-      );
-    }
-  }
-
-  session->clear_uncommitted_kv_cache();
-  session->uncommitted_prompt = prompt_tokens;
-  spdlog::debug("Uncommitted prompt cleared");
-
-  int err = decode_with_progress(
-      session,
-      batch->batch,
-      (n_committed + n_prompt) * 2,
-      decode_progress_callback,
-      decode_progress_callback_user_data
-  );
-  if (err == 1) return -2; // Could not find a KV slot (context overflow).
-  else if (err) {
-    spdlog::warn("Failed to decode -> {}", err);
-    return -4; // Decoding error.
-  }
-
-  std::vector<llama_token> decoded_tokens;
+  std::vector<llama_token> eval_tokens;
   auto start = std::chrono::high_resolution_clock::now();
 
-  while (decoded_tokens.size() < n_eval) {
+  while (eval_tokens.size() < n_eval) {
     llama_token next;
 
     try {
@@ -168,64 +162,44 @@ int simularity_gpt_infer(
     auto piece = llama_token_to_piece(session->model(), next, true);
 
     if (next == llama_token_eos(session->model())) {
-      spdlog::info("EOS token found, stopping inference");
+      spdlog::info("Stop: EOS token found");
       break;
     }
 
-    // Accept the token and add it to the decoded tokens.
+    // Accept the token.
     sampling_ctx->accept(session->context, next);
-    decoded_tokens.push_back(next);
+    eval_tokens.push_back(next);
+    session->prompt.push_back(next);
 
     // Call the inference callback.
     if (inference_callback != NULL) {
       if (!inference_callback(piece.c_str(), inference_callback_user_data)) {
-        spdlog::info("Inference callback returned false, stopping inference");
+        spdlog::info("Stop: inference callback returned false");
         break;
       }
     }
 
     bool found = false;
     for (auto &stop_sequence : stop_sequences) {
-      // Check if
-      if (decoded_tokens.size() < stop_sequence.size() ||
+      if (eval_tokens.size() < stop_sequence.size() ||
           !std::equal(
-              decoded_tokens.end() - stop_sequence.size(),
-              decoded_tokens.end(),
+              eval_tokens.end() - stop_sequence.size(),
+              eval_tokens.end(),
               stop_sequence.begin()
           )) {
         continue;
       }
 
-      spdlog::info(
-          "Stop sequence found ({}), stopping inference", stop_sequence
-      );
-
-      spdlog::debug(
-          "Removing {} token(s) from the uncommitted prompt",
-          stop_sequence.size()
-      );
-
-      for (unsigned i = 0; i < stop_sequence.size() - 1; i++) {
-        session->uncommitted_prompt.pop_back();
-      }
-
-      if (stop_sequence.size() > 1) {
-        auto p0 = n_committed + n_prompt + decoded_tokens.size() -
-                  stop_sequence.size() + 1;
-        spdlog::debug("Clearing KV cache at [{}; {})]", p0, -1);
-        llama_kv_cache_seq_rm(session->context, 0, p0, -1);
-      }
-
+      spdlog::info("Stop: sequence found ({})", stop_sequence);
       found = true;
+
       break;
     }
-
     if (found) break;
 
     // Clear the batch and add the single next token to it.
     batch->batch.n_tokens = 0;
-    batch->add(next, n_committed + decoded_tokens.size(), {0}, true);
-    session->uncommitted_prompt.push_back(next);
+    batch->add(next, n_prompt + eval_tokens.size(), true);
 
     // Decode the next token.
     auto err = llama_decode(session->context, batch->batch);
@@ -239,13 +213,13 @@ int simularity_gpt_infer(
   auto end = std::chrono::high_resolution_clock::now();
   spdlog::info(
       "Inferenced {} tokens in {:.3f}s ({:.2f} tok/s)",
-      decoded_tokens.size(),
+      eval_tokens.size(),
       (float)std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
               .count() /
           1000,
-      (float)decoded_tokens.size() /
+      (float)eval_tokens.size() /
           std::chrono::duration_cast<std::chrono::seconds>(end - start).count()
   );
 
-  return decoded_tokens.size();
+  return eval_tokens.size();
 }
