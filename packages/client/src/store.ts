@@ -1,5 +1,5 @@
 import { StorageSerializers, useLocalStorage } from "@vueuse/core";
-import { GptDriver } from "./lib/ai";
+import { GptDriver } from "./lib/simularity/gpt";
 
 export const latestGptSession = useLocalStorage<{
   id: string;
