@@ -61,15 +61,18 @@ The charactes MUST try their best to stay within the boundaries of the simulatio
 
 The [Transcription] section comprises chat message separated with newlines.
 A chat message is a <characterId> followed by their first-person utterance.
+A special <narrator> character is used to denote the narrator's voice, in the third person.
 Actions performed by simulacra SHALL be wrapped in *asterisks*, referring the to player character as "you".
 Avoid acting for characters which are not currently present on the stage.
 
 [Transcription example (playerCharacter: <bob>)]
+<narrator> And the story begins...
 <alice> Oh, hey, Bob! *I wave to you.* You've got a nice suit there.
 <bob> Thank you, Alice. I wave back. How are you doing today?
 <alice> *I think a little before answering.* Well, something big happened! Let Carl tell the details.
 <carl> Sure, Alice. Well, Bob, roses are blue.
 <alice> Ha-ha! *I'm now grinning. That's hilarious!* You're such a good teller.
+<narrator> Carl vanishes into thin air, leaving Bob and Alice alone.
 <bob> What am I even doing here? And where did Carl go?
 <carl> Oh, I just wanted to check onto something.
 
@@ -112,20 +115,33 @@ export function updateToLine(update: Update): string {
   return `<${writerUpdate.characterId || NARRATOR}> ${writerUpdate.text}`;
 }
 
-export type PredictionOptions =
-  | { characterId: string | null }
-  | { allowNarrator: boolean; allowPlayerCharacterId: boolean };
+export type PredictionOptions = {
+  /**
+   * Overrides other options and forces the character ID to be this value.
+   */
+  characterId?: string | null;
+
+  /**
+   * Allow the narrator to be used (false by default).
+   */
+  allowNarrator?: boolean;
+
+  /**
+   * Allow the player character ID to be used (false by default).
+   */
+  allowPlayerCharacterId?: boolean;
+};
 
 /**
  * Build a grammar for the prediction model.
  */
 export function buildGrammar(
   scenario: Scenario,
-  options: PredictionOptions,
+  options?: PredictionOptions,
 ): string {
   let characterIdRule: string;
 
-  if ("characterId" in options) {
+  if (options?.characterId !== undefined) {
     characterIdRule = options.characterId || NARRATOR;
   } else {
     const allowedCharacterIds = Object.entries(scenario.characters)
@@ -135,11 +151,11 @@ export function buildGrammar(
       )
       .map(([characterId, _]) => characterId);
 
-    if (options.allowNarrator) {
+    if (options?.allowNarrator) {
       allowedCharacterIds.push(NARRATOR);
     }
 
-    if (options.allowPlayerCharacterId) {
+    if (options?.allowPlayerCharacterId) {
       allowedCharacterIds.push(scenario.playerCharacterId);
     }
 
@@ -174,7 +190,7 @@ class UnexpectedCharacterError extends ResponseError {
 export function parsePrediction(
   response: string,
   scenario: Scenario,
-  options: PredictionOptions,
+  options?: PredictionOptions,
 ): {
   characterId: string | null;
   text: string;
@@ -191,10 +207,7 @@ export function parsePrediction(
   let characterId: string | null;
 
   if (rawCharacterId === NARRATOR) {
-    if (
-      !("characterId" in options && options.characterId === null) &&
-      !("allowNarrator" in options && options.allowNarrator)
-    ) {
+    if (options?.characterId !== null && !options?.allowNarrator) {
       throw new UnexpectedCharacterError(rawCharacterId);
     }
 
@@ -202,7 +215,7 @@ export function parsePrediction(
   } else {
     let allowedCharacterIds: string[];
 
-    if ("characterId" in options) {
+    if (options?.characterId !== undefined) {
       allowedCharacterIds = [options.characterId || NARRATOR];
     } else {
       allowedCharacterIds = Object.entries(scenario.characters)
@@ -212,11 +225,11 @@ export function parsePrediction(
         )
         .map(([characterId, _]) => characterId);
 
-      if (options.allowNarrator) {
+      if (options?.allowNarrator) {
         allowedCharacterIds.push(NARRATOR);
       }
 
-      if (options.allowPlayerCharacterId) {
+      if (options?.allowPlayerCharacterId) {
         allowedCharacterIds.push(scenario.playerCharacterId);
       }
     }

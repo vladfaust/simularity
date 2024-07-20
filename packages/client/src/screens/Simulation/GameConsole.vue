@@ -20,6 +20,7 @@ import { computed, ref } from "vue";
 import GptStatus from "./GptStatus.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
+import { type PredictionOptions } from "@/lib/simulation/agents/rpChatWriter";
 
 enum SendButtonState {
   Inferring,
@@ -75,6 +76,10 @@ const inferenceDecodingProgress = ref<number | undefined>();
  */
 const updatesFullscreen = ref(false);
 
+const predictionOptions = ref<PredictionOptions>({
+  allowNarrator: true,
+});
+
 const sendButtonState = computed<SendButtonState>(() => {
   if (inferenceAbortController.value) {
     return SendButtonState.Inferring;
@@ -126,7 +131,7 @@ async function sendMessage() {
 
     await simulation.predictUpdate(
       N_EVAL,
-      undefined,
+      predictionOptions.value,
       modelSettings.value,
       (e) => (inferenceDecodingProgress.value = e.progress),
       inferenceAbortController.value!.signal,
@@ -162,7 +167,7 @@ async function advance() {
 
       await simulation.predictUpdate(
         N_EVAL,
-        undefined,
+        predictionOptions.value,
         modelSettings.value,
         (e) => (inferenceDecodingProgress.value = e.progress),
         inferenceAbortController.value!.signal,
@@ -220,7 +225,7 @@ async function regenerateUpdate(regeneratedUpdate: Update) {
     await simulation.createUpdateVariant(
       regeneratedUpdate,
       N_EVAL,
-      undefined,
+      predictionOptions.value,
       modelSettings.value,
       (e) => (inferenceDecodingProgress.value = e.progress),
       inferenceAbortController.value!.signal,

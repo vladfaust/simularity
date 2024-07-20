@@ -23,6 +23,9 @@ export type Scenario = {
   startEpisodeId: string;
 
   characters: {
+    /**
+     * Restricted values: "system", "narrator".
+     */
     [id: string]: {
       pfp: string;
       fullName: string;

@@ -286,7 +286,7 @@ export class Simulation {
    */
   async predictUpdate(
     nEval: number,
-    characterId?: string | null,
+    predictionOptions?: rpChatWriter.PredictionOptions,
     inferenceOptions?: InferenceOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
@@ -318,7 +318,7 @@ export class Simulation {
         update,
         prompt,
         nEval,
-        characterId,
+        predictionOptions,
         inferenceOptions,
         onDecodeProgress,
         inferenceAbortSignal,
@@ -340,7 +340,7 @@ export class Simulation {
   async createUpdateVariant(
     update: Update,
     nEval: number,
-    characterId?: string | null,
+    predictionOptions?: rpChatWriter.PredictionOptions,
     inferenceOptions?: InferenceOptions,
     onInferenceDecodingProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
@@ -372,7 +372,7 @@ export class Simulation {
         update,
         prompt,
         nEval,
-        characterId,
+        predictionOptions,
         inferenceOptions,
         onInferenceDecodingProgress,
         inferenceAbortSignal,
@@ -1022,7 +1022,7 @@ export class Simulation {
     update: Update,
     prompt: string,
     nEval: number,
-    characterId?: string | null,
+    predictionOptions?: rpChatWriter.PredictionOptions,
     inferenceOptions?: InferenceOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
@@ -1031,7 +1031,7 @@ export class Simulation {
     text: string;
   }> {
     update.inProgressVariant.value = {
-      characterId,
+      characterId: predictionOptions?.characterId,
       text: "",
     };
 
@@ -1040,16 +1040,11 @@ export class Simulation {
         async (writer_) => {
           const stopSequences = ["\n"];
 
-          const rpChatPredictionOptions: rpChatWriter.PredictionOptions =
-            characterId
-              ? { characterId }
-              : { allowNarrator: false, allowPlayerCharacterId: false };
-
           const options: InferenceOptions = {
             stopSequences,
             grammar: rpChatWriter.buildGrammar(
               this.scenario,
-              rpChatPredictionOptions,
+              predictionOptions,
             ),
             ...inferenceOptions,
           };
@@ -1059,7 +1054,7 @@ export class Simulation {
             prompt,
             nEval,
             options,
-            rpChatPredictionOptions,
+            predictionOptions,
           );
 
           const rawResult = await writer_.infer(
@@ -1078,7 +1073,7 @@ export class Simulation {
           const parsedResult = rpChatWriter.parsePrediction(
             trimmedResult,
             this.scenario,
-            rpChatPredictionOptions,
+            predictionOptions,
           );
 
           return parsedResult;
