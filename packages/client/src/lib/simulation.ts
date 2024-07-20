@@ -198,7 +198,7 @@ export class Simulation {
       this._saveState();
 
       const parentUpdateId =
-        this.latestUpdate.value?.chosenVariant.writerUpdate.id;
+        this.latestUpdate.value?.chosenVariant?.writerUpdate.id;
       console.debug("Parent update ID", parentUpdateId);
 
       const incoming = await this._saveUpdatesToDb({
@@ -258,7 +258,7 @@ export class Simulation {
     try {
       await this._checkAndCommitState();
       const parentUpdateId =
-        this.latestUpdate.value?.chosenVariant.writerUpdate.id;
+        this.latestUpdate.value?.chosenVariant?.writerUpdate.id;
 
       // Insert the new update to the database.
       let saved = await this._saveUpdatesToDb({
@@ -303,9 +303,9 @@ export class Simulation {
       await this._checkAndCommitState();
 
       const parentUpdateId =
-        this.latestUpdate.value?.chosenVariant.writerUpdate.id;
+        this.latestUpdate.value?.chosenVariant?.writerUpdate.id;
 
-      const update = markRaw(new Update(parentUpdateId, []));
+      const update = markRaw(new Update(parentUpdateId));
       this._updates.value.unshift(update);
       this.skipToEnd();
 
@@ -631,7 +631,7 @@ export class Simulation {
     // If the newest update is an assistant update, also fetch its siblings.
     if (this.latestUpdate.value) {
       const sanityCheckWriterUpdateId =
-        this.latestUpdate.value.chosenVariant.writerUpdate.id;
+        this.latestUpdate.value.chosenVariant?.writerUpdate.id;
 
       const siblings = await d.db.query.writerUpdates.findMany({
         where: and(
@@ -869,7 +869,7 @@ export class Simulation {
       let i = this._updates.value.length;
       while (i > 0) {
         const update = this._updates.value[--i];
-        const directorUpdate = update.chosenVariant.directorUpdate;
+        const directorUpdate = update.chosenVariant?.directorUpdate;
 
         if (directorUpdate) {
           console.debug(
@@ -889,7 +889,7 @@ export class Simulation {
 
       // If the latest update's (single) variant
       // has an episode ID, resume from there.
-      if (this.latestUpdate.value?.chosenVariant.writerUpdate.episodeId) {
+      if (this.latestUpdate.value?.chosenVariant?.writerUpdate.episodeId) {
         const variant = this.latestUpdate.value?.chosenVariant;
 
         this.state.setEpisode(
@@ -918,10 +918,10 @@ export class Simulation {
 
       console.debug(
         "Latest director update delta",
-        update.chosenVariant.directorUpdate?.code,
+        update.chosenVariant?.directorUpdate?.code,
       );
 
-      const deltasEqual = update.chosenVariant.directorUpdate
+      const deltasEqual = update.chosenVariant?.directorUpdate
         ? comparesStateDeltas(
             this.state.serialize(),
             actualDelta,
@@ -939,12 +939,12 @@ export class Simulation {
         await d.db
           .insert(d.directorUpdates)
           .values({
-            writerUpdateId: update.chosenVariant.writerUpdate.id,
+            writerUpdateId: update.chosenVariant!.writerUpdate.id,
             code: actualDelta,
           })
           .returning()
           .then((directorUpdates) => {
-            update.chosenVariant.directorUpdate = directorUpdates[0];
+            update.chosenVariant!.directorUpdate = directorUpdates[0];
           });
       }
     }

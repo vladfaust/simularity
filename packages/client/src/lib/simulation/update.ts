@@ -6,7 +6,7 @@ export class Update {
 
   readonly inProgressVariant = ref<
     | {
-        characterId: string | null | undefined;
+        characterId?: string | null;
         text: string;
       }
     | undefined
@@ -29,21 +29,13 @@ export class Update {
         typeof d.directorUpdates.$inferSelect,
         "id" | "code" | "createdAt"
       > | null;
-    }[],
+    }[] = [],
     chosenVariantIndex = 0,
   ) {
     this.chosenVariantIndex.value = chosenVariantIndex;
   }
 
   get chosenVariant() {
-    const variant = this.variants.at(this.chosenVariantIndex.value);
-
-    if (!variant) {
-      throw new Error(
-        `Chosen variant index (${this.chosenVariantIndex.value}) out of bounds (${this.variants.length})`,
-      );
-    } else {
-      return variant;
-    }
+    return this.variants.at(this.chosenVariantIndex.value);
   }
 }

@@ -51,10 +51,9 @@ function onClickPreviousVariant() {
 
   if (props.update.chosenVariantIndex.value) {
     props.update.chosenVariantIndex.value--;
-    rText.value = props.update.chosenVariant.writerUpdate.text;
+    rText.value = props.update.chosenVariant!.writerUpdate.text;
+    emit("chooseVariant", props.update, props.update.chosenVariantIndex.value);
   }
-
-  emit("chooseVariant", props.update, props.update.chosenVariantIndex.value);
 }
 
 function onClickNextVariant() {
@@ -67,7 +66,7 @@ function onClickNextVariant() {
     props.update.variants.length - 1
   ) {
     props.update.chosenVariantIndex.value++;
-    rText.value = props.update.chosenVariant.writerUpdate.text;
+    rText.value = props.update.chosenVariant!.writerUpdate.text;
     emit("chooseVariant", props.update, props.update.chosenVariantIndex.value);
   } else {
     emit("regenerate", props.update);
@@ -79,14 +78,14 @@ const rTextElement = ref<HTMLParagraphElement | null>(null);
 const rText = ref(
   props.update.inProgressVariant.value
     ? ""
-    : props.update.chosenVariant.writerUpdate.text,
+    : props.update.chosenVariant?.writerUpdate.text,
 );
 
 watchImmediate(
   () => props.update.chosenVariantIndex.value,
   () => {
     if (!props.update.inProgressVariant.value) {
-      rText.value = props.update.chosenVariant.writerUpdate.text;
+      rText.value = props.update.chosenVariant?.writerUpdate.text;
     }
   },
 );
@@ -95,7 +94,7 @@ watchImmediate(
   () => props.update.inProgressVariant.value,
   (inProgress) => {
     if (!inProgress) {
-      rText.value = props.update.chosenVariant.writerUpdate.text;
+      rText.value = props.update.chosenVariant?.writerUpdate.text;
     }
   },
 );
@@ -122,20 +121,21 @@ function onEditCommitClick() {
     "edit",
     props.update,
     props.update.chosenVariantIndex.value,
-    rText.value,
+    rText.value!,
   );
   isContenteditable.value = false;
 }
 
 function onEditCancelClick() {
-  rText.value = props.update.chosenVariant.writerUpdate.text;
+  rText.value = props.update.chosenVariant!.writerUpdate.text;
   isContenteditable.value = false;
   rTextElement.value!.textContent = rText.value;
 }
 
 const rAnyChanges = computed(
   () =>
-    rText.value.trim() !== props.update.chosenVariant.writerUpdate.text.trim(),
+    rText.value?.trim() !==
+    props.update.chosenVariant?.writerUpdate.text.trim(),
 );
 
 const character = computed(() => {
@@ -144,7 +144,7 @@ const character = computed(() => {
   if (props.update.inProgressVariant.value) {
     characterId = props.update.inProgressVariant.value.characterId;
   } else {
-    characterId = props.update.chosenVariant.writerUpdate.characterId;
+    characterId = props.update.chosenVariant?.writerUpdate.characterId;
   }
 
   if (characterId) {
@@ -179,7 +179,7 @@ const character = computed(() => {
     )
       //- Variant navigation.
       .flex.items-center.gap-1(
-        v-if="showVariantNavigation && !update.chosenVariant.writerUpdate.episodeId && !isContenteditable"
+        v-if="showVariantNavigation && !update.chosenVariant?.writerUpdate.episodeId && !isContenteditable"
       )
         button.transition-transform.pressable(@click="onClickPreviousVariant")
           CircleChevronLeft(:size="18")
@@ -190,7 +190,7 @@ const character = computed(() => {
 
       //- Edit.
       .flex(
-        v-if="canEdit && !update.chosenVariant.writerUpdate.episodeId && !update.inProgressVariant.value"
+        v-if="canEdit && !update.chosenVariant?.writerUpdate.episodeId && !update.inProgressVariant.value"
       )
         button(@click="switchContentEditable")
           Edit3Icon(:size="20")
@@ -224,7 +224,7 @@ const character = computed(() => {
         span Cancel edit
       button.btn.btn-success.btn-md.btn-pressable.rounded(
         @click="onEditCommitClick"
-        :disabled="!rAnyChanges || !rText.trim()"
+        :disabled="!rAnyChanges || !rText?.trim()"
       )
         CircleCheckIcon(:size="20")
         span Commit change

@@ -111,6 +111,7 @@ export function buildFullPrompt(scenario: Scenario, history: Update[]): string {
  * Convert a single `update` to a line.
  */
 export function updateToLine(update: Update): string {
+  if (!update.chosenVariant) throw new Error("Chosen variant is falsy");
   const writerUpdate = update.chosenVariant.writerUpdate;
   return `<${writerUpdate.characterId || NARRATOR}> ${writerUpdate.text}`;
 }
