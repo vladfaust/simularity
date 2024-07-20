@@ -179,7 +179,7 @@ const character = computed(() => {
     )
       //- Variant navigation.
       .flex.items-center.gap-1(
-        v-if="showVariantNavigation && !isContenteditable"
+        v-if="showVariantNavigation && !update.chosenVariant.writerUpdate.episodeId && !isContenteditable"
       )
         button.transition-transform.pressable(@click="onClickPreviousVariant")
           CircleChevronLeft(:size="18")
@@ -189,7 +189,9 @@ const character = computed(() => {
           CircleChevronRight(:size="18")
 
       //- Edit.
-      .flex(v-if="canEdit && !update.inProgressVariant.value")
+      .flex(
+        v-if="canEdit && !update.chosenVariant.writerUpdate.episodeId && !update.inProgressVariant.value"
+      )
         button(@click="switchContentEditable")
           Edit3Icon(:size="20")
 
