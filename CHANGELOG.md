@@ -65,6 +65,7 @@
       Allows to use Whisper, Bark and other GGML-based models.
       Improved state loading speed, unlocked flash attention.
       Reuses management code among Tauri and Inference Server.
+- [x] feat(client): turn-based roleplay chat game (Fri 20)
 
 ### June 2024
 

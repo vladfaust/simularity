@@ -2,7 +2,7 @@ import { assert, unreachable } from "@/lib/utils";
 import { XmlNode } from "@/lib/xmlNode";
 import { Scenario } from "../scenario";
 import { toSceneQualifiedId } from "../state";
-import { AssistantUpdate, EpisodeUpdate, UserUpdate } from "../updates";
+import { Update } from "../update";
 
 export type Message =
   | {
@@ -43,23 +43,24 @@ export const RESPONSE_PREFIX = `### Response:\n${AI_PREFIX}`;
  */
 export function buildStaticPrompt(scenario: Scenario): string {
   // NOTE: This is an Alpaca template.
-  let prompt = `The following is never-ending roleplay chat between a user (${USER_PREFIX.trim()}) and the AI assistant (${AI_PREFIX.trim()}). As an AI assistant, you must follow the instructions below. Respond with a message to continue the conversation.\n\n### Instructions:\n${scenario.instructions}\n`;
+  let prompt = `The following is never-ending roleplay chat between a user (${USER_PREFIX.trim()}) and the AI assistant (${AI_PREFIX.trim()}). As an AI assistant, you must follow the instructions below. Respond with a message to continue the conversation.\n\n### Instructions:\n${scenario.secretInstructions}\n`;
 
   // Global scenario prompt.
   prompt +=
-    new XmlNode("GlobalPrompt", scenario.globalPrompt).toString() + "\n";
+    new XmlNode("GlobalPrompt", scenario.globalScenario).toString() + "\n";
 
   // Locations.
-  for (const location of scenario.locations) {
+  for (const [locationId, location] of Object.entries(scenario.locations)) {
     prompt +=
       new XmlNode("Location", location.prompt)
-        .addAttribute("id", location.id)
+        .addAttribute("id", locationId)
         .addAttribute("name", location.name)
         .addChildren(
-          location.scenes.map((scene) =>
-            new XmlNode("Scene", scene.shortPrompt)
-              .addAttribute("id", toSceneQualifiedId(location.id, scene.id))
-              .addAttribute("name", scene.name),
+          Object.entries(location.scenes).map(([sceneId, scene]) =>
+            new XmlNode("Scene", scene.prompt).addAttribute(
+              "id",
+              toSceneQualifiedId(locationId, sceneId),
+            ),
           ),
         )
         .addChildren(
@@ -71,23 +72,23 @@ export function buildStaticPrompt(scenario: Scenario): string {
   }
 
   // Characters.
-  for (const character of scenario.characters.filter(
-    (character) => !character.locked,
-  )) {
+  for (const [characterId, character] of Object.entries(
+    scenario.characters,
+  ).filter(([_, character]) => !character.locked)) {
     prompt +=
       new XmlNode("Character", character.scenarioPrompt)
-        .addAttribute("id", character.id)
+        .addAttribute("id", characterId)
         .addAttribute("name", character.fullName)
         .addChild(
           new XmlNode("Personality", character.personalityPrompt).addChildren(
-            character.traits.map((trait) => new XmlNode("Trait", trait)),
+            character.traits?.map((trait) => new XmlNode("Trait", trait)) ?? [],
           ),
         )
         .addChild(new XmlNode("Appearance", character.appearancePrompt))
         .addChildren(
-          character.outfits.map((outfit) =>
+          Object.entries(character.outfits).map(([outfitId, outfit]) =>
             new XmlNode("Outfit", outfit.prompt)
-              .addAttribute("id", outfit.id)
+              .addAttribute("id", outfitId)
               .addAttribute("name", outfit.name),
           ),
         )
@@ -97,10 +98,11 @@ export function buildStaticPrompt(scenario: Scenario): string {
                 .filter(
                   ([characterId]) =>
                     !assert(
-                      scenario.characters.find(
-                        (character) => character.id === characterId,
+                      Object.entries(scenario.characters).find(
+                        ([lookupCharacterId, _]) =>
+                          lookupCharacterId === characterId,
                       ),
-                    ).locked,
+                    )?.[1].locked,
                 )
                 .map(([characterId, relationship]) =>
                   new XmlNode("Relationship", relationship).addAttribute(
@@ -119,32 +121,18 @@ export function buildStaticPrompt(scenario: Scenario): string {
 /**
  * A dynamic prompt is generated based on the history of the simulation.
  *
- * @param history The history of the simulation,
+ * @param updates The history of the simulation,
  * from the oldest to the newest update.
  */
 // TODO: Add events in time, such as stage updates, summaries, etc.
-export function buildDynamicPrompt(
-  history: (AssistantUpdate | EpisodeUpdate | UserUpdate)[],
-): string {
-  const messages: Message[] = history.map((update) => {
-    if (update instanceof EpisodeUpdate) {
-      return {
-        role: update.asIfCreatedByUser ? "user" : "assistant",
-        content: update.text,
-      };
-    } else if (update instanceof AssistantUpdate) {
-      return {
-        role: "assistant",
-        content: update.chosenVariant.text,
-      };
-    } else if (update instanceof UserUpdate) {
-      return {
-        role: "user",
-        content: update.chosenVariant.text,
-      };
-    } else {
-      throw unreachable(update);
-    }
+export function buildDynamicPrompt(updates: Update[]): string {
+  const messages: Message[] = updates.map((update) => {
+    const writerUpdate = update.chosenVariant.writerUpdate;
+
+    return {
+      role: writerUpdate.createdByPlayer ? "user" : "assistant",
+      content: writerUpdate.text,
+    };
   });
 
   return `${formatMessages(messages)}\n\n${RESPONSE_PREFIX}`;
@@ -153,10 +141,7 @@ export function buildDynamicPrompt(
 /**
  * A literal sum of {@link buildStaticPrompt} and {@link buildDynamicPrompt}.
  */
-export function buildFullPrompt(
-  scenario: Scenario,
-  history: (AssistantUpdate | EpisodeUpdate | UserUpdate)[],
-): string {
+export function buildFullPrompt(scenario: Scenario, history: Update[]): string {
   return buildStaticPrompt(scenario) + buildDynamicPrompt(history);
 }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { type InferenceOptions } from "@/lib/simularity/common";
 import { Simulation } from "@/lib/simulation";
-import { AssistantUpdate, UserUpdate } from "@/lib/simulation/updates";
+import { Update } from "@/lib/simulation/update";
 import { TransitionRoot } from "@headlessui/vue";
 import {
   ChevronDownIcon,
@@ -18,7 +18,7 @@ import {
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import GptStatus from "./GptStatus.vue";
-import SingleUpdate from "./SingleUpdate.vue";
+import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
 
 enum SendButtonState {
@@ -33,6 +33,7 @@ const { simulation, fadeCanvas, screenshot } = defineProps<{
   simulation: Simulation;
   fadeCanvas: (callback: () => Promise<void>) => Promise<void>;
   screenshot: (rewrite: boolean) => Promise<any>;
+  assetBaseUrl?: URL;
 }>();
 
 const emit = defineEmits<{
@@ -96,7 +97,7 @@ function onSendButtonClick() {
     inferenceAbortController.value.abort();
     inferenceAbortController.value = null;
   } else if (!busy.value) {
-    if (userInput.value) sendUserMessage();
+    if (userInput.value) sendMessage();
     else advance();
   } else {
     console.warn("Busy, cannot send message");
@@ -106,7 +107,7 @@ function onSendButtonClick() {
 /**
  * Send user message to the chat.
  */
-async function sendUserMessage() {
+async function sendMessage() {
   let userMessage = userInput.value;
   if (!userMessage) throw new Error("Empty user input");
 
@@ -118,9 +119,14 @@ async function sendUserMessage() {
   inferenceDecodingProgress.value = 0;
 
   try {
-    await simulation.createUserUpdate(
+    await simulation.createUpdate(
+      simulation.scenario.playerCharacterId,
       userMessage,
+    );
+
+    await simulation.predictUpdate(
       N_EVAL,
+      undefined,
       modelSettings.value,
       (e) => (inferenceDecodingProgress.value = e.progress),
       inferenceAbortController.value!.signal,
@@ -154,8 +160,9 @@ async function advance() {
     } else {
       inferenceAbortController.value = new AbortController();
 
-      await simulation.createAssistantUpdate(
+      await simulation.predictUpdate(
         N_EVAL,
+        undefined,
         modelSettings.value,
         (e) => (inferenceDecodingProgress.value = e.progress),
         inferenceAbortController.value!.signal,
@@ -173,33 +180,26 @@ async function advance() {
 /**
  * Choose a variant of an assistant update.
  */
-function chooseAssistantVariant(update: AssistantUpdate, variantIndex: number) {
-  simulation.chooseAssistantUpdateVariant(update, variantIndex, fadeCanvas);
+function chooseUpdateVariant(update: Update, variantIndex: number) {
+  simulation.chooseUpdateVariant(update, variantIndex, fadeCanvas);
 }
 
 /**
- * Edit a user update.
+ * Edit an update variant.
  */
-async function onUserUpdateEdit(update: UserUpdate, newText: string) {
+async function onUpdateVariantEdit(
+  update: Update,
+  variantIndex: number,
+  newText: string,
+) {
+  const variant = update.variants[variantIndex];
+  if (!variant) throw new Error("Variant not found");
+
   if (busy.value) throw new Error("Already busy");
   busy.value = true;
 
   try {
-    await simulation.editUserUpdateText(update, newText);
-  } finally {
-    busy.value = false;
-  }
-}
-
-/**
- * Edit an assistant update.
- */
-async function onAssistantUpdateEdit(update: AssistantUpdate, newText: string) {
-  if (busy.value) throw new Error("Already busy");
-  busy.value = true;
-
-  try {
-    await simulation.editAssistantUpdateVariantText(update, newText);
+    await simulation.editUpdateVariant(variant, newText);
   } finally {
     busy.value = false;
   }
@@ -208,7 +208,7 @@ async function onAssistantUpdateEdit(update: AssistantUpdate, newText: string) {
 /**
  * Explicitly regenerate an assistant update.
  */
-async function regenerateAssistantUpdate(regeneratedUpdate: AssistantUpdate) {
+async function regenerateUpdate(regeneratedUpdate: Update) {
   if (busy.value) throw new Error("Already busy");
   busy.value = true;
 
@@ -216,14 +216,15 @@ async function regenerateAssistantUpdate(regeneratedUpdate: AssistantUpdate) {
   inferenceDecodingProgress.value = 0;
 
   try {
-    console.log("Regenerating assistant update");
-    await simulation.createAssistantUpdateVariant(
+    console.log("Regenerating update");
+    await simulation.createUpdateVariant(
       regeneratedUpdate,
-      fadeCanvas,
       N_EVAL,
+      undefined,
       modelSettings.value,
       (e) => (inferenceDecodingProgress.value = e.progress),
       inferenceAbortController.value!.signal,
+      fadeCanvas,
     );
   } finally {
     inferenceDecodingProgress.value = undefined;
@@ -248,28 +249,29 @@ function switchUpdatesFullscreen() {
       UpdatesHistory.w-full(
         v-if="updatesFullscreen"
         :simulation
+        :asset-base-url
         :fullscreen="true"
-        @choose-assistant-variant="chooseAssistantVariant"
-        @regenerate-assistant-update="regenerateAssistantUpdate"
-        @on-user-update-edit="onUserUpdateEdit"
-        @on-assistant-update-edit="onAssistantUpdateEdit"
+        @choose-variant="chooseUpdateVariant"
+        @regenerate="regenerateUpdate"
+        @edit="onUpdateVariantEdit"
         :class="updatesFullscreen ? 'overflow-y-scroll' : 'overflow-y-hidden h-full'"
       )
 
       //- Single update.
       //- FIXME: `can-edit-user-update` shall be true only in specific cases.
-      SingleUpdate.h-full.w-full(
+      UpdateVue.h-full(
         v-else-if="simulation.currentUpdate.value"
+        :simulation
+        :asset-base-url
         :update="simulation.currentUpdate.value"
         :key="simulation.currentUpdate.value.parentId || 'root'"
-        :can-regenerate-assistant-update="!simulation.canGoForward.value"
-        :can-edit-assistant-update="!simulation.canGoForward.value"
-        :can-edit-user-update="true"
+        :can-regenerate="!simulation.canGoForward.value"
+        :can-edit="!simulation.canGoForward.value"
+        :is-single="true"
         :show-variant-navigation="!simulation.canGoForward.value"
-        @choose-assistant-variant="chooseAssistantVariant"
-        @regenerate-assistant-update="regenerateAssistantUpdate"
-        @on-user-update-edit="onUserUpdateEdit"
-        @on-assistant-update-edit="onAssistantUpdateEdit"
+        @choose-variant="chooseUpdateVariant"
+        @regenerate="regenerateUpdate"
+        @edit="onUpdateVariantEdit"
       )
 
       .flex.h-full.w-8.shrink-0.flex-col.justify-between.gap-1
@@ -328,7 +330,7 @@ function switchUpdatesFullscreen() {
         placeholder="User input"
         :disabled="!userInputEnabled"
         class="disabled:opacity-50"
-        @keydown.enter.exact="userInput ? sendUserMessage() : advance()"
+        @keydown.enter.exact="userInput ? sendMessage() : advance()"
       )
 
       button._button.relative.aspect-square.h-full(

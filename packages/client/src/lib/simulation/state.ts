@@ -2,7 +2,15 @@ import { deepEqual } from "fast-equals";
 import { computed, readonly, ref } from "vue";
 import { LuaEngine, LuaFactory } from "wasmoon";
 import { clone, unreachable } from "../utils";
-import { Scenario } from "./scenario";
+import {
+  Scenario,
+  findCharacter,
+  findEpisode,
+  findExpression,
+  findLocation,
+  findOutfit,
+  findScene,
+} from "./scenario";
 import { StageRenderer } from "./stageRenderer";
 import { StateCommand, stateCommandsToCode } from "./state/commands";
 
@@ -48,6 +56,7 @@ export class State {
 
   private readonly _currentEpisode = ref<
     | (Scenario["episodes"][0] & {
+        id: string;
         nextChunkIndex: number;
         totalChunks: number;
       })
@@ -102,9 +111,7 @@ export class State {
     state._stage.value = clone(dto.stage);
 
     if (dto.currentEpisode) {
-      const currentEpisode = scenario.episodes.find(
-        (e) => e.id === dto.currentEpisode!.id,
-      );
+      const currentEpisode = findEpisode(scenario, dto.currentEpisode.id);
 
       if (!currentEpisode) {
         throw new StateError(`Episode not found: ${dto.currentEpisode!.id}`);
@@ -112,6 +119,7 @@ export class State {
 
       state._currentEpisode.value = {
         ...currentEpisode,
+        id: dto.currentEpisode.id,
         nextChunkIndex: dto.currentEpisode.nextChunkIndex,
         totalChunks: currentEpisode.chunks.length,
       };
@@ -340,14 +348,12 @@ export class State {
    * Set the current episode, but do not advance it.
    */
   setEpisode(episodeId: string, nextChunkIndex = 0) {
-    const found = this.scenario.episodes.find(
-      (e) => e.id === episodeId,
-    ) as Scenario["episodes"][0];
-
+    const found = findEpisode(this.scenario, episodeId);
     if (!found) throw new StateError(`Episode not found: ${episodeId}`);
 
     this._currentEpisode.value = {
       ...found,
+      id: episodeId,
       nextChunkIndex,
       totalChunks: found.chunks.length,
     };
@@ -375,11 +381,11 @@ export class State {
     }
 
     console.debug("Advancing episode", currentEpisode);
-    const { characterId, text, commands } = currentEpisode.chunks[chunkIndex];
+    const { characterId, text, code } = currentEpisode.chunks[chunkIndex];
 
-    if (commands?.length) {
-      console.debug("Applying stage commands", stateCommandsToCode(commands));
-      this.apply(commands);
+    if (code?.length) {
+      console.debug("Applying stage code", stateCommandsToCode(code));
+      this.apply(code);
       // TODO: if (scene.busy) await scene.busy;
     }
 
@@ -388,7 +394,7 @@ export class State {
       chunkIndex: currentEpisode.nextChunkIndex++,
       characterId,
       text,
-      commands,
+      code,
     };
   }
 
@@ -396,10 +402,10 @@ export class State {
     if (qualifiedId) {
       const { locationId, sceneId } = parseQualifiedSceneId(qualifiedId);
 
-      const location = this.scenario.locations.find((l) => l.id === locationId);
+      const location = findLocation(this.scenario, locationId);
       if (!location) throw new StateError(`Location not found: ${locationId}`);
 
-      const scene = location.scenes.find((s) => s.id === sceneId);
+      const scene = findScene(location, sceneId);
       if (!scene) throw new StateError(`Scene not found: ${sceneId}`);
 
       this._stage.value.scene = { locationId, sceneId };
@@ -413,23 +419,21 @@ export class State {
   }
 
   addCharacter(characterId: string, outfitId: string, expressionId: string) {
-    const character = this.scenario.characters.find(
-      (c) => c.id === characterId,
-    );
+    const character = findCharacter(this.scenario, characterId);
     if (!character) throw new StateError(`Character not found: ${characterId}`);
 
     if (this._stage.value.characters.find((c) => c.id === characterId)) {
       throw new StateError(`Character already on stage: ${characterId}`);
     }
 
-    const outfit = character.outfits.find((o) => o.id === outfitId);
+    const outfit = findOutfit(character, outfitId);
     if (!outfit) {
       throw new StateError(
         `Outfit not found for character ${characterId}: ${outfitId}`,
       );
     }
 
-    const expression = character.expressions.find((e) => e.id === expressionId);
+    const expression = findExpression(character, expressionId);
     if (!expression) {
       throw new StateError(
         `Expression not found for character ${characterId}: ${expressionId}`,
@@ -452,10 +456,12 @@ export class State {
       throw new StateError(`Character not on stage: ${characterId}`);
     }
 
-    const outfit = this.scenario.characters
-      .find((c) => c.id === characterId)
-      ?.outfits.find((o) => o.id === outfitId);
+    const scenarioCharacter = findCharacter(this.scenario, characterId);
+    if (!scenarioCharacter) {
+      throw new StateError(`Character not found in scenario: ${characterId}`);
+    }
 
+    const outfit = findOutfit(scenarioCharacter, outfitId);
     if (!outfit) {
       throw new StateError(
         `Outfit not found for character ${characterId}: ${outfitId}`,
@@ -475,10 +481,12 @@ export class State {
       throw new StateError(`Character not on stage: ${characterId}`);
     }
 
-    const expression = this.scenario.characters
-      .find((c) => c.id === characterId)
-      ?.expressions.find((e) => e.id === expressionId);
+    const scenarioCharacter = findCharacter(this.scenario, characterId);
+    if (!scenarioCharacter) {
+      throw new StateError(`Character not found in scenario: ${characterId}`);
+    }
 
+    const expression = findExpression(scenarioCharacter, expressionId);
     if (!expression) {
       throw new StateError(
         `Expression not found for character ${characterId}: ${expressionId}`,

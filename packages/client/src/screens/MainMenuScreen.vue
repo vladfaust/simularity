@@ -5,6 +5,7 @@ import { d } from "@/lib/drizzle";
 import { type Scenario } from "@/lib/simulation";
 import { eq } from "drizzle-orm";
 import { BookMarkedIcon, BookOpenIcon, SettingsIcon } from "lucide-vue-next";
+import { findEpisode } from "@/lib/simulation/scenario";
 
 const router = useRouter();
 
@@ -18,16 +19,14 @@ async function newSimulation() {
     throw new Error(`Scenario not found: ${scenarioId}`);
   }
 
-  const startEpisode = scenario.episodes.find(
-    (episode) => episode.id === scenario.startEpisodeId,
-  );
+  const startEpisode = findEpisode(scenario, scenario.startEpisodeId);
   if (!startEpisode) {
     throw new Error(`Start episode not found: ${scenario.startEpisodeId}`);
   }
 
   const chunk = startEpisode.chunks.at(0);
   if (!chunk) {
-    throw new Error(`Episode has no chunks: ${startEpisode.id}`);
+    throw new Error(`Episode has no chunks: ${scenario.startEpisodeId}`);
   }
 
   const simulationId = await d.db.transaction(async (tx) => {
@@ -45,7 +44,7 @@ async function newSimulation() {
           simulationId: simulation.id,
           characterId: chunk.characterId,
           text: chunk.text,
-          episodeId: startEpisode.id,
+          episodeId: scenario.startEpisodeId,
           episodeChunkIndex: 0,
         })
         .returning({
@@ -53,10 +52,10 @@ async function newSimulation() {
         })
     )[0];
 
-    if (chunk.commands) {
+    if (chunk.code) {
       await tx.insert(d.directorUpdates).values({
         writerUpdateId: writerUpdate.id,
-        code: chunk.commands,
+        code: chunk.code,
       });
     }
 

@@ -2,6 +2,13 @@ import { Scenario } from "@/lib/simulation";
 import { throwError } from "@/lib/utils";
 import Phaser from "phaser";
 import { DeepReadonly } from "vue";
+import {
+  findCharacter,
+  findExpression,
+  findLocation,
+  findOutfit,
+  findScene,
+} from "../scenario";
 import { StageRenderer } from "../stageRenderer";
 import { Stage, toSceneQualifiedId } from "../state";
 
@@ -73,34 +80,40 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
   preload() {
     this.load.setBaseURL(this.assetBasePath);
 
-    for (const location of this.scenario.locations) {
-      for (const scene of location.scenes) {
-        this.load.image(this._sceneTextureKey(location.id, scene.id), scene.bg);
+    for (const [locationId, location] of Object.entries(
+      this.scenario.locations,
+    )) {
+      for (const [sceneId, scene] of Object.entries(location.scenes)) {
+        this.load.image(this._sceneTextureKey(locationId, sceneId), scene.bg);
       }
     }
 
-    for (const character of this.scenario.characters) {
+    for (const [characterId, character] of Object.entries(
+      this.scenario.characters,
+    )) {
       let bodyId = 0;
       for (const file of character.bodies) {
         this.load.image(
-          this._characterBodyTextureKey(character.id, bodyId++),
+          this._characterBodyTextureKey(characterId, bodyId++),
           file,
         );
       }
 
-      for (const outfit of character.outfits) {
+      for (const [outfitId, outfit] of Object.entries(character.outfits)) {
         bodyId = 0;
         for (const file of outfit.files) {
           this.load.image(
-            this._characterOutfitTextureKey(character.id, outfit.id, bodyId++),
+            this._characterOutfitTextureKey(characterId, outfitId, bodyId++),
             file,
           );
         }
       }
 
-      for (const expression of character.expressions) {
+      for (const [expressionId, expression] of Object.entries(
+        character.expressions,
+      )) {
         this.load.image(
-          this._characterExpressionTextureKey(character.id, expression.id),
+          this._characterExpressionTextureKey(characterId, expressionId),
           expression.file,
         );
       }
@@ -159,10 +172,10 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     if (qualifiedId) {
       const [locationId, sceneId] = qualifiedId.split("/");
 
-      const location = this.scenario.locations.find((l) => l.id === locationId);
+      const location = findLocation(this.scenario, locationId);
       if (!location) throw new SceneError(`Location not found: ${locationId}`);
 
-      const scene = location.scenes.find((s) => s.id === sceneId);
+      const scene = findScene(location, sceneId);
       if (!scene) throw new SceneError(`Scene not found: ${sceneId}`);
 
       const texture = this._sceneTextureKey(locationId, sceneId);
@@ -204,19 +217,17 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     }
 
     const characterConfig =
-      this.scenario.characters.find((c) => c.id === characterId) ||
+      findCharacter(this.scenario, characterId) ||
       throwError(`Character not found`, { characterId });
 
-    const outfit = characterConfig.outfits.find((o) => o.id === outfitId);
+    const outfit = findOutfit(characterConfig, outfitId);
     if (!outfit) {
       throw new SceneError(
         `Outfit not found for character ${characterId}: ${outfitId}`,
       );
     }
 
-    const expression = characterConfig.expressions.find(
-      (e) => e.id === expressionId,
-    );
+    const expression = findExpression(characterConfig, expressionId);
     if (!expression) {
       throw new SceneError(
         `Expression not found for character ${characterId}: ${expressionId}`,
@@ -234,23 +245,23 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
         ),
       },
       outfit: {
-        id: outfit.id,
+        id: outfitId,
         sprite: this.add.sprite(
           this.game.canvas.width / 2,
           this.game.canvas.height / 2,
           this._characterOutfitTextureKey(
             characterId,
-            outfit.id,
+            outfitId,
             expression.bodyId,
           ),
         ),
       },
       expression: {
-        id: expression.id,
+        id: expressionId,
         sprite: this.add.sprite(
           this.game.canvas.width / 2,
           this.game.canvas.height / 2,
-          this._characterExpressionTextureKey(characterId, expression.id),
+          this._characterExpressionTextureKey(characterId, expressionId),
         ),
       },
     });
@@ -291,21 +302,21 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     }
 
     const characterConfig =
-      this.scenario.characters.find((c) => c.id === characterId) ||
+      findCharacter(this.scenario, characterId) ||
       throwError(`Character not found`, { characterId });
 
-    const outfit = characterConfig.outfits.find((o) => o.id === outfitId);
+    const outfit = findOutfit(characterConfig, outfitId);
     if (!outfit) {
       throw new SceneError(
         `Outfit not found for character ${characterId}: ${outfitId}`,
       );
     }
 
-    character.outfit.id = outfit.id;
+    character.outfit.id = outfitId;
     character.outfit.sprite.setTexture(
       this._characterOutfitTextureKey(
         characterId,
-        outfit.id,
+        outfitId,
         character.body.index,
       ),
     );
@@ -320,12 +331,10 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     }
 
     const characterConfig =
-      this.scenario.characters.find((c) => c.id === characterId) ||
+      findCharacter(this.scenario, characterId) ||
       throwError(`Character not found`, { characterId });
 
-    const expression = characterConfig.expressions.find(
-      (e) => e.id === expressionId,
-    );
+    const expression = findExpression(characterConfig, expressionId);
     if (!expression) {
       throw new SceneError(
         `Expression not found for character ${characterId}: ${expressionId}`,
@@ -337,9 +346,9 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       this._characterBodyTextureKey(characterId, expression.bodyId),
     );
 
-    character.expression.id = expression.id;
+    character.expression.id = expressionId;
     character.expression.sprite.setTexture(
-      this._characterExpressionTextureKey(characterId, expression.id),
+      this._characterExpressionTextureKey(characterId, expressionId),
     );
 
     character.outfit.sprite.setTexture(

@@ -2,22 +2,17 @@ import * as settings from "@/settings";
 import { latestGptSession } from "@/store";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
-import { Raw, computed, markRaw, readonly, ref } from "vue";
+import { Raw, computed, markRaw, readonly, ref, shallowReadonly } from "vue";
 import { d, parseSelectResult, sqlite } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
 import { InferenceOptions } from "./simularity/common";
 import { Gpt, GptDriver, driversEqual } from "./simularity/gpt";
-import * as writer from "./simulation/agents/writer";
+import * as rpChatWriter from "./simulation/agents/rpChatWriter";
 import { Scenario } from "./simulation/scenario";
 import { StageRenderer } from "./simulation/stageRenderer";
 import { State, StateDto, comparesStateDeltas } from "./simulation/state";
 import { StateCommand, stateCommandsToCode } from "./simulation/state/commands";
-import {
-  AssistantUpdate,
-  EpisodeUpdate,
-  Update,
-  UserUpdate,
-} from "./simulation/updates";
+import { Update } from "./simulation/update";
 import {
   Deferred,
   assert,
@@ -68,7 +63,7 @@ export class Simulation {
   /**
    * Simulation updates, ordered from newest to the oldest.
    */
-  readonly updates = readonly(this._updates);
+  readonly updates = shallowReadonly(this._updates);
 
   /**
    * The latest update.
@@ -100,29 +95,15 @@ export class Simulation {
   readonly canGoForward = computed(() => this._currentUpdateIndex.value !== 0);
 
   /**
-   * A complex condition that allows creating a new user update.
+   * A condition that allows creating a new user update.
    */
   readonly canCreateUserUpdate = computed(() => {
     return (
       !this.busy.value &&
       !this.state.shallAdvanceEpisode.value &&
-      this.currentUpdate.value instanceof AssistantUpdate &&
       !this.canGoForward.value
     );
   });
-
-  /**
-   * The parent update ID of the latest update.
-   */
-  readonly parentUpdateId = computed(() =>
-    this.latestUpdate.value instanceof AssistantUpdate
-      ? this.latestUpdate.value.chosenVariant.id
-      : this.latestUpdate.value instanceof UserUpdate
-        ? this.latestUpdate.value.chosenVariant.id
-        : this.latestUpdate.value instanceof EpisodeUpdate
-          ? this.latestUpdate.value.id
-          : null,
-  );
 
   /**
    * The committed writer prompt.
@@ -211,168 +192,101 @@ export class Simulation {
     try {
       await this._checkAndCommitState();
 
-      const { episodeId, text, chunkIndex, commands, characterId } =
+      const { episodeId, text, chunkIndex, code, characterId } =
         await this.state.advanceCurrentEpisode();
 
       this._saveState();
 
+      const parentUpdateId =
+        this.latestUpdate.value?.chosenVariant.writerUpdate.id;
+      console.debug("Parent update ID", parentUpdateId);
+
       const incoming = await this._saveUpdatesToDb({
         writerUpdate: {
-          parentUpdateId: this.parentUpdateId.value,
+          parentUpdateId,
           characterId,
           text,
           episodeId,
           episodeChunkIndex: chunkIndex,
         },
-        directorUpdate: commands ? { code: commands } : undefined,
+        directorUpdate: code ? { code } : undefined,
       });
 
-      const episodeUpdate = markRaw(
-        new EpisodeUpdate(
-          incoming.writerUpdate.id,
-          this.parentUpdateId.value,
-          episodeId,
-          chunkIndex,
-          characterId,
-
-          // NOTE: If the character is the main character,
-          // the update is treated as if created by the user.
-          characterId === this.scenario.mainCharacterId,
-
-          text,
-          incoming.directorUpdate ?? null,
-        ),
-      );
-
-      const newWriterPrompt = `\n${writer.AI_PREFIX}${text}`;
-      this._deferredWriter.promise.then((writer) =>
-        writer.decode(newWriterPrompt, decodeProgressCallback),
-      );
+      const episodeUpdate = markRaw(new Update(parentUpdateId, [incoming]));
 
       this._updates.value.unshift(episodeUpdate);
+
+      const prompt = rpChatWriter.buildFullPrompt(
+        this.scenario,
+        this._updates.value.slice().reverse(),
+      );
+
+      this._deferredWriter.promise.then((writer) =>
+        writer.decode(prompt, decodeProgressCallback),
+      );
     } finally {
       this._busy.value = false;
     }
   }
 
   /**
-   * Send a new user message.
-   *
-   * Would immediately create a new user update,
-   * and then an in-progress assistant update.
+   * Manually create a new update.
    *
    * @assert Simulation is not busy.
-   * @assert Latest update is an assistant or episode update.
    * @assert There is no current episode.
+   * @assert The current update is the latest one.
    *
-   * @param userMessage The message text.
+   * @param text The message text.
    */
-  async createUserUpdate(
-    userMessage: string,
-    nEval: number,
-    inferenceOptions?: InferenceOptions,
-    onDecodeProgress?: (event: { progress: number }) => void,
-    inferenceAbortSignal?: AbortSignal,
-  ) {
+  async createUpdate(characterId: string | null, text: string) {
     if (this.busy.value) {
       throw new Error("Simulation is busy");
     }
 
     if (this.state.shallAdvanceEpisode.value) {
-      throw new Error("Cannot create user update during an episode");
+      /** Call {@link advanceCurrentEpisode} instead. */
+      throw new Error("Cannot create an update during an episode");
     }
 
     if (
-      !(
-        this.latestUpdate.value instanceof AssistantUpdate ||
-        this.latestUpdate.value instanceof EpisodeUpdate
-      )
+      this.latestUpdate.value?.parentId !== this.currentUpdate.value?.parentId
     ) {
-      throw new Error("A user update may not follow another user update");
+      throw new Error("Current update is not the latest one");
     }
 
     this._busy.value = true;
     try {
       await this._checkAndCommitState();
-
-      // If the latest update is an episode update, use its ID as the parent ID.
-      // Otherwise, use the latest assistant update's chosen variant ID.
       const parentUpdateId =
-        this.latestUpdate.value instanceof AssistantUpdate
-          ? this.latestUpdate.value.chosenVariant.id
-          : this.latestUpdate.value.id;
+        this.latestUpdate.value?.chosenVariant.writerUpdate.id;
 
-      // Save the user update as a writer update.
+      // Insert the new update to the database.
       let saved = await this._saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId,
-          text: userMessage,
+          characterId,
+          text,
           createdByPlayer: true,
         },
       });
 
-      // Create a new user update.
-      const userUpdateId = saved.writerUpdate.id;
-      const userUpdate = markRaw(
-        new UserUpdate(parentUpdateId, saved.writerUpdate),
-      );
+      // Create a new update.
+      const userUpdate = markRaw(new Update(parentUpdateId, [saved]));
       this._updates.value.unshift(userUpdate);
-      this.skipToEnd(); // Something may happen between user & assistant updates.
-
-      const assistantUpdate = markRaw(new AssistantUpdate(userUpdateId, []));
-      this._updates.value.unshift(assistantUpdate);
       this.skipToEnd();
-
-      const prompt = writer.buildFullPrompt(
-        this.scenario,
-        this._updates.value.slice(1).reverse(), // Skip the assistant update.
-      );
-
-      await this._inferAssistantUpdateVariantImpl(
-        assistantUpdate,
-        prompt,
-        nEval,
-        inferenceOptions,
-        onDecodeProgress,
-        inferenceAbortSignal,
-      );
     } finally {
       this._busy.value = false;
     }
   }
 
   /**
-   * Simply edit the text of a user update.
-   *
-   * @assert The simulation is not busy.
-   * @assert The update is the latest one, or the one before the latest (NIY).
-   */
-  // TODO: Implement the index check.
-  async editUserUpdateText(update: UserUpdate, newText: string) {
-    if (this.busy.value) {
-      throw new Error("Simulation is busy");
-    }
-
-    this._busy.value = true;
-    try {
-      // TODO: Set "editedAt" etc.
-      await d.db
-        .update(d.writerUpdates)
-        .set({ text: newText })
-        .where(eq(d.writerUpdates.id, update.chosenVariant.id));
-
-      update.chosenVariant.text = newText;
-    } finally {
-      this._busy.value = false;
-    }
-  }
-
-  /**
-   * Generate a new assistant update.
+   * Predict the next update.
+   * @param characterId If set, would force the character (or narrator) to speak.
    * @assert There is no current episode.
    */
-  async createAssistantUpdate(
+  async predictUpdate(
     nEval: number,
+    characterId?: string | null,
     inferenceOptions?: InferenceOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
@@ -388,21 +302,23 @@ export class Simulation {
     try {
       await this._checkAndCommitState();
 
-      const parentUpdateId = this.parentUpdateId.value;
+      const parentUpdateId =
+        this.latestUpdate.value?.chosenVariant.writerUpdate.id;
 
-      const assistantUpdate = markRaw(new AssistantUpdate(parentUpdateId, []));
-      this._updates.value.unshift(assistantUpdate);
+      const update = markRaw(new Update(parentUpdateId, []));
+      this._updates.value.unshift(update);
       this.skipToEnd();
 
-      const prompt = writer.buildFullPrompt(
+      const prompt = rpChatWriter.buildFullPrompt(
         this.scenario,
-        this._updates.value.slice(1).reverse(), // Skip this update.
+        this._updates.value.slice(1).reverse(), // Skip the just created update.
       );
 
-      await this._inferAssistantUpdateVariantImpl(
-        assistantUpdate,
+      await this._inferUpdateVariantImpl(
+        update,
         prompt,
         nEval,
+        characterId,
         inferenceOptions,
         onDecodeProgress,
         inferenceAbortSignal,
@@ -413,21 +329,22 @@ export class Simulation {
   }
 
   /**
-   * Generate a new assistant update variant (i.e. regenerate).
+   * Generate a new update variant (i.e. regenerate).
    *
    * @assert The simulation is not busy.
    * @assert The update is the latest one.
    *
-   * @param fadeFn A function that fades the scene before
+   * @param fadeFn A function that fades the scene prior to
    * resetting the state to the previous one.
    */
-  async createAssistantUpdateVariant(
-    update: AssistantUpdate,
-    fadeFn: (callable: () => Promise<void>) => Promise<void>,
+  async createUpdateVariant(
+    update: Update,
     nEval: number,
-    inferenceOptions: InferenceOptions,
+    characterId?: string | null,
+    inferenceOptions?: InferenceOptions,
     onInferenceDecodingProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
+    fadeFn?: (callable: () => Promise<void>) => Promise<void>,
   ) {
     if (this.busy.value) {
       throw new Error("Cannot regenerate while busy");
@@ -440,21 +357,22 @@ export class Simulation {
     this._busy.value = true;
     try {
       // Reset the state to the previous one.
-      // OPTIMIZE: Infer while waiting for the fade.
-      await fadeFn(async () => {
-        this.state.setState(this._previousState.value);
-        this.skipToEnd();
-      });
+      const fadeCb = async () => this.state.setState(this._previousState.value);
+      if (fadeFn) await fadeFn(fadeCb);
+      else await fadeCb();
 
-      const prompt = writer.buildFullPrompt(
+      this.skipToEnd();
+
+      const prompt = rpChatWriter.buildFullPrompt(
         this.scenario,
         this._updates.value.slice(1).reverse(), // Skip the current update.
       );
 
-      await this._inferAssistantUpdateVariantImpl(
+      await this._inferUpdateVariantImpl(
         update,
         prompt,
         nEval,
+        characterId,
         inferenceOptions,
         onInferenceDecodingProgress,
         inferenceAbortSignal,
@@ -465,7 +383,7 @@ export class Simulation {
   }
 
   /**
-   * Choosing a variant of an assistant update implies possible state changes.
+   * Choose an update variant.
    *
    * @assert The simulation is not busy.
    * @assert The update is the latest one.
@@ -473,10 +391,10 @@ export class Simulation {
    * @param fadeFn A function that fades the scene before applying the update.
    * Will only be called if the state delta differs from the chosen variant's code.
    */
-  async chooseAssistantUpdateVariant(
-    update: AssistantUpdate,
+  async chooseUpdateVariant(
+    update: Update,
     variantIndex: number,
-    fadeFn: (callable: () => Promise<void>) => void,
+    fadeFn?: (callable: () => Promise<void>) => Promise<void>,
   ) {
     if (this.busy.value) {
       throw new Error("Simulation is busy");
@@ -496,33 +414,36 @@ export class Simulation {
     ) {
       // ...reset the state to the previous one,
       // and then apply the chosen variant.
-      fadeFn(async () => {
+      const cb = async () => {
         this.state.setState(this._previousState.value);
         const code = update.variants[variantIndex].directorUpdate?.code;
         if (code) this.state.apply(code);
-        this.skipToEnd();
-      });
-    } else {
-      this.skipToEnd();
+      };
+
+      if (fadeFn) await fadeFn(cb);
+      else await cb();
     }
+
+    this.skipToEnd();
   }
 
   /**
-   * Edit the text of a currently chosen assistant update variant.
+   * Edit the text of an update variant.
    *
    * @assert The simulation is not busy.
-   * @assert The update is the latest one.
+   * @assert There are changes to apply.
    */
-  async editAssistantUpdateVariantText(
-    update: AssistantUpdate,
-    newText: string,
+  async editUpdateVariant(
+    variant: (typeof Update.prototype.variants)[0],
+    newText?: string,
+    newCharacterId?: string | null,
   ) {
     if (this.busy.value) {
       throw new Error("Simulation is busy");
     }
 
-    if (update.parentId !== this.latestUpdate.value?.parentId) {
-      throw new Error("Update is not the latest");
+    if (!newText && !newCharacterId) {
+      throw new Error("No changes to apply");
     }
 
     try {
@@ -531,10 +452,16 @@ export class Simulation {
       // TODO: Preserve original text.
       await d.db
         .update(d.writerUpdates)
-        .set({ text: newText })
-        .where(eq(d.writerUpdates.id, update.chosenVariant.id));
+        .set({ characterId: newCharacterId, text: newText })
+        .where(eq(d.writerUpdates.id, variant.writerUpdate.id));
 
-      update.chosenVariant.text = newText;
+      if (newText) {
+        variant.writerUpdate.text = newText;
+      }
+
+      if (newCharacterId) {
+        variant.writerUpdate.characterId = newCharacterId;
+      }
     } finally {
       this._busy.value = false;
     }
@@ -677,7 +604,7 @@ export class Simulation {
   private async fetchInitialUpdates() {
     const writerUpdates = await Simulation.fetchWriterUpdatesAsc(
       this._headWriterUpdateId.value,
-      100, // TODO: Fetch until the latest checkpoint.
+      1000, // TODO: Fetch until the latest checkpoint.
     );
 
     console.debug("Fetched writer updates", writerUpdates);
@@ -689,45 +616,22 @@ export class Simulation {
     console.debug("Fetched director updates", directorUpdates);
 
     this._updates.value = writerUpdates.map((writerUpdate) => {
-      if (writerUpdate.createdByPlayer) {
-        return markRaw(
-          new UserUpdate(writerUpdate.parentUpdateId, writerUpdate),
-        );
-      } else if (writerUpdate.episodeId) {
-        return markRaw(
-          new EpisodeUpdate(
-            writerUpdate.id,
-            writerUpdate.parentUpdateId,
-            writerUpdate.episodeId,
-            writerUpdate.episodeChunkIndex!,
-            writerUpdate.characterId,
-            writerUpdate.characterId === this.scenario.mainCharacterId,
-            writerUpdate.text,
-            directorUpdates.find(
-              (directorUpdate) =>
-                directorUpdate.writerUpdateId === writerUpdate.id,
-            ) ?? null,
-          ),
-        );
-      } else {
-        return markRaw(
-          new AssistantUpdate(writerUpdate.parentUpdateId, [
-            {
-              ...writerUpdate,
-              directorUpdate:
-                directorUpdates.find(
-                  (directorUpdate) =>
-                    directorUpdate.writerUpdateId === writerUpdate.id,
-                ) ?? null,
-            },
-          ]),
-        );
-      }
+      const directorUpdate =
+        directorUpdates.find(
+          (directorUpdate) => directorUpdate.writerUpdateId === writerUpdate.id,
+        ) ?? null;
+
+      return markRaw(
+        new Update(writerUpdate.parentUpdateId, [
+          { writerUpdate, directorUpdate },
+        ]),
+      );
     });
 
     // If the newest update is an assistant update, also fetch its siblings.
-    if (this.latestUpdate.value instanceof AssistantUpdate) {
-      const preservedVariantId = this.latestUpdate.value.chosenVariant.id;
+    if (this.latestUpdate.value) {
+      const sanityCheckWriterUpdateId =
+        this.latestUpdate.value.chosenVariant.writerUpdate.id;
 
       const siblings = await d.db.query.writerUpdates.findMany({
         where: and(
@@ -750,7 +654,7 @@ export class Simulation {
       );
 
       this.latestUpdate.value.variants = siblings.map((writerUpdate) => ({
-        ...writerUpdate,
+        writerUpdate,
         directorUpdate:
           directorUpdates.find(
             (directorUpdate) =>
@@ -760,7 +664,7 @@ export class Simulation {
 
       this.latestUpdate.value.chosenVariantIndex.value = assertFn(
         this.latestUpdate.value.variants.findIndex(
-          (v) => v.id === preservedVariantId,
+          (v) => v.writerUpdate.id === sanityCheckWriterUpdateId,
         ),
         (index) => index >= 0,
         "Chosen variant not found in siblings",
@@ -776,11 +680,11 @@ export class Simulation {
   private async initWriter(
     progressCallback: (event: { progress: number }) => void,
   ) {
-    const staticPrompt = writer.buildStaticPrompt(this.scenario);
+    const staticPrompt = rpChatWriter.buildStaticPrompt(this.scenario);
 
     // Reverse the updates to go from the oldest to the newest.
     this._updates.value.reverse();
-    const dynamicPrompt = writer.buildDynamicPrompt(this._updates.value);
+    const dynamicPrompt = rpChatWriter.buildDynamicPrompt(this._updates.value);
     this._updates.value.reverse();
 
     const fullPrompt = staticPrompt + dynamicPrompt;
@@ -965,13 +869,7 @@ export class Simulation {
       let i = this._updates.value.length;
       while (i > 0) {
         const update = this._updates.value[--i];
-        let directorUpdate;
-
-        if (update instanceof AssistantUpdate) {
-          directorUpdate = update.chosenVariant.directorUpdate;
-        } else if (update instanceof EpisodeUpdate) {
-          directorUpdate = update.directorUpdate;
-        }
+        const directorUpdate = update.chosenVariant.directorUpdate;
 
         if (directorUpdate) {
           console.debug(
@@ -991,12 +889,12 @@ export class Simulation {
 
       // If the latest update's (single) variant
       // has an episode ID, resume from there.
-      if (this.latestUpdate.value instanceof EpisodeUpdate) {
-        const episodeUpdate = this.latestUpdate.value;
+      if (this.latestUpdate.value?.chosenVariant.writerUpdate.episodeId) {
+        const variant = this.latestUpdate.value?.chosenVariant;
 
         this.state.setEpisode(
-          episodeUpdate.episodeId,
-          episodeUpdate.chunkIndex! + 1,
+          variant.writerUpdate.episodeId!,
+          variant.writerUpdate.episodeChunkIndex! + 1,
         );
       }
     }
@@ -1012,8 +910,8 @@ export class Simulation {
     // (a player may change the state from the sandbox console for example).
     // If if differs, save the actual delta as a new director update.
     // TODO: Same applies to a user update, when it has code.
-    if (this.latestUpdate.value instanceof AssistantUpdate) {
-      const update = this.latestUpdate.value as AssistantUpdate;
+    if (this.latestUpdate.value) {
+      const update = this.latestUpdate.value;
 
       const actualDelta = this.state.delta(this._previousState.value);
       console.debug("Actual delta", actualDelta);
@@ -1041,7 +939,7 @@ export class Simulation {
         await d.db
           .insert(d.directorUpdates)
           .values({
-            writerUpdateId: update.chosenVariant.id,
+            writerUpdateId: update.chosenVariant.writerUpdate.id,
             code: actualDelta,
           })
           .returning()
@@ -1114,68 +1012,98 @@ export class Simulation {
 
   /**
    * Infer a new assistant update variant.
-   * @prompt Inference prompt, sent as-is to writer.
+   *
+   * @param prompt Inference prompt, sent as-is to writer.
+   * @param characterId If set, would force the character (or narrator) to speak.
+   *
    * @returns The generated text.
    */
-  private async _inferAssistantUpdateVariantImpl(
-    update: AssistantUpdate,
+  private async _inferUpdateVariantImpl(
+    update: Update,
     prompt: string,
     nEval: number,
+    characterId?: string | null,
     inferenceOptions?: InferenceOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
-  ): Promise<string> {
-    update.inProgressVariantText.value = "";
+  ): Promise<{
+    characterId: string | null;
+    text: string;
+  }> {
+    update.inProgressVariant.value = {
+      characterId,
+      text: "",
+    };
 
     try {
       const writerResponse = await this._deferredWriter.promise.then(
         async (writer_) => {
           const stopSequences = ["\n"];
 
+          const rpChatPredictionOptions: rpChatWriter.PredictionOptions =
+            characterId
+              ? { characterId }
+              : { allowNarrator: false, allowPlayerCharacterId: false };
+
           const options: InferenceOptions = {
             stopSequences,
-            grammar: writer.GRAMMAR,
+            grammar: rpChatWriter.buildGrammar(
+              this.scenario,
+              rpChatPredictionOptions,
+            ),
             ...inferenceOptions,
           };
 
-          console.log("Infering assistant update", prompt, nEval, options);
+          console.log(
+            "Inferring update",
+            prompt,
+            nEval,
+            options,
+            rpChatPredictionOptions,
+          );
 
-          const result = await writer_.infer(
+          const rawResult = await writer_.infer(
             prompt,
             nEval,
             options,
             onDecodeProgress,
             (e) => {
-              update.inProgressVariantText.value += e.content;
+              update.inProgressVariant.value!.text += e.content;
             },
             inferenceAbortSignal,
           );
 
-          return trimEndAny(result, stopSequences);
+          const trimmedResult = trimEndAny(rawResult, stopSequences);
+
+          const parsedResult = rpChatWriter.parsePrediction(
+            trimmedResult,
+            this.scenario,
+            rpChatPredictionOptions,
+          );
+
+          return parsedResult;
         },
       );
 
-      console.log("Inferred assistant update", writerResponse);
+      console.log("Predicted update", writerResponse);
 
       const { writerUpdate } = await this._saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId: update.parentId,
-          text: writerResponse,
+          characterId: writerResponse.characterId,
+          text: writerResponse.text,
         },
       });
 
       update.variants.push({
-        id: writerUpdate.id,
-        text: writerUpdate.text,
-        createdAt: writerUpdate.createdAt,
+        writerUpdate,
         directorUpdate: null,
       });
 
       update.chosenVariantIndex.value = update.variants.length - 1;
-
       return writerResponse;
     } finally {
-      update.inProgressVariantText.value = null;
+      update.inProgressVariant.value = undefined;
     }
   }
 

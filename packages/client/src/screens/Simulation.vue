@@ -161,6 +161,7 @@ onUnmounted(() => {
         :simulation
         :fade-canvas
         :screenshot
+        :asset-base-url
         @main-menu="showMenu = true"
         @screenshot="screenshot"
         @sandbox="showSandboxConsole = !showSandboxConsole"
