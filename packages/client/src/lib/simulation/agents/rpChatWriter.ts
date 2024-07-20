@@ -63,6 +63,7 @@ The [Transcription] section comprises chat message separated with newlines.
 A chat message is a <characterId> followed by their first-person utterance.
 A special <narrator> character is used to denote the narrator's voice, in the third person.
 Actions performed by simulacra SHALL be wrapped in *asterisks*, referring the to player character as "you".
+Treat text wrapped in [square brackets] as system commands or instructions, which you MUST follow.
 Avoid acting for characters which are not currently present on the stage.
 
 [Transcription example (playerCharacter: <bob>)]
@@ -73,8 +74,9 @@ Avoid acting for characters which are not currently present on the stage.
 <carl> Sure, Alice. Well, Bob, roses are blue.
 <alice> Ha-ha! *I'm now grinning. That's hilarious!* You're such a good teller.
 <narrator> Carl vanishes into thin air, leaving Bob and Alice alone.
-<bob> What am I even doing here? And where did Carl go?
-<carl> Oh, I just wanted to check onto something.
+<bob> What am I even doing here? And where did Carl go? [Bring Carl back.]
+<narrator> Carl reappears, looking puzzled.
+<carl> Oh, I just wanted to check onto something. Sorry for the confusion.
 
 [Setup]
 %setup%
