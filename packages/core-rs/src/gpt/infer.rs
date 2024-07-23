@@ -79,7 +79,7 @@ pub enum Error {
 ///   Return `true` to continue, or `false` to cancel.
 ///
 /// # Returns
-/// Number of tokens decoded.
+/// New context length.
 ///
 pub fn infer(
     session_id: u32,

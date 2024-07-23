@@ -153,7 +153,7 @@ simularity_gpt_inference_options simularity_gpt_inference_options_default();
   @param inference_callback Callback function to report inference output. Return
     true to continue inference, false to stop.
 
-  @returns # of tokens generated on success.
+  @returns New context length on success.
   @returns -1 when session not found.
   @returns -2 on context overflow.
   @returns -3 on failure to initialize sampling (likely a grammar error).

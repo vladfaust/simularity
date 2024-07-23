@@ -47,6 +47,7 @@ export async function infer(
 ): Promise<{
   inferenceId: string;
   result: string;
+  contextLength: number;
 }> {
   const response = await fetch(`${baseUrl}/gpts/${gptId}/infer`, {
     method: "POST",
@@ -90,6 +91,7 @@ export async function infer(
           return {
             inferenceId: chunk.inferenceId,
             result,
+            contextLength: chunk.contextLength,
           };
         default:
           throw unreachable(chunk);

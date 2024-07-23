@@ -1,3 +1,4 @@
+import { StateDto } from "./state";
 import { StateCommand } from "./state/commands";
 
 // TODO: Make it a Valibot schema.
@@ -103,6 +104,10 @@ export type Scenario = {
 
   episodes: {
     [id: string]: {
+      checkpoint?: {
+        summary: string;
+        state: StateDto;
+      };
       chunks: [
         {
           characterId: string;
@@ -110,10 +115,6 @@ export type Scenario = {
           code?: StateCommand[];
         },
       ];
-      time?: {
-        day?: number;
-        timeOfDay: "morning" | "day" | "evening" | "night";
-      };
     };
   };
 };

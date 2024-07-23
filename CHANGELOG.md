@@ -68,6 +68,8 @@
 - [x] feat: whole prompts in GPT (Thu 19)
       Simplifies logic in exchange for more wire usage (feasable, though).
 - [x] feat(client): turn-based roleplay chat game (Fri 20)
+- [x] feat(client): summarization (Tue 23)
+      Instead of T5, use the same GPT to reuse prompt.
 
 ### June 2024
 

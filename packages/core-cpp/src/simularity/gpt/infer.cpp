@@ -221,5 +221,5 @@ int simularity_gpt_infer(
           std::chrono::duration_cast<std::chrono::seconds>(end - start).count()
   );
 
-  return eval_tokens.size();
+  return n_prompt + eval_tokens.size();
 }

@@ -3,7 +3,10 @@ import { invoke } from "@tauri-apps/api";
 import { emit, listen } from "@tauri-apps/api/event";
 import { InferenceOptionsSchema } from "../../common";
 
-type Response = string;
+type Response = {
+  result: string;
+  contextLength: number;
+};
 
 type DecodeProgressEventPayload = {
   progress: number;

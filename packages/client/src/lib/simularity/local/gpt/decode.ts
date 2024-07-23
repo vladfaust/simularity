@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 
 type Response = {
   duration: number;
-  kvCacheSize: number;
+  contextLength: number;
 };
 
 type ProgressEventPayload = {

@@ -25,6 +25,7 @@ const MIGRATIONS: Migration[] = [
   await import(
     "./drizzle/migrations/009_add_character_id_to_writer_updates.js"
   ),
+  await import("./drizzle/migrations/010_create_checkpoints.js"),
 ];
 
 const databaseUrl = await join(
@@ -96,6 +97,7 @@ const d = {
     "llamaInferences",
     "simulations",
     "writerUpdates",
+    "checkpoints",
   ]),
 };
 

@@ -2,7 +2,7 @@ import * as settings from "@/settings";
 import { latestGptSession } from "@/store";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
-import { Raw, computed, markRaw, readonly, ref, shallowReadonly } from "vue";
+import { Raw, computed, markRaw, readonly, ref, shallowRef } from "vue";
 import { d, parseSelectResult, sqlite } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
 import { InferenceOptions } from "./simularity/common";
@@ -20,7 +20,6 @@ import {
   bufferToHex,
   clone,
   digest,
-  trimEndAny,
   unreachable,
 } from "./utils";
 
@@ -30,15 +29,34 @@ export type { Scenario };
 export class Simulation {
   //#region Private fields
   private readonly _deferredWriter = new Deferred<Gpt>();
-  private readonly _writer = ref<Gpt | undefined>();
-  private readonly _headWriterUpdateId = ref<string | null>(null);
+
+  // REFACTOR: Make Writer a separate class.
+  private readonly _writer = shallowRef<Gpt | undefined>();
+
+  private readonly _headWriterUpdateId = ref<string | undefined>();
+
   /**
-   * Simulation updates, ordered from newest to the oldest.
+   * Historical updates (older than the latest checkpoint),
+   * ordered from the newest to the oldest.
    */
-  private readonly _updates = ref<Raw<Update>[]>([]);
-  private _previousState = ref<StateDto | null>(null);
+  private readonly _historicalUpdates = ref<Raw<Update>[]>([]);
+
+  /**
+   * Recent updates (until the latest checkpoint),
+   * ordered from newest to the oldest.
+   */
+  private readonly _recentUpdates = ref<Raw<Update>[]>([]);
+
+  private _previousState = shallowRef<StateDto | null>(null);
   private _busy = ref(false);
   private _currentUpdateIndex = ref(0);
+
+  // TODO: Make it always defined (i.e. simulation is always in valid state).
+  private _checkpoint = shallowRef<
+    typeof d.checkpoints.$inferSelect | undefined
+  >();
+
+  private readonly _writerContextLength = ref(0);
   //#endregion
 
   readonly writer = this._writer;
@@ -63,12 +81,24 @@ export class Simulation {
   /**
    * Simulation updates, ordered from newest to the oldest.
    */
-  readonly updates = shallowReadonly(this._updates);
+  readonly updates = computed(() => {
+    return [...this._recentUpdates.value, ...this._historicalUpdates.value];
+  });
+
+  /**
+   * The number of recent updates, used to determine the checkpoint position.
+   */
+  readonly recentUpdatesLength = computed(
+    () => this._recentUpdates.value.length,
+  );
 
   /**
    * The latest update.
    */
-  readonly latestUpdate = computed(() => this._updates.value.at(0));
+  readonly latestUpdate = computed(
+    () =>
+      this._recentUpdates.value.at(0) || this._historicalUpdates.value.at(0),
+  );
 
   /**
    * Current update index.
@@ -79,14 +109,14 @@ export class Simulation {
    * The current update.
    */
   readonly currentUpdate = computed(() => {
-    return this._updates.value.at(this._currentUpdateIndex.value);
+    return this.updates.value.at(this._currentUpdateIndex.value);
   });
 
   /**
    * Would be false if {@link currentUpdate} is the oldest update.
    */
   readonly canGoBack = computed(
-    () => this._currentUpdateIndex.value < this._updates.value.length - 1,
+    () => this._currentUpdateIndex.value < this.updates.value.length - 1,
   );
 
   /**
@@ -108,9 +138,17 @@ export class Simulation {
   /**
    * The committed writer prompt.
    */
-  readonly writerPrompt = computed(() => {
-    return this.writer.value?.prompt.value;
-  });
+  readonly writerPrompt = computed(() => this.writer.value?.prompt.value);
+
+  /**
+   * The actual writer context length.
+   */
+  readonly writerContextLength = readonly(this._writerContextLength);
+
+  /**
+   * The writer context size.
+   */
+  readonly writerContextSize = computed(() => this.writer.value?.contextSize);
 
   /**
    * Whether the simulation is busy.
@@ -158,10 +196,10 @@ export class Simulation {
       simulationId,
       simulation.scenarioId,
       scenario,
-      simulation.headWriterUpdateId,
+      simulation.headWriterUpdateId!,
     );
 
-    await instance.init();
+    await instance._init();
 
     return instance;
   }
@@ -190,7 +228,7 @@ export class Simulation {
 
     this._busy.value = true;
     try {
-      await this._checkAndCommitState();
+      await this._commitState();
 
       const { episodeId, text, chunkIndex, code, characterId } =
         await this.state.advanceCurrentEpisode();
@@ -204,6 +242,7 @@ export class Simulation {
       const incoming = await this._saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId,
+          checkpointId: this._checkpoint.value!.id,
           characterId,
           text,
           episodeId,
@@ -214,15 +253,19 @@ export class Simulation {
 
       const episodeUpdate = markRaw(new Update(parentUpdateId, [incoming]));
 
-      this._updates.value.unshift(episodeUpdate);
+      this._recentUpdates.value.unshift(episodeUpdate);
 
       const prompt = rpChatWriter.buildFullPrompt(
         this.scenario,
-        this._updates.value.slice().reverse(),
+        this._checkpoint.value!.summary,
+        this._historicalUpdates.value.slice().reverse(),
+        this._recentUpdates.value.slice().reverse(),
       );
 
       this._deferredWriter.promise.then((writer) =>
-        writer.decode(prompt, decodeProgressCallback),
+        writer.decode(prompt, decodeProgressCallback).then((decodeResult) => {
+          this._writerContextLength.value = decodeResult.contextLength;
+        }),
       );
     } finally {
       this._busy.value = false;
@@ -256,7 +299,8 @@ export class Simulation {
 
     this._busy.value = true;
     try {
-      await this._checkAndCommitState();
+      await this._commitState();
+
       const parentUpdateId =
         this.latestUpdate.value?.chosenVariant?.writerUpdate.id;
 
@@ -264,6 +308,7 @@ export class Simulation {
       let saved = await this._saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId,
+          checkpointId: this._checkpoint.value!.id,
           characterId,
           text,
           createdByPlayer: true,
@@ -272,7 +317,7 @@ export class Simulation {
 
       // Create a new update.
       const userUpdate = markRaw(new Update(parentUpdateId, [saved]));
-      this._updates.value.unshift(userUpdate);
+      this._recentUpdates.value.unshift(userUpdate);
       this.skipToEnd();
     } finally {
       this._busy.value = false;
@@ -300,18 +345,20 @@ export class Simulation {
     }
 
     try {
-      await this._checkAndCommitState();
+      await this._commitState();
 
       const parentUpdateId =
         this.latestUpdate.value?.chosenVariant?.writerUpdate.id;
 
       const update = markRaw(new Update(parentUpdateId));
-      this._updates.value.unshift(update);
+      this._recentUpdates.value.unshift(update);
       this.skipToEnd();
 
       const prompt = rpChatWriter.buildFullPrompt(
         this.scenario,
-        this._updates.value.slice(1).reverse(), // Skip the just created update.
+        this._checkpoint.value!.summary,
+        this._historicalUpdates.value.slice().reverse(),
+        this._recentUpdates.value.slice(1).reverse(), // Skip the just created update.
       );
 
       await this._inferUpdateVariantImpl(
@@ -365,7 +412,9 @@ export class Simulation {
 
       const prompt = rpChatWriter.buildFullPrompt(
         this.scenario,
-        this._updates.value.slice(1).reverse(), // Skip the current update.
+        this._checkpoint.value!.summary,
+        this._historicalUpdates.value.slice().reverse(),
+        this._recentUpdates.value.slice(1).reverse(), // Skip the current update.
       );
 
       await this._inferUpdateVariantImpl(
@@ -467,6 +516,68 @@ export class Simulation {
     }
   }
 
+  /**
+   * Consolidate the simulation.
+   */
+  async consolidate(inferenceAbortSignal?: AbortSignal) {
+    const summarizationPrompt = rpChatWriter.buildSummarizationPrompt(
+      this.scenario,
+      this._checkpoint.value!.summary,
+      this._historicalUpdates.value.slice().reverse(),
+      this._recentUpdates.value.slice().reverse(),
+      256,
+    );
+
+    console.debug("Summarization prompt", summarizationPrompt);
+
+    const summarizationResult = await this._deferredWriter.promise.then(
+      async (writer_) => {
+        return writer_.infer(
+          summarizationPrompt,
+          256,
+          {
+            temp: 0.2,
+            stopSequences: ["\n"],
+            grammar: rpChatWriter.buildSummarizationGrammar(),
+          },
+          (decodingEvent) => {
+            console.log(
+              "Summarization decoding progress",
+              decodingEvent.progress,
+            );
+          },
+          undefined,
+          inferenceAbortSignal,
+        );
+      },
+    );
+
+    if (inferenceAbortSignal?.aborted) {
+      console.warn("Summarization aborted", summarizationResult);
+      return;
+    }
+
+    console.log("Summarization result", summarizationResult);
+
+    this._checkpoint.value = (
+      await d.db
+        .insert(d.checkpoints)
+        .values({
+          writerUpdateId:
+            this.latestUpdate.value!.chosenVariant!.writerUpdate.id,
+          summary: summarizationResult.result,
+          state: this.state.serialize(),
+        })
+        .returning()
+    )[0];
+
+    // Move all recent updates to historical updates.
+    this._historicalUpdates.value.unshift(
+      ...this._recentUpdates.value.splice(0),
+    );
+    this._recentUpdates.value = [];
+  }
+
   // TODO: async editAssistantUpdateVariantCode() {}
 
   /**
@@ -498,14 +609,24 @@ export class Simulation {
   //
 
   /**
-   * Fetch the latest writer updates until `headUpdateId`,
-   * sorted from the oldest to the latest update.
+   * Fetch the latest writer updates until `headUpdateId` (including),
+   * sorted from the oldest to the newest. It uses a recursive CTE
+   * to fetch the updates starting from the head.
    */
-  private static async fetchWriterUpdatesAsc(
+  private static async _fetchWriterUpdatesAsc(
     headUpdateId: string | null,
-    limit: number,
+    checkpointId?: number | null,
+    limit?: number,
   ) {
-    assert(limit > 0, "Limit must be > 0");
+    let checkpointClause = "";
+
+    if (checkpointId === null) {
+      checkpointClause = `WHERE parent.${d.writerUpdates.checkpointId.name} IS NULL`;
+    } else if (checkpointId) {
+      checkpointClause = `WHERE parent.${d.writerUpdates.checkpointId.name} = ?`;
+    }
+
+    console.debug({ checkpointClause, checkpointId });
 
     const writerUpdatesQuery = new SQLiteSyncDialect().sqlToQuery(
       sql.raw(`
@@ -514,6 +635,7 @@ export class Simulation {
               SELECT
                 ${d.writerUpdates.id.name},
                 ${d.writerUpdates.parentUpdateId.name},
+                ${d.writerUpdates.checkpointId.name},
                 ${d.writerUpdates.createdByPlayer.name},
                 ${d.writerUpdates.characterId.name},
                 ${d.writerUpdates.text.name},
@@ -529,6 +651,7 @@ export class Simulation {
               SELECT
                 parent.${d.writerUpdates.id.name},
                 parent.${d.writerUpdates.parentUpdateId.name},
+                parent.${d.writerUpdates.checkpointId.name},
                 parent.${d.writerUpdates.createdByPlayer.name},
                 parent.${d.writerUpdates.characterId.name},
                 parent.${d.writerUpdates.text.name},
@@ -539,7 +662,8 @@ export class Simulation {
               FROM
                 ${writerUpdatesTableName} parent
                 JOIN writer_updates_tree child ON child.${d.writerUpdates.parentUpdateId.name} = parent.${d.writerUpdates.id.name}
-              LIMIT ?
+              ${checkpointClause}
+              ${limit ? `LIMIT ?` : ""}
             )
           SELECT
             *
@@ -548,18 +672,18 @@ export class Simulation {
       `),
     );
 
-    const result = await sqlite.query(writerUpdatesQuery.sql, [
-      headUpdateId,
-      limit - 1,
-    ]);
+    const params: any[] = [headUpdateId];
+    if (checkpointId) params.push(checkpointId);
+    if (limit) params.push(limit);
 
+    const result = await sqlite.query(writerUpdatesQuery.sql, params);
     return parseSelectResult(d.writerUpdates, result);
   }
 
   /**
-   * For each text update, fetch the applied (i.e. latest) code update.
+   * For each writer update, fetch the applied (i.e. latest) director update.
    */
-  private static async fetchAppliedDirectorUpdates(textUpdateIds: string[]) {
+  private static async _fetchAppliedDirectorUpdates(writerUpdateIds: string[]) {
     return d.db
       .select({
         id: d.directorUpdates.id,
@@ -569,7 +693,7 @@ export class Simulation {
         llamaInferenceId: d.directorUpdates.llamaInferenceId,
       })
       .from(d.directorUpdates)
-      .where(inArray(d.directorUpdates.writerUpdateId, textUpdateIds))
+      .where(inArray(d.directorUpdates.writerUpdateId, writerUpdateIds))
       .groupBy(d.directorUpdates.writerUpdateId)
       .orderBy(asc(d.directorUpdates.createdAt))
       .all();
@@ -579,7 +703,7 @@ export class Simulation {
     id: string,
     scenarioId: string,
     scenario: Scenario,
-    headWriterUpdateId: string | null,
+    headWriterUpdateId?: string,
   ) {
     this.id = id;
     this.scenarioId = scenarioId;
@@ -588,10 +712,11 @@ export class Simulation {
     this.state = new State(scenario);
   }
 
-  private async init() {
-    await this.fetchInitialUpdates();
+  private async _init() {
+    await this._fetchInitialUpdates();
+    console.debug("Fetched initial updates", this.updates.value);
 
-    this.initWriter((event) => {
+    this._initWriter((event) => {
       console.debug("Writer initialization progress", event.progress);
     });
 
@@ -599,23 +724,41 @@ export class Simulation {
   }
 
   /**
-   * Fetch the initial updates from the database.
+   * Fetch the initial set of updates from the database.
    */
-  private async fetchInitialUpdates() {
-    const writerUpdates = await Simulation.fetchWriterUpdatesAsc(
-      this._headWriterUpdateId.value,
-      1000, // TODO: Fetch until the latest checkpoint.
+  private async _fetchInitialUpdates() {
+    const headUpdate = await d.db.query.writerUpdates.findFirst({
+      columns: { id: true, checkpointId: true },
+      where: eq(d.writerUpdates.id, this._headWriterUpdateId.value!),
+    });
+
+    if (!headUpdate) {
+      throw new Error("Head writer update not found");
+    }
+
+    if (!headUpdate.checkpointId) {
+      throw new Error("Head writer update has no checkpoint");
+    }
+
+    this._checkpoint.value = await d.db.query.checkpoints.findFirst({
+      where: eq(d.checkpoints.id, headUpdate.checkpointId),
+    });
+    if (!this._checkpoint.value) {
+      throw new Error(`Checkpoint not found: ${headUpdate.checkpointId}`);
+    }
+
+    // NOTE: Includes the head update.
+    const recentUpdates = await Simulation._fetchWriterUpdatesAsc(
+      headUpdate.id,
+      headUpdate.checkpointId,
     );
 
-    console.debug("Fetched writer updates", writerUpdates);
-
-    const directorUpdates = await Simulation.fetchAppliedDirectorUpdates(
-      writerUpdates.map((u) => u.id),
+    const directorUpdates = await Simulation._fetchAppliedDirectorUpdates(
+      recentUpdates.map((u) => u.id),
     );
 
-    console.debug("Fetched director updates", directorUpdates);
-
-    this._updates.value = writerUpdates.map((writerUpdate) => {
+    // Attach director updates to according writer updates.
+    this._recentUpdates.value = recentUpdates.map((writerUpdate) => {
       const directorUpdate =
         directorUpdates.find(
           (directorUpdate) => directorUpdate.writerUpdateId === writerUpdate.id,
@@ -628,18 +771,17 @@ export class Simulation {
       );
     });
 
-    // If the newest update is an assistant update, also fetch its siblings.
-    if (this.latestUpdate.value) {
+    // Fetch the siblings of the latest recent update.
+    // TODO: Fetch siblings of ALL recent updates?
+    const latestRecentUpdate = this._recentUpdates.value.at(0);
+    if (latestRecentUpdate) {
       const sanityCheckWriterUpdateId =
-        this.latestUpdate.value.chosenVariant?.writerUpdate.id;
+        latestRecentUpdate.chosenVariant?.writerUpdate.id;
 
       const siblings = await d.db.query.writerUpdates.findMany({
         where: and(
-          this.latestUpdate.value.parentId
-            ? eq(
-                d.writerUpdates.parentUpdateId,
-                this.latestUpdate.value.parentId,
-              )
+          latestRecentUpdate.parentId
+            ? eq(d.writerUpdates.parentUpdateId, latestRecentUpdate.parentId)
             : isNull(d.writerUpdates.parentUpdateId),
           eq(d.writerUpdates.simulationId, this.id),
         ),
@@ -649,11 +791,11 @@ export class Simulation {
       assert(siblings.length > 0);
 
       // OPTIMIZE: Merge director update queries into one (see above).
-      const directorUpdates = await Simulation.fetchAppliedDirectorUpdates(
+      const directorUpdates = await Simulation._fetchAppliedDirectorUpdates(
         siblings.map((u) => u.id),
       );
 
-      this.latestUpdate.value.variants = siblings.map((writerUpdate) => ({
+      latestRecentUpdate.variants = siblings.map((writerUpdate) => ({
         writerUpdate,
         directorUpdate:
           directorUpdates.find(
@@ -662,12 +804,26 @@ export class Simulation {
           ) || null,
       }));
 
-      this.latestUpdate.value.chosenVariantIndex.value = assertFn(
-        this.latestUpdate.value.variants.findIndex(
+      latestRecentUpdate.chosenVariantIndex.value = assertFn(
+        latestRecentUpdate.variants.findIndex(
           (v) => v.writerUpdate.id === sanityCheckWriterUpdateId,
         ),
         (index) => index >= 0,
         "Chosen variant not found in siblings",
+      );
+    }
+
+    // Fetch historical updates starting from the oldest recent update.
+    const oldestRecentUpdate = recentUpdates.at(-1);
+    if (oldestRecentUpdate?.parentUpdateId) {
+      this._historicalUpdates.value = (
+        await Simulation._fetchWriterUpdatesAsc(
+          oldestRecentUpdate.parentUpdateId,
+          undefined,
+          10,
+        )
+      ).map((writerUpdate) =>
+        markRaw(new Update(writerUpdate.parentUpdateId, [{ writerUpdate }])),
       );
     }
 
@@ -677,15 +833,17 @@ export class Simulation {
   /**
    * Prepare writer GPT for the simulation.
    */
-  private async initWriter(
+  // TODO: Move to Writer class.
+  private async _initWriter(
     progressCallback: (event: { progress: number }) => void,
   ) {
     const staticPrompt = rpChatWriter.buildStaticPrompt(this.scenario);
 
-    // Reverse the updates to go from the oldest to the newest.
-    this._updates.value.reverse();
-    const dynamicPrompt = rpChatWriter.buildDynamicPrompt(this._updates.value);
-    this._updates.value.reverse();
+    const dynamicPrompt = rpChatWriter.buildDynamicPrompt(
+      this._checkpoint.value!.summary,
+      this._historicalUpdates.value.slice(0).reverse(),
+      this._recentUpdates.value.slice(0).reverse(),
+    );
 
     const fullPrompt = staticPrompt + dynamicPrompt;
 
@@ -699,25 +857,30 @@ export class Simulation {
     const writer_ = markRaw(gpt);
 
     if (needDecode) {
-      writer_.decode(fullPrompt, progressCallback).then(async () => {
-        latestGptSession.value = {
-          ...latestGptSession.value!,
-          dynamicPromptHash: bufferToHex(
-            await digest(dynamicPrompt, "SHA-256"),
-          ),
-        };
+      writer_
+        .decode(fullPrompt, progressCallback)
+        .then(async (decodeResult) => {
+          latestGptSession.value = {
+            ...latestGptSession.value!,
+            dynamicPromptHash: bufferToHex(
+              await digest(dynamicPrompt, "SHA-256"),
+            ),
+          };
 
-        console.info(
-          "Updated latest GPT session dynamic prompt hash",
-          latestGptSession.value!.dynamicPromptHash,
-        );
-      });
+          console.info(
+            "Updated latest GPT session dynamic prompt hash",
+            latestGptSession.value!.dynamicPromptHash,
+          );
+
+          this._writerContextLength.value = decodeResult.contextLength;
+        });
     }
 
     this._deferredWriter.resolve(writer_);
     this._writer.value = writer_;
   }
 
+  // TODO: Move to `Gpt`.
   private async _findOrCreateGpt(
     staticPrompt: string,
     dynamicPrompt: string,
@@ -862,42 +1025,50 @@ export class Simulation {
   private async _initState() {
     await this.state.initCodeEngine();
 
-    if (this._updates.value.length) {
-      // Apply existing director updates to the stage, from oldest to newest.
-      //
+    this.state.setState(this._checkpoint.value!.state);
 
-      let i = this._updates.value.length;
-      while (i > 0) {
-        const update = this._updates.value[--i];
-        const directorUpdate = update.chosenVariant?.directorUpdate;
+    // Apply existing director updates to the stage, from oldest to newest.
+    //
 
-        if (directorUpdate) {
-          console.debug(
-            "Applying stage code",
-            stateCommandsToCode(directorUpdate.code),
-          );
+    console.debug(
+      "Recent updates",
+      this._recentUpdates.value,
+      this._recentUpdates.value.length,
+    );
+    let i = this._recentUpdates.value.length;
+    while (i > 0) {
+      const update = this._recentUpdates.value[--i];
+      const directorUpdate = update.chosenVariant?.directorUpdate;
 
-          this.state.apply(directorUpdate.code);
-        }
+      if (directorUpdate) {
+        console.debug(
+          "Applying stage code",
+          stateCommandsToCode(directorUpdate.code),
+        );
 
-        // For the sake of regeneration, save the stage state at previous update.
-        // But when there only one update, save the latest.
-        if (this._updates.value.length == 1 || i === 1) {
-          this._saveState();
-        }
+        this.state.apply(directorUpdate.code);
       }
 
-      // If the latest update's (single) variant
-      // has an episode ID, resume from there.
-      if (this.latestUpdate.value?.chosenVariant?.writerUpdate.episodeId) {
-        const variant = this.latestUpdate.value?.chosenVariant;
-
-        this.state.setEpisode(
-          variant.writerUpdate.episodeId!,
-          variant.writerUpdate.episodeChunkIndex! + 1,
-        );
+      // For the sake of regeneration, save the stage state at previous update.
+      // But when there only one update, save the latest.
+      if (this._recentUpdates.value.length == 1 || i === 1) {
+        this._saveState();
       }
     }
+
+    // If the latest update's (single) variant
+    // has an episode ID, resume from there.
+    console.debug("Latest update", this.latestUpdate.value);
+    if (this.latestUpdate.value?.chosenVariant?.writerUpdate.episodeId) {
+      const variant = this.latestUpdate.value?.chosenVariant;
+
+      this.state.setEpisode(
+        variant.writerUpdate.episodeId!,
+        variant.writerUpdate.episodeChunkIndex! + 1,
+      );
+    }
+
+    console.debug("Initialized state", this.state.serialize());
   }
 
   /**
@@ -905,7 +1076,7 @@ export class Simulation {
    * it differs from the latest director update (e.g. the user has changed it
    * from the sandbox console).
    */
-  private async _checkAndCommitState() {
+  private async _commitState() {
     // Check if the actual stage delta differs from the latest director update
     // (a player may change the state from the sandbox console for example).
     // If if differs, save the actual delta as a new director update.
@@ -958,6 +1129,7 @@ export class Simulation {
   private async _saveUpdatesToDb(updates: {
     writerUpdate: {
       parentUpdateId: string | undefined | null;
+      checkpointId: number;
       characterId?: string | null;
       text: string;
     } & (
@@ -1042,7 +1214,7 @@ export class Simulation {
 
           const options: InferenceOptions = {
             stopSequences,
-            grammar: rpChatWriter.buildGrammar(
+            grammar: rpChatWriter.buildChatGrammar(
               this.scenario,
               predictionOptions,
             ),
@@ -1057,7 +1229,7 @@ export class Simulation {
             predictionOptions,
           );
 
-          const rawResult = await writer_.infer(
+          const inferenceResult = await writer_.infer(
             prompt,
             nEval,
             options,
@@ -1068,13 +1240,13 @@ export class Simulation {
             inferenceAbortSignal,
           );
 
-          const trimmedResult = trimEndAny(rawResult, stopSequences);
-
           const parsedResult = rpChatWriter.parsePrediction(
-            trimmedResult,
+            inferenceResult.result,
             this.scenario,
             predictionOptions,
           );
+
+          this._writerContextLength.value = inferenceResult.contextLength;
 
           return parsedResult;
         },
@@ -1085,6 +1257,7 @@ export class Simulation {
       const { writerUpdate } = await this._saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId: update.parentId,
+          checkpointId: this._checkpoint.value!.id,
           characterId: writerResponse.characterId,
           text: writerResponse.text,
         },

@@ -80,6 +80,8 @@ const predictionOptions = ref<PredictionOptions>({
   allowNarrator: true,
 });
 
+const willConsolidate = ref(false);
+
 const sendButtonState = computed<SendButtonState>(() => {
   if (inferenceAbortController.value) {
     return SendButtonState.Inferring;
@@ -124,6 +126,12 @@ async function sendMessage() {
   inferenceDecodingProgress.value = 0;
 
   try {
+    if (willConsolidate.value) {
+      await simulation.consolidate(inferenceAbortController.value!.signal);
+      if (inferenceAbortController.value!.signal.aborted) return;
+      willConsolidate.value = false;
+    }
+
     await simulation.createUpdate(
       simulation.scenario.playerCharacterId,
       userMessage,
@@ -165,6 +173,12 @@ async function advance() {
     } else {
       inferenceAbortController.value = new AbortController();
 
+      if (willConsolidate.value) {
+        await simulation.consolidate(inferenceAbortController.value!.signal);
+        if (inferenceAbortController.value!.signal.aborted) return;
+        willConsolidate.value = false;
+      }
+
       await simulation.predictUpdate(
         N_EVAL,
         predictionOptions.value,
@@ -172,6 +186,8 @@ async function advance() {
         (e) => (inferenceDecodingProgress.value = e.progress),
         inferenceAbortController.value!.signal,
       );
+
+      willConsolidate.value = false;
     }
   } finally {
     inferenceDecodingProgress.value = undefined;
@@ -388,8 +404,18 @@ function switchUpdatesFullscreen() {
 
   //- Status.
   .flex.w-full.justify-between.p-2(class="bg-black/20")
-    .flex.items-center.gap-1
+    .flex.items-center.gap-2
       GptStatus.h-full(:gpt="simulation.writer.value" name="Writer")
+
+      //- Temporary context gauge.
+      .flex.items-center.gap-1.text-sm
+        span.text-white {{ simulation.writerContextLength.value }} / {{ simulation.writerContextSize.value }}
+        button.rounded.px-2.py-1.transition-transform.pressable(
+          @click="willConsolidate = !willConsolidate"
+          :class="willConsolidate ? 'bg-green-500' : 'bg-gray-500'"
+        )
+          span.text-white {{ willConsolidate ? "Will consolidate" : "Do not consolidate" }}
+
     .flex.gap-2
       button._status-button(@click="emit('sandbox')")
         ShapesIcon(:size="20")

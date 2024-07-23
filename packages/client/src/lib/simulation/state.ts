@@ -37,11 +37,13 @@ export type Stage = {
  */
 export type StateDto = {
   stage: Stage;
-  currentEpisode: {
+  currentEpisode?: {
     id: string;
     totalChunks: number;
     nextChunkIndex: number;
   } | null;
+  day?: number;
+  timeOfDay?: "morning" | "day" | "evening" | "night";
 };
 
 /**
@@ -537,7 +539,7 @@ export function parseQualifiedSceneId(qualifiedId: string): {
   return { locationId, sceneId };
 }
 
-function emptyStateDto(): StateDto {
+export function emptyStateDto(): StateDto {
   return {
     stage: {
       scene: null,

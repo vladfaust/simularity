@@ -15,6 +15,13 @@ struct InferenceEventPayload {
     pub content: String,
 }
 
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Response {
+    pub result: String,
+    pub context_length: u32,
+}
+
 const ABORT_SIGNAL: &str = "app://gpt/abort-inference";
 
 #[tauri::command]
@@ -27,7 +34,7 @@ pub async fn gpt_infer(
     decode_callback_event_name: Option<&str>,
     inference_callback_event_name: Option<&str>,
     window: tauri::Window,
-) -> Result<String, tauri::InvokeError> {
+) -> Result<Response, tauri::InvokeError> {
     println!(
         "gpt_infer(gpt_id: {}, prompt: {}, n_eval: {})",
         session_id,
@@ -107,22 +114,22 @@ pub async fn gpt_infer(
         inference_callback,
     );
 
-    if let Err(err) = inference_result {
-        match err {
+    if let Ok(context_length) = inference_result {
+        Ok(Response {
+            result: resulting_string,
+            context_length,
+        })
+    } else {
+        match inference_result.unwrap_err() {
             simularity_core::gpt::infer::Error::SessionNotFound => {
-                return Err(tauri::InvokeError::from("Session not found"));
+                Err(tauri::InvokeError::from("Session not found"))
             }
             simularity_core::gpt::infer::Error::ContextOverflow => {
-                return Err(tauri::InvokeError::from("Context overflow"));
+                Err(tauri::InvokeError::from("Context overflow"))
             }
-            simularity_core::gpt::infer::Error::Unknown(code) => {
-                return Err(tauri::InvokeError::from(format!(
-                    "Unknown error code {}",
-                    code
-                )));
-            }
+            simularity_core::gpt::infer::Error::Unknown(code) => Err(tauri::InvokeError::from(
+                format!("Unknown error code {}", code),
+            )),
         }
     }
-
-    Ok(resulting_string)
 }

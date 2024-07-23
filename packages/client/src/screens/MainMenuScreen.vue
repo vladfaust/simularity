@@ -6,9 +6,11 @@ import { type Scenario } from "@/lib/simulation";
 import { eq } from "drizzle-orm";
 import { BookMarkedIcon, BookOpenIcon, SettingsIcon } from "lucide-vue-next";
 import { findEpisode } from "@/lib/simulation/scenario";
+import { emptyStateDto } from "@/lib/simulation/state";
 
 const router = useRouter();
 
+// REFACTOR: Move to `@lib/simulation`.
 async function newSimulation() {
   const scenarioId = import.meta.env.VITE_DEFAULT_SCENARIO_ID;
 
@@ -51,6 +53,22 @@ async function newSimulation() {
           id: d.writerUpdates.id,
         })
     )[0];
+
+    const checkpoint = (
+      await tx
+        .insert(d.checkpoints)
+        .values({
+          writerUpdateId: writerUpdate.id,
+          summary: startEpisode.checkpoint?.summary,
+          state: startEpisode.checkpoint?.state || emptyStateDto(),
+        })
+        .returning({ id: d.checkpoints.id })
+    )[0];
+
+    await tx
+      .update(d.writerUpdates)
+      .set({ checkpointId: checkpoint.id })
+      .where(eq(d.writerUpdates.id, writerUpdate.id));
 
     if (chunk.code) {
       await tx.insert(d.directorUpdates).values({

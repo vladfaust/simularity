@@ -18,6 +18,7 @@ export class Update {
       writerUpdate: Pick<
         typeof d.writerUpdates.$inferSelect,
         | "id"
+        | "checkpointId"
         | "characterId"
         | "text"
         | "createdByPlayer"

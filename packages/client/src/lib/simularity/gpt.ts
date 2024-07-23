@@ -88,7 +88,11 @@ export class GptInitJob extends Job<string> {
   }
 }
 
-export class GptDecodeJob extends Job<void> {
+type DecodeResult = {
+  contextLength: number;
+};
+
+export class GptDecodeJob extends Job<DecodeResult> {
   readonly progress = ref(0);
 
   constructor(
@@ -97,7 +101,7 @@ export class GptDecodeJob extends Job<void> {
     readonly decodeCallback_?: (event: { progress: number }) => void,
     abortSignal?: AbortSignal,
   ) {
-    super(async (): Promise<void> => {
+    super(async (): Promise<DecodeResult> => {
       if (!gpt.isInitialized.value) {
         throw new Error("GPT is not initialized.");
       }
@@ -110,17 +114,15 @@ export class GptDecodeJob extends Job<void> {
       switch (gpt.driver.type) {
         case "local":
           // TODO: Handle `abortSignal`.
-          await local.gpt.decode(gpt.id.value!, prompt, decodeCallback);
-          return;
+          return local.gpt.decode(gpt.id.value!, prompt, decodeCallback);
         case "remote":
-          await remote.gpt.decode(
+          return remote.gpt.decode(
             gpt.driver.baseUrl,
             gpt.id.value!,
             { prompt },
             { abortSignal },
             decodeCallback,
           );
-          return;
         default:
           throw unreachable(gpt.driver);
       }
@@ -128,7 +130,13 @@ export class GptDecodeJob extends Job<void> {
   }
 }
 
-export class GptInferJob extends Job<string> {
+type InferenceResult = {
+  result: string;
+  contextLength: number;
+  // TODO: aborted: boolean;
+};
+
+export class GptInferJob extends Job<InferenceResult> {
   readonly decodeProgress: Ref<number | undefined>;
 
   constructor(
@@ -141,7 +149,7 @@ export class GptInferJob extends Job<string> {
     inferenceAbortSignal?: AbortSignal,
     fetchAbortSignal?: AbortSignal,
   ) {
-    super(async (): Promise<string> => {
+    super(async (): Promise<InferenceResult> => {
       if (!gpt.isInitialized.value) {
         throw new Error("GPT is not initialized.");
       }
@@ -185,16 +193,14 @@ export class GptInferJob extends Job<string> {
             remote.gpt.abortInference(gpt.driver.baseUrl, gpt.id.value!);
           });
 
-          return (
-            await remote.gpt.infer(
-              gpt.driver.baseUrl,
-              gpt.id.value!,
-              { prompt, nEval, options },
-              { abortSignal: fetchAbortSignal },
-              decodeCallback,
-              inferenceCallback,
-            )
-          ).result;
+          return remote.gpt.infer(
+            gpt.driver.baseUrl,
+            gpt.id.value!,
+            { prompt, nEval, options },
+            { abortSignal: fetchAbortSignal },
+            decodeCallback,
+            inferenceCallback,
+          );
         default:
           throw unreachable(gpt.driver);
       }
@@ -284,6 +290,17 @@ export class Gpt {
    */
   readonly prompt = readonly(this._prompt);
 
+  get contextSize() {
+    switch (this.driver.type) {
+      case "local":
+        return this.driver.contextSize;
+      case "remote":
+        return 0; // TODO: Fetch the context size from the remote host.
+      default:
+        throw unreachable(this.driver);
+    }
+  }
+
   /**
    * Decode the prompt, updating the session KV cache.
    * @param prompt *Whole* prompt to decode.
@@ -292,8 +309,8 @@ export class Gpt {
   async decode(
     prompt: string,
     callback?: (event: { progress: number }) => void,
-  ): Promise<void> {
-    await this.pushJob(
+  ): Promise<DecodeResult> {
+    const result = await this.pushJob(
       markRaw(
         new GptDecodeJob(
           this,
@@ -305,6 +322,7 @@ export class Gpt {
     );
 
     this._prompt.value = prompt;
+    return result;
   }
 
   /**
@@ -327,7 +345,7 @@ export class Gpt {
         minutes: 2,
       }),
     ),
-  ): Promise<string> {
+  ): Promise<InferenceResult> {
     let decodeComplete = false;
     let result = await this.pushJob(
       markRaw(
@@ -357,7 +375,7 @@ export class Gpt {
 
     // Trim the result by the stop sequences, if any.
     if (options.stopSequences) {
-      result = trimEndAny(result, options.stopSequences);
+      result.result = trimEndAny(result.result, options.stopSequences);
     }
 
     return result;

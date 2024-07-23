@@ -2,7 +2,6 @@ import { Scenario } from "../scenario";
 import { Update } from "../update";
 
 const NARRATOR = "narrator";
-export const INFERENCE_SUFFIX = "\n<";
 
 /**
  * A static prompt is re-used throughout the simulation.
@@ -61,9 +60,10 @@ The charactes MUST try their best to stay within the boundaries of the simulatio
 
 The [Transcription] section comprises chat message separated with newlines.
 A chat message is a <characterId> followed by their first-person utterance.
-A special <narrator> character is used to denote the narrator's voice, in the third person.
-Actions performed by simulacra SHALL be wrapped in *asterisks*, referring the to player character as "you".
-Treat text wrapped in [square brackets] as system commands or instructions, which you MUST follow.
+The special <${NARRATOR}> character is used to denote the narrator's voice, in third person.
+Actions performed by simulacra SHALL be wrapped in *asterisks*.
+Simulacra refer the to Player's character as "you".
+Treat text wrapped in [square brackets] as system commands or instructions, which MUST be followed.
 Avoid acting for characters which are not currently present on the stage.
 
 [Transcription example (playerCharacter: <bob>)]
@@ -90,23 +90,85 @@ Simulation setup complete. Have fun!
   return prompt;
 }
 
+// TODO: Make it configurable.
+// TODO: Also consider token length.
+const MAX_HISTORICAL_LINES = 3;
+
 /**
  * A dynamic prompt is generated based on the history of the simulation.
  *
- * @param history The history of the simulation,
- * from the oldest to the newest update.
+ * @param historicalUpdate From oldest to the newest, would put some
+ * of these after summary for rolling buffer effect.
+ * @param recentUpdates From oldest to the newest.
  */
-// TODO: Add events in time, such as stage updates, summaries, etc.
-export function buildDynamicPrompt(history: Update[]): string {
-  const historyLines = history.map(updateToLine).join("\n");
-  return `[Transcription]\n${historyLines}\n`;
+// TODO: Add events in time, such as stage updates.
+export function buildDynamicPrompt(
+  summary: string | null,
+  historicalUpdate: Update[],
+  recentUpdates: Update[],
+): string {
+  const historicalLines = historicalUpdate
+    .slice(-MAX_HISTORICAL_LINES)
+    .map(updateToLine)
+    .join("\n");
+
+  const recentLines = recentUpdates.map(updateToLine).join("\n");
+
+  return `
+[Summary]
+${summary || "(empty)"}
+
+[Transcription]
+${historicalLines ? historicalLines + "\n" : ""}${recentLines}
+`;
 }
 
 /**
  * A literal sum of {@link buildStaticPrompt} and {@link buildDynamicPrompt}.
  */
-export function buildFullPrompt(scenario: Scenario, history: Update[]): string {
-  return buildStaticPrompt(scenario) + buildDynamicPrompt(history);
+export function buildFullPrompt(
+  scenario: Scenario,
+  summary: string | null,
+  historicalUpdates: Update[],
+  recentUpdates: Update[],
+): string {
+  return (
+    buildStaticPrompt(scenario) +
+    buildDynamicPrompt(summary, historicalUpdates, recentUpdates)
+  );
+}
+
+/**
+ * Build a prompt for summarization.
+ *
+ * @param oldSummary The previous summary.
+ * @param historicalUpdates From oldest to newest.
+ * @param recentUpdates From oldest to newest.
+ */
+export function buildSummarizationPrompt(
+  scenario: Scenario,
+  oldSummary: string | null,
+  historicalUpdates: Update[],
+  recentUpdates: Update[],
+  tokenLimit: number,
+): string {
+  return (
+    buildFullPrompt(scenario, oldSummary, historicalUpdates, recentUpdates) +
+    `
+Due to technology limitations, the transcription must be summarized from time to time.
+[New summary] is composed of the previous [Summary] (may be empty) and [Transcription], preserving key events over time.
+
+A summary is strictly limited to ${tokenLimit} tokens.
+A summary MUST NOT include well-known information already present in the setup.
+A summary MUST NOT contain newline characters, but it can be split into multiple sentences.
+
+[New summary]
+`
+  );
+}
+
+export function buildSummarizationGrammar() {
+  return `root ::= [a-zA-Z .,!?*"'_-]+ "\n"`;
 }
 
 /**
@@ -138,7 +200,7 @@ export type PredictionOptions = {
 /**
  * Build a grammar for the prediction model.
  */
-export function buildGrammar(
+export function buildChatGrammar(
   scenario: Scenario,
   options?: PredictionOptions,
 ): string {

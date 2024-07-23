@@ -43,8 +43,8 @@ onMounted(() => {
       :update
       :asset-base-url
       :can-regenerate="i === 0"
-      :can-edit="true"
-      :show-variant-navigation="true"
+      :can-edit="i < simulation.recentUpdatesLength.value"
+      :show-variant-navigation="i < simulation.recentUpdatesLength.value"
       :is-single="false"
       :selected="i === simulation.currentUpdateIndex.value"
       @regenerate="emit('regenerate', update)"

@@ -2,6 +2,7 @@ import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
+import { checkpoints } from "./checkpoints";
 import { directorUpdates } from "./directorUpdates";
 import { llamaInferences } from "./llamaInferences";
 import { simulations } from "./simulations";
@@ -22,6 +23,12 @@ export const writerUpdates = sqliteTable(
       .notNull(),
 
     parentUpdateId: text("parent_update_id"),
+
+    /**
+     * The checkpoint this update is based on.
+     */
+    // TODO: Make non-nullable.
+    checkpointId: integer("checkpoint_id"),
 
     createdByPlayer: integer("created_by_player", { mode: "boolean" })
       .notNull()
@@ -59,6 +66,10 @@ export const writerUpdateRelatiosn = relations(
     parent: one(writerUpdates, {
       fields: [writerUpdates.parentUpdateId],
       references: [writerUpdates.id],
+    }),
+    checkpoint: one(checkpoints, {
+      fields: [writerUpdates.checkpointId],
+      references: [checkpoints.id],
     }),
     llamaInference: one(llamaInferences, {
       fields: [writerUpdates.llamaInferenceId],
