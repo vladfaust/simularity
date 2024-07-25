@@ -38,7 +38,7 @@ Paper: https://github.com/mit-han-lab/streaming-llm.
 - https://www.omrimallis.com/posts/understanding-how-llm-inference-works-with-llama-cpp
 - https://kipp.ly/transformer-inference-arithmetic
 - https://www.anyscale.com/blog/continuous-batching-llm-inference (vLLM)
-- https://github.com/ggerganov/llama.cpp/discussions/7887 (RoPE)
+- https://github.com/ggerganov/llama.cpp/discussions/7887, https://github.com/ggerganov/llama.cpp/pull/2054 (RoPE (extending context size))
 - https://sidshome.wordpress.com/2023/12/24/understanding-internals-of-llama-cpp/
 
 ### Roleplay
@@ -50,3 +50,4 @@ Paper: https://github.com/mit-han-lab/streaming-llm.
 - https://www.kaggle.com/code/aisuko/fine-tuning-t5-small-with-lora
 - https://www.philschmid.de/fine-tune-flan-t5-peft
 - https://towardsdatascience.com/training-t5-for-paraphrase-generation-ab3b5be151a2
+- https://unsloth.ai/blog/llama3-1, https://colab.research.google.com/drive/1Ys44kVvmeZtnICzWz0xgpRnrIOjZAuxp (fine-tune on Google Colab)
