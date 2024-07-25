@@ -74,7 +74,7 @@ export async function migrate(
 
     for (const migration of isUp
       ? migrations.slice(fromIndex + 1, toIndex + 1)
-      : migrations.slice(toIndex, fromIndex).reverse()) {
+      : migrations.slice(toIndex + 1, fromIndex + 1).reverse()) {
       console.debug(`Migrate ${isUp ? "up" : "down"} ${migration.name}...`);
       await sqlite.executeBatch(isUp ? migration.up() : migration.down());
       migrationsRun++;
