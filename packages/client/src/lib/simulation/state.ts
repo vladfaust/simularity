@@ -288,11 +288,9 @@ export class State {
 
   /**
    * Connect a stage renderer to the state.
-   * Would set the renderer to the current stage.
    */
   connectStageRenderer(scene: StageRenderer) {
     this._connectedRenderer = scene;
-    // this._connectedRenderer.setStage(this._stage.value);
   }
 
   /**
