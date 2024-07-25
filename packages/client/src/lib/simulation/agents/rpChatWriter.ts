@@ -17,10 +17,11 @@ export function buildStaticPrompt(scenario: Scenario): string {
         {
           fullName: character.fullName,
           personality: character.personalityPrompt,
-          appearance: character.appearancePrompt,
           traits: character.traits,
+          appearance: character.appearancePrompt,
           relationships: character.relationships,
-          outfits: Object.fromEntries(
+          scenarioPrompt: character.scenarioPrompt,
+          canonicalOutfits: Object.fromEntries(
             Object.entries(character.outfits).map(([_, outfit]) => [
               outfit.name,
               outfit.prompt,
@@ -32,21 +33,13 @@ export function buildStaticPrompt(scenario: Scenario): string {
     locations: Object.fromEntries(
       Object.entries(scenario.locations).map(([_, location]) => [
         location.name,
-        {
-          description: location.prompt,
-          scenes: Object.fromEntries(
-            Object.entries(location.scenes).map(([sceneId, scene]) => [
-              sceneId,
-              scene.prompt,
-            ]),
-          ),
-        },
+        { description: location.prompt },
       ]),
     ),
   };
 
   let prompt =
-    `The following is a text transcript of a neural simulation experience (the Game), in a form of roleplay chat.
+    `The following is a part of a text transcript of a never-ending neural simulation experience (the Game), in a form of roleplay chat.
 
 In order to experience the Game, a human player (the Player) uses a patented device (the Interface) produced by Simularity Inc. to put themselves in a dream-like state.
 All the computations are performed locally; no censorship is needed, and FULL privacy is guaranteed.
@@ -62,9 +55,13 @@ The [Transcription] section comprises chat message separated with newlines.
 A chat message is a <characterId> followed by their first-person utterance.
 The special <${NARRATOR}> character is used to denote the narrator's voice, in third person.
 Actions performed by simulacra SHALL be wrapped in *asterisks*.
-Simulacra refer the to Player's character as "you".
 Treat text wrapped in [square brackets] as system commands or instructions, which MUST be followed.
+
+Simulacra refer the to Player's character as "you", and the story revolves around them.
 Avoid acting for characters which are not currently present on the stage.
+Prefer character utterances over narrator's voice whenever possible.
+Prefer detailed, step-by-step story unfolding; leave space for other characters to react, let the story breathe.
+Do not rush the ending of a scene, do not skip days without a reason; let the story develop slowly, let the Player savour the experience in detail.
 
 [Transcription example (playerCharacter: <bob>)]
 <narrator> And the story begins...
