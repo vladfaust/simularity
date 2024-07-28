@@ -92,15 +92,15 @@ export function assert<T>(value: T, message?: string): NonNullable<T> {
 }
 
 /**
- * Validate that `call(value)` is truthy, and return `value`, otherwise throw.
- * @example assertFn(val, val => val > 0, "Val must be > 0")
+ * Validate that `callback(value)` is truthy, and return `value`, otherwise throw.
+ * @example assertCallback(val, val => val > 0, "Val must be > 0")
  */
-export function assertFn<T>(
+export function assertCallback<T>(
   value: T,
-  call: (value: T) => any,
+  callback: (value: T) => any,
   message?: string,
 ): T {
-  if (!call(value)) throw new Error(message || "Assertion failed");
+  if (!callback(value)) throw new Error(message || "Assertion failed");
   return value;
 }
 
@@ -167,4 +167,18 @@ export function trimEndAny(source: string, sequences: string[]): string {
   }
 
   return source;
+}
+
+/**
+ * Either sleep for a number of milliseconds or
+ * return the promise, whichever takes longer.
+ *
+ * @example
+ * await minDelay(fastPromise, 1000) // Returns after at least 1 second.
+ */
+export async function minDelay(
+  promise: Promise<any>,
+  ms: number,
+): Promise<void> {
+  await Promise.all([sleep(ms), promise]);
 }

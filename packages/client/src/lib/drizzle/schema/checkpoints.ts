@@ -1,20 +1,35 @@
 import { StateDto } from "@/lib/simulation/state";
 import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
+import { simulations } from "./simulations";
 import { writerUpdates } from "./writerUpdates";
 
+// TODO: Rename to `consolidations`.
 export const checkpoints = sqliteTable(
   "checkpoints",
   sortByKey({
     id: integer("id").primaryKey(),
 
     /**
-     * The ID of the writer update that this checkpoint is created from.
+     * ID of the simulation this checkpoint is created from.
      */
-    writerUpdateId: text("writer_update_id")
-      .references(() => writerUpdates.id, { onDelete: "cascade" })
+    simulationId: text("simulation_id")
+      .references(() => simulations.id, { onDelete: "cascade" })
       .notNull(),
+
+    /**
+     * ID of the writer update this checkpoint is created upon, `null` for root.
+     */
+    writerUpdateId: text("writer_update_id").references(
+      () => writerUpdates.id,
+      { onDelete: "cascade" },
+    ),
 
     summary: text("summary"),
     state: text("state", { mode: "json" }).$type<StateDto>().notNull(),
@@ -23,9 +38,19 @@ export const checkpoints = sqliteTable(
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
   }),
+  (table) => ({
+    unique: uniqueIndex("checkpoints_unique_idx").on(
+      table.simulationId,
+      table.writerUpdateId,
+    ),
+  }),
 );
 
 export const checkpointRelatiosn = relations(checkpoints, ({ one }) => ({
+  simulation: one(simulations, {
+    fields: [checkpoints.simulationId],
+    references: [simulations.id],
+  }),
   writerUpdate: one(writerUpdates, {
     fields: [checkpoints.writerUpdateId],
     references: [writerUpdates.id],

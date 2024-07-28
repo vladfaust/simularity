@@ -39,11 +39,23 @@ async function newSimulation() {
         .returning({ id: d.simulations.id })
     )[0];
 
+    const checkpoint = (
+      await tx
+        .insert(d.checkpoints)
+        .values({
+          simulationId: simulation.id,
+          summary: startEpisode.checkpoint?.summary,
+          state: startEpisode.checkpoint?.state || emptyStateDto(),
+        })
+        .returning({ id: d.checkpoints.id })
+    )[0];
+
     const writerUpdate = (
       await tx
         .insert(d.writerUpdates)
         .values({
           simulationId: simulation.id,
+          checkpointId: checkpoint.id,
           characterId: chunk.characterId,
           text: chunk.text,
           episodeId: scenario.startEpisodeId,
@@ -54,22 +66,6 @@ async function newSimulation() {
         })
     )[0];
 
-    const checkpoint = (
-      await tx
-        .insert(d.checkpoints)
-        .values({
-          writerUpdateId: writerUpdate.id,
-          summary: startEpisode.checkpoint?.summary,
-          state: startEpisode.checkpoint?.state || emptyStateDto(),
-        })
-        .returning({ id: d.checkpoints.id })
-    )[0];
-
-    await tx
-      .update(d.writerUpdates)
-      .set({ checkpointId: checkpoint.id })
-      .where(eq(d.writerUpdates.id, writerUpdate.id));
-
     if (chunk.code) {
       await tx.insert(d.directorUpdates).values({
         writerUpdateId: writerUpdate.id,
@@ -77,10 +73,10 @@ async function newSimulation() {
       });
     }
 
-    // Set simulation head.
+    // Set simulation current update ID.
     await tx
       .update(d.simulations)
-      .set({ headWriterUpdateId: writerUpdate.id })
+      .set({ currentUpdateId: writerUpdate.id })
       .where(eq(d.simulations.id, simulation.id));
 
     return simulation.id;

@@ -70,6 +70,8 @@
 - [x] feat(client): turn-based roleplay chat game (Fri 20)
 - [x] feat(client): summarization (Tue 23)
       Instead of T5, use the same GPT to reuse prompt.
+- [x] feat(client): better simulation navigation (Sun 28)
+      Jump to, edit and regenerate any update, not just the latest one.
 
 ### June 2024
 

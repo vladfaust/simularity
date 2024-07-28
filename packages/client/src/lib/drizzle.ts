@@ -28,6 +28,16 @@ const MIGRATIONS: Migration[] = [
     "./drizzle/migrations/009_add_character_id_to_writer_updates.js"
   ),
   await import("./drizzle/migrations/010_create_checkpoints.js"),
+  await import(
+    "./drizzle/migrations/011_add_next_update_id_to_writer_updates.js"
+  ),
+  await import(
+    "./drizzle/migrations/012_rename_head_writer_update_to_current_writer_update_in_simulations.js"
+  ),
+  await import("./drizzle/migrations/013_add_simulation_id_to_checkpoints.js"),
+  await import(
+    "./drizzle/migrations/014_add_did_consolidate_to_writer_updates.js"
+  ),
 ];
 
 const databaseUrl = await join(

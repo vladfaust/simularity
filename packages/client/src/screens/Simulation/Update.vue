@@ -26,17 +26,17 @@ const props = defineProps<{
   canEdit: boolean;
   isSingle: boolean;
   selected?: boolean;
+  updateIndex: number;
+  isHistorical?: boolean;
+  isFuture?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (event: "regenerate", update: Update): void;
-  (event: "chooseVariant", update: Update, variantIndex: number): void;
-  (
-    event: "edit",
-    update: Update,
-    variantIndex: number,
-    newContent: string,
-  ): void;
+  (event: "regenerate"): void;
+  (event: "chooseVariant", variantIndex: number): void;
+  (event: "edit", variantIndex: number, newContent: string): void;
+  (event: "beginEdit"): void;
+  (event: "stopEdit"): void;
 }>();
 
 const rootClass = computed(() => ({
@@ -51,8 +51,8 @@ function onClickPreviousVariant() {
 
   if (props.update.chosenVariantIndex.value) {
     props.update.chosenVariantIndex.value--;
-    rText.value = props.update.chosenVariant!.writerUpdate.text;
-    emit("chooseVariant", props.update, props.update.chosenVariantIndex.value);
+    rText.value = props.update.ensureChosenVariant.writerUpdate.text;
+    emit("chooseVariant", props.update.chosenVariantIndex.value);
   }
 }
 
@@ -66,10 +66,10 @@ function onClickNextVariant() {
     props.update.variants.length - 1
   ) {
     props.update.chosenVariantIndex.value++;
-    rText.value = props.update.chosenVariant!.writerUpdate.text;
-    emit("chooseVariant", props.update, props.update.chosenVariantIndex.value);
+    rText.value = props.update.ensureChosenVariant.writerUpdate.text;
+    emit("chooseVariant", props.update.chosenVariantIndex.value);
   } else {
-    emit("regenerate", props.update);
+    emit("regenerate");
   }
 }
 
@@ -103,11 +103,14 @@ function switchContentEditable() {
   isContenteditable.value = !isContenteditable.value;
 
   if (isContenteditable.value) {
+    emit("beginEdit");
     if (!rTextElement.value) {
       console.warn("!rTextElement.value");
     } else {
       rTextElement.value.focus({ preventScroll: true });
     }
+  } else {
+    emit("stopEdit");
   }
 }
 
@@ -117,19 +120,16 @@ function onEditCommitClick() {
     return;
   }
 
-  emit(
-    "edit",
-    props.update,
-    props.update.chosenVariantIndex.value,
-    rText.value!,
-  );
+  emit("edit", props.update.chosenVariantIndex.value, rText.value!.trim());
   isContenteditable.value = false;
+  emit("stopEdit");
 }
 
 function onEditCancelClick() {
-  rText.value = props.update.chosenVariant!.writerUpdate.text;
+  rText.value = props.update.ensureChosenVariant.writerUpdate.text;
   isContenteditable.value = false;
   rTextElement.value!.textContent = rText.value;
+  emit("stopEdit");
 }
 
 const rAnyChanges = computed(
@@ -164,35 +164,43 @@ const character = computed(() => {
   :class="rootClass"
 )
   //- Top row.
-  .flex.justify-between.gap-2
-    .flex.items-center.gap-1(v-if="character")
-      img.aspect-square.h-5.rounded.border.object-cover(
-        :src="assetBaseUrl + character.pfp"
-      )
-      span.font-semibold(:style="{ color: character.displayColor }") {{ character.displayName || character.fullName }}
-    template(v-else-if="character === null")
-      span.font-semibold Narrator
+  .flex.items-center.justify-between.gap-2
+    .flex.items-center.gap-1
+      template(v-if="character")
+        img.aspect-square.h-5.rounded.border.object-cover(
+          :src="assetBaseUrl + character.pfp"
+        )
+        span.font-semibold.leading-none(
+          :style="{ color: character.displayColor }"
+        ) {{ character.displayName || character.fullName }}
+      template(v-else-if="character === null")
+        span.font-semibold.leading-none Narrator
+      span.leading-none(
+        v-if="update.chosenVariant?.writerUpdate.didConsolidate"
+      ) [C]
 
     //- Buttons.
-    .flex.items-center.gap-2(
-      v-if="showVariantNavigation || canRegenerate || canEdit"
-    )
+    .flex.items-center.gap-2
+      span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
+
       //- Variant navigation.
       .flex.items-center.gap-1(
         v-if="showVariantNavigation && !update.chosenVariant?.writerUpdate.episodeId && !isContenteditable"
       )
-        button.transition-transform.pressable(@click="onClickPreviousVariant")
+        button.transition-transform.pressable(
+          @click.stop="onClickPreviousVariant"
+        )
           CircleChevronLeft(:size="18")
         span.leading-none(v-if="update.inProgressVariant.value") {{ update.variants.length + 1 }} / {{ update.variants.length + 1 }}
         span.leading-none(v-else) {{ update.chosenVariantIndex.value + 1 }} / {{ update.variants.length }}
-        button.transition-transform.pressable(@click="onClickNextVariant")
+        button.transition-transform.pressable(@click.stop="onClickNextVariant")
           CircleChevronRight(:size="18")
 
       //- Edit.
       .flex(
         v-if="canEdit && !update.chosenVariant?.writerUpdate.episodeId && !update.inProgressVariant.value"
       )
-        button(@click="switchContentEditable")
+        button(@click.stop="switchContentEditable")
           Edit3Icon(:size="20")
 
   //- Text.
@@ -218,12 +226,12 @@ const character = computed(() => {
     //- Edit.
     .mt-2.flex.w-full.justify-center.gap-2(v-if="isContenteditable")
       button.btn.btn-warn.btn-md.btn-pressable.rounded(
-        @click="onEditCancelClick"
+        @click.stop="onEditCancelClick"
       )
         CircleSlashIcon(:size="20")
         span Cancel edit
       button.btn.btn-success.btn-md.btn-pressable.rounded(
-        @click="onEditCommitClick"
+        @click.stop="onEditCommitClick"
         :disabled="!rAnyChanges || !rText?.trim()"
       )
         CircleCheckIcon(:size="20")

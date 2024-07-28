@@ -2,6 +2,7 @@ import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
 import { sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
+import { checkpoints } from "./checkpoints";
 import { writerUpdates } from "./writerUpdates";
 
 export const simulations = sqliteTable(
@@ -12,7 +13,7 @@ export const simulations = sqliteTable(
       .$defaultFn(() => nanoid()),
 
     scenarioId: text("scenario_id").notNull(),
-    headWriterUpdateId: text("head_writer_update_id"),
+    currentUpdateId: text("current_writer_update_id"),
 
     createdAt: text("created_at")
       .notNull()
@@ -26,8 +27,9 @@ export const simulations = sqliteTable(
 
 export const simulationRelatiosn = relations(simulations, ({ one, many }) => ({
   writerUpdates: many(writerUpdates),
-  headWriterUpdate: one(writerUpdates, {
-    fields: [simulations.headWriterUpdateId],
+  currentWriterUpdate: one(writerUpdates, {
+    fields: [simulations.currentUpdateId],
     references: [writerUpdates.id],
   }),
+  checkpoints: many(checkpoints),
 }));

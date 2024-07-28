@@ -23,12 +23,20 @@ export const writerUpdates = sqliteTable(
       .notNull(),
 
     parentUpdateId: text("parent_update_id"),
+    nextUpdateId: text("next_update_id"),
 
     /**
      * The checkpoint this update is based on.
      */
     // TODO: Make non-nullable.
-    checkpointId: integer("checkpoint_id"),
+    checkpointId: integer("checkpoint_id").notNull(),
+
+    /**
+     * Whether this update is a checkpoint.
+     */
+    didConsolidate: integer("did_consolidate", { mode: "boolean" })
+      .notNull()
+      .default(false),
 
     createdByPlayer: integer("created_by_player", { mode: "boolean" })
       .notNull()

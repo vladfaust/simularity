@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Simulation } from "@/lib/simulation";
-import { Update } from "@/lib/simulation/update";
+import { minDelay, sleep } from "@/lib/utils";
+import { useInfiniteScroll } from "@vueuse/core";
+import { LoaderIcon } from "lucide-vue-next";
 import { onMounted, ref, watch } from "vue";
 import UpdateVue from "./Update.vue";
 
@@ -10,19 +12,90 @@ const { simulation } = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (event: "chooseVariant", update: Update, variantIndex: number): void;
-  (event: "regenerate", update: Update): void;
-  (event: "edit", update: Update, variantIndex: number, newText: string): void;
+  (event: "chooseVariant", updateIndex: number, variantIndex: number): void;
+  (event: "regenerate", updateIndex: number): void;
+  (
+    event: "edit",
+    updateIndex: number,
+    variantIndex: number,
+    newText: string,
+  ): void;
 }>();
 
 const scrollContainer = ref<HTMLElement | null>(null);
+const INFINITE_LOAD_DELAY = 1000;
+const INFINITE_LOAD_LIMIT = 10;
 
-watch(() => simulation.currentUpdateIndex.value, scrollToUpdate);
+const isEditingMap = ref(new Map<number, boolean>());
+
+// Top infinite scroll (historical updates).
+const topScrollIsLoading = ref(false);
+useInfiniteScroll(
+  scrollContainer,
+  async () => {
+    if (simulation.canLoadMoreHistoricalUpdates.value) {
+      console.log("Loading more historical updates");
+
+      try {
+        topScrollIsLoading.value = true;
+        await minDelay(
+          simulation.loadMoreHistoricalUpdates(INFINITE_LOAD_LIMIT),
+          INFINITE_LOAD_DELAY,
+        );
+      } finally {
+        topScrollIsLoading.value = false;
+      }
+    }
+  },
+  {
+    direction: "top",
+  },
+);
+
+// Bottom infinite scroll (future updates).
+const bottomScrollIsLoading = ref(false);
+useInfiniteScroll(
+  scrollContainer,
+  async () => {
+    if (simulation.canLoadMoreFutureUpdates.value) {
+      console.log("Loading more future updates");
+
+      try {
+        bottomScrollIsLoading.value = true;
+        await minDelay(
+          simulation.loadMoreFutureUpdates(INFINITE_LOAD_LIMIT),
+          INFINITE_LOAD_DELAY,
+        );
+      } finally {
+        bottomScrollIsLoading.value = false;
+      }
+    }
+  },
+  {
+    direction: "bottom",
+  },
+);
+
+watch(
+  () => simulation.currentUpdate.value?.chosenVariant?.writerUpdate.id,
+  (currentWriterUpdateId) => {
+    console.debug({
+      currentWriterUpdateId,
+      currentIndex: simulation.currentUpdateIndex.value,
+    });
+
+    // OPTIMIZE: Wait until the simulation has done updating.
+    sleep(100).then(() => scrollToUpdate(simulation.currentUpdateIndex.value));
+  },
+);
 
 function scrollToUpdate(index: number) {
   // TODO: Pulse-animation on the update.
   if (scrollContainer.value) {
-    const updateElement = scrollContainer.value.children[index] as HTMLElement;
+    const updateElement = scrollContainer.value.children[
+      simulation.updates.value.length - 1 - index
+    ] as HTMLElement;
+
     updateElement.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 }
@@ -33,22 +106,36 @@ onMounted(() => {
 </script>
 
 <template lang="pug">
-.flex.flex-col-reverse.gap-2(ref="scrollContainer")
+._scrollContainer.flex.flex-col-reverse.gap-2.overflow-y-scroll(
+  ref="scrollContainer"
+)
+  .grid.place-items-center.p-2(v-if="bottomScrollIsLoading")
+    LoaderIcon.animate-spin(:size="20")
   template(
-    v-for="update, i of simulation?.updates.value"
+    v-for="update, i of simulation?.updates.value.slice().reverse()"
     :key="update.parentId || 'root'"
   )
+    //- NOTE: `simulation.updates.value.length - 1 - i` because we're iterating in reverse.
     UpdateVue(
       :simulation
       :update
       :asset-base-url
-      :can-regenerate="i === 0"
-      :can-edit="i < simulation.recentUpdatesLength.value"
-      :show-variant-navigation="i === 0"
+      :can-regenerate="true"
+      :can-edit="true"
+      :show-variant-navigation="true"
       :is-single="false"
-      :selected="i === simulation.currentUpdateIndex.value"
-      @regenerate="emit('regenerate', update)"
-      @edit="(_, variantIndex, newText) => emit('edit', update, variantIndex, newText)"
-      @choose-variant="(_, variantIndex) => emit('chooseVariant', update, variantIndex)"
+      :selected="simulation.updates.value.length - 1 - i === simulation.currentUpdateIndex.value"
+      :update-index="simulation.updates.value.length - 1 - i"
+      :is-historical="simulation.updates.value.length - 1 - i < simulation.historicalUpdatesLength.value"
+      :is-future="simulation.updates.value.length - 1 - i > simulation.currentUpdateIndex.value"
+      @regenerate="emit('regenerate', simulation.updates.value.length - 1 - i)"
+      @begin-edit="() => isEditingMap.set(i, true)"
+      @edit="(variantIndex, newText) => emit('edit', simulation.updates.value.length - 1 - i, variantIndex, newText)"
+      @stop-edit="() => isEditingMap.set(i, false)"
+      @choose-variant="(variantIndex) => emit('chooseVariant', simulation.updates.value.length - 1 - i, variantIndex)"
+      @click="isEditingMap.get(i) ? undefined : simulation.jumpToIndex(simulation.updates.value.length - 1 - i)"
+      :class="{ 'cursor-pointer': !isEditingMap.get(i) }"
     )
+  .grid.place-items-center.p-2(v-if="topScrollIsLoading")
+    LoaderIcon.animate-spin(:size="20")
 </template>

@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { type InferenceOptions } from "@/lib/simularity/common";
 import { Simulation } from "@/lib/simulation";
-import { Update } from "@/lib/simulation/update";
 import { TransitionRoot } from "@headlessui/vue";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
-  ListEndIcon,
   Loader2Icon,
   MenuIcon,
   RedoDotIcon,
@@ -171,23 +169,32 @@ async function advance() {
     if (simulation.state.shallAdvanceEpisode.value) {
       await simulation.advanceCurrentEpisode(progressCallback("Decoding"));
     } else {
-      inferenceAbortController.value = new AbortController();
+      if (!willConsolidate.value && simulation.canGoForward.value) {
+        await simulation.goForward();
+        await simulation.createCurrentUpdateVariant(
+          N_EVAL,
+          predictionOptions.value,
+          modelSettings.value,
+          (e) => (inferenceDecodingProgress.value = e.progress),
+          inferenceAbortController.value?.signal,
+        );
+      } else {
+        inferenceAbortController.value = new AbortController();
 
-      if (willConsolidate.value) {
-        await simulation.consolidate(inferenceAbortController.value!.signal);
-        if (inferenceAbortController.value!.signal.aborted) return;
-        willConsolidate.value = false;
+        if (willConsolidate.value) {
+          await simulation.consolidate(inferenceAbortController.value!.signal);
+          if (inferenceAbortController.value!.signal.aborted) return;
+          willConsolidate.value = false;
+        }
+
+        await simulation.predictUpdate(
+          N_EVAL,
+          predictionOptions.value,
+          modelSettings.value,
+          (e) => (inferenceDecodingProgress.value = e.progress),
+          inferenceAbortController.value!.signal,
+        );
       }
-
-      await simulation.predictUpdate(
-        N_EVAL,
-        predictionOptions.value,
-        modelSettings.value,
-        (e) => (inferenceDecodingProgress.value = e.progress),
-        inferenceAbortController.value!.signal,
-      );
-
-      willConsolidate.value = false;
     }
   } finally {
     inferenceDecodingProgress.value = undefined;
@@ -199,20 +206,29 @@ async function advance() {
 }
 
 /**
- * Choose a variant of an assistant update.
+ * Choose a variant of an update.
  */
-function chooseUpdateVariant(update: Update, variantIndex: number) {
-  simulation.chooseUpdateVariant(update, variantIndex, fadeCanvas);
+function chooseUpdateVariant(updateIndex: number, variantIndex: number) {
+  fadeCanvas(async () => {
+    if (updateIndex !== simulation.currentUpdateIndex.value) {
+      await simulation.jumpToIndex(updateIndex);
+    }
+
+    await simulation.chooseCurrentUpdateVariant(variantIndex);
+  });
 }
 
 /**
  * Edit an update variant.
  */
 async function onUpdateVariantEdit(
-  update: Update,
+  updateIndex: number,
   variantIndex: number,
   newText: string,
 ) {
+  const update = simulation.updates.value[updateIndex];
+  if (!update) throw new Error("Update not found");
+
   const variant = update.variants[variantIndex];
   if (!variant) throw new Error("Variant not found");
 
@@ -227,9 +243,9 @@ async function onUpdateVariantEdit(
 }
 
 /**
- * Explicitly regenerate an assistant update.
+ * Explicitly regenerate an update.
  */
-async function regenerateUpdate(regeneratedUpdate: Update) {
+async function regenerateUpdate(updateIndex: number) {
   if (busy.value) throw new Error("Already busy");
   busy.value = true;
 
@@ -237,16 +253,19 @@ async function regenerateUpdate(regeneratedUpdate: Update) {
   inferenceDecodingProgress.value = 0;
 
   try {
-    console.log("Regenerating update");
-    await simulation.createUpdateVariant(
-      regeneratedUpdate,
-      N_EVAL,
-      predictionOptions.value,
-      modelSettings.value,
-      (e) => (inferenceDecodingProgress.value = e.progress),
-      inferenceAbortController.value!.signal,
-      fadeCanvas,
-    );
+    await fadeCanvas(async () => {
+      if (updateIndex !== simulation.currentUpdateIndex.value) {
+        await simulation.jumpToIndex(updateIndex);
+      }
+
+      await simulation.createCurrentUpdateVariant(
+        N_EVAL,
+        predictionOptions.value,
+        modelSettings.value,
+        (e) => (inferenceDecodingProgress.value = e.progress),
+        inferenceAbortController.value!.signal,
+      );
+    });
   } finally {
     inferenceDecodingProgress.value = undefined;
     inferenceAbortController.value = null;
@@ -286,13 +305,14 @@ function switchUpdatesFullscreen() {
         :asset-base-url
         :update="simulation.currentUpdate.value"
         :key="simulation.currentUpdate.value.parentId || 'root'"
-        :can-regenerate="!simulation.canGoForward.value"
-        :can-edit="!simulation.canGoForward.value"
+        :can-regenerate="true"
+        :can-edit="true"
         :is-single="true"
-        :show-variant-navigation="!simulation.canGoForward.value"
-        @choose-variant="chooseUpdateVariant"
-        @regenerate="regenerateUpdate"
-        @edit="onUpdateVariantEdit"
+        :show-variant-navigation="true"
+        :update-index="simulation.currentUpdateIndex.value"
+        @choose-variant="(variantIndex) => chooseUpdateVariant(simulation.currentUpdateIndex.value, variantIndex)"
+        @regenerate="regenerateUpdate(simulation.currentUpdateIndex.value)"
+        @edit="(variantIndex, newText) => onUpdateVariantEdit(simulation.currentUpdateIndex.value, variantIndex, newText)"
       )
 
       .flex.h-full.w-8.shrink-0.flex-col.justify-between.gap-1
@@ -337,13 +357,6 @@ function switchUpdatesFullscreen() {
           )
             RedoDotIcon(:size="20")
 
-          button._button.aspect-square.w-full(
-            title="Skip to the end"
-            :disabled="!simulation.canGoForward.value"
-            @click="simulation.skipToEnd()"
-          )
-            ListEndIcon(:size="20")
-
     //- User input.
     .flex.h-12.w-full.gap-2.rounded
       input.h-full.w-full.rounded-lg.px-3.shadow-lg(
@@ -356,7 +369,7 @@ function switchUpdatesFullscreen() {
 
       button._button.relative.aspect-square.h-full(
         @click="onSendButtonClick"
-        :disabled="(busy && !inferenceAbortController) || simulation.canGoForward.value"
+        :disabled="busy && !inferenceAbortController"
       )
         //- REFACTOR: Make a component for such multi-state animations.
         TransitionRoot.absolute(
@@ -413,6 +426,9 @@ function switchUpdatesFullscreen() {
         button.rounded.px-2.py-1.transition-transform.pressable(
           @click="willConsolidate = !willConsolidate"
           :class="willConsolidate ? 'bg-green-500' : 'bg-gray-500'"
+          class="disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="!simulation.canConsolidate.value"
+          :title="simulation.consolidationPreliminaryError.value?.message ?? 'Consolidate'"
         )
           span.text-white {{ willConsolidate ? "Will consolidate" : "Do not consolidate" }}
 

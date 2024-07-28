@@ -18,7 +18,9 @@ export class Update {
       writerUpdate: Pick<
         typeof d.writerUpdates.$inferSelect,
         | "id"
+        | "nextUpdateId"
         | "checkpointId"
+        | "didConsolidate"
         | "characterId"
         | "text"
         | "createdByPlayer"
@@ -38,5 +40,24 @@ export class Update {
 
   get chosenVariant() {
     return this.variants.at(this.chosenVariantIndex.value);
+  }
+
+  /**
+   * Ensure that the chosen variant is defined.
+   * @throws {Error} If the chosen variant is undefined.
+   */
+  get ensureChosenVariant() {
+    const chosenVariant = this.chosenVariant;
+    if (!chosenVariant) throw new Error("Chosen variant undefined");
+    return chosenVariant;
+  }
+
+  /**
+   * Set the chosen variant to the last one.
+   * @throws {Error} If there are no variants.
+   */
+  setChosenVariantToLast() {
+    if (this.variants.length === 0) throw new Error("No variants");
+    this.chosenVariantIndex.value = this.variants.length - 1;
   }
 }
