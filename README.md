@@ -51,3 +51,7 @@ Paper: https://github.com/mit-han-lab/streaming-llm.
 - https://www.philschmid.de/fine-tune-flan-t5-peft
 - https://towardsdatascience.com/training-t5-for-paraphrase-generation-ab3b5be151a2
 - https://unsloth.ai/blog/llama3-1, https://colab.research.google.com/drive/1Ys44kVvmeZtnICzWz0xgpRnrIOjZAuxp (fine-tune on Google Colab)
+
+### Serving
+
+- https://lmsys.org/blog/2024-07-25-sglang-llama3/
