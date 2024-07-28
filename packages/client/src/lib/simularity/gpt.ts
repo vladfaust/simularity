@@ -1,5 +1,7 @@
 import {
+  bufferToHex,
   Deferred,
+  digest,
   sleep,
   timeoutSignal,
   trimEndAny,
@@ -7,7 +9,7 @@ import {
 } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 import { toMilliseconds } from "duration-fns";
-import { Ref, computed, markRaw, readonly, ref } from "vue";
+import { computed, markRaw, readonly, Ref, ref } from "vue";
 import { InferenceOptionsSchema } from "./common";
 import * as local from "./local";
 import * as remote from "./remote";
@@ -23,6 +25,13 @@ export type GptDriver =
       modelPath: string;
       contextSize: number;
     };
+
+export type StoredGptSession = {
+  id: string;
+  driver: GptDriver;
+  staticPromptHash: string | undefined;
+  dynamicPromptHash: string | undefined;
+};
 
 abstract class Job<T> {
   readonly deferred = new Deferred<T>();
@@ -266,6 +275,101 @@ export class Gpt {
       .then(() => onInitCallback?.(gpt));
 
     return gpt;
+  }
+
+  /**
+   * Find an existing GPT instance by ID, or create a new one.
+   * If a session is found, it would be restored and reused.
+   * Restored sessions are compared by prompt hashes.
+   *
+   * @param staticPrompt Static prompt to compare with the existing session.
+   * @param dynamicPrompt Dynamic prompt to compare with the existing session
+   * (appended to the static prompt to form the full prompt).
+   */
+  static async findOrCreate(
+    driver: GptDriver,
+    sessionRef: Ref<StoredGptSession | null>,
+    staticPrompt: string,
+    dynamicPrompt: string,
+    progressCallback: (event: { progress: number }) => void,
+  ) {
+    let gpt: Gpt | null = null;
+    let restored = false;
+    let needDecode = true;
+
+    const staticPromptHash = bufferToHex(await digest(staticPrompt, "SHA-256"));
+
+    if (sessionRef.value) {
+      const areDriversEqual = driversEqual(sessionRef.value.driver, driver);
+
+      if (areDriversEqual) {
+        gpt = await Gpt.find(
+          driver,
+          sessionRef.value.id,
+          staticPrompt + dynamicPrompt,
+        );
+        restored = !!gpt;
+
+        if (gpt) {
+          console.log("Found GPT session", driver, gpt.id);
+
+          if (sessionRef.value.staticPromptHash === staticPromptHash) {
+            const dynamicPromptHash = bufferToHex(
+              await digest(dynamicPrompt, "SHA-256"),
+            );
+
+            if (sessionRef.value.dynamicPromptHash === dynamicPromptHash) {
+              console.info("GPT session full prompt match", dynamicPromptHash);
+              needDecode = false;
+            } else {
+              console.info(
+                "GPT session dynamic prompt mismatch, need decode",
+                sessionRef.value.dynamicPromptHash,
+                dynamicPromptHash,
+              );
+            }
+          } else {
+            console.info(
+              "GPT static prompt mismatch, will destroy the session",
+              sessionRef.value.staticPromptHash,
+              staticPromptHash,
+            );
+
+            gpt.destroy();
+            gpt = null;
+            restored = false;
+            sessionRef.value = null;
+          }
+        }
+      } else {
+        console.warn("GPT driver mismatch", sessionRef.value.driver, driver);
+
+        sessionRef.value = null;
+      }
+    }
+
+    if (!gpt) {
+      console.debug("Creating new GPT session", driver);
+
+      gpt = await Gpt.create(
+        driver,
+        staticPrompt,
+        progressCallback,
+        true,
+        async (gpt) => {
+          console.log("Initialized new GPT session", gpt.id.value);
+
+          sessionRef.value = {
+            id: gpt.id.value!,
+            driver,
+            staticPromptHash,
+            dynamicPromptHash: undefined,
+          };
+        },
+      );
+    }
+
+    return { gpt, restored, needDecode };
   }
 
   readonly driver: GptDriver;

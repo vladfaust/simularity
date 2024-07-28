@@ -6,7 +6,7 @@ import { Raw, computed, markRaw, readonly, ref, shallowRef } from "vue";
 import { d, parseSelectResult, sqlite } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
 import { InferenceOptions } from "./simularity/common";
-import { Gpt, GptDriver, driversEqual } from "./simularity/gpt";
+import { Gpt, GptDriver } from "./simularity/gpt";
 import * as rpChatWriter from "./simulation/agents/rpChatWriter";
 import { Scenario } from "./simulation/scenario";
 import { StageRenderer } from "./simulation/stageRenderer";
@@ -1356,12 +1356,9 @@ export class Simulation {
       this._recentUpdates.value,
     );
 
-    const fullPrompt = staticPrompt + dynamicPrompt;
-
     const { gpt, needDecode } = await this._findOrCreateGpt(
       staticPrompt,
       dynamicPrompt,
-      fullPrompt,
       progressCallback,
     );
 
@@ -1369,7 +1366,7 @@ export class Simulation {
 
     if (needDecode) {
       writer_
-        .decode(fullPrompt, progressCallback)
+        .decode(staticPrompt + dynamicPrompt, progressCallback)
         .then(async (decodeResult) => {
           latestGptSession.value = {
             ...latestGptSession.value!,
@@ -1391,11 +1388,9 @@ export class Simulation {
     this._writer.value = writer_;
   }
 
-  // TODO: Move to `Gpt`.
   private async _findOrCreateGpt(
     staticPrompt: string,
     dynamicPrompt: string,
-    fullPrompt: string,
     progressCallback: (event: { progress: number }) => void,
   ) {
     let driver: GptDriver;
@@ -1438,88 +1433,13 @@ export class Simulation {
         throw unreachable(driverType);
     }
 
-    let gpt: Gpt | null = null;
-    let restored = false;
-    let needDecode = true;
-
-    const staticPromptHash = bufferToHex(await digest(staticPrompt, "SHA-256"));
-
-    if (latestGptSession.value) {
-      const areDriversEqual = driversEqual(
-        latestGptSession.value.driver,
-        driver,
-      );
-
-      if (areDriversEqual) {
-        gpt = await Gpt.find(driver, latestGptSession.value.id, fullPrompt);
-        restored = !!gpt;
-
-        if (gpt) {
-          console.log("Found GPT session", driver, gpt.id);
-
-          if (latestGptSession.value.staticPromptHash === staticPromptHash) {
-            const dynamicPromptHash = bufferToHex(
-              await digest(dynamicPrompt, "SHA-256"),
-            );
-
-            if (
-              latestGptSession.value.dynamicPromptHash === dynamicPromptHash
-            ) {
-              console.info("GPT session full prompt match", dynamicPromptHash);
-              needDecode = false;
-            } else {
-              console.info(
-                "GPT session dynamic prompt mismatch, need decode",
-                latestGptSession.value.dynamicPromptHash,
-                dynamicPromptHash,
-              );
-            }
-          } else {
-            console.info(
-              "GPT static prompt mismatch, will destroy the session",
-              latestGptSession.value.staticPromptHash,
-              staticPromptHash,
-            );
-
-            gpt.destroy();
-            gpt = null;
-            restored = false;
-            latestGptSession.value = null;
-          }
-        }
-      } else {
-        console.warn(
-          "GPT driver mismatch",
-          latestGptSession.value.driver,
-          driver,
-        );
-
-        latestGptSession.value = null;
-      }
-    }
-
-    if (!gpt) {
-      console.debug("Creating new GPT session", driver);
-
-      gpt = await Gpt.create(
-        driver,
-        staticPrompt,
-        progressCallback,
-        true,
-        async (gpt) => {
-          console.log("Initialized new GPT session", gpt.id.value);
-
-          latestGptSession.value = {
-            id: gpt.id.value!,
-            driver,
-            staticPromptHash,
-            dynamicPromptHash: undefined,
-          };
-        },
-      );
-    }
-
-    return { gpt, restored, needDecode };
+    return Gpt.findOrCreate(
+      driver,
+      latestGptSession,
+      staticPrompt,
+      dynamicPrompt,
+      progressCallback,
+    );
   }
 
   /**
