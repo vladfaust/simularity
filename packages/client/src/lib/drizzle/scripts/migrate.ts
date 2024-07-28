@@ -1,11 +1,17 @@
 import { sqlite } from "@/lib/drizzle.js";
 import { assert, sql } from "@/lib/utils.js";
 
+// ADHOC: `upClient` and `downClient` methods.
 export type Migration = {
   name: string;
-  up(): string;
-  down(): string;
-};
+} & (
+  | { up: () => string }
+  | { upClient: (client: typeof sqlite) => Promise<void> }
+) &
+  (
+    | { down: () => string }
+    | { downClient: (client: typeof sqlite) => Promise<void> }
+  );
 
 /**
  * Run migrations.
@@ -24,6 +30,7 @@ export type Migration = {
  * // migrate(-1) // Error! If you want to drop all tables,
  *                // delete the database file instead.
  */
+// REFACTOR: `Migration` class w/ `up(tx: d.Transaction): Promise<void>` method.
 export async function migrate(
   migrations: Migration[],
   kvTable: string,
@@ -76,7 +83,21 @@ export async function migrate(
       ? migrations.slice(fromIndex + 1, toIndex + 1)
       : migrations.slice(toIndex + 1, fromIndex + 1).reverse()) {
       console.debug(`Migrate ${isUp ? "up" : "down"} ${migration.name}...`);
-      await sqlite.executeBatch(isUp ? migration.up() : migration.down());
+
+      if (isUp) {
+        if ("upClient" in migration) {
+          await migration.upClient(sqlite);
+        } else {
+          await sqlite.executeBatch(migration.up());
+        }
+      } else {
+        if ("downClient" in migration) {
+          await migration.downClient(sqlite);
+        } else {
+          await sqlite.executeBatch(migration.down());
+        }
+      }
+
       migrationsRun++;
     }
 

@@ -7,6 +7,8 @@ import { Migration, migrate as migrate_ } from "./drizzle/scripts/migrate.js";
 import { Sqlite, queryResultToObjects } from "./tauri/sqlite";
 import { pick } from "./utils";
 
+export type Transaction = Parameters<Parameters<typeof d.db.transaction>[0]>[0];
+
 const MIGRATIONS_TABLE = "meta";
 const MIGRATIONS_KEY = "current_migration_index";
 
