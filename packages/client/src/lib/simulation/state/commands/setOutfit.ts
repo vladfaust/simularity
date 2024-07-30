@@ -1,11 +1,19 @@
-import { z } from "zod";
+import { v } from "@/lib/valibot";
 
-export const SetOutfitSchema = z
-  .object({
-    name: z.literal("set_outfit"),
-    args: z.object({
-      characterId: z.string().describe("The ID of the character to update."),
-      outfitId: z.string().describe("The ID of the outfit to set."),
-    }),
-  })
-  .describe("Set outfit of a character.");
+/**
+ * Set outfit of a character.
+ */
+export const SetOutfitSchema = v.object({
+  name: v.literal("set_outfit"),
+  args: v.object({
+    /**
+     * The ID of the character to update.
+     */
+    characterId: v.string(),
+
+    /**
+     * The ID of the outfit to set.
+     */
+    outfitId: v.string(),
+  }),
+});

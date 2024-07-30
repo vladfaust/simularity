@@ -1,11 +1,19 @@
-import { z } from "zod";
+import { v } from "@/lib/valibot";
 
-export const SetExpressionSchema = z
-  .object({
-    name: z.literal("set_expression"),
-    args: z.object({
-      characterId: z.string().describe("The ID of the character to update."),
-      expressionId: z.string().describe("The ID of the expression to set."),
-    }),
-  })
-  .describe("Set expression of a character.");
+/**
+ * Set expression of a character.
+ */
+export const SetExpressionSchema = v.object({
+  name: v.literal("set_expression"),
+  args: v.object({
+    /**
+     * The ID of the character to update.
+     */
+    characterId: v.string(),
+
+    /**
+     * The ID of the expression to set.
+     */
+    expressionId: v.string(),
+  }),
+});

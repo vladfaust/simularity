@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { v } from "@/lib/valibot";
 
 import { AddCharacterSchema } from "./commands/addCharacter";
 import { RemoveCharacterSchema } from "./commands/removeCharacter";
@@ -6,7 +6,7 @@ import { SetExpressionSchema } from "./commands/setExpression";
 import { SetOutfitSchema } from "./commands/setOutfit";
 import { SetSceneSchema } from "./commands/setScene";
 
-export const StageCommandSchema = z.union([
+export const StageCommandSchema = v.union([
   SetSceneSchema,
   AddCharacterSchema,
   SetOutfitSchema,
@@ -14,7 +14,7 @@ export const StageCommandSchema = z.union([
   RemoveCharacterSchema,
 ]);
 
-export type StateCommand = z.infer<typeof StageCommandSchema>;
+export type StateCommand = v.InferInput<typeof StageCommandSchema>;
 
 /**
  * Convert state commands to code.

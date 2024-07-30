@@ -1,12 +1,24 @@
-import { z } from "zod";
+import { v } from "@/lib/valibot";
 
-export const AddCharacterSchema = z
-  .object({
-    name: z.literal("add_character"),
-    args: z.object({
-      characterId: z.string().describe("The ID of the character to add."),
-      outfitId: z.string().describe("The ID of the outfit to use."),
-      expressionId: z.string().describe("The ID of the expression to use."),
-    }),
-  })
-  .describe("Add a character to the scene.");
+/**
+ * Add a character to the scene.
+ */
+export const AddCharacterSchema = v.object({
+  name: v.literal("add_character"),
+  args: v.object({
+    /**
+     * The ID of the character to add.
+     */
+    characterId: v.string(),
+
+    /**
+     * The ID of the outfit to use.
+     */
+    outfitId: v.string(),
+
+    /**
+     * The ID of the expression to use.
+     */
+    expressionId: v.string(),
+  }),
+});

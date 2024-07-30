@@ -24,8 +24,7 @@
     "vue": "^3.4.21",
     "vue-contenteditable": "^4.1.0",
     "vue-router": "^4.3.2",
-    "wasmoon": "^1.16.0",
-    "zod": "^3.23.8"
+    "wasmoon": "^1.16.0"
   },
   "devDependencies": {
     "@prettier/plugin-pug": "^3.0.0",

@@ -1,10 +1,14 @@
-import { z } from "zod";
+import { v } from "@/lib/valibot";
 
-export const RemoveCharacterSchema = z
-  .object({
-    name: z.literal("remove_character"),
-    args: z.object({
-      characterId: z.string().describe("The ID of the character to remove."),
-    }),
-  })
-  .describe("Remove a character from the scene.");
+/**
+ * Remove a character from the scene.
+ */
+export const RemoveCharacterSchema = v.object({
+  name: v.literal("remove_character"),
+  args: v.object({
+    /**
+     * The ID of the character to remove.
+     */
+    characterId: v.string(),
+  }),
+});
