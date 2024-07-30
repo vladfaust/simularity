@@ -55,3 +55,70 @@ Paper: https://github.com/mit-han-lab/streaming-llm.
 ### Serving
 
 - https://lmsys.org/blog/2024-07-25-sglang-llama3/
+
+## Image Generation
+
+To create a sprite from existing assets, use the following steps.
+
+1. Img2Img an existing naked sprite:
+
+- Model: T-ponyai3
+- Crop & Resize
+- No Soft Inpainting
+- Denoising: 0.8
+
+```
+score_9, score_8_up, score_7_up, score_6_up, source_anime,
+1girl, looking at viewer,
+blue beautiful hair, blue eyes, small breasts, cat ears,
+naked,
+scenario assets, 3/4 body sprite, hips, anti aliased, white background,
+standing,
+rating_explicit
+```
+
+1. An alternative to existing assets is creating in a batch with the same seed, e.g.
+
+```prompt-positive
+score_9, score_8_up, score_7_up, score_6_up, source_anime, rating_explicit,
+scenario assets, 3/4 body sprite, hips, anti aliased, bright green background,
+1girl,
+short black hair, red eyes, small breasts, slim body, cat ears,
+naked, standing, looking at viewer,
+{neutral|happy|smile|sad|angry|surprised|embarrassed|confused|fearful|determined|bored|anxious|excited|tired|annoyed|playful|curious|fanged smile|pout|ahegao|crying|shy|worried}
+```
+
+```prompt-negative
+score_4,score_3,score_2,score_1, username, watermark, clothing
+```
+
+1152x1536 is a good size for a sprite.
+Should explore the area of two inpainting the second sprite on the same image for character consistency.
+
+Multiple poses approach ((1024x2)x1366):
+
+```prompt-positive
+score_9, score_8_up, score_7_up, score_6_up, source_anime,
+scenario assets, 3/4 body sprite, character sheet, multiple poses, anti aliased, bright green background,
+1girl,
+aqua, konosuba,
+standing, looking at viewer, white sleepwear, consistent outfit, same outfit
+```
+
+2. Send to inpainting
+
+- Just resize
+- Soft Inpainting
+- Denoising: 0.7
+- Use dynamic prompt & combinatorial generation
+
+```
+score_9, score_8_up, score_7_up, score_6_up, source_anime, rating_explicit,
+scenario assets, 3/4 body sprite, hips, anti aliased, bright green background,
+1girl,
+short black hair, red eyes, small breasts, slim body, cat ears,
+{pioneer neckerchief, pioneer movement soviet pioneer, skirt, blue skirt, bangs, shirt, school uniform, collarbone, white shirt, short sleeves, collared shirt, belt, neckerchief, eyelashes, red neckerchief, pocket, breast pocket|swim one piece suit|bikini|black lingerie|white lingerie|black sport suit|red evening dress|summer dress|tshirt, shorts|naked},
+{smiling|shy|sad|crying|surprised|feared|ahegao}, standing, looking at viewer,
+```
+
+TIP: Can use ES lora to extract pioneer suit: `(white_shirt,red neckerchief,short sleeves,belt,skirt, blue skirt)`.
