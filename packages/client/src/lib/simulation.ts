@@ -6,33 +6,23 @@ import { Raw, computed, markRaw, readonly, ref, shallowRef } from "vue";
 import { d, parseSelectResult, sqlite } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
 import { InferenceOptions } from "./simularity/common";
-import { Gpt, GptDriver } from "./simularity/gpt";
-import * as rpChatWriter from "./simulation/agents/rpChatWriter";
+import { GptDriver, InferenceAbortError } from "./simularity/gpt";
+import {
+  Writer,
+  PredictionOptions as WriterPredictionOptions,
+} from "./simulation/agents/writer";
 import { Scenario } from "./simulation/scenario";
 import { StageRenderer } from "./simulation/stageRenderer";
 import { State, StateDto, comparesStateDeltas } from "./simulation/state";
 import { StateCommand, stateCommandsToCode } from "./simulation/state/commands";
 import { Update } from "./simulation/update";
-import {
-  Deferred,
-  assert,
-  assertCallback,
-  bufferToHex,
-  clone,
-  digest,
-  unreachable,
-} from "./utils";
+import { assert, assertCallback, clone, unreachable } from "./utils";
 
 export { State };
 export type { Scenario };
 
 export class Simulation {
   //#region Private fields
-  private readonly _deferredWriter = new Deferred<Gpt>();
-
-  // REFACTOR: Make Writer a separate class.
-  private readonly _writer = shallowRef<Gpt | undefined>();
-
   /**
    * Historical updates up to to the current checkpoint (inclusive),
    * ordered from the oldest to the newest.
@@ -60,10 +50,8 @@ export class Simulation {
     typeof d.checkpoints.$inferSelect | undefined
   >();
 
-  private readonly _writerContextLength = ref(0);
+  private _writer = shallowRef<Writer | undefined>();
   //#endregion
-
-  readonly writer = this._writer;
 
   readonly state: State;
 
@@ -165,19 +153,9 @@ export class Simulation {
   });
 
   /**
-   * The committed writer prompt.
+   * The writer instance.
    */
-  readonly writerPrompt = computed(() => this.writer.value?.prompt.value);
-
-  /**
-   * The actual writer context length.
-   */
-  readonly writerContextLength = readonly(this._writerContextLength);
-
-  /**
-   * The writer context size.
-   */
-  readonly writerContextSize = computed(() => this.writer.value?.contextSize);
+  readonly writer = computed(() => this._writer.value);
 
   /**
    * Whether the simulation is busy.
@@ -246,6 +224,10 @@ export class Simulation {
       throw new Error("Simulation is busy");
     }
 
+    if (!this.writer.value) {
+      throw new Error("Writer is not initialized");
+    }
+
     if (!this.state.currentEpisode.value) {
       throw new Error("No episode to advance");
     }
@@ -283,18 +265,12 @@ export class Simulation {
       const episodeUpdate = markRaw(new Update(parentUpdateId, [incoming]));
       this._recentUpdates.value.push(episodeUpdate);
 
-      // Build prompt for decoding.
-      const prompt = rpChatWriter.buildFullPrompt(
-        this.scenario,
+      // Decode the resulting prompt.
+      this.writer.value.decodeFullPrompt(
         this._checkpoint.value!.summary,
         this._historicalUpdates.value,
         this._recentUpdates.value,
-      );
-
-      this._deferredWriter.promise.then((writer) =>
-        writer.decode(prompt, decodeProgressCallback).then((decodeResult) => {
-          this._writerContextLength.value = decodeResult.contextLength;
-        }),
+        decodeProgressCallback,
       );
     } finally {
       this._busy.value = false;
@@ -369,7 +345,7 @@ export class Simulation {
    */
   async predictUpdate(
     nEval: number,
-    predictionOptions?: rpChatWriter.PredictionOptions,
+    predictionOptions?: WriterPredictionOptions,
     inferenceOptions?: InferenceOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
@@ -397,16 +373,9 @@ export class Simulation {
 
       this._recentUpdates.value.push(update);
 
-      const prompt = rpChatWriter.buildFullPrompt(
-        this.scenario,
-        this._checkpoint.value!.summary,
-        this._historicalUpdates.value.slice(),
-        this._recentUpdates.value.slice(0, -1), // Skip the just created update.
-      );
-
       await this._inferUpdateVariantImpl(
         update,
-        prompt,
+        this._recentUpdates.value.slice(0, -1), // Skip the just created update.
         nEval,
         predictionOptions,
         inferenceOptions,
@@ -427,7 +396,7 @@ export class Simulation {
    */
   async createCurrentUpdateVariant(
     nEval: number,
-    predictionOptions?: rpChatWriter.PredictionOptions,
+    predictionOptions?: WriterPredictionOptions,
     inferenceOptions?: InferenceOptions,
     onInferenceDecodingProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
@@ -449,18 +418,10 @@ export class Simulation {
       this.state.setState(this._previousState.value);
       console.debug("State after reset", this.state.serialize());
 
-      // Build the prompt.
-      const prompt = rpChatWriter.buildFullPrompt(
-        this.scenario,
-        this._checkpoint.value!.summary,
-        this._historicalUpdates.value,
-        this._recentUpdates.value.slice(0, -1), // Skip the current update.
-      );
-
       // Infer the new variant.
       await this._inferUpdateVariantImpl(
         this.currentUpdate.value,
-        prompt,
+        this._recentUpdates.value.slice(0, -1), // Skip the current update.
         nEval,
         predictionOptions,
         inferenceOptions,
@@ -585,6 +546,10 @@ export class Simulation {
       return new Error("Simulation is busy");
     }
 
+    if (!this.writer.value) {
+      return new Error("Writer is not initialized");
+    }
+
     if (this.state.shallAdvanceEpisode.value) {
       return new Error("Cannot consolidate during an episode");
     }
@@ -616,80 +581,62 @@ export class Simulation {
       throw this.consolidationPreliminaryError.value;
     }
 
+    if (!this.writer.value) return new Error("Writer is not initialized");
+
     const writerUpdate = this.currentUpdate.value?.chosenVariant?.writerUpdate;
-    if (!writerUpdate) {
-      throw new Error("No current update");
-    }
+    if (!writerUpdate) throw new Error("No current update");
 
-    const nEval = 256;
+    try {
+      const summarizationResult = await this.writer.value.summarize(
+        this._checkpoint.value!.summary,
+        this._historicalUpdates.value,
+        this._recentUpdates.value,
+        256,
+        inferenceAbortSignal,
+      );
 
-    const summarizationPrompt = rpChatWriter.buildSummarizationPrompt(
-      this.scenario,
-      this._checkpoint.value!.summary,
-      this._historicalUpdates.value,
-      this._recentUpdates.value,
-      nEval,
-    );
+      console.log("Summarization result", summarizationResult);
 
-    console.debug("Summarization prompt", summarizationPrompt);
+      await d.db.transaction(async (tx) => {
+        this._checkpoint.value = (
+          await tx
+            .insert(d.checkpoints)
+            .values({
+              simulationId: this.id,
+              writerUpdateId: writerUpdate.id,
+              summary: summarizationResult.newSummary,
+              state: this.state.serialize(),
+            })
+            .onConflictDoUpdate({
+              set: { summary: summarizationResult.newSummary },
+              target: [
+                d.checkpoints.simulationId,
+                d.checkpoints.writerUpdateId,
+              ],
+            })
+            .returning()
+        )[0];
 
-    const summarizationResult = await this._deferredWriter.promise.then(
-      async (writer_) => {
-        return writer_.infer(
-          summarizationPrompt,
-          nEval,
-          {
-            temp: 0.2,
-            stopSequences: ["\n"],
-            grammar: rpChatWriter.buildSummarizationGrammar(),
-          },
-          (decodingEvent) => {
-            console.log(
-              "Summarization decoding progress",
-              decodingEvent.progress,
-            );
-          },
-          undefined,
-          inferenceAbortSignal,
-        );
-      },
-    );
-
-    if (inferenceAbortSignal?.aborted) {
-      console.warn("Summarization aborted", summarizationResult);
-      return;
-    }
-
-    console.log("Summarization result", summarizationResult);
-
-    await d.db.transaction(async (tx) => {
-      this._checkpoint.value = (
         await tx
-          .insert(d.checkpoints)
-          .values({
-            simulationId: this.id,
-            writerUpdateId: writerUpdate.id,
-            summary: summarizationResult.result,
-            state: this.state.serialize(),
-          })
-          .onConflictDoUpdate({
-            set: { summary: summarizationResult.result },
-            target: [d.checkpoints.simulationId, d.checkpoints.writerUpdateId],
-          })
-          .returning()
-      )[0];
+          .update(d.writerUpdates)
+          .set({ didConsolidate: true })
+          .where(eq(d.writerUpdates.id, writerUpdate.id));
+      });
 
-      await tx
-        .update(d.writerUpdates)
-        .set({ didConsolidate: true })
-        .where(eq(d.writerUpdates.id, writerUpdate.id));
-    });
+      // Move all recent updates to historical updates.
+      this._historicalUpdates.value.push(
+        ...this._recentUpdates.value.splice(0),
+      );
 
-    // Move all recent updates to historical updates.
-    this._historicalUpdates.value.push(...this._recentUpdates.value.splice(0));
-
-    // Clear the future updates.
-    this._futureUpdates.value = [];
+      // Clear the future updates.
+      this._futureUpdates.value = [];
+    } catch (e: any) {
+      if (e instanceof InferenceAbortError) {
+        console.warn("Inference aborted");
+      } else {
+        throw e;
+      }
+    }
   }
 
   // TODO: async editAssistantUpdateVariantCode() {}
@@ -1348,51 +1295,6 @@ export class Simulation {
   private async _initWriter(
     progressCallback: (event: { progress: number }) => void,
   ) {
-    const staticPrompt = rpChatWriter.buildStaticPrompt(this.scenario);
-
-    const dynamicPrompt = rpChatWriter.buildDynamicPrompt(
-      this._checkpoint.value!.summary,
-      this._historicalUpdates.value,
-      this._recentUpdates.value,
-    );
-
-    const { gpt, needDecode } = await this._findOrCreateGpt(
-      staticPrompt,
-      dynamicPrompt,
-      progressCallback,
-    );
-
-    const writer_ = markRaw(gpt);
-
-    if (needDecode) {
-      writer_
-        .decode(staticPrompt + dynamicPrompt, progressCallback)
-        .then(async (decodeResult) => {
-          latestGptSession.value = {
-            ...latestGptSession.value!,
-            dynamicPromptHash: bufferToHex(
-              await digest(dynamicPrompt, "SHA-256"),
-            ),
-          };
-
-          console.info(
-            "Updated latest GPT session dynamic prompt hash",
-            latestGptSession.value!.dynamicPromptHash,
-          );
-
-          this._writerContextLength.value = decodeResult.contextLength;
-        });
-    }
-
-    this._deferredWriter.resolve(writer_);
-    this._writer.value = writer_;
-  }
-
-  private async _findOrCreateGpt(
-    staticPrompt: string,
-    dynamicPrompt: string,
-    progressCallback: (event: { progress: number }) => void,
-  ) {
     let driver: GptDriver;
     const driverType = (await settings.getGptDriver()) || "remote";
     switch (driverType) {
@@ -1433,11 +1335,13 @@ export class Simulation {
         throw unreachable(driverType);
     }
 
-    return Gpt.findOrCreate(
+    this._writer.value = await Writer.init(
       driver,
       latestGptSession,
-      staticPrompt,
-      dynamicPrompt,
+      this.scenario,
+      this._checkpoint.value!.summary,
+      this._historicalUpdates.value,
+      this._recentUpdates.value,
       progressCallback,
     );
   }
@@ -1581,9 +1485,9 @@ export class Simulation {
    */
   private async _inferUpdateVariantImpl(
     update: Update,
-    prompt: string,
+    recentUpdates: Update[],
     nEval: number,
-    predictionOptions?: rpChatWriter.PredictionOptions,
+    predictionOptions?: WriterPredictionOptions,
     inferenceOptions?: InferenceOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
@@ -1591,54 +1495,28 @@ export class Simulation {
     characterId: string | null;
     text: string;
   }> {
+    if (!this.writer.value) {
+      throw new Error("Writer is not initialized");
+    }
+
     update.inProgressVariant.value = {
       characterId: predictionOptions?.characterId,
       text: "",
     };
 
     try {
-      const writerResponse = await this._deferredWriter.promise.then(
-        async (writer_) => {
-          const stopSequences = ["\n"];
-
-          const options: InferenceOptions = {
-            stopSequences,
-            grammar: rpChatWriter.buildChatGrammar(
-              this.scenario,
-              predictionOptions,
-            ),
-            ...inferenceOptions,
-          };
-
-          console.log(
-            "Inferring update",
-            prompt,
-            nEval,
-            options,
-            predictionOptions,
-          );
-
-          const inferenceResult = await writer_.infer(
-            prompt,
-            nEval,
-            options,
-            onDecodeProgress,
-            (e) => {
-              update.inProgressVariant.value!.text += e.content;
-            },
-            inferenceAbortSignal,
-          );
-
-          const parsedResult = rpChatWriter.parsePrediction(
-            inferenceResult.result,
-            this.scenario,
-            predictionOptions,
-          );
-
-          this._writerContextLength.value = inferenceResult.contextLength;
-
-          return parsedResult;
+      const writerResponse = await this.writer.value.inferUpdate(
+        this._checkpoint.value!.summary,
+        this._historicalUpdates.value,
+        recentUpdates,
+        nEval,
+        predictionOptions,
+        inferenceOptions,
+        onDecodeProgress,
+        (e) => {
+          update.inProgressVariant.value!.text += e.content;
         },
+        inferenceAbortSignal,
       );
 
       console.log("Predicted update", writerResponse);

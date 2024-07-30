@@ -33,6 +33,12 @@ export type StoredGptSession = {
   dynamicPromptHash: string | undefined;
 };
 
+export class InferenceAbortError extends Error {
+  constructor(readonly result: InferenceResult) {
+    super("Inference aborted");
+  }
+}
+
 abstract class Job<T> {
   readonly deferred = new Deferred<T>();
   constructor(readonly fn: () => Promise<T>) {}
@@ -139,7 +145,7 @@ export class GptDecodeJob extends Job<DecodeResult> {
   }
 }
 
-type InferenceResult = {
+export type InferenceResult = {
   result: string;
   contextLength: number;
   // TODO: aborted: boolean;

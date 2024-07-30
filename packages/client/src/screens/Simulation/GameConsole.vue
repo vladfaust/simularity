@@ -18,7 +18,7 @@ import { computed, ref } from "vue";
 import GptStatus from "./GptStatus.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
-import { type PredictionOptions } from "@/lib/simulation/agents/rpChatWriter";
+import { type PredictionOptions } from "@/lib/simulation/agents/writer";
 
 enum SendButtonState {
   Inferring,
@@ -418,11 +418,11 @@ function switchUpdatesFullscreen() {
   //- Status.
   .flex.w-full.justify-between.p-2(class="bg-black/20")
     .flex.items-center.gap-2
-      GptStatus.h-full(:gpt="simulation.writer.value" name="Writer")
+      GptStatus.h-full(:gpt="simulation.writer.value?.gpt" name="Writer")
 
       //- Temporary context gauge.
       .flex.items-center.gap-1.text-sm
-        span.text-white {{ simulation.writerContextLength.value }} / {{ simulation.writerContextSize.value }}
+        span.text-white {{ simulation.writer.value?.contextLength.value }} / {{ simulation.writer.value?.contextSize.value }}
         button.rounded.px-2.py-1.transition-transform.pressable(
           @click="willConsolidate = !willConsolidate"
           :class="willConsolidate ? 'bg-green-500' : 'bg-gray-500'"

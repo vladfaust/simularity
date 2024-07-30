@@ -187,8 +187,8 @@ onUnmounted(() => {
 
   DeveloperConsole(
     :open="showConsoleModal"
-    :writer="simulation?.writer.value"
-    :committed-writer-prompt="simulation?.writerPrompt.value ?? ''"
+    :writer="simulation?.writer.value?.gpt"
+    :committed-writer-prompt="simulation?.writer.value?.recentPrompt.value ?? ''"
     :episode="currentEpisodeConsoleObject"
     :stage-state-delta="simulation?.previousStateDelta.value ?? []"
     @close="showConsoleModal = false"
