@@ -1,14 +1,28 @@
 #pragma once
 
-#include "spdlog/spdlog.h"
+#include <_types/_uint64_t.h>
 #include <random>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include <llama.h>
+#include <spdlog/spdlog.h>
 
-std::unordered_map<std::string, llama_model *> LLAMA_MODELS = {};
+class LlamaModel {
+public:
+  std::string path;
+  llama_model *model;
+
+  /// The hash of the model file, memoized.
+  uint64_t xx64_hash = 0;
+
+  LlamaModel(const char *path, llama_model *model) : path(path), model(model) {}
+
+  ~LlamaModel() { llama_free_model(model); }
+};
+
+std::unordered_map<std::string, std::shared_ptr<LlamaModel>> LLAMA_MODELS = {};
 std::mutex LLAMA_MODELS_MUTEX;
 
 std::vector<llama_token> llama_tokenize(

@@ -36,6 +36,15 @@ list(APPEND LIB_LIST ${Llama_LIBRARIES})
 
 target_include_directories(${TARGET} PRIVATE vendor/spdlog/include)
 
+# XxHash lib
+#
+
+find_package(XxHash REQUIRED)
+message("XxHash include dir: ${XxHash_INCLUDE_DIR}")
+message("XxHash libraries: ${XxHash_LIBRARIES}")
+include_directories(${XxHash_INCLUDE_DIR})
+list(APPEND LIB_LIST ${XxHash_LIBRARIES})
+
 # Add the libraries to the target
 #
 

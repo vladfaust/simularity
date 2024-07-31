@@ -8,6 +8,7 @@ pub fn main() {
 
     simularity_core::init(None, None);
     simularity_core::model_load("", "", None::<fn(_) -> bool>);
+    simularity_core::model_hash("");
     simularity_core::gpt::create("", None, None, None, None::<fn(_) -> bool>);
     simularity_core::gpt::decode(42, "", None::<fn(_) -> bool>);
     simularity_core::gpt::infer(

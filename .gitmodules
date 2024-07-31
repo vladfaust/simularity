@@ -7,3 +7,6 @@
 [submodule "packages/core-cpp/vendor/spdlog"]
 	path = packages/core-cpp/vendor/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "packages/core-cpp/vendor/xxHash"]
+	path = packages/core-cpp/vendor/xxHash
+	url = https://github.com/Cyan4973/xxHash

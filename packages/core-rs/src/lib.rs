@@ -66,6 +66,21 @@ pub fn model_load(
 }
 
 #[derive(Debug)]
+pub enum ModelHashError {
+    Unknown(i32),
+}
+
+/// Get the hash of a model by its ID.
+pub fn model_hash(model_id: &str) -> Result<u64, ModelHashError> {
+    let model_id = CString::new(model_id).unwrap();
+    let result = unsafe { ffi::simularity_model_hash(model_id.as_ptr()) };
+    match result {
+        0 => Err(ModelHashError::Unknown(result as i32)),
+        _ => Ok(result),
+    }
+}
+
+#[derive(Debug)]
 pub enum ModelUnloadError {
     ModelNotFound,
     Unknown(i32),

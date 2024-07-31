@@ -17,5 +17,6 @@ fn main() {
 
     println!("cargo::rustc-link-lib=static=ggml");
     println!("cargo::rustc-link-lib=static=llama");
+    println!("cargo::rustc-link-lib=static=xxhash");
     println!("cargo::rustc-link-lib=static=simularity");
 }

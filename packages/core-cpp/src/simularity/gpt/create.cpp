@@ -87,7 +87,7 @@ int simularity_gpt_create(
   //
 
   // The batch size is the context size or the training context size.
-  unsigned n_batch = n_ctx | llama_n_ctx_train(LLAMA_MODELS[model_id]);
+  unsigned n_batch = n_ctx | llama_n_ctx_train(LLAMA_MODELS[model_id]->model);
 
   llama_context_params params = llama_context_default_params();
   params.n_ctx                = n_ctx;
@@ -102,7 +102,7 @@ int simularity_gpt_create(
   spdlog::debug("Creating GPT session...", session_id);
 
   struct llama_context *ctx =
-      llama_new_context_with_model(LLAMA_MODELS[model_id], params);
+      llama_new_context_with_model(LLAMA_MODELS[model_id]->model, params);
 
   spdlog::info("Created GPT session with ID: {}", session_id);
   models_lock.unlock(); // Release the llama models mutex.
@@ -149,7 +149,8 @@ int simularity_gpt_create(
             file_size
         );
 
-        size_t max_tokens = n_ctx | llama_n_ctx_train(LLAMA_MODELS[model_id]);
+        size_t max_tokens =
+            n_ctx | llama_n_ctx_train(LLAMA_MODELS[model_id]->model);
         std::vector<llama_token> tokens_list;
         tokens_list.resize(max_tokens);
         size_t n_tokens;
@@ -187,8 +188,9 @@ int simularity_gpt_create(
       spdlog::debug("Tokenizing and decoding initial prompt");
 
       // Tokenize the initial prompt.
-      auto tokens_list =
-          llama_tokenize(LLAMA_MODELS[model_id], initial_prompt, false, false);
+      auto tokens_list = llama_tokenize(
+          LLAMA_MODELS[model_id]->model, initial_prompt, false, false
+      );
 
       // Decode the initial prompt.
       try {

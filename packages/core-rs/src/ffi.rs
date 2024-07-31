@@ -59,6 +59,9 @@ extern "C" {
         model_info: *mut SimularityModelInfo,
     ) -> c_int;
 
+    // uint64_t simularity_model_hash(const char *model_id);
+    pub fn simularity_model_hash(model_id: *const c_char) -> u64;
+
     // int simularity_model_unload(const char *model_id);
     pub fn simularity_model_unload(model_id: *const c_char) -> c_int;
 

@@ -1,6 +1,8 @@
 #ifndef SIMULARITY_H
 #define SIMULARITY_H
 
+#include <_types/_uint64_t.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -49,6 +51,17 @@ int simularity_model_load(
     void *progress_callback_user_data,
     struct simularity_model_info *model_info
 );
+
+/**
+  Get the xx64 hash of the model with the given ID. The first call may take a
+  while to hash the model, memoizing the result for subsequent calls.
+
+  @param model_id Unique identifier for the model.
+
+  @return The xx64 hash of the model.
+  @return -1 if there was an error hashing the model.
+ */
+uint64_t simularity_model_hash(const char *model_id);
 
 /**
   Unload a model with the given ID.
