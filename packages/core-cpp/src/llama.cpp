@@ -57,7 +57,7 @@ std::string llama_token_to_piece(
 ) {
   char buf[LAMA_MAX_PIECE_SIZE];
   auto len =
-      llama_token_to_piece(model, token, buf, LAMA_MAX_PIECE_SIZE, special);
+      llama_token_to_piece(model, token, buf, LAMA_MAX_PIECE_SIZE, 0, special);
   if (len < 0) throw std::runtime_error("Failed to convert token to piece.");
   return std::string(buf, len);
 }

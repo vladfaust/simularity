@@ -3,8 +3,7 @@
 	url = https://github.com/ggerganov/ggml
 [submodule "packages/core-cpp/vendor/llama.cpp"]
 	path = packages/core-cpp/vendor/llama.cpp
-	url = https://github.com/fairydreaming/llama.cpp.git
-	branch = t5-clean-3
+	url = https://github.com/ggerganov/llama.cpp
 [submodule "packages/core-cpp/vendor/spdlog"]
 	path = packages/core-cpp/vendor/spdlog
 	url = https://github.com/gabime/spdlog.git
