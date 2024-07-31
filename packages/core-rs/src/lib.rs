@@ -9,12 +9,12 @@ pub fn init(gpt_sessions_ttl: Option<u32>, gpt_sessions_max: Option<u32>) {
 
 #[derive(Debug)]
 pub enum ModelLoadError {
-    ModelExists,
     LoadFailed,
     Unknown(i32),
 }
 
 /// Load a model from a file.
+/// If the model already loaded, it will return the model info.
 ///
 /// # Arguments
 ///
@@ -27,7 +27,7 @@ pub fn model_load(
     model_path: &str,
     model_id: &str,
     mut progress_callback: Option<impl FnMut(f32) -> bool>,
-) -> Result<(), ModelLoadError> {
+) -> Result<ffi::SimularityModelInfo, ModelLoadError> {
     let user_data = if let Some(cb) = progress_callback.as_mut() {
         let mut user_data: &mut dyn FnMut(f32) -> bool = cb;
         &mut user_data as *mut _ as *mut c_void
@@ -37,6 +37,11 @@ pub fn model_load(
 
     let model_path = CString::new(model_path).unwrap();
     let model_id = CString::new(model_id).unwrap();
+    let mut model_info = ffi::SimularityModelInfo {
+        n_params: 0,
+        size: 0,
+        n_ctx_train: 0,
+    };
 
     let result = unsafe {
         ffi::simularity_model_load(
@@ -48,12 +53,13 @@ pub fn model_load(
                 None
             },
             user_data,
+            &mut model_info,
         )
     };
 
     match result {
-        0 => Ok(()),
-        -1 => Err(ModelLoadError::ModelExists),
+        0 => Ok(model_info),
+        -1 => Ok(model_info), // Model already loaded, return the info.
         -2 => Err(ModelLoadError::LoadFailed),
         _ => Err(ModelLoadError::Unknown(result)),
     }

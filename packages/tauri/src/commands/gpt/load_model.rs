@@ -4,7 +4,9 @@ use sha2::{Digest, Sha256};
 #[serde(rename_all = "camelCase")]
 pub struct Response {
     model_id: String,
-    train_context_size: u32,
+    size: u64,
+    n_params: u64,
+    n_ctx_train: i64,
 }
 
 #[tauri::command]
@@ -20,26 +22,20 @@ pub async fn gpt_load_model(model_path: String) -> Result<Response, tauri::Invok
     let model_load_result =
         simularity_core::model_load(&model_path, &model_id, None::<fn(_) -> bool>);
 
-    if let Err(e) = model_load_result {
-        match e {
+    match model_load_result {
+        Err(err) => match err {
             simularity_core::ModelLoadError::LoadFailed => {
-                return Err(tauri::InvokeError::from("Model load failed"));
+                Err(tauri::InvokeError::from("Model load failed"))
             }
-            simularity_core::ModelLoadError::Unknown(code) => {
-                return Err(tauri::InvokeError::from(format!(
-                    "Model load failed with unhandled code {}",
-                    code
-                )));
-            }
-            simularity_core::ModelLoadError::ModelExists => {
-                println!("Model already exists")
-                // Continue.
-            }
-        }
-    };
-
-    Ok(Response {
-        model_id,
-        train_context_size: 0,
-    })
+            simularity_core::ModelLoadError::Unknown(code) => Err(tauri::InvokeError::from(
+                format!("Model load failed with unhandled code {}", code),
+            )),
+        },
+        Ok(ok) => Ok(Response {
+            model_id,
+            n_params: ok.n_params,
+            size: ok.size,
+            n_ctx_train: ok.n_ctx_train,
+        }),
+    }
 }

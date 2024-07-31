@@ -28,6 +28,14 @@ pub struct SimularityGptInferenceOptions {
     pub stop_sequences: *const *const c_char,
 }
 
+#[derive(Debug)]
+#[repr(C)]
+pub struct SimularityModelInfo {
+    pub n_params: u64,
+    pub size: u64,
+    pub n_ctx_train: i64,
+}
+
 #[link(name = "simularity")]
 extern "C" {
     // void simularity_init(
@@ -37,14 +45,18 @@ extern "C" {
     pub fn simularity_init(gpt_sessions_ttl: c_uint, gpt_sessions_max: c_uint) -> c_void;
 
     // int simularity_model_load(
-    //     const char *model_path, const char *model_id,
-    //     bool(progress_callback)(float, void *), void *progress_callback_user_data
+    //     const char *model_path,
+    //     const char *model_id,
+    //     bool(progress_callback)(float, void *),
+    //     void *progress_callback_user_data,
+    //     struct simularity_model_info *model_info
     // );
     pub fn simularity_model_load(
         model_path: *const c_char,
         model_id: *const c_char,
         progress_callback: Option<extern "C" fn(c_float, *mut c_void) -> bool>,
         progress_callback_user_data: *mut c_void,
+        model_info: *mut SimularityModelInfo,
     ) -> c_int;
 
     // int simularity_model_unload(const char *model_id);

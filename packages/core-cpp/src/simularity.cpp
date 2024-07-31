@@ -20,7 +20,8 @@ extern "C" int simularity_model_load(
     const char *model_path,
     const char *model_id,
     llama_progress_callback progress_callback,
-    void *progress_callback_user_data
+    void *progress_callback_user_data,
+    struct simularity_model_info *model_info
 ) {
   spdlog::debug(
       "simularity_model_load(model_path: {}, model_id: {}, "
@@ -36,6 +37,12 @@ extern "C" int simularity_model_load(
 
   // Check if a model with the same ID already exists.
   if (LLAMA_MODELS.find(model_id) != LLAMA_MODELS.end()) {
+    auto model = LLAMA_MODELS[model_id];
+
+    model_info->n_params    = llama_model_n_params(model);
+    model_info->size        = llama_model_size(model);
+    model_info->n_ctx_train = llama_n_ctx_train(model);
+
     return -1; // Model with the same ID already exists.
   }
 
@@ -53,12 +60,17 @@ extern "C" int simularity_model_load(
 
   // Add the model to the list.
   LLAMA_MODELS.insert({model_id, model});
+
+  model_info->n_params    = llama_model_n_params(model);
+  model_info->size        = llama_model_size(model);
+  model_info->n_ctx_train = llama_n_ctx_train(model);
+
   spdlog::info(
       "Model loaded: {}, n_params: {}, size: {}, n_ctx_train: {}",
       model_id,
-      llama_model_n_params(model),
-      llama_model_size(model),
-      llama_n_ctx_train(model)
+      model_info->n_params,
+      model_info->size,
+      model_info->n_ctx_train
   );
 
   return 0;

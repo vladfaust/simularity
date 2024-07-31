@@ -15,6 +15,15 @@ extern "C" {
 void simularity_init(unsigned gpt_sessions_ttl, unsigned gpt_sessions_max);
 
 /**
+  Information about a model.
+ */
+struct simularity_model_info {
+  unsigned long long n_params;
+  unsigned long long size;
+  long n_ctx_train;
+};
+
+/**
   Load a model from the given path into the model map.
 
   @param model_path Path to the model file.
@@ -23,20 +32,22 @@ void simularity_init(unsigned gpt_sessions_ttl, unsigned gpt_sessions_max);
     If the provided progress_callback returns true, model loading continues.
     If it returns false, model loading is immediately aborted.
   @param progress_callback_user_data User data for the progress callback.
+  @param model_info Model info struct to fill with the model's information.
 
-  @return 0 on success.
-  @return -1 if a model with the same ID already exists.
-  @return -2 if there was an error loading the model.
+  @return 0 on success (sets `model_info`).
+  @return -1 if a model with the same ID already exists (sets `model_info`).
+  @return -2 if there was an error loading the model (does not set
+  `model_info`).
 
   SAFETY: `simularity_model_*` functions are NOT thread-safe.
-  TODO: Return some model data.
   TODO: Find an existing model by ID.
  */
 int simularity_model_load(
     const char *model_path,
     const char *model_id,
     bool(progress_callback)(float, void *),
-    void *progress_callback_user_data
+    void *progress_callback_user_data,
+    struct simularity_model_info *model_info
 );
 
 /**
