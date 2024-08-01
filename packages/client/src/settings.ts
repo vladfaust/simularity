@@ -1,4 +1,5 @@
 import { Store } from "tauri-plugin-store-api";
+import { unreachable } from "./lib/utils";
 
 const store = new Store(".settings.dat");
 
@@ -18,45 +19,61 @@ export async function save(): Promise<void> {
   await store.save();
 }
 
-export async function getGptDriver(): Promise<"local" | "remote" | null> {
-  return (await storeGet("gpt:driver")) as "local" | "remote" | null;
+export async function getRemoteInferenceUrl(): Promise<string> {
+  return (
+    (await storeGet(`remote:url`)) ||
+    import.meta.env.VITE_DEFAULT_REMOTE_INFERENCE_SERVER_BASE_URL
+  );
 }
 
-export async function setGptDriver(driver: "local" | "remote"): Promise<void> {
-  return storeSet("gpt:driver", driver);
+export async function setRemoteInferenceUrl(url: string): Promise<void> {
+  return storeSet(`remote:url`, url);
 }
 
-export async function getGptLocalContextSize(): Promise<number | null> {
-  const value = await storeGet("gpt:local:contextSize");
-  return value ? parseInt(value) : null;
+export type AgentId = "writer" | "director";
+export type AgentDriver = "local" | "remote";
+
+export async function getAgentDriver(id: AgentId): Promise<AgentDriver | null> {
+  return (await storeGet(`${id}:driver`)) as AgentDriver | null;
 }
 
-export async function setGptLocalContextSize(
-  contextSize: number,
+export async function setAgentDriver(
+  id: AgentId,
+  driver: AgentDriver,
 ): Promise<void> {
-  return storeSet("gpt:local:contextSize", contextSize);
+  return storeSet(`${id}:driver`, driver);
 }
 
-export async function getGptLocalModelPath(): Promise<string | null> {
-  return storeGet("gpt:local:modelPath");
+export async function getAgentLocalModelPath(
+  id: AgentId,
+): Promise<string | null> {
+  return storeGet(`${id}:local:modelPath`);
 }
 
-export async function setGptLocalModelPath(modelPath: string): Promise<void> {
-  return storeSet("gpt:local:modelPath", modelPath);
+export async function setAgentLocalModelPath(
+  id: AgentId,
+  modelPath: string,
+): Promise<void> {
+  return storeSet(`${id}:local:modelPath`, modelPath);
 }
 
-export async function getGptRemoteBaseUrl(): Promise<string | null> {
-  return storeGet("gpt:remote:baseUrl");
+export async function getAgentRemoteModel(id: AgentId): Promise<string> {
+  const stored = await storeGet(`${id}:remote:model`);
+  if (stored) return stored;
+
+  switch (id) {
+    case "writer":
+      return import.meta.env.VITE_DEFAULT_REMOTE_WRITER_MODEL;
+    case "director":
+      return import.meta.env.VITE_DEFAULT_REMOTE_DIRECTOR_MODEL;
+    default:
+      throw unreachable(id);
+  }
 }
 
-export async function setGptRemoteBaseUrl(baseUrl: string): Promise<void> {
-  return storeSet("gpt:remote:baseUrl", baseUrl);
-}
-
-export async function getGptRemoteModel(): Promise<string | null> {
-  return storeGet("gpt:remote:model");
-}
-
-export async function setGptRemoteModel(model: string): Promise<void> {
-  return storeSet("gpt:remote:model", model);
+export async function setAgentRemoteModel(
+  id: AgentId,
+  model: string,
+): Promise<void> {
+  return storeSet(`${id}:remote:model`, model);
 }

@@ -1,10 +1,10 @@
 import { v } from "@/lib/valibot";
 
 /**
- * Add a character to the scene.
+ * Add a character to the stage.
  */
 export const AddCharacterSchema = v.object({
-  name: v.literal("add_character"),
+  name: v.literal("addCharacter"),
   args: v.object({
     /**
      * The ID of the character to add.

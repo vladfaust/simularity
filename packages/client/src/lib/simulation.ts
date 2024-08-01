@@ -1,5 +1,5 @@
 import * as settings from "@/settings";
-import { latestGptSession } from "@/store";
+import { latestDirectorSession, latestWriterSession } from "@/store";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { Raw, computed, markRaw, readonly, ref, shallowRef } from "vue";
@@ -7,6 +7,7 @@ import { d, parseSelectResult, sqlite } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
 import { InferenceOptions } from "./simularity/common";
 import { GptDriver, InferenceAbortError } from "./simularity/gpt";
+import { Director } from "./simulation/agents/director";
 import {
   Writer,
   PredictionOptions as WriterPredictionOptions,
@@ -14,7 +15,10 @@ import {
 import { Scenario } from "./simulation/scenario";
 import { StageRenderer } from "./simulation/stageRenderer";
 import { State, StateDto, comparesStateDeltas } from "./simulation/state";
-import { StateCommand, stateCommandsToCode } from "./simulation/state/commands";
+import {
+  StateCommand,
+  stateCommandsToCodeLines,
+} from "./simulation/state/commands";
 import { Update } from "./simulation/update";
 import { assert, assertCallback, clone, unreachable } from "./utils";
 
@@ -51,6 +55,7 @@ export class Simulation {
   >();
 
   private _writer = shallowRef<Writer | undefined>();
+  private _director = shallowRef<Director | undefined>();
   //#endregion
 
   readonly state: State;
@@ -155,7 +160,13 @@ export class Simulation {
   /**
    * The writer instance.
    */
+  // TODO: Make it deferred back.
   readonly writer = computed(() => this._writer.value);
+
+  /**
+   * The director instance.
+   */
+  readonly director = computed(() => this._director.value);
 
   /**
    * Whether the simulation is busy.
@@ -267,7 +278,7 @@ export class Simulation {
 
       // Decode the resulting prompt.
       this.writer.value.decodeFullPrompt(
-        this._checkpoint.value!.summary,
+        this._checkpoint.value!,
         this._historicalUpdates.value,
         this._recentUpdates.value,
         decodeProgressCallback,
@@ -323,6 +334,9 @@ export class Simulation {
 
         // Shift the future update to the recent updates.
         this._recentUpdates.value.push(update);
+
+        // Clear the future updates.
+        this._futureUpdates.value = [];
       } else {
         // Create a new update object.
         const update = markRaw(new Update(parentUpdateId, [saved]));
@@ -354,6 +368,14 @@ export class Simulation {
       throw new Error("Simulation is busy");
     }
 
+    if (!this.writer.value) {
+      throw new Error("Writer is not initialized");
+    }
+
+    if (!this.director.value) {
+      throw new Error("Director is not initialized");
+    }
+
     if (this.state.shallAdvanceEpisode.value) {
       throw new Error("Cannot create assistant update during an episode");
     }
@@ -382,6 +404,16 @@ export class Simulation {
         onDecodeProgress,
         inferenceAbortSignal,
       );
+      if (inferenceAbortSignal?.aborted) {
+        console.warn("Writer inference aborted");
+        return;
+      }
+
+      await this._inferDirectorUpdate(inferenceAbortSignal);
+      if (inferenceAbortSignal?.aborted) {
+        console.warn("Director inference aborted");
+        return;
+      }
     } finally {
       this._busy.value = false;
     }
@@ -428,6 +460,16 @@ export class Simulation {
         onInferenceDecodingProgress,
         inferenceAbortSignal,
       );
+      if (inferenceAbortSignal?.aborted) {
+        console.warn("Inference aborted");
+        return;
+      }
+
+      await this._inferDirectorUpdate(inferenceAbortSignal);
+      if (inferenceAbortSignal?.aborted) {
+        console.warn("Director inference aborted");
+        return;
+      }
     } finally {
       this._busy.value = false;
     }
@@ -588,7 +630,7 @@ export class Simulation {
 
     try {
       const summarizationResult = await this.writer.value.summarize(
-        this._checkpoint.value!.summary,
+        this._checkpoint.value!,
         this._historicalUpdates.value,
         this._recentUpdates.value,
         256,
@@ -861,7 +903,7 @@ export class Simulation {
 
       console.debug(
         "Applying stage code",
-        stateCommandsToCode(directorUpdate.code),
+        stateCommandsToCodeLines(directorUpdate.code),
       );
 
       this.state.apply(directorUpdate.code);
@@ -1110,6 +1152,41 @@ export class Simulation {
     return update;
   }
 
+  /**
+   * Fetch the simulation's agent driver.
+   */
+  private static async _fetchDriver(
+    agent: settings.AgentId,
+  ): Promise<GptDriver> {
+    const driverType = (await settings.getAgentDriver(agent)) || "remote";
+
+    switch (driverType) {
+      case "remote": {
+        const baseUrl = await settings.getRemoteInferenceUrl();
+        const model = await settings.getAgentRemoteModel(agent);
+
+        return {
+          type: "remote",
+          baseUrl,
+          model,
+        };
+      }
+
+      case "local": {
+        const modelPath = await settings.getAgentLocalModelPath(agent);
+        if (!modelPath) throw new Error("Local model path not set");
+
+        return {
+          type: "local",
+          modelPath,
+        };
+      }
+
+      default:
+        throw unreachable(driverType);
+    }
+  }
+
   private constructor(id: string, scenarioId: string, scenario: Scenario) {
     this.id = id;
     this.scenarioId = scenarioId;
@@ -1130,6 +1207,10 @@ export class Simulation {
 
     this._initWriter((event) => {
       console.debug("Writer initialization progress", event.progress);
+    });
+
+    this._initDirector((event) => {
+      console.debug("Director initialization progress", event.progress);
     });
   }
 
@@ -1257,7 +1338,7 @@ export class Simulation {
       if (directorUpdate) {
         console.debug(
           "Applying stage code",
-          stateCommandsToCode(directorUpdate.code),
+          stateCommandsToCodeLines(directorUpdate.code),
         );
 
         this.state.apply(directorUpdate.code);
@@ -1291,56 +1372,31 @@ export class Simulation {
   /**
    * Prepare writer GPT for the simulation.
    */
-  // TODO: Move to Writer class.
   private async _initWriter(
     progressCallback: (event: { progress: number }) => void,
   ) {
-    let driver: GptDriver;
-    const driverType = (await settings.getGptDriver()) || "remote";
-    switch (driverType) {
-      case "remote": {
-        const baseUrl =
-          (await settings.getGptRemoteBaseUrl()) ||
-          import.meta.env.VITE_DEFAULT_REMOTE_INFERENCE_SERVER_BASE_URL;
-        const model =
-          (await settings.getGptRemoteModel()) ||
-          import.meta.env.VITE_DEFAULT_REMOTE_GPT_INFERENCE_MODEL;
-
-        driver = {
-          type: "remote",
-          baseUrl,
-          model,
-        };
-
-        break;
-      }
-
-      case "local": {
-        const modelPath = await settings.getGptLocalModelPath();
-        if (!modelPath) throw new Error("Local model path not set");
-
-        const contextSize = await settings.getGptLocalContextSize();
-        // if (!contextSize) throw new Error("Local context size not set");
-
-        driver = {
-          type: "local",
-          modelPath,
-          contextSize: contextSize ?? 0,
-        };
-
-        break;
-      }
-
-      default:
-        throw unreachable(driverType);
-    }
-
     this._writer.value = await Writer.init(
-      driver,
-      latestGptSession,
+      await Simulation._fetchDriver("writer"),
+      latestWriterSession,
       this.scenario,
-      this._checkpoint.value!.summary,
+      this._checkpoint.value!,
       this._historicalUpdates.value,
+      this._recentUpdates.value,
+      progressCallback,
+    );
+  }
+
+  /**
+   * Prepare director GPT for the simulation.
+   */
+  private async _initDirector(
+    progressCallback: (event: { progress: number }) => void,
+  ) {
+    this._director.value = await Director.init(
+      await Simulation._fetchDriver("director"),
+      latestDirectorSession,
+      this.scenario,
+      this._checkpoint.value!.state,
       this._recentUpdates.value,
       progressCallback,
     );
@@ -1506,7 +1562,7 @@ export class Simulation {
 
     try {
       const writerResponse = await this.writer.value.inferUpdate(
-        this._checkpoint.value!.summary,
+        this._checkpoint.value!,
         this._historicalUpdates.value,
         recentUpdates,
         nEval,
@@ -1540,6 +1596,22 @@ export class Simulation {
     } finally {
       update.inProgressVariant.value = undefined;
     }
+  }
+
+  private async _inferDirectorUpdate(inferenceAbortSignal?: AbortSignal) {
+    return;
+    await this.director.value!.inferUpdate(
+      this._checkpoint.value!.state,
+      this.state.serialize(),
+      this._recentUpdates.value,
+      256,
+      { temp: 0.5 },
+      (e) => {
+        console.log(`Director decoding progress: ${e.progress}`);
+      },
+      undefined,
+      inferenceAbortSignal,
+    );
   }
 
   //

@@ -7,23 +7,28 @@ import {
   findCharacter,
   findEpisode,
   findExpression,
-  findLocation,
   findOutfit,
   findScene,
 } from "./scenario";
 import { StageRenderer } from "./stageRenderer";
-import { StateCommand, stateCommandsToCode } from "./state/commands";
+import { StateCommand, stateCommandsToCodeLines } from "./state/commands";
 
+/**
+ * When a Lua code has semantic error, such as missing arguments.
+ */
+export class EngineCodeSemanticError extends Error {}
+
+/**
+ * When state encounters a logical error, such as
+ * trying to remove a non-existing character.
+ */
 export class StateError extends Error {}
 
 /**
  * A stage state.
  */
 export type Stage = {
-  scene: {
-    locationId: string;
-    sceneId: string;
-  } | null;
+  sceneId: string | null;
 
   characters: {
     id: string;
@@ -50,10 +55,7 @@ export type StateDto = {
  * A simulation state object.
  */
 export class State {
-  private readonly _stage = ref<Stage>({
-    scene: null,
-    characters: [],
-  });
+  private readonly _stage = ref<Stage>({ sceneId: null, characters: [] });
   readonly stage = readonly(this._stage);
 
   private readonly _currentEpisode = ref<
@@ -139,23 +141,14 @@ export class State {
     const delta: StateCommand[] = [];
     let clear = false;
 
-    if (
-      this._stage.value.scene?.locationId !==
-        otherState?.stage.scene?.locationId ||
-      this._stage.value.scene?.sceneId !== otherState?.stage.scene?.sceneId
-    ) {
+    if (this._stage.value.sceneId !== otherState?.stage.sceneId) {
       clear = this._stage.value.characters.length === 0;
 
       delta.push({
-        name: "set_scene",
+        name: "setScene",
         args: {
-          sceneId: this._stage.value.scene
-            ? toSceneQualifiedId(
-                this._stage.value.scene.locationId,
-                this._stage.value.scene.sceneId,
-              )
-            : null,
-          clear,
+          sceneId: this._stage.value.sceneId,
+          clearStage: clear,
         },
       });
     }
@@ -167,7 +160,7 @@ export class State {
 
       if (!otherCharacter) {
         delta.push({
-          name: "add_character",
+          name: "addCharacter",
           args: {
             characterId: character.id,
             outfitId: character.outfitId,
@@ -177,7 +170,7 @@ export class State {
       } else {
         if (character.outfitId !== otherCharacter.outfitId) {
           delta.push({
-            name: "set_outfit",
+            name: "setCharacterOutfit",
             args: {
               characterId: character.id,
               outfitId: character.outfitId,
@@ -187,7 +180,7 @@ export class State {
 
         if (character.expressionId !== otherCharacter.expressionId) {
           delta.push({
-            name: "set_expression",
+            name: "setCharacterExpression",
             args: {
               characterId: character.id,
               expressionId: character.expressionId,
@@ -201,7 +194,7 @@ export class State {
       for (const character of otherState.stage.characters) {
         if (!this._stage.value.characters.find((c) => c.id === character.id)) {
           delta.push({
-            name: "remove_character",
+            name: "removeCharacter",
             args: {
               characterId: character.id,
             },
@@ -213,76 +206,155 @@ export class State {
     return delta;
   }
 
-  // REFACTOR: Move Lua logic outside.
+  static async createLuaEngine(ctx: {
+    setScene: (sceneId: string, clearScene: boolean) => void;
+    addCharacter: (
+      characterId: string,
+      outfitId: string,
+      expressionId: string,
+    ) => void;
+    removeCharacter: (characterId: string) => void;
+    setCharacterOutfit: (characterId: string, outfitId: string) => void;
+    setCharacterExpression: (characterId: string, expressionId: string) => void;
+  }): Promise<LuaEngine> {
+    return new LuaFactory().createEngine().then((lua) => {
+      // Set the current scene.
+      lua.global.set(
+        "setScene",
+        (args: { sceneId?: string; clearScene?: boolean }) => {
+          if (!args.sceneId) {
+            throw new EngineCodeSemanticError("Missing argument: sceneId");
+          }
+
+          if (args.clearScene === undefined) {
+            throw new EngineCodeSemanticError("Missing argument: clear");
+          }
+
+          ctx.setScene(args.sceneId, args.clearScene);
+        },
+      );
+
+      // Add a character to the stage.
+      lua.global.set(
+        "addCharacter",
+        (args: {
+          characterId?: string;
+          outfitId?: string;
+          expressionId?: string;
+        }) => {
+          if (!args.characterId) {
+            throw new EngineCodeSemanticError("Missing argument: characterId");
+          }
+
+          if (!args.outfitId) {
+            throw new EngineCodeSemanticError("Missing argument: outfitId");
+          }
+
+          if (!args.expressionId) {
+            throw new EngineCodeSemanticError("Missing argument: expressionId");
+          }
+
+          ctx.addCharacter(args.characterId, args.outfitId, args.expressionId);
+        },
+      );
+
+      // Set the outfit of a character.
+      lua.global.set(
+        "setCharacterOutfit",
+        (args: { characterId?: string; outfitId?: string }) => {
+          if (!args.characterId) {
+            throw new EngineCodeSemanticError("Missing argument: characterId");
+          }
+
+          if (!args.outfitId) {
+            throw new EngineCodeSemanticError("Missing argument: outfitId");
+          }
+
+          ctx.setCharacterOutfit(args.characterId, args.outfitId);
+        },
+      );
+
+      // Set expression of a character.
+      lua.global.set(
+        "setCharacterExpression",
+        (args: { characterId?: string; expressionId?: string }) => {
+          if (!args.characterId) {
+            throw new EngineCodeSemanticError("Missing argument: characterId");
+          }
+
+          if (!args.expressionId) {
+            throw new EngineCodeSemanticError("Missing argument: expressionId");
+          }
+
+          ctx.setCharacterExpression(args.characterId, args.expressionId);
+        },
+      );
+
+      // Remove a character from the stage.
+      lua.global.set("removeCharacter", (args: { characterId?: string }) => {
+        if (!args.characterId) {
+          throw new EngineCodeSemanticError("Missing argument: characterId");
+        }
+
+        ctx.removeCharacter(args.characterId);
+      });
+
+      return lua;
+    });
+  }
+
   async initCodeEngine() {
-    this._lua = await new LuaFactory().createEngine().then((lua) => {
-      lua.global.set("noop", () => {});
-
-      lua.global.set(
-        "set_scene",
-        (sceneQualifiedId: string, clear: boolean) => {
-          this.setScene(sceneQualifiedId, clear);
-          this._recentCalls.push({
-            name: "set_scene",
-            args: {
-              sceneId: sceneQualifiedId,
-              clear,
-            },
-          });
-        },
-      );
-
-      lua.global.set(
-        "add_character",
-        (characterId: string, outfitId: string, expressionId: string) => {
-          this.addCharacter(characterId, outfitId, expressionId);
-          this._recentCalls.push({
-            name: "add_character",
-            args: {
-              characterId,
-              outfitId,
-              expressionId,
-            },
-          });
-        },
-      );
-
-      lua.global.set("set_outfit", (characterId: string, outfitId: string) => {
-        this.setOutfit(characterId, outfitId);
+    this._lua = await State.createLuaEngine({
+      setScene: (sceneId, clearScene) => {
+        this.setScene(sceneId, clearScene);
         this._recentCalls.push({
-          name: "set_outfit",
+          name: "setScene",
+          args: {
+            sceneId,
+            clearStage: clearScene,
+          },
+        });
+      },
+      addCharacter: (characterId, outfitId, expressionId) => {
+        this.addCharacter(characterId, outfitId, expressionId);
+        this._recentCalls.push({
+          name: "addCharacter",
+          args: {
+            characterId,
+            outfitId,
+            expressionId,
+          },
+        });
+      },
+      setCharacterOutfit: (characterId, outfitId) => {
+        this.setCharacterOutfit(characterId, outfitId);
+        this._recentCalls.push({
+          name: "setCharacterOutfit",
           args: {
             characterId,
             outfitId,
           },
         });
-      });
-
-      lua.global.set(
-        "set_expression",
-        (characterId: string, expressionId: string) => {
-          this.setExpression(characterId, expressionId);
-          this._recentCalls.push({
-            name: "set_expression",
-            args: {
-              characterId,
-              expressionId,
-            },
-          });
-        },
-      );
-
-      lua.global.set("remove_character", (characterId: string) => {
+      },
+      setCharacterExpression: (characterId, expressionId) => {
+        this.setCharacterExpression(characterId, expressionId);
+        this._recentCalls.push({
+          name: "setCharacterExpression",
+          args: {
+            characterId,
+            expressionId,
+          },
+        });
+      },
+      removeCharacter: (characterId) => {
         this.removeCharacter(characterId);
         this._recentCalls.push({
-          name: "remove_character",
+          name: "removeCharacter",
           args: {
             characterId,
           },
         });
-      });
-
-      return lua;
+      },
     });
   }
 
@@ -309,27 +381,30 @@ export class State {
   apply(commands: Readonly<StateCommand[]>) {
     for (const cmd of commands) {
       switch (cmd.name) {
-        case "set_scene":
-          this.setScene(cmd.args.sceneId, cmd.args.clear);
+        case "setScene":
+          this.setScene(cmd.args.sceneId, cmd.args.clearStage);
           break;
-        case "add_character":
+        case "addCharacter":
           this.addCharacter(
             cmd.args.characterId,
             cmd.args.outfitId,
             cmd.args.expressionId,
           );
           break;
-        case "set_outfit":
-          this.setOutfit(cmd.args.characterId, cmd.args.outfitId);
+        case "setCharacterOutfit":
+          this.setCharacterOutfit(cmd.args.characterId, cmd.args.outfitId);
           break;
-        case "set_expression":
-          this.setExpression(cmd.args.characterId, cmd.args.expressionId);
+        case "setCharacterExpression":
+          this.setCharacterExpression(
+            cmd.args.characterId,
+            cmd.args.expressionId,
+          );
           break;
-        case "remove_character":
+        case "removeCharacter":
           this.removeCharacter(cmd.args.characterId);
           break;
         default:
-          throw unreachable(cmd);
+          throw new StateError(`Unknown command: ${JSON.stringify(cmd)}`);
       }
     }
   }
@@ -339,7 +414,8 @@ export class State {
    */
   setState(state: StateDto | null) {
     state = clone(state);
-    this._stage.value.scene = state?.stage.scene || null;
+    this._stage.value.sceneId =
+      state?.stage.sceneId || this.scenario.defaultSceneId;
     this._stage.value.characters = state?.stage.characters || [];
     this._connectedRenderer?.setStage(state?.stage || null);
   }
@@ -384,7 +460,7 @@ export class State {
     const { characterId, text, code } = currentEpisode.chunks[chunkIndex];
 
     if (code?.length) {
-      console.debug("Applying stage code", stateCommandsToCode(code));
+      console.debug("Applying stage code", stateCommandsToCodeLines(code));
       this.apply(code);
       // TODO: if (scene.busy) await scene.busy;
     }
@@ -398,24 +474,20 @@ export class State {
     };
   }
 
-  setScene(qualifiedId: string | null, clear: boolean) {
-    if (qualifiedId) {
-      const { locationId, sceneId } = parseQualifiedSceneId(qualifiedId);
-
-      const location = findLocation(this.scenario, locationId);
-      if (!location) throw new StateError(`Location not found: ${locationId}`);
-
-      const scene = findScene(location, sceneId);
+  setScene(sceneId: string | null, clear: boolean) {
+    if (sceneId) {
+      const scene = findScene(this.scenario, sceneId);
       if (!scene) throw new StateError(`Scene not found: ${sceneId}`);
-
-      this._stage.value.scene = { locationId, sceneId };
+      this._stage.value.sceneId = sceneId;
+    } else {
+      this._stage.value.sceneId = null;
     }
 
     if (clear) {
       this._stage.value.characters = [];
     }
 
-    this._connectedRenderer?.setScene(qualifiedId, clear);
+    this._connectedRenderer?.setScene(sceneId, clear);
   }
 
   addCharacter(characterId: string, outfitId: string, expressionId: string) {
@@ -448,7 +520,7 @@ export class State {
     this._connectedRenderer?.addCharacter(characterId, outfitId, expressionId);
   }
 
-  setOutfit(characterId: string, outfitId: string) {
+  setCharacterOutfit(characterId: string, outfitId: string) {
     const character = this._stage.value.characters.find(
       (c) => c.id === characterId,
     );
@@ -470,10 +542,10 @@ export class State {
 
     character.outfitId = outfitId;
 
-    this._connectedRenderer?.setOutfit(characterId, outfitId);
+    this._connectedRenderer?.setCharacterOutfit(characterId, outfitId);
   }
 
-  setExpression(characterId: string, expressionId: string) {
+  setCharacterExpression(characterId: string, expressionId: string) {
     const character = this._stage.value.characters.find(
       (c) => c.id === characterId,
     );
@@ -495,7 +567,7 @@ export class State {
 
     character.expressionId = expressionId;
 
-    this._connectedRenderer?.setExpression(characterId, expressionId);
+    this._connectedRenderer?.setCharacterExpression(characterId, expressionId);
   }
 
   removeCharacter(characterId: string) {
@@ -513,34 +585,10 @@ export class State {
   }
 }
 
-/**
- * Convert a location ID and scene ID to a fully qualified scene ID.
- * @example toSceneQualifiedId("location1", "scene1") // => "location1/scene1"
- */
-export function toSceneQualifiedId(
-  locationId: string,
-  sceneId: string,
-): string {
-  return `${locationId}/${sceneId}`;
-}
-
-/**
- * Parse a fully qualified scene ID to location ID and scene ID.
- * @example parseQualifiedSceneId("location1/scene1")
- * // => { locationId: "location1", sceneId: "scene1" }
- */
-export function parseQualifiedSceneId(qualifiedId: string): {
-  locationId: string;
-  sceneId: string;
-} {
-  const [locationId, sceneId] = qualifiedId.split("/");
-  return { locationId, sceneId };
-}
-
 export function emptyStateDto(): StateDto {
   return {
     stage: {
-      scene: null,
+      sceneId: null,
       characters: [],
     },
     currentEpisode: null,
@@ -549,8 +597,6 @@ export function emptyStateDto(): StateDto {
 
 /**
  * Apply commands to a state DTO without any checks, used to compare results.
- * It would throw, however, if, for example, a character
- * to change outfit or expression is not on the stage.
  */
 function applyCommandsToStateDtoUnsafe(
   state: StateDto | null,
@@ -560,19 +606,17 @@ function applyCommandsToStateDtoUnsafe(
 
   for (const cmd of commands) {
     switch (cmd.name) {
-      case "set_scene": {
-        state.stage.scene = cmd.args.sceneId
-          ? parseQualifiedSceneId(cmd.args.sceneId)
-          : null;
+      case "setScene": {
+        state.stage.sceneId = cmd.args.sceneId;
 
-        if (cmd.args.clear) {
+        if (cmd.args.clearStage) {
           state.stage.characters = [];
         }
 
         break;
       }
 
-      case "add_character": {
+      case "addCharacter": {
         state.stage.characters.push({
           id: cmd.args.characterId,
           outfitId: cmd.args.outfitId,
@@ -584,7 +628,7 @@ function applyCommandsToStateDtoUnsafe(
         break;
       }
 
-      case "set_outfit": {
+      case "setCharacterOutfit": {
         state.stage.characters.find(
           (c) => c.id === cmd.args.characterId,
         )!.outfitId = cmd.args.outfitId;
@@ -592,7 +636,7 @@ function applyCommandsToStateDtoUnsafe(
         break;
       }
 
-      case "set_expression": {
+      case "setCharacterExpression": {
         state.stage.characters.find(
           (c) => c.id === cmd.args.characterId,
         )!.expressionId = cmd.args.expressionId;
@@ -600,7 +644,7 @@ function applyCommandsToStateDtoUnsafe(
         break;
       }
 
-      case "remove_character": {
+      case "removeCharacter": {
         state.stage.characters = state.stage.characters.filter(
           (c) => c.id !== cmd.args.characterId,
         );

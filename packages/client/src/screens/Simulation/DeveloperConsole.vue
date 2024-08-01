@@ -10,7 +10,7 @@ import Prompt from "./DeveloperConsole/Prompt.vue";
 import { Gpt } from "@/lib/simularity/gpt";
 import {
   type StateCommand,
-  stateCommandsToCode,
+  stateCommandsToCodeLines,
 } from "@/lib/simulation/state/commands";
 
 defineProps<{
@@ -77,7 +77,7 @@ Dialog.relative.z-50(
                   span.font-bold.uppercase.tracking-wide Stage delta
 
                 textarea.h-full.resize-none.overflow-scroll.bg-transparent.p-2.font-mono.text-white(
-                  :value="stateCommandsToCode(stageStateDelta)"
+                  :value="stateCommandsToCodeLines(stageStateDelta)"
                   readonly
                 )
 

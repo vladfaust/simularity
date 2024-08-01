@@ -23,12 +23,11 @@ export type GptDriver =
   | {
       type: "local";
       modelPath: string;
-      contextSize: number;
     };
 
 export type StoredGptSession = {
-  id: string;
   driver: GptDriver;
+  sessionId: string;
   staticPromptHash: string | undefined;
   dynamicPromptHash: string | undefined;
 };
@@ -47,7 +46,14 @@ abstract class Job<T> {
   }
 }
 
-export class GptInitJob extends Job<string> {
+type InitResult = {
+  sessionId: string;
+  modelId: string;
+  nParams: number;
+  nCtxTrain: number;
+};
+
+export class GptInitJob extends Job<InitResult> {
   readonly progress = ref(0);
 
   constructor(
@@ -57,7 +63,7 @@ export class GptInitJob extends Job<string> {
     dumpSession?: boolean,
     abortSignal?: AbortSignal,
   ) {
-    super(async (): Promise<string> => {
+    super(async (): Promise<InitResult> => {
       const progressCallback = (event: { progress: number }) => {
         this.progress.value = event.progress;
         progressCallback_?.(event);
@@ -65,35 +71,48 @@ export class GptInitJob extends Job<string> {
 
       switch (gpt.driver.type) {
         case "local": {
-          const { modelId } = await local.gpt.loadModel(gpt.driver.modelPath);
+          const { modelId, nCtxTrain, nParams } = await local.gpt.loadModel(
+            gpt.driver.modelPath,
+          );
 
           // TODO: Handle `abortSignal`.
           const { sessionId } = await local.gpt.create(
             modelId,
-            gpt.driver.contextSize,
+            nCtxTrain,
             initialPrompt,
             progressCallback,
             dumpSession,
           );
 
           this.progress.value = 1;
-          return sessionId;
+
+          return {
+            sessionId,
+            modelId,
+            nParams,
+            nCtxTrain,
+          };
         }
 
         case "remote": {
-          const id = (
-            await remote.gpt.create(
-              gpt.driver.baseUrl,
-              {
-                model: gpt.driver.model,
-                initialPrompt,
-              },
-              { abortSignal },
-              progressCallback,
-            )
-          ).sessionId;
+          const result = await remote.gpt.create(
+            gpt.driver.baseUrl,
+            {
+              model: gpt.driver.model,
+              initialPrompt,
+            },
+            { abortSignal },
+            progressCallback,
+          );
+
           this.progress.value = 1;
-          return id;
+
+          return {
+            sessionId: result.sessionId,
+            modelId: gpt.driver.model,
+            nParams: 0, // TODO: Get the number of parameters.
+            nCtxTrain: result.contextLength,
+          };
         }
 
         default:
@@ -290,7 +309,7 @@ export class Gpt {
    *
    * @param staticPrompt Static prompt to compare with the existing session.
    * @param dynamicPrompt Dynamic prompt to compare with the existing session
-   * (appended to the static prompt to form the full prompt).
+   * (appended to the static prompt to form the full prompt to decode).
    */
   static async findOrCreate(
     driver: GptDriver,
@@ -309,9 +328,10 @@ export class Gpt {
       const areDriversEqual = driversEqual(sessionRef.value.driver, driver);
 
       if (areDriversEqual) {
+        // Try finding an existing session by id.
         gpt = await Gpt.find(
           driver,
-          sessionRef.value.id,
+          sessionRef.value.sessionId,
           staticPrompt + dynamicPrompt,
         );
         restored = !!gpt;
@@ -366,7 +386,7 @@ export class Gpt {
           console.log("Initialized new GPT session", gpt.id.value);
 
           sessionRef.value = {
-            id: gpt.id.value!,
+            sessionId: gpt.id.value!,
             driver,
             staticPromptHash,
             dynamicPromptHash: undefined,
@@ -375,7 +395,25 @@ export class Gpt {
       );
     }
 
-    return { gpt, restored, needDecode };
+    if (needDecode) {
+      gpt
+        .decode(staticPrompt + dynamicPrompt, progressCallback)
+        .then(async () => {
+          sessionRef.value = {
+            ...sessionRef.value!,
+            dynamicPromptHash: bufferToHex(
+              await digest(dynamicPrompt, "SHA-256"),
+            ),
+          };
+
+          console.info("Updated GPT session dynamic prompt hash", {
+            id: gpt.id.value,
+            dynamicPromptHash: sessionRef.value!.dynamicPromptHash,
+          });
+        });
+    }
+
+    return { gpt, restored };
   }
 
   readonly driver: GptDriver;
@@ -400,16 +438,11 @@ export class Gpt {
    */
   readonly prompt = readonly(this._prompt);
 
-  get contextSize() {
-    switch (this.driver.type) {
-      case "local":
-        return this.driver.contextSize;
-      case "remote":
-        return 0; // TODO: Fetch the context size from the remote host.
-      default:
-        throw unreachable(this.driver);
-    }
-  }
+  private _contextSize = ref<number | undefined>();
+  readonly contextSize = readonly(this._contextSize);
+
+  private readonly _contextLength = ref(0);
+  readonly contextLength = readonly(this._contextLength);
 
   /**
    * Decode the prompt, updating the session KV cache.
@@ -432,6 +465,8 @@ export class Gpt {
     );
 
     this._prompt.value = prompt;
+    this._contextLength.value = result.contextLength;
+
     return result;
   }
 
@@ -488,6 +523,8 @@ export class Gpt {
       result.result = trimEndAny(result.result, options.stopSequences);
     }
 
+    this._contextLength.value = result.contextLength;
+
     return result;
   }
 
@@ -543,7 +580,7 @@ export class Gpt {
       toMilliseconds({ minutes: 2 }),
     ),
   ): Promise<string> {
-    return (this._id.value = await this.pushJob(
+    const result = await this.pushJob(
       markRaw(
         new GptInitJob(
           this,
@@ -553,7 +590,12 @@ export class Gpt {
           abortSignal,
         ),
       ),
-    ));
+    );
+
+    this._id.value = result.sessionId;
+    this._contextSize.value = result.nCtxTrain;
+
+    return result.sessionId;
   }
 
   private async pushJob<T>(job: Job<T>): Promise<T> {
@@ -603,7 +645,7 @@ export function driversEqual(a: GptDriver, b: GptDriver): boolean {
       if (b.type !== "local") {
         return false;
       } else {
-        return a.modelPath === b.modelPath && a.contextSize === b.contextSize;
+        return a.modelPath === b.modelPath;
       }
     case "remote":
       if (b.type !== "remote") {

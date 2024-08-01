@@ -196,6 +196,9 @@ async function advance() {
         );
       }
     }
+  } catch (e: any) {
+    console.error(e);
+    throw e;
   } finally {
     inferenceDecodingProgress.value = undefined;
     inferenceAbortController.value = null;
@@ -418,7 +421,16 @@ function switchUpdatesFullscreen() {
   //- Status.
   .flex.w-full.justify-between.p-2(class="bg-black/20")
     .flex.items-center.gap-2
-      GptStatus.h-full(:gpt="simulation.writer.value?.gpt" name="Writer")
+      GptStatus.h-full(
+        :gpt="simulation.writer.value?.gpt"
+        name="Writer"
+        key="writer"
+      )
+      GptStatus.h-full(
+        :gpt="simulation.director.value?.gpt"
+        name="Director"
+        key="director"
+      )
 
       //- Temporary context gauge.
       .flex.items-center.gap-1.text-sm

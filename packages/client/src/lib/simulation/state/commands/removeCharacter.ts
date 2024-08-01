@@ -1,10 +1,10 @@
 import { v } from "@/lib/valibot";
 
 /**
- * Remove a character from the scene.
+ * Remove a character from the stage.
  */
 export const RemoveCharacterSchema = v.object({
-  name: v.literal("remove_character"),
+  name: v.literal("removeCharacter"),
   args: v.object({
     /**
      * The ID of the character to remove.

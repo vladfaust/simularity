@@ -1,21 +1,19 @@
 import { v } from "@/lib/valibot";
 
 /**
- * Set the scene to specified sceneId.
+ * Set the scene to specified scene ID.
  */
 export const SetSceneSchema = v.object({
-  name: v.literal("set_scene"),
+  name: v.literal("setScene"),
   args: v.object({
     /**
-     * A fully qualified ID of the scene to set.
+     * A string that identifies the scene.
      */
     sceneId: v.nullable(v.string()),
 
     /**
-     * If "clear" is `true`, remove all characters from the scene.
-     * If "clear" is `false`, keep the characters in the scene
-     * and update the scene background only.
+     * If true, remove all characters from the stage. Otherwise, keep them.
      */
-    clear: v.boolean(),
+    clearStage: v.boolean(),
   }),
 });

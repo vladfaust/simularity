@@ -16,8 +16,11 @@ interface ImportMetaEnv {
   /** Default remote inference server base URL. */
   readonly VITE_DEFAULT_REMOTE_INFERENCE_SERVER_BASE_URL: string;
 
-  /** Default remote inference model. */
-  readonly VITE_DEFAULT_REMOTE_GPT_INFERENCE_MODEL: string;
+  /** Default remote inference model for Writer. */
+  readonly VITE_DEFAULT_REMOTE_WRITER_MODEL: string;
+
+  /** Default remote inference model for Director. */
+  readonly VITE_DEFAULT_REMOTE_DIRECTOR_MODEL: string;
 }
 
 interface ImportMeta {

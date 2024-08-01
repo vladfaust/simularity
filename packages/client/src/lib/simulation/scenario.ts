@@ -22,6 +22,7 @@ export type Scenario = {
 
   playerCharacterId: string;
   startEpisodeId: string;
+  defaultSceneId: string;
 
   characters: {
     /**
@@ -81,24 +82,29 @@ export type Scenario = {
        */
       prompt: string;
 
-      scenes: {
-        [id: string]: {
-          /**
-           * Background image.
-           */
-          bg: string;
-
-          /**
-           * *(Prompt)* Description of the scene, put into the static prompt.
-           */
-          prompt: string;
-        };
-      };
-
       /**
        * *(Prompt, UI)* Connections to other locations, for better navigation.
        */
       connections?: string[];
+    };
+  };
+
+  scenes: {
+    [id: string]: {
+      /**
+       * *(Prompt, UI)* Scene name.
+       */
+      name: string;
+
+      /**
+       * Background image.
+       */
+      bg: string;
+
+      /**
+       * *(Prompt)* Description of the scene, put into the static prompt.
+       */
+      prompt: string;
     };
   };
 
@@ -130,15 +136,21 @@ export function findLocation(
   }
 }
 
-export function findScene(
-  location: Scenario["locations"][string],
-  sceneId: string,
-) {
-  if (Object.keys(location.scenes).includes(sceneId)) {
-    return location.scenes[sceneId];
+export function findScene(scenario: Scenario, sceneId: string) {
+  if (Object.keys(scenario.scenes).includes(sceneId)) {
+    return scenario.scenes[sceneId];
   } else {
     return undefined;
   }
+}
+
+/**
+ * Find a scene by ID, or throw an error if not found.
+ */
+export function ensureScene(scenario: Scenario, sceneId: string) {
+  const found = findScene(scenario, sceneId);
+  if (!found) throw new Error(`Scene not found: ${sceneId}`);
+  return found;
 }
 
 export function findCharacter(
@@ -150,6 +162,18 @@ export function findCharacter(
   } else {
     return undefined;
   }
+}
+
+/**
+ * Find a character by ID, or throw an error if not found.
+ */
+export function ensureCharacter(
+  scenario: Scenario,
+  characterId: string,
+): Scenario["characters"][string] {
+  const found = findCharacter(scenario, characterId);
+  if (!found) throw new Error(`Character not found: ${characterId}`);
+  return found;
 }
 
 export function findOutfit(

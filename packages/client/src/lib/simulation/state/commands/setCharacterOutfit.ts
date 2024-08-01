@@ -3,8 +3,8 @@ import { v } from "@/lib/valibot";
 /**
  * Set outfit of a character.
  */
-export const SetOutfitSchema = v.object({
-  name: v.literal("set_outfit"),
+export const SetCharacterOutfitSchema = v.object({
+  name: v.literal("setCharacterOutfit"),
   args: v.object({
     /**
      * The ID of the character to update.

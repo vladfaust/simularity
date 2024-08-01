@@ -3,22 +3,43 @@ export { create } from "./gpt/create";
 export { decode } from "./gpt/decode";
 export { infer } from "./gpt/infer";
 
+export type LoadModelResult = {
+  modelId: string;
+
+  /**
+   * The size of the model in bytes.
+   */
+  size: number;
+
+  /**
+   * The number of parameters in the model.
+   */
+  nParams: number;
+
+  /**
+   * Size of the context window the model was trained on.
+   */
+  nCtxTrain: number;
+};
+
 /**
  * Load a GPT model from a file path.
  */
 export async function loadModel(modelPath: string) {
-  const result = (await invoke("gpt_load_model", {
+  return invoke("gpt_load_model", {
     modelPath,
-  })) as {
-    modelId: string;
-    trainContextSize: number;
-  };
+  }) as Promise<LoadModelResult>;
+}
 
-  // // ADHOC: Wait for the model to be loaded.
-  // // Something something threads.
-  // await sleep(100);
+export type ModelHashResult = {
+  xx64Hash: string;
+};
 
-  return result;
+/**
+ * Compute the hash of a GPT model.
+ */
+export async function modelHash(modelId: string) {
+  return invoke("gpt_model_hash", { modelId }) as Promise<ModelHashResult>;
 }
 
 /**

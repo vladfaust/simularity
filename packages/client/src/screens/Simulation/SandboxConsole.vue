@@ -11,7 +11,6 @@ import { ChevronDownIcon, XIcon } from "lucide-vue-next";
 import { computed, onUnmounted, ref } from "vue";
 import CharacterImage from "@/components/CharacterImage.vue";
 import LocationImage from "@/components/LocationImage.vue";
-import { toSceneQualifiedId } from "@/lib/simulation/state";
 import { State } from "@/lib/simulation";
 import { watchImmediate, onClickOutside } from "@vueuse/core";
 import { sleep } from "@/lib/utils";

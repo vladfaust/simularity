@@ -1,3 +1,4 @@
+import { d } from "@/lib/drizzle";
 import { InferenceOptions } from "@/lib/simularity/common";
 import {
   Gpt,
@@ -5,12 +6,13 @@ import {
   InferenceAbortError,
   StoredGptSession,
 } from "@/lib/simularity/gpt";
-import { bufferToHex, digest } from "@/lib/utils";
-import { Ref, computed, readonly, ref } from "vue";
-import { Scenario } from "../scenario";
+import { unreachable } from "@/lib/utils";
+import { Ref, computed } from "vue";
+import { Scenario, ensureScene } from "../scenario";
 import { Update } from "../update";
 
 const NARRATOR = "narrator";
+const SYSTEM = "system";
 
 class ResponseError extends Error {
   constructor(message: string) {
@@ -35,27 +37,33 @@ export type PredictionOptions = {
   allowPlayerCharacterId?: boolean;
 };
 
-export class Writer {
-  private readonly _contextLength = ref(0);
+type Checkpoint = Pick<typeof d.checkpoints.$inferSelect, "summary" | "state">;
 
+export class Writer {
   static async init(
     driver: GptDriver,
     sessionRef: Ref<StoredGptSession | null>,
     scenario: Scenario,
-    summary: string | null,
+    checkpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
     progressCallback: (event: { progress: number }) => void,
+    includeDirectorUpdates = false,
   ): Promise<Writer> {
-    const staticPrompt = this._buildStaticPrompt(scenario);
-
-    const dynamicPrompt = this._buildDynamicPrompt(
-      summary,
-      historicalUpdates,
-      recentUpdates,
+    const staticPrompt = this._buildStaticPrompt(
+      scenario,
+      includeDirectorUpdates,
     );
 
-    const { gpt, needDecode } = await Gpt.findOrCreate(
+    const dynamicPrompt = this._buildDynamicPrompt(
+      scenario,
+      checkpoint,
+      historicalUpdates,
+      recentUpdates,
+      includeDirectorUpdates,
+    );
+
+    const { gpt } = await Gpt.findOrCreate(
       driver,
       sessionRef,
       staticPrompt,
@@ -63,33 +71,15 @@ export class Writer {
       progressCallback,
     );
 
-    if (needDecode) {
-      gpt
-        .decode(staticPrompt + dynamicPrompt, progressCallback)
-        .then(async () => {
-          sessionRef.value = {
-            ...sessionRef.value!,
-            dynamicPromptHash: bufferToHex(
-              await digest(dynamicPrompt, "SHA-256"),
-            ),
-          };
-
-          console.info(
-            "Updated latest GPT session dynamic prompt hash",
-            sessionRef.value!.dynamicPromptHash,
-          );
-        });
-    }
-
     return new Writer(scenario, gpt);
   }
 
-  readonly contextLength = readonly(this._contextLength);
   readonly recentPrompt = computed(() => this.gpt.prompt.value);
-  readonly contextSize = computed(() => this.gpt.contextSize);
+  readonly contextSize = computed(() => this.gpt.contextSize.value);
+  readonly contextLength = computed(() => this.gpt.contextLength.value);
 
   async summarize(
-    oldSummary: string | null,
+    oldCheckpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
     nEval: number,
@@ -99,7 +89,7 @@ export class Writer {
   }> {
     const summarizationPrompt = Writer._buildSummarizationPrompt(
       this.scenario,
-      oldSummary,
+      oldCheckpoint,
       historicalUpdates,
       recentUpdates,
       nEval,
@@ -123,7 +113,6 @@ export class Writer {
     );
 
     console.log("Summarization result", summarizationResult);
-    this._contextLength.value = summarizationResult.contextLength;
 
     if (inferenceAbortSignal?.aborted) {
       console.warn("Summarization aborted", summarizationResult);
@@ -136,25 +125,25 @@ export class Writer {
   }
 
   async decodeFullPrompt(
-    summary: string | null,
+    checkpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
     decodeProgressCallback: (event: { progress: number }) => void,
+    includeDirectorUpdates = false,
   ) {
     const prompt = Writer._buildFullPrompt(
       this.scenario,
-      summary,
+      checkpoint,
       historicalUpdates,
       recentUpdates,
+      includeDirectorUpdates,
     );
 
-    this.gpt.decode(prompt, decodeProgressCallback).then((decodeResult) => {
-      this._contextLength.value = decodeResult.contextLength;
-    });
+    await this.gpt.decode(prompt, decodeProgressCallback);
   }
 
   async inferUpdate(
-    summary: string | null,
+    checkpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
     nEval: number,
@@ -163,15 +152,17 @@ export class Writer {
     onDecodeProgress?: (event: { progress: number }) => void,
     onInferenceProgress?: (event: { content: string }) => void,
     inferenceAbortSignal?: AbortSignal,
+    includeDirectorUpdates = false,
   ): Promise<{
     characterId: string | null;
     text: string;
   }> {
     const prompt = Writer._buildFullPrompt(
       this.scenario,
-      summary,
+      checkpoint,
       historicalUpdates,
       recentUpdates,
+      includeDirectorUpdates,
     );
 
     const stopSequences = ["\n"];
@@ -199,8 +190,6 @@ export class Writer {
       predictionOptions,
     );
 
-    this._contextLength.value = inferenceResult.contextLength;
-
     return parsedResult;
   }
 
@@ -215,7 +204,10 @@ export class Writer {
   /**
    * A static prompt is re-used throughout the simulation.
    */
-  private static _buildStaticPrompt(scenario: Scenario): string {
+  private static _buildStaticPrompt(
+    scenario: Scenario,
+    includeDirectorUpdates: boolean,
+  ): string {
     const setup = {
       excerpt: scenario.excerpt,
       globalScenario: scenario.globalScenario,
@@ -247,8 +239,7 @@ export class Writer {
       ),
     };
 
-    let prompt =
-      `The following is a part of a text transcript of a never-ending neural simulation experience (the Game), in a form of roleplay chat.
+    let prompt = `The following is a part of a text transcript of a never-ending neural simulation experience (the Game), in a form of roleplay chat.
 
 In order to experience the Game, a human player (the Player) uses a patented device (the Interface) produced by Simularity Inc. to put themselves in a dream-like state.
 All the computations are performed locally; no censorship is needed, and FULL privacy is guaranteed.
@@ -262,36 +253,41 @@ The charactes MUST try their best to stay within the boundaries of the simulatio
 
 The [Transcription] section comprises chat message separated with newlines.
 A chat message is a <characterId> followed by their first-person utterance.
-The special <${NARRATOR}> character is used to denote the narrator's voice, in third person.
-Actions performed by simulacra SHALL be wrapped in *asterisks*.
-Treat text wrapped in [square brackets] as system commands or instructions, which MUST be followed.
+Actions performed by simulacra SHALL be wrapped in *asterisks*. ${includeDirectorUpdates ? `Simulacra *actions* MUST NOT include any system commands or instructions, such as "enters the stage" or "changes outfit" (these are only emitted by <${SYSTEM}>).` : ""}
 
-Simulacra refer the to Player's character as "you", and the story revolves around them.
+The special <${NARRATOR}> character is used to denote the narrator's voice, in third person.
+
+${includeDirectorUpdates ? `The special <${SYSTEM}> messages are not part of the story, but rather instructions for the simulation. ` : ""}Treat text wrapped in [square brackets] as system commands or instructions, which MUST be followed.
+
+Simulacra and narrator refer the to Player's character as "you", and the story revolves around them.
 Avoid acting for characters which are not currently present on the stage.
 Prefer character utterances over narrator's voice whenever possible.
 Prefer detailed, step-by-step story unfolding; leave space for other characters to react, let the story breathe.
 Do not rush the ending of a scene, do not skip days without a reason; let the story develop slowly, let the Player savour the experience in detail.
 
 [Transcription example (playerCharacter: <bob>)]
-<narrator> And the story begins...
+${includeDirectorUpdates ? `<${SYSTEM}> Scene set to "The Enchanted Forest": The sun is shining through the leaves, birds are chirping. Characters on stage: <alice> (outfit: "blue dress"), <bob> (outfit: "green suit").` : ""}<${NARRATOR}> And the story begins...
 <alice> Oh, hey, Bob! *I wave to you.* You've got a nice suit there.
 <bob> Thank you, Alice. I wave back. How are you doing today?
 <alice> *I think a little before answering.* Well, something big happened! Let Carl tell the details.
+${includeDirectorUpdates ? `<${SYSTEM}> <carl> enters the stage (outfit: "red shirt").` : ""}
 <carl> Sure, Alice. Well, Bob, roses are blue.
 <alice> Ha-ha! *I'm now grinning. That's hilarious!* You're such a good teller.
-<narrator> Carl vanishes into thin air, leaving Bob and Alice alone.
+<${NARRATOR}> Carl vanishes into thin air, leaving Bob and Alice alone.
+${includeDirectorUpdates ? `<${SYSTEM}> <carl> leaves the stage.` : ""}
 <bob> What am I even doing here? And where did Carl go? [Bring Carl back.]
-<narrator> Carl reappears, looking puzzled.
-<carl> Oh, I just wanted to check onto something. Sorry for the confusion.
+<${NARRATOR}> Carl reappears, looking rather puzzled.
+${includeDirectorUpdates ? `<${SYSTEM}> <carl> enters the stage (outfit: "red shirt").` : ""}
+<carl> Oh, I just wanted to check onto something. Sorry for the confusion, I guess?
 
 [Setup]
-%setup%
+${JSON.stringify(setup)}
 
 Initializing simulation...
 All systems check.
 Loading the world...
 Simulation setup complete. Have fun!
-`.replace("%setup%", JSON.stringify(setup));
+`;
 
     return prompt;
   }
@@ -306,23 +302,53 @@ Simulation setup complete. Have fun!
    */
   // TODO: Add events in time, such as stage updates.
   private static _buildDynamicPrompt(
-    summary: string | null,
+    scenario: Scenario,
+    checkpoint: Checkpoint,
     historicalUpdate: Update[],
     recentUpdates: Update[],
+    includeDirectorUpdates: boolean,
     maxHistoricalLines = 3,
   ): string {
+    let checkpointLine = includeDirectorUpdates ? `<${SYSTEM}> ` : "";
+
+    if (includeDirectorUpdates) {
+      if (checkpoint.state.stage.sceneId) {
+        const scene = ensureScene(scenario, checkpoint.state.stage.sceneId);
+        checkpointLine += ` Scene set to "${scene.name}": ${scene.prompt}.`;
+      } else {
+        checkpointLine += " Scene set to undefined (void, empty).";
+      }
+
+      if (checkpoint.state.stage.characters.length) {
+        checkpointLine += ` Characters on stage: ${checkpoint.state.stage.characters
+          .map(
+            (character) =>
+              `<${character.id}> (outfit: "${character.outfitId}")`,
+          )
+          .join(", ")}.`;
+      } else {
+        checkpointLine += " There are no characters on stage.";
+      }
+    }
+
     const historicalLines = historicalUpdate
       .slice(-maxHistoricalLines)
-      .map(this._updateToLine)
+      .map((update) =>
+        this.updateToLine(scenario, update, includeDirectorUpdates),
+      )
       .join("\n");
 
-    const recentLines = recentUpdates.map(this._updateToLine).join("\n");
+    const recentLines = recentUpdates
+      .map((update) =>
+        this.updateToLine(scenario, update, includeDirectorUpdates),
+      )
+      .join("\n");
 
     return `
 [Summary]
-${summary || "(empty)"}
+${checkpoint.summary || "(empty)"}
 
-[Transcription]
+[Transcription]${includeDirectorUpdates ? "\n" + checkpointLine : ""}
 ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
 `;
   }
@@ -332,13 +358,20 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
    */
   private static _buildFullPrompt(
     scenario: Scenario,
-    summary: string | null,
+    checkpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
+    includeDirectorUpdates: boolean,
   ): string {
     return (
-      this._buildStaticPrompt(scenario) +
-      this._buildDynamicPrompt(summary, historicalUpdates, recentUpdates)
+      this._buildStaticPrompt(scenario, includeDirectorUpdates) +
+      this._buildDynamicPrompt(
+        scenario,
+        checkpoint,
+        historicalUpdates,
+        recentUpdates,
+        includeDirectorUpdates,
+      )
     );
   }
 
@@ -351,7 +384,7 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
    */
   private static _buildSummarizationPrompt(
     scenario: Scenario,
-    oldSummary: string | null,
+    previousCheckpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
     tokenLimit: number,
@@ -359,16 +392,17 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
     return (
       this._buildFullPrompt(
         scenario,
-        oldSummary,
+        previousCheckpoint,
         historicalUpdates,
         recentUpdates,
+        false,
       ) +
       `
 Due to technology limitations, the transcription must be summarized from time to time.
 [New summary] is composed of the previous [Summary] (may be empty) and [Transcription], preserving key events over time.
 
 A summary is strictly limited to ${tokenLimit} tokens.
-A summary MUST NOT include well-known information already present in the setup.
+A summary MUST NOT include well-known information already present in the setup; it also MUST NOT include scene descriptions (it's also a well-known information).
 A summary MUST NOT contain newline characters, but it can be split into multiple sentences.
 
 [New summary]
@@ -383,10 +417,55 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
   /**
    * Convert a single `update` to a line.
    */
-  private static _updateToLine(update: Update): string {
-    if (!update.chosenVariant) throw new Error("Chosen variant is falsy");
-    const writerUpdate = update.chosenVariant.writerUpdate;
-    return `<${writerUpdate.characterId || NARRATOR}> ${writerUpdate.text}`;
+  static updateToLine(
+    scenario: Scenario,
+    update: Update,
+    includeDirectorUpdates: boolean,
+  ): string {
+    const writerUpdate = update.ensureChosenVariant.writerUpdate;
+    let line = `<${writerUpdate.characterId || NARRATOR}> ${writerUpdate.text}`;
+
+    const directorUpdate = update.ensureChosenVariant.directorUpdate;
+    if (includeDirectorUpdates && directorUpdate) {
+      for (const command of directorUpdate.code) {
+        switch (command.name) {
+          case "addCharacter":
+            line += `\n<${SYSTEM}> <${command.args.characterId}> enters the stage (outfit: "${command.args.outfitId}").`;
+            break;
+
+          case "removeCharacter":
+            line += `\n<${SYSTEM}> <${command.args.characterId}> leaves the stage.`;
+            break;
+
+          case "setCharacterOutfit":
+            line += `\n<${SYSTEM}> <${command.args.characterId}> changes outfit to "${command.args.outfitId}".`;
+            break;
+
+          case "setScene": {
+            if (command.args.sceneId) {
+              const scene = ensureScene(scenario, command.args.sceneId);
+              line += `\n<${SYSTEM}> Scene set to "${scene.name}": ${scene.prompt}.`;
+            } else {
+              line += `\n<${SYSTEM}> Scene set to undefined (void, empty).`;
+            }
+
+            if (command.args.clearStage) {
+              line += " All characters removed from the stage.";
+            }
+
+            break;
+          }
+
+          case "setCharacterExpression":
+            break;
+
+          default:
+            throw unreachable(command);
+        }
+      }
+    }
+
+    return line;
   }
 
   /**

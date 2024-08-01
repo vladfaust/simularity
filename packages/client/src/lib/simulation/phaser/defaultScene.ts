@@ -5,12 +5,11 @@ import { DeepReadonly } from "vue";
 import {
   findCharacter,
   findExpression,
-  findLocation,
   findOutfit,
   findScene,
 } from "../scenario";
 import { StageRenderer } from "../stageRenderer";
-import { Stage, toSceneQualifiedId } from "../state";
+import { Stage } from "../state";
 
 /**
  * An unexpected scene error.
@@ -58,14 +57,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
 
   create() {
     if (this.initialState) {
-      if (this.initialState.scene) {
-        this.setScene(
-          toSceneQualifiedId(
-            this.initialState.scene.locationId,
-            this.initialState.scene.sceneId,
-          ),
-          false,
-        );
+      if (this.initialState.sceneId) {
+        this.setScene(this.initialState.sceneId, false);
       }
 
       for (const { id, outfitId, expressionId } of this.initialState
@@ -80,12 +73,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
   preload() {
     this.load.setBaseURL(this.assetBasePath);
 
-    for (const [locationId, location] of Object.entries(
-      this.scenario.locations,
-    )) {
-      for (const [sceneId, scene] of Object.entries(location.scenes)) {
-        this.load.image(this._sceneTextureKey(locationId, sceneId), scene.bg);
-      }
+    for (const [sceneId, scene] of Object.entries(this.scenario.scenes)) {
+      this.load.image(this._sceneTextureKey(sceneId), scene.bg);
     }
 
     for (const [characterId, character] of Object.entries(
@@ -122,11 +111,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
 
   setStage(stage: Stage | null) {
     if (stage) {
-      if (stage.scene) {
-        this.setScene(
-          toSceneQualifiedId(stage.scene.locationId, stage.scene.sceneId),
-          stage.characters.length === 0,
-        );
+      if (stage.sceneId) {
+        this.setScene(stage.sceneId, stage.characters.length === 0);
       } else {
         this.stageScene?.bg.destroy();
         this.stageScene = null;
@@ -137,8 +123,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
         if (!this.stageCharacters.has(id)) {
           this.addCharacter(id, outfitId, expressionId);
         } else {
-          this.setOutfit(id, outfitId);
-          this.setExpression(id, expressionId);
+          this.setCharacterOutfit(id, outfitId);
+          this.setCharacterExpression(id, expressionId);
         }
       }
 
@@ -160,29 +146,19 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
 
   /**
    * Set the scene, clearing it if necessary.
-   *
-   * @param qualifiedId A combination of location and scene IDs,
-   * e.g. `"home/bedroom"`, or `null` for the null scene.
-   *
-   * @param clear Whether to clear the scene.
    */
-  setScene(qualifiedId: string | null, clear: boolean) {
-    console.log("setScene", { qualifiedId, clear });
+  setScene(sceneId: string | null, clearScene: boolean) {
+    console.log("setScene", { sceneId, clearScene });
 
-    if (qualifiedId) {
-      const [locationId, sceneId] = qualifiedId.split("/");
-
-      const location = findLocation(this.scenario, locationId);
-      if (!location) throw new SceneError(`Location not found: ${locationId}`);
-
-      const scene = findScene(location, sceneId);
+    if (sceneId) {
+      const scene = findScene(this.scenario, sceneId);
       if (!scene) throw new SceneError(`Scene not found: ${sceneId}`);
 
-      const texture = this._sceneTextureKey(locationId, sceneId);
+      const texture = this._sceneTextureKey(sceneId);
 
       if (this.stageScene) {
         this.stageScene.bg.setTexture(texture);
-        this.stageScene.qualifiedId = qualifiedId;
+        this.stageScene.qualifiedId = sceneId;
       } else {
         const bg = this.add.image(
           this.game.canvas.width / 2,
@@ -191,7 +167,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
         );
 
         this.stageScene = {
-          qualifiedId,
+          qualifiedId: sceneId,
           bg,
         };
       }
@@ -202,7 +178,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       }
     }
 
-    if (clear) {
+    if (clearScene) {
       for (const characterId of this.stageCharacters.keys()) {
         this.removeCharacter(characterId);
       }
@@ -293,8 +269,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     }
   }
 
-  setOutfit(characterId: string, outfitId: string) {
-    console.log("setOutfit", characterId, outfitId);
+  setCharacterOutfit(characterId: string, outfitId: string) {
+    console.log("setCharacterOutfit", characterId, outfitId);
 
     const character = this.stageCharacters.get(characterId);
     if (!character) {
@@ -322,8 +298,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     );
   }
 
-  setExpression(characterId: string, expressionId: string) {
-    console.log("setExpression", characterId, expressionId);
+  setCharacterExpression(characterId: string, expressionId: string) {
+    console.log("setCharacterExpression", characterId, expressionId);
 
     const character = this.stageCharacters.get(characterId);
     if (!character) {
@@ -379,8 +355,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     this.arrangeCharacters();
   }
 
-  private _sceneTextureKey(locationId: string, sceneId: string) {
-    return `scene:${locationId}/${sceneId}`;
+  private _sceneTextureKey(sceneId: string) {
+    return `scene:${sceneId}`;
   }
 
   private _characterBodyTextureKey(characterId: string, bodyIndex: number) {
