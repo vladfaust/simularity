@@ -62,7 +62,11 @@ pub async fn gpt_create(
     let state_file_path = if dump_session.unwrap_or(false)
         && let Some(prompt) = initial_prompt.as_ref()
     {
+        let model_hash = simularity_core::model_hash(model_id).unwrap();
+        let model_hash = format!("{:x}", model_hash);
+
         let mut hasher = Sha256::new();
+        hasher.update(model_hash.as_bytes());
         hasher.update(prompt.as_bytes());
         let state_hash = format!("{:x}", hasher.finalize());
 

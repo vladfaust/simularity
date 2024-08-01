@@ -71,7 +71,11 @@ pub async fn handler(State(state): State<Arc<AppState>>, req: Json<RequestBody>)
     let state_file_path = if let Some(initial_prompt) = req.initial_prompt.as_ref()
         && req.dump_session.unwrap_or(false)
     {
+        let model_hash = simularity_core::model_hash(&req.model_id).unwrap();
+        let model_hash = format!("{:x}", model_hash);
+
         let mut hasher = Sha256::new();
+        hasher.update(model_hash.as_bytes());
         hasher.update(initial_prompt.as_bytes());
         let hash = format!("{:x}", hasher.finalize());
 
