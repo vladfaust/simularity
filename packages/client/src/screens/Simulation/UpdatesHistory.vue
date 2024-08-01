@@ -33,7 +33,10 @@ const topScrollIsLoading = ref(false);
 useInfiniteScroll(
   scrollContainer,
   async () => {
-    if (simulation.canLoadMoreHistoricalUpdates.value) {
+    if (
+      !topScrollIsLoading.value &&
+      simulation.canLoadMoreHistoricalUpdates.value
+    ) {
       console.log("Loading more historical updates");
 
       try {
@@ -57,7 +60,10 @@ const bottomScrollIsLoading = ref(false);
 useInfiniteScroll(
   scrollContainer,
   async () => {
-    if (simulation.canLoadMoreFutureUpdates.value) {
+    if (
+      !bottomScrollIsLoading.value &&
+      simulation.canLoadMoreFutureUpdates.value
+    ) {
       console.log("Loading more future updates");
 
       try {

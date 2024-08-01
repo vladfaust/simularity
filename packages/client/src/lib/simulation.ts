@@ -134,7 +134,7 @@ export class Simulation {
    * Whether the simulation can load more historical updates.
    */
   readonly canLoadMoreHistoricalUpdates = computed(() => {
-    return this._historicalUpdates.value.at(0)?.parentId !== null;
+    return !!this._historicalUpdates.value.at(0)?.parentId;
   });
 
   /**
