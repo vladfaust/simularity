@@ -4,27 +4,31 @@ import {
   createRouter,
   createWebHistory,
 } from "vue-router";
+import ChooseScenario from "../screens/ChooseScenario.vue";
 import LoadSimulations from "../screens/LoadSimulations.vue";
 import MainMenu from "../screens/MainMenuScreen.vue";
+import NewGame from "../screens/NewGame.vue";
 import Settings from "../screens/Settings.vue";
 import Shutdown from "../screens/Shutdown.vue";
 import Simulation from "../screens/Simulation.vue";
 
 export type RouteName =
   | "MainMenu"
+  | "ChooseScenario"
+  | "NewGame"
   | "Settings"
   | "LoadSimulations"
   | "Simulation"
-  | "GnbfTester"
   | "Shutdown";
 
 export function routeLocation(
   args:
     | { name: "MainMenu" }
+    | { name: "ChooseScenario" }
+    | { name: "NewGame"; params: { scenarioId: string } }
     | { name: "Settings" }
     | { name: "LoadSimulations" }
     | { name: "Simulation"; params: { simulationId: string } }
-    | { name: "GnbfTester" }
     | { name: "Shutdown" },
 ): RouteLocationNamedRaw & { name: RouteName } {
   return args;
@@ -35,6 +39,17 @@ const routes: Array<RouteRecordRaw> = [
     path: "/",
     name: "MainMenu" satisfies RouteName,
     component: MainMenu,
+  },
+  {
+    path: "/choose-scenario",
+    name: "ChooseScenario" satisfies RouteName,
+    component: ChooseScenario,
+  },
+  {
+    path: "/new-game/:scenarioId",
+    name: "NewGame" satisfies RouteName,
+    component: NewGame,
+    props: true,
   },
   {
     path: "/settings",
@@ -50,12 +65,6 @@ const routes: Array<RouteRecordRaw> = [
     path: "/simulations/:simulationId",
     name: "Simulation" satisfies RouteName,
     component: Simulation,
-    props: true,
-  },
-  {
-    path: "/gnbf-tester",
-    name: "GnbfTester" satisfies RouteName,
-    component: () => import("../screens/GnbfTester.vue"),
     props: true,
   },
   {

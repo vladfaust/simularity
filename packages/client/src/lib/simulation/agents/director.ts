@@ -125,19 +125,23 @@ export class Director {
             fullName: character.fullName,
             appearance: character.appearancePrompt,
             outfits: Object.fromEntries(
-              Object.entries(character.outfits).map(([outfitId, outfit]) => [
-                outfitId,
-                {
-                  prompt: outfit.prompt, // Also not sure about this.
-                  //                     // Name could be enough?
-                },
-              ]),
+              Object.entries(character.layeredSpritesAvatar.outfits).map(
+                ([outfitId, outfit]) => [
+                  outfitId,
+                  {
+                    prompt: outfit.prompt, // Also not sure about this.
+                    //                     // Name could be enough?
+                  },
+                ],
+              ),
             ),
-            expressions: Object.keys(character.expressions),
+            expressions: Object.keys(
+              character.layeredSpritesAvatar.expressions,
+            ),
           },
         ]),
       ),
-      mainCharacter: scenario.playerCharacterId,
+      mainCharacter: scenario.defaultCharacterId,
     };
 
     type FunctionPrototype = {
@@ -393,11 +397,11 @@ ${JSON.stringify(functions)}
       ).filter(([characterId]) => absentCharacterIds.includes(characterId))) {
         auxRules[`add-character-${++i}`] =
           `"addCharacter{characterId:\\"${characterId}\\",outfitId:" (${Object.keys(
-            character.outfits,
+            character.layeredSpritesAvatar.outfits,
           )
             .map((outfitId) => `"\\"${outfitId}\\""`)
             .join(" | ")}) ",expressionId:" (${Object.keys(
-            character.expressions,
+            character.layeredSpritesAvatar.expressions,
           )
             .map((expressionId) => `"\\"${expressionId}\\""`)
             .join(" | ")}) "}"`;
@@ -447,7 +451,7 @@ ${JSON.stringify(functions)}
       )) {
         auxRules[`set-outfit-${++i}`] =
           `"setCharacterOutfit{characterId:\\"${characterId}\\",outfitId:" (${Object.keys(
-            character.outfits,
+            character.layeredSpritesAvatar.outfits,
           )
             .map((outfitId) => `"\\"${outfitId}\\""`)
             .join(" | ")}) "}"`;
@@ -477,7 +481,7 @@ ${JSON.stringify(functions)}
       )) {
         auxRules[`set-expression-${++i}`] =
           `"setCharacterExpression{characterId:\\"${characterId}\\",expressionId:" (${Object.keys(
-            character.expressions,
+            character.layeredSpritesAvatar.expressions,
           )
             .map((expressionId) => `"\\"${expressionId}\\""`)
             .join(" | ")}) "}"`;

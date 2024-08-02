@@ -1,9 +1,8 @@
 <script setup lang="ts">
+import Placeholder from "@/components/Placeholder.vue";
 import { Simulation } from "@/lib/simulation";
-import { findCharacter } from "@/lib/simulation/scenario";
 import { Update } from "@/lib/simulation/update";
-import { throwError } from "@/lib/utils";
-import { watchImmediate } from "@vueuse/core";
+import { asyncComputed, watchImmediate } from "@vueuse/core";
 import {
   CircleCheckIcon,
   CircleChevronLeft,
@@ -19,7 +18,6 @@ import Contenteditable from "vue-contenteditable";
 
 const props = defineProps<{
   simulation: Simulation;
-  assetBaseUrl?: URL;
   update: Update;
   canRegenerate: boolean;
   showVariantNavigation: boolean;
@@ -138,24 +136,27 @@ const rAnyChanges = computed(
     props.update.chosenVariant?.writerUpdate.text.trim(),
 );
 
-const character = computed(() => {
-  let characterId;
-
+const characterId = computed(() => {
   if (props.update.inProgressVariant.value) {
-    characterId = props.update.inProgressVariant.value.characterId;
+    return props.update.inProgressVariant.value.characterId;
   } else {
-    characterId = props.update.chosenVariant?.writerUpdate.characterId;
+    return props.update.chosenVariant?.writerUpdate.characterId;
   }
+});
 
-  if (characterId) {
-    return (
-      findCharacter(props.simulation.scenario, characterId) ||
-      throwError(`Character not found: ${characterId}`)
-    );
+const character = computed(() => {
+  if (characterId.value) {
+    return props.simulation.scenario.ensureCharacter(characterId.value);
   } else {
     return null;
   }
 });
+
+const characterPfpUrl = asyncComputed(() =>
+  characterId.value
+    ? props.simulation.scenario.getCharacterPfpUrl(characterId.value)
+    : undefined,
+);
 </script>
 
 <template lang="pug">
@@ -168,11 +169,11 @@ const character = computed(() => {
     .flex.items-center.gap-1
       template(v-if="character")
         img.aspect-square.h-5.rounded.border.object-cover(
-          :src="assetBaseUrl + character.pfp"
+          v-if="characterPfpUrl"
+          :src="characterPfpUrl"
         )
-        span.font-semibold.leading-none(
-          :style="{ color: character.displayColor }"
-        ) {{ character.displayName || character.fullName }}
+        Placeholder.aspect-square.h-5.rounded.border(v-else)
+        span.font-semibold.leading-none(:style="{ color: character.color }") {{ character.name }}
       template(v-else-if="character === null")
         span.font-semibold.leading-none Narrator
       span.leading-none(

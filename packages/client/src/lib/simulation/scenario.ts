@@ -1,210 +1,627 @@
-import { StateDto } from "./state";
-import { StateCommand } from "./state/commands";
+import {
+  BaseDirectory,
+  createDir,
+  exists,
+  readDir,
+  readTextFile,
+} from "@tauri-apps/api/fs";
+import { join, resolve } from "@tauri-apps/api/path";
+import { convertFileSrc } from "@tauri-apps/api/tauri";
+import { resolveBaseDir } from "../tauri";
+import { safeParseJson } from "../utils";
+import { v } from "../valibot";
+import { StageCommandSchema } from "./state/commands";
 
-// TODO: Make it a Valibot schema.
-export type Scenario = {
-  name: string;
+const IdSchema = v.pipe(v.string(), v.regex(/^[a-z][a-zA-Z0-9_-]*$/));
+
+// TODO: Semantic validation (proper IDs, etc.).
+const ScenarioSchema = v.object({
+  /**
+   * Scenario protocol version.
+   */
+  proto: v.string(),
 
   /**
-   * *(Static)* What is the player is expecting from this scenario.
+   * Scenario name.
    */
-  excerpt: string;
+  name: v.string(),
 
   /**
-   * *(Static)* Global scenario prompt, always present.
+   * Scenario thumbnail image path.
+   * Recommended aspect ratio: 1:1.
    */
-  globalScenario: string;
+  thumbnailPath: v.optional(v.string()),
 
   /**
-   * *(Static)* Secret instructions to drive the AI generation.
+   * Scenario cover image path.
+   * Recommended aspect ratio: 16:9.
    */
-  secretInstructions: string;
+  coverImagePath: v.optional(v.string()),
 
-  playerCharacterId: string;
-  startEpisodeId: string;
-  defaultSceneId: string;
+  /**
+   * What language the scenario is defined in.
+   * This is useful for language-specific models.
+   */
+  language: v.string(),
 
-  characters: {
-    /**
-     * Restricted values: "system", "narrator".
-     */
-    [id: string]: {
-      pfp: string;
-      fullName: string;
-      displayName?: string;
-      displayColor: string;
+  /**
+   * Minimum recommended context window size for the scenario, in tokens.
+   */
+  contextWindowSize: v.pipe(v.number(), v.integer()),
+
+  /**
+   * A short description of the scenario.
+   */
+  about: v.string(),
+
+  /**
+   * A longer description of the scenario.
+   */
+  description: v.string(),
+
+  /**
+   * Tell the model what the player is expecting from this scenario.
+   */
+  excerpt: v.string(),
+
+  /**
+   * Global scenario prompt, always present.
+   * Describe the setting and the situation.
+   */
+  globalScenario: v.string(),
+
+  /**
+   * "Secret" instructions to drive AI generation.
+   */
+  instructions: v.string(),
+
+  /**
+   * Characters in the scenario.
+   * The first character is the default player character.
+   */
+  characters: v.record(
+    IdSchema,
+    v.object({
+      /**
+       * Character name to display.
+       */
+      name: v.string(),
 
       /**
-       * *(UI)* Short string about the character.
+       * Character color to paint the character's name with.
        */
-      about: string;
-
-      locked?: boolean;
-      personalityPrompt: string;
-      traits?: string[];
-      appearancePrompt?: string;
-      scenarioPrompt?: string;
-      relationships?: {
-        [characterId: string]: string;
-      };
-      bodies: [string];
-      expressions: {
-        [id: string]: {
-          bodyId: number;
-          file: string;
-        };
-      };
-      outfits: {
-        [id: string]: {
-          name: string;
-          prompt: string;
-          /** Outfit files, with index matching the body's. */
-          files: [string];
-        };
-      };
-    };
-  };
-
-  locations: {
-    [id: string]: {
-      /**
-       * *(Prompt, UI)* Location name.
-       */
-      name: string;
+      color: v.optional(v.string()),
 
       /**
-       * *(UI)* Short string about the location.
+       * Short character description.
        */
-      about: string;
+      about: v.string(),
 
       /**
-       * *(Prompt)* Description of the location, put into the static prompt.
+       * Character profile picture path.
        */
-      prompt: string;
+      pfpPath: v.optional(v.string()),
 
       /**
-       * *(Prompt, UI)* Connections to other locations, for better navigation.
+       * The full name of the character, if any.
        */
-      connections?: string[];
-    };
-  };
-
-  scenes: {
-    [id: string]: {
-      /**
-       * *(Prompt, UI)* Scene name.
-       */
-      name: string;
+      fullName: v.optional(v.string()),
 
       /**
-       * Background image.
+       * A static personal prompt for the character, e.g. psychological traits.
        */
-      bg: string;
+      personalityPrompt: v.string(),
 
       /**
-       * *(Prompt)* Description of the scene, put into the static prompt.
+       * Psychological traits of the character.
        */
-      prompt: string;
-    };
-  };
+      psychologicalTraits: v.optional(
+        v.object({
+          /**
+           * Four-letter code representing the Myers-Briggs
+           * Type Indicator (MBTI) personality type.
+           * @example "ISTP" // Introverted, Sensing, Thinking, Perceiving.
+           */
+          fourLetters: v.optional(v.string()),
 
-  episodes: {
-    [id: string]: {
-      checkpoint?: {
-        summary: string;
-        state: StateDto;
-      };
-      chunks: [
-        {
-          characterId: string;
-          text: string;
-          code?: StateCommand[];
-        },
-      ];
-    };
-  };
+          /**
+           * Enneagram type describing motivations and fears.
+           * @example "9w8" // Core type 9 with a type 8 wing.
+           */
+          enneagram: v.optional(v.string()),
+
+          /**
+           * Specifies the instinctual stacking in the Enneagram.
+           * @example "sp/so" // Self-preservation and social instincts.
+           */
+          instinctualVariant: v.optional(v.string()),
+
+          /**
+           * Three Enneagram types that combine to provide
+           * a more detailed understanding of the personality.
+           * @example "964"
+           */
+          tritype: v.optional(v.string()),
+
+          /**
+           * A personality type in Socionics (a theory of information processing
+           * and personality), similar to MBTI but with different
+           * functions and interactions.
+           * @example "ILI" // Introverted, Logical, Intuitive.
+           */
+          socionics: v.optional(v.string()),
+
+          /**
+           * Alignment in fantasy role-playing games that describes a character
+           * who acts without bias towards good or evil, law or chaos.
+           * @example "True Neutral"
+           */
+          alignment: v.optional(v.string()),
+
+          /**
+           * A representation of the Big Five personality traits.
+           * @example "RCUEI" // Reserved, Calm, Unstructured, Eccentric, Introverted.
+           */
+          bigFive: v.optional(v.string()),
+
+          /**
+           * A four-letter code from Attitudinal Psyche theory.
+           * @example "FLEV" // Focus, Logic, Expressiveness, Vision.
+           */
+          attitudinalPsyche: v.optional(v.string()),
+
+          /**
+           * A classical temperament.
+           * @example "Melancholic [Dominant]"
+           */
+          temperaments: v.optional(v.string()),
+
+          /**
+           * Based on Jungian psychology.
+           *
+           * @example
+           * "IT(S)" // Focusing on  introverted thinking and sensing.
+           */
+          classicJungian: v.optional(v.string()),
+        }),
+      ),
+
+      /**
+       * A list of traits to describe the character.
+       */
+      // TODO: Remove in favor of personalityPrompt.
+      characterTraits: v.array(v.string()),
+
+      /**
+       * Appearance traits prompt for the character, e.g. hair color.
+       */
+      appearancePrompt: v.optional(v.string()),
+
+      /**
+       * Scenario-specific prompt for the character, e.g. occupation.
+       */
+      scenarioPrompt: v.optional(v.string()),
+
+      /**
+       * Relationships with other characters in the scenario.
+       */
+      relationships: v.optional(v.record(IdSchema, v.string())),
+
+      /**
+       * A layered sprites avatar comprises the following components:
+       *
+       * - body,
+       * - expression,
+       * - and outfit.
+       */
+      layeredSpritesAvatar: v.object({
+        /**
+         * Body sprite files.
+         */
+        bodies: v.array(v.string()),
+
+        /**
+         * Static character expressions (a.k.a. "animations").
+         * The first expression is the default one.
+         */
+        expressions: v.record(
+          IdSchema,
+          v.object({
+            /**
+             * Body index to apply the expression to.
+             */
+            bodyId: v.number(),
+
+            /**
+             * Expression sprite file.
+             */
+            file: v.string(),
+          }),
+        ),
+
+        /**
+         * Character outfits.
+         * The first outfit is the default one.
+         */
+        outfits: v.record(
+          IdSchema,
+          v.object({
+            /**
+             * Outfit prompt.
+             */
+            prompt: v.string(),
+
+            /**
+             * Outfit sprite files, with index matching the body's.
+             */
+            files: v.array(v.string()),
+          }),
+        ),
+      }),
+    }),
+  ),
+
+  /**
+   * A list of locations in the scenario, included in Writer prompts.
+   * May include different levels, e.g. school and classroom.
+   */
+  locations: v.array(
+    v.object({
+      /**
+       * Location name.
+       */
+      name: v.string(),
+
+      /**
+       * Location description.
+       */
+      prompt: v.string(),
+    }),
+  ),
+
+  /**
+   * A list of scenes in the scenario, included in Director prompts.
+   * Scenes are not neccessarily tied to locations.
+   * Once a scene is set, it is displayed in the Writer prompt.
+   */
+  scenes: v.record(
+    IdSchema,
+    v.object({
+      /**
+       * Scene name.
+       */
+      name: v.string(),
+
+      /**
+       * Scene prompt.
+       */
+      prompt: v.string(),
+
+      /**
+       * Scene background image URL.
+       */
+      bg: v.string(),
+    }),
+  ),
+
+  /**
+   * List of episode definitions.
+   * The first episode is the default one.
+   */
+  episodes: v.record(
+    IdSchema,
+    v.object({
+      /**
+       * Episode name.
+       */
+      name: v.string(),
+
+      /**
+       * Short episode description.
+       */
+      about: v.string(),
+
+      /**
+       * Episode image URL.
+       * Recommended aspect ratio: 16:9.
+       */
+      imageUrl: v.optional(v.string()),
+
+      checkpoint: v.optional(
+        v.object({
+          summary: v.nullable(v.string()),
+          state: v.object({
+            stage: v.object({
+              sceneId: v.nullable(IdSchema),
+              characters: v.array(
+                v.object({
+                  id: IdSchema,
+                  expressionId: IdSchema,
+                  outfitId: IdSchema,
+                }),
+              ),
+            }),
+          }),
+        }),
+      ),
+
+      chunks: v.array(
+        v.object({
+          writerUpdate: v.object({
+            characterId: v.nullable(IdSchema),
+            text: v.string(),
+          }),
+          directorUpdate: v.optional(v.array(StageCommandSchema)),
+        }),
+      ),
+    }),
+  ),
+});
+
+export class Scenario {
+  constructor(
+    readonly id: string,
+    readonly basePath: string,
+    private readonly content: v.InferOutput<typeof ScenarioSchema>,
+  ) {}
+
+  async resourceUrl(path: string) {
+    return join(this.basePath, path).then(convertFileSrc);
+  }
+
+  get name() {
+    return this.content.name;
+  }
+
+  async getThumbnailUrl() {
+    if (!this.content.thumbnailPath) return undefined;
+    return this.resourceUrl(this.content.thumbnailPath);
+  }
+
+  async getCoverImageUrl() {
+    if (!this.content.coverImagePath) return undefined;
+    return this.resourceUrl(this.content.coverImagePath);
+  }
+
+  get language() {
+    return this.content.language;
+  }
+
+  get contextWindowSize() {
+    return this.content.contextWindowSize;
+  }
+
+  get about() {
+    return this.content.about;
+  }
+
+  get description() {
+    return this.content.description;
+  }
+
+  get excerpt() {
+    return this.content.excerpt;
+  }
+
+  get globalScenario() {
+    return this.content.globalScenario;
+  }
+
+  get instructions() {
+    return this.content.instructions;
+  }
+
+  get characters() {
+    return this.content.characters;
+  }
+
+  get defaultCharacterId() {
+    return Object.keys(this.content.characters)[0];
+  }
+
+  get defaultCharacter() {
+    return this.content.characters[this.defaultCharacterId];
+  }
+
+  async getCharacterPfpUrl(characterId: string) {
+    const character = this.ensureCharacter(characterId);
+    if (!character.pfpPath) return undefined;
+    return this.resourceUrl(character.pfpPath);
+  }
+
+  findCharacter(characterId: string) {
+    const scene = this.content.characters[characterId];
+    if (!scene) return undefined;
+    return scene;
+  }
+
+  ensureCharacter(characterId: string) {
+    const found = this.findCharacter(characterId);
+    if (!found) throw new Error(`Character not found: ${characterId}`);
+    return found;
+  }
+
+  findOutfit(characterId: string, outfitId: string) {
+    const character = this.ensureCharacter(characterId);
+    const outfit = character.layeredSpritesAvatar?.outfits[outfitId];
+    if (!outfit) return undefined;
+    return outfit;
+  }
+
+  ensureOutfit(characterId: string, outfitId: string) {
+    const found = this.findOutfit(characterId, outfitId);
+    if (!found) throw new Error(`Outfit not found: ${outfitId}`);
+    return found;
+  }
+
+  findExpression(characterId: string, expressionId: string) {
+    const character = this.ensureCharacter(characterId);
+    const expression =
+      character.layeredSpritesAvatar?.expressions[expressionId];
+    if (!expression) return undefined;
+    return expression;
+  }
+
+  ensureExpression(characterId: string, expressionId: string) {
+    const found = this.findExpression(characterId, expressionId);
+    if (!found) throw new Error(`Expression not found: ${expressionId}`);
+    return found;
+  }
+
+  get locations() {
+    return this.content.locations;
+  }
+
+  get scenes() {
+    return this.content.scenes;
+  }
+
+  get defaultSceneId() {
+    return Object.keys(this.content.scenes)[0];
+  }
+
+  get defaultScene() {
+    return this.content.scenes[this.defaultSceneId];
+  }
+
+  findScene(sceneId: string) {
+    const scene = this.content.scenes[sceneId];
+    if (!scene) return undefined;
+    return scene;
+  }
+
+  ensureScene(sceneId: string) {
+    const found = this.findScene(sceneId);
+    if (!found) throw new Error(`Scene not found: ${sceneId}`);
+    return found;
+  }
+
+  findEpisode(episodeId: string) {
+    const episode = this.content.episodes[episodeId];
+    if (!episode) return undefined;
+    return episode;
+  }
+
+  ensureEpisode(episodeId: string) {
+    const found = this.findEpisode(episodeId);
+    if (!found) throw new Error(`Episode not found: ${episodeId}`);
+    return found;
+  }
+
+  get defaultEpisodeId() {
+    return Object.keys(this.content.episodes)[0];
+  }
+
+  get defaultEpisode() {
+    return this.content.episodes[this.defaultEpisodeId];
+  }
+}
+
+class ParseError extends Error {
+  constructor(readonly message: string) {
+    super(message);
+    this.name = "ParseError";
+  }
+}
+
+export type ErroredScenario = {
+  id: string;
+  basePath: string;
+  error: Error;
 };
 
-export function findLocation(
-  scenario: Scenario,
-  locationId: string,
-): Scenario["locations"][string] | undefined {
-  if (Object.keys(scenario.locations).includes(locationId)) {
-    return scenario.locations[locationId];
-  } else {
-    return undefined;
+export async function readScenarios(
+  scenariosDir = "scenarios",
+  baseDir: BaseDirectory = BaseDirectory.AppLocalData,
+): Promise<(Scenario | ErroredScenario)[]> {
+  if (!(await exists(scenariosDir, { dir: baseDir }))) {
+    console.log(`Creating scenarios directory at ${scenariosDir}`);
+    await createDir(scenariosDir, { dir: baseDir });
   }
+
+  const scenarios: (Scenario | ErroredScenario)[] = [];
+
+  const entries = await readDir(scenariosDir, { dir: baseDir });
+  for (const entry of entries) {
+    if (!entry.name || !entry.children) continue;
+    scenarios.push(await readScenario(entry.name, scenariosDir, baseDir));
+  }
+
+  return scenarios;
 }
 
-export function findScene(scenario: Scenario, sceneId: string) {
-  if (Object.keys(scenario.scenes).includes(sceneId)) {
-    return scenario.scenes[sceneId];
-  } else {
-    return undefined;
+export async function readScenario(
+  id: string,
+  scenariosDir: string = "scenarios",
+  baseDir: BaseDirectory = BaseDirectory.AppLocalData,
+): Promise<Scenario | ErroredScenario> {
+  const basePath = await resolve(
+    await resolveBaseDir(baseDir),
+    scenariosDir,
+    id,
+  );
+
+  const indexPath = await join(scenariosDir, id, `index.json`);
+
+  let indexString;
+  try {
+    indexString = await readTextFile(indexPath, { dir: baseDir });
+  } catch (error) {
+    return {
+      id,
+      basePath,
+      error: new Error(`Failed to read ${indexPath}`),
+    };
   }
+
+  const indexJsonParseResult =
+    safeParseJson<v.InferInput<typeof ScenarioSchema>>(indexString);
+  if (!indexJsonParseResult.success) {
+    return {
+      id,
+      basePath,
+      error: new ParseError(indexJsonParseResult.error),
+    };
+  }
+
+  const scenarioParseResult = v.safeParse(
+    ScenarioSchema,
+    indexJsonParseResult.output,
+  );
+  if (!scenarioParseResult.success) {
+    const error = new ParseError(
+      formatValibotError(v.flatten(scenarioParseResult.issues)),
+    );
+    return { id, basePath, error };
+  }
+
+  return new Scenario(id, basePath, scenarioParseResult.output);
+}
+
+export async function ensureReadScenario(
+  id: string,
+  scenariosDir: string = "scenarios",
+  baseDir: BaseDirectory = BaseDirectory.AppLocalData,
+): Promise<Scenario> {
+  const scenario = await readScenario(id, scenariosDir, baseDir);
+  if (scenario instanceof Scenario) return scenario;
+
+  throw scenario.error;
 }
 
 /**
- * Find a scene by ID, or throw an error if not found.
+ * @example
+ * {"nested":{"proto":["Invalid type: Expected string but received undefined"]}}
+ * // => "At \"proto\": Invalid type: Expected string but received undefined"
  */
-export function ensureScene(scenario: Scenario, sceneId: string) {
-  const found = findScene(scenario, sceneId);
-  if (!found) throw new Error(`Scene not found: ${sceneId}`);
-  return found;
-}
+function formatValibotError(flatErrors: v.FlatErrors<typeof ScenarioSchema>) {
+  let text = "";
 
-export function findCharacter(
-  scenario: Scenario,
-  characterId: string,
-): Scenario["characters"][string] | undefined {
-  if (Object.keys(scenario.characters).includes(characterId)) {
-    return scenario.characters[characterId];
-  } else {
-    return undefined;
+  if (flatErrors.nested) {
+    text += Object.entries(flatErrors.nested)
+      .map(([path, errors]) => `At "${path}": ${errors?.join(", ")}`)
+      .join("; ");
   }
-}
 
-/**
- * Find a character by ID, or throw an error if not found.
- */
-export function ensureCharacter(
-  scenario: Scenario,
-  characterId: string,
-): Scenario["characters"][string] {
-  const found = findCharacter(scenario, characterId);
-  if (!found) throw new Error(`Character not found: ${characterId}`);
-  return found;
-}
-
-export function findOutfit(
-  character: Scenario["characters"][string],
-  outfitId: string,
-) {
-  if (Object.keys(character.outfits).includes(outfitId)) {
-    return character.outfits[outfitId];
-  } else {
-    return undefined;
-  }
-}
-
-export function findExpression(
-  character: Scenario["characters"][string],
-  expressionId: string,
-) {
-  if (Object.keys(character.expressions).includes(expressionId)) {
-    return character.expressions[expressionId];
-  } else {
-    return undefined;
-  }
-}
-
-export function findEpisode(
-  scenario: Scenario,
-  episodeId: string,
-): Scenario["episodes"][string] | undefined {
-  if (Object.keys(scenario.episodes).includes(episodeId)) {
-    return scenario.episodes[episodeId];
-  } else {
-    return undefined;
-  }
+  return text;
 }

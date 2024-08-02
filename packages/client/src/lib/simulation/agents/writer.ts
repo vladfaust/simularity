@@ -8,7 +8,7 @@ import {
 } from "@/lib/simularity/gpt";
 import { unreachable } from "@/lib/utils";
 import { Ref, computed } from "vue";
-import { Scenario, ensureScene } from "../scenario";
+import { Scenario } from "../scenario";
 import { Update } from "../update";
 
 const NARRATOR = "narrator";
@@ -211,22 +211,21 @@ export class Writer {
     const setup = {
       excerpt: scenario.excerpt,
       globalScenario: scenario.globalScenario,
-      secretInstructions: scenario.secretInstructions,
+      instructions: scenario.instructions,
       characters: Object.fromEntries(
         Object.entries(scenario.characters).map(([characterId, character]) => [
           characterId,
           {
             fullName: character.fullName,
             personality: character.personalityPrompt,
-            traits: character.traits,
+            traits: character.characterTraits,
             appearance: character.appearancePrompt,
             relationships: character.relationships,
             scenarioPrompt: character.scenarioPrompt,
             canonicalOutfits: Object.fromEntries(
-              Object.entries(character.outfits).map(([_, outfit]) => [
-                outfit.name,
-                outfit.prompt,
-              ]),
+              Object.entries(character.layeredSpritesAvatar.outfits).map(
+                ([_, outfit]) => [outfit.prompt],
+              ),
             ),
           },
         ]),
@@ -313,7 +312,7 @@ Simulation setup complete. Have fun!
 
     if (includeDirectorUpdates) {
       if (checkpoint.state.stage.sceneId) {
-        const scene = ensureScene(scenario, checkpoint.state.stage.sceneId);
+        const scene = scenario.ensureScene(checkpoint.state.stage.sceneId);
         checkpointLine += ` Scene set to "${scene.name}": ${scene.prompt}.`;
       } else {
         checkpointLine += " Scene set to undefined (void, empty).";
@@ -443,7 +442,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
 
           case "setScene": {
             if (command.args.sceneId) {
-              const scene = ensureScene(scenario, command.args.sceneId);
+              const scene = scenario.ensureScene(command.args.sceneId);
               line += `\n<${SYSTEM}> Scene set to "${scene.name}": ${scene.prompt}.`;
             } else {
               line += `\n<${SYSTEM}> Scene set to undefined (void, empty).`;
@@ -482,8 +481,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
     } else {
       const allowedCharacterIds = Object.entries(scenario.characters)
         .filter(
-          ([characterId, character]) =>
-            !character.locked && scenario.playerCharacterId !== characterId,
+          ([characterId, _]) => scenario.defaultCharacterId !== characterId,
         )
         .map(([characterId, _]) => characterId);
 
@@ -492,7 +490,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
       }
 
       if (options?.allowPlayerCharacterId) {
-        allowedCharacterIds.push(scenario.playerCharacterId);
+        allowedCharacterIds.push(scenario.defaultCharacterId);
       }
 
       characterIdRule = allowedCharacterIds.map((id) => `"${id}"`).join(" | ");
@@ -544,8 +542,7 @@ characterId ::= ${characterIdRule}
       } else {
         allowedCharacterIds = Object.entries(scenario.characters)
           .filter(
-            ([characterId, character]) =>
-              !character.locked && scenario.playerCharacterId !== characterId,
+            ([characterId, _]) => scenario.defaultCharacterId !== characterId,
           )
           .map(([characterId, _]) => characterId);
 
@@ -554,7 +551,7 @@ characterId ::= ${characterIdRule}
         }
 
         if (options?.allowPlayerCharacterId) {
-          allowedCharacterIds.push(scenario.playerCharacterId);
+          allowedCharacterIds.push(scenario.defaultCharacterId);
         }
       }
 

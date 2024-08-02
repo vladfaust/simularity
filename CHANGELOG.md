@@ -58,6 +58,11 @@
 
 ## History 📜
 
+### August 2024
+
+- [x] feat(client): choose scenario (Fri 2)
+      Allows to load scenarios from a directory.
+
 ### July 2024
 
 - [x] feat: C++ core (Tue 9)

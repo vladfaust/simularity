@@ -182,3 +182,17 @@ export async function minDelay(
 ): Promise<void> {
   await Promise.all([sleep(ms), promise]);
 }
+
+export function safeParseJson<T>(json: any) {
+  try {
+    return {
+      success: true,
+      output: JSON.parse(json) as T,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error,
+    };
+  }
+}

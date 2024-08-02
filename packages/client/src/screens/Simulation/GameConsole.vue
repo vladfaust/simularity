@@ -32,7 +32,6 @@ const { simulation, fadeCanvas, screenshot } = defineProps<{
   simulation: Simulation;
   fadeCanvas: (callback: () => Promise<void>) => Promise<void>;
   screenshot: (rewrite: boolean) => Promise<any>;
-  assetBaseUrl?: URL;
 }>();
 
 const emit = defineEmits<{
@@ -131,7 +130,7 @@ async function sendMessage() {
     }
 
     await simulation.createUpdate(
-      simulation.scenario.playerCharacterId,
+      simulation.scenario.defaultCharacterId,
       userMessage,
     );
 
@@ -292,7 +291,6 @@ function switchUpdatesFullscreen() {
       UpdatesHistory.w-full(
         v-if="updatesFullscreen"
         :simulation
-        :asset-base-url
         :fullscreen="true"
         @choose-variant="chooseUpdateVariant"
         @regenerate="regenerateUpdate"
@@ -305,7 +303,6 @@ function switchUpdatesFullscreen() {
       UpdateVue.h-full(
         v-else-if="simulation.currentUpdate.value"
         :simulation
-        :asset-base-url
         :update="simulation.currentUpdate.value"
         :key="simulation.currentUpdate.value.parentId || 'root'"
         :can-regenerate="true"

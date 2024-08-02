@@ -6,6 +6,13 @@ module.exports = {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx,vue}"],
 
   theme: {
+    screens: {
+      "4xs": "140px",
+      "3xs": "240px",
+      "2xs": "360px",
+      xs: "480px",
+      ...defaultTheme.screens,
+    },
     extend: {
       colors: {
         neutral: colors.gray,

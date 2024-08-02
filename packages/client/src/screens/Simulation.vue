@@ -24,8 +24,9 @@ let simulation = shallowRef<Simulation | undefined>();
 let gameInstance: Game;
 let scene: DefaultScene;
 
-const assetBaseUrl = ref<URL | undefined>();
-const canvasFade = ref(true);
+const canvasFade = ref(false);
+const fullFade = ref(true);
+const loadProgress = ref(0);
 
 const showConsoleModal = ref(false);
 const showSandboxConsole = ref(false);
@@ -106,18 +107,17 @@ function toMainMenu() {
 onMounted(async () => {
   simulation.value = await Simulation.load(simulationId);
 
-  assetBaseUrl.value = new URL(
-    `/scenarios/${simulation.value.scenarioId}/`,
-    window.location.origin,
-  );
-
   // REFACTOR: Scene creation shall be incapsulated.
   gameInstance = new Game();
   scene = new DefaultScene(
     simulation.value.scenario,
-    assetBaseUrl.value.toString(),
     simulation.value.state.stage.value,
-    () => (canvasFade.value = false),
+    (progress) => {
+      loadProgress.value = progress;
+    },
+    () => {
+      fullFade.value = false;
+    },
   );
   await gameInstance.createScene(scene, "default");
 
@@ -140,6 +140,22 @@ onUnmounted(() => {
 
 <template lang="pug">
 .flex.h-screen.w-screen
+  TransitionRoot#full-fade.absolute.top-0.z-30.grid.h-screen.w-screen.place-items-center.bg-white.p-3(
+    :unmount="true"
+    :show="fullFade"
+    enter="transition-opacity duration-500 ease-in"
+    enter-from="opacity-0"
+    enter-to="opacity-100"
+    leave="transition-opacity duration-500 ease-out"
+    leave-from="opacity-100"
+    leave-to="opacity-0"
+  )
+    .flex.w-full.max-w-xs.items-center.gap-1
+      .w-full.rounded-lg.shadow(class="h-2.5 dark:bg-gray-700")
+        .h-2.rounded-lg.bg-primary-500(
+          :style="{ width: `${loadProgress * 100}%` }"
+        )
+      span {{ Math.round(loadProgress * 100) }}%
   .relative.flex.h-full.w-full.justify-center.overflow-hidden
     .relative.h-full.w-full
       TransitionRoot#canvas-fade.absolute.top-0.z-10.h-screen.w-screen.bg-black(
@@ -161,7 +177,6 @@ onUnmounted(() => {
         :simulation
         :fade-canvas
         :screenshot
-        :asset-base-url
         @main-menu="showMenu = true"
         @screenshot="screenshot"
         @sandbox="showSandboxConsole = !showSandboxConsole"
@@ -179,8 +194,7 @@ onUnmounted(() => {
     leave-to="opacity-0 translate-x-full"
   )
     SandboxConsole.h-full(
-      v-if="simulation?.scenario && assetBaseUrl"
-      :asset-base-url="assetBaseUrl"
+      v-if="simulation?.scenario"
       :scenario="simulation.scenario"
       :state="simulation.state"
     )

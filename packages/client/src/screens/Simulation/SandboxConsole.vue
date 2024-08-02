@@ -18,7 +18,6 @@ import { sleep } from "@/lib/utils";
 const HIDE_MODAL_DURATION = 200;
 
 const props = defineProps<{
-  assetBaseUrl: URL;
   scenario: Scenario;
   state: State;
 }>();

@@ -1,13 +1,7 @@
 import { Scenario } from "@/lib/simulation";
-import { throwError } from "@/lib/utils";
+import { sleep } from "@/lib/utils";
 import Phaser from "phaser";
 import { DeepReadonly } from "vue";
-import {
-  findCharacter,
-  findExpression,
-  findOutfit,
-  findScene,
-} from "../scenario";
 import { StageRenderer } from "../stageRenderer";
 import { Stage } from "../state";
 
@@ -40,6 +34,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     }
   > = new Map();
 
+  private _asyncPreloadPromise!: Promise<void>;
+
   // NOTE: May be used in the future.
   private _busy: Promise<void> | null = null;
   get busy() {
@@ -48,65 +44,87 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
 
   constructor(
     readonly scenario: Scenario,
-    private readonly assetBasePath: string,
     private readonly initialState: DeepReadonly<Stage> | null = null,
+    private readonly onPreloadProgress?: (progress: number) => void,
     private readonly onCreate?: () => void,
   ) {
     super();
   }
 
   create() {
-    if (this.initialState) {
-      if (this.initialState.sceneId) {
-        this.setScene(this.initialState.sceneId, false);
+    this._asyncPreloadPromise.then(() => {
+      console.debug(`Total complete: ${this.load.totalComplete}`);
+      console.debug(`Total failed files: ${this.load.totalFailed}`);
+
+      if (this.initialState) {
+        if (this.initialState.sceneId) {
+          this.setScene(this.initialState.sceneId, false);
+        }
+
+        for (const { id, outfitId, expressionId } of this.initialState
+          .characters) {
+          this.addCharacter(id, outfitId, expressionId);
+        }
       }
 
-      for (const { id, outfitId, expressionId } of this.initialState
-        .characters) {
-        this.addCharacter(id, outfitId, expressionId);
-      }
-    }
-
-    this.onCreate?.();
+      this.onCreate?.();
+    });
   }
 
   preload() {
-    this.load.setBaseURL(this.assetBasePath);
+    this._asyncPreloadPromise = this.asyncPreload();
+  }
 
+  async asyncPreload() {
     for (const [sceneId, scene] of Object.entries(this.scenario.scenes)) {
-      this.load.image(this._sceneTextureKey(sceneId), scene.bg);
+      this.load.image(
+        this._sceneTextureKey(sceneId),
+        await this.scenario.resourceUrl(scene.bg),
+      );
     }
 
     for (const [characterId, character] of Object.entries(
       this.scenario.characters,
     )) {
       let bodyId = 0;
-      for (const file of character.bodies) {
+      for (const file of character.layeredSpritesAvatar.bodies) {
         this.load.image(
           this._characterBodyTextureKey(characterId, bodyId++),
-          file,
+          await this.scenario.resourceUrl(file),
         );
       }
 
-      for (const [outfitId, outfit] of Object.entries(character.outfits)) {
+      for (const [outfitId, outfit] of Object.entries(
+        character.layeredSpritesAvatar.outfits,
+      )) {
         bodyId = 0;
         for (const file of outfit.files) {
           this.load.image(
             this._characterOutfitTextureKey(characterId, outfitId, bodyId++),
-            file,
+            await this.scenario.resourceUrl(file),
           );
         }
       }
 
       for (const [expressionId, expression] of Object.entries(
-        character.expressions,
+        character.layeredSpritesAvatar.expressions,
       )) {
         this.load.image(
           this._characterExpressionTextureKey(characterId, expressionId),
-          expression.file,
+          await this.scenario.resourceUrl(expression.file),
         );
       }
     }
+
+    this.load.start();
+    console.debug(`Total files to load: ${this.load.totalToLoad}`);
+
+    this.onPreloadProgress?.(0);
+    while (this.load.progress < 1) {
+      this.onPreloadProgress?.(this.load.progress);
+      await sleep(100);
+    }
+    this.onPreloadProgress?.(1);
   }
 
   setStage(stage: Stage | null) {
@@ -151,7 +169,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     console.log("setScene", { sceneId, clearScene });
 
     if (sceneId) {
-      const scene = findScene(this.scenario, sceneId);
+      const scene = this.scenario.findScene(sceneId);
       if (!scene) throw new SceneError(`Scene not found: ${sceneId}`);
 
       const texture = this._sceneTextureKey(sceneId);
@@ -192,23 +210,10 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       throw new SceneError(`Character already on scene: ${characterId}`);
     }
 
-    const characterConfig =
-      findCharacter(this.scenario, characterId) ||
-      throwError(`Character not found`, { characterId });
-
-    const outfit = findOutfit(characterConfig, outfitId);
-    if (!outfit) {
-      throw new SceneError(
-        `Outfit not found for character ${characterId}: ${outfitId}`,
-      );
-    }
-
-    const expression = findExpression(characterConfig, expressionId);
-    if (!expression) {
-      throw new SceneError(
-        `Expression not found for character ${characterId}: ${expressionId}`,
-      );
-    }
+    const expression = this.scenario.ensureExpression(
+      characterId,
+      expressionId,
+    );
 
     this.stageCharacters.set(characterId, {
       body: {
@@ -277,17 +282,6 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       throw new SceneError(`Character not on scene: ${characterId}`);
     }
 
-    const characterConfig =
-      findCharacter(this.scenario, characterId) ||
-      throwError(`Character not found`, { characterId });
-
-    const outfit = findOutfit(characterConfig, outfitId);
-    if (!outfit) {
-      throw new SceneError(
-        `Outfit not found for character ${characterId}: ${outfitId}`,
-      );
-    }
-
     character.outfit.id = outfitId;
     character.outfit.sprite.setTexture(
       this._characterOutfitTextureKey(
@@ -306,16 +300,10 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       throw new SceneError(`Character not on scene: ${characterId}`);
     }
 
-    const characterConfig =
-      findCharacter(this.scenario, characterId) ||
-      throwError(`Character not found`, { characterId });
-
-    const expression = findExpression(characterConfig, expressionId);
-    if (!expression) {
-      throw new SceneError(
-        `Expression not found for character ${characterId}: ${expressionId}`,
-      );
-    }
+    const expression = this.scenario.ensureExpression(
+      characterId,
+      expressionId,
+    );
 
     character.body.index = expression.bodyId;
     character.body.sprite.setTexture(

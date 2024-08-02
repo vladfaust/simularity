@@ -42,7 +42,8 @@
       "protocol": {
         "asset": true,
         "assetScope": [
-          "$APPLOCALDATA/screenshots/*"
+          "$APPLOCALDATA/screenshots/*",
+          "$APPLOCALDATA/scenarios/**/*"
         ]
       },
       "window": {

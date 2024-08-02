@@ -12,9 +12,14 @@ import {
   Writer,
   PredictionOptions as WriterPredictionOptions,
 } from "./simulation/agents/writer";
-import { Scenario } from "./simulation/scenario";
+import { Scenario, ensureReadScenario } from "./simulation/scenario";
 import { StageRenderer } from "./simulation/stageRenderer";
-import { State, StateDto, comparesStateDeltas } from "./simulation/state";
+import {
+  State,
+  StateDto,
+  comparesStateDeltas,
+  emptyStateDto,
+} from "./simulation/state";
 import {
   StateCommand,
   stateCommandsToCodeLines,
@@ -22,8 +27,7 @@ import {
 import { Update } from "./simulation/update";
 import { assert, assertCallback, clone, unreachable } from "./utils";
 
-export { State };
-export type { Scenario };
+export { Scenario, State };
 
 export class Simulation {
   //#region Private fields
@@ -187,6 +191,73 @@ export class Simulation {
   }
 
   /**
+   * Create a new simulation.
+   */
+  static async create(scenarioId: string) {
+    const scenario = await ensureReadScenario(scenarioId);
+
+    const defaultEpisode = scenario.defaultEpisode;
+
+    const chunk = defaultEpisode.chunks.at(0);
+    if (!chunk) {
+      throw new Error(`Episode "${defaultEpisode.name}" has no chunks`);
+    }
+
+    const simulationId = await d.db.transaction(async (tx) => {
+      const simulation = (
+        await tx
+          .insert(d.simulations)
+          .values({ scenarioId })
+          .returning({ id: d.simulations.id })
+      )[0];
+
+      const checkpoint = (
+        await tx
+          .insert(d.checkpoints)
+          .values({
+            simulationId: simulation.id,
+            summary: defaultEpisode.checkpoint?.summary,
+            state: defaultEpisode.checkpoint?.state || emptyStateDto(),
+          })
+          .returning({ id: d.checkpoints.id })
+      )[0];
+
+      const writerUpdate = (
+        await tx
+          .insert(d.writerUpdates)
+          .values({
+            simulationId: simulation.id,
+            checkpointId: checkpoint.id,
+            characterId: chunk.writerUpdate.characterId,
+            text: chunk.writerUpdate.text,
+            episodeId: scenario.defaultEpisodeId,
+            episodeChunkIndex: 0,
+          })
+          .returning({
+            id: d.writerUpdates.id,
+          })
+      )[0];
+
+      if (chunk.directorUpdate) {
+        await tx.insert(d.directorUpdates).values({
+          writerUpdateId: writerUpdate.id,
+          code: chunk.directorUpdate,
+        });
+      }
+
+      // Set simulation current update ID.
+      await tx
+        .update(d.simulations)
+        .set({ currentUpdateId: writerUpdate.id })
+        .where(eq(d.simulations.id, simulation.id));
+
+      return simulation.id;
+    });
+
+    return simulationId;
+  }
+
+  /**
    * Load a new simulation instance from the database and initialize it.
    */
   static async load(simulationId: string): Promise<Simulation> {
@@ -200,15 +271,7 @@ export class Simulation {
       console.debug("Found simulation", simulation);
     }
 
-    const scenario: Scenario = await fetch(
-      `/scenarios/${simulation.scenarioId}/manifest.json`,
-    ).then((response) => response.json());
-
-    if (!scenario) {
-      throw new Error(`Scenario not found: ${simulation.scenarioId}`);
-    } else {
-      console.debug("Found scenario", scenario);
-    }
+    const scenario = await ensureReadScenario(simulation.scenarioId);
 
     const instance = new Simulation(
       simulationId,
@@ -251,7 +314,7 @@ export class Simulation {
     try {
       await this._commitCurrentState();
 
-      const { episodeId, text, chunkIndex, code, characterId } =
+      const { episodeId, chunkIndex, writerUpdate, directorUpdate } =
         await this.state.advanceCurrentEpisode();
 
       this._dumpCurrentState();
@@ -264,12 +327,12 @@ export class Simulation {
         writerUpdate: {
           parentUpdateId,
           checkpointId: this._checkpoint.value!.id,
-          characterId,
-          text,
+          characterId: writerUpdate.characterId,
+          text: writerUpdate.text,
           episodeId,
           episodeChunkIndex: chunkIndex,
         },
-        directorUpdate: code ? { code } : undefined,
+        directorUpdate: directorUpdate ? { code: directorUpdate } : undefined,
       });
 
       // Add the new episode update to the recent updates.
