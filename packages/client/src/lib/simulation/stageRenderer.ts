@@ -4,6 +4,16 @@ import { Stage } from "./state";
  * An abstract {@link Stage} renderer object.
  */
 export interface StageRenderer {
+  /**
+   * Do not render this character.
+   */
+  hideCharacter(characterId: string): void;
+
+  /**
+   * Render this character.
+   */
+  unhideCharacter(characterId: string): void;
+
   setScene(sceneId: string): void;
   addCharacter(
     characterId: string,

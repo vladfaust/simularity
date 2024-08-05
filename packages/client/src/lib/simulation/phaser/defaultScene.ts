@@ -33,6 +33,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       };
     }
   > = new Map();
+  private _hiddenCharacters: Set<string> = new Set();
 
   private _asyncPreloadPromise!: Promise<void>;
 
@@ -123,6 +124,22 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       await sleep(100);
     }
     this.onPreloadProgress?.(1);
+  }
+
+  /**
+   * Do not render this character.
+   */
+  hideCharacter(characterId: string): void {
+    this._hiddenCharacters.add(characterId);
+    this.arrangeCharacters();
+  }
+
+  /**
+   * Render this character.
+   */
+  unhideCharacter(characterId: string): void {
+    this._hiddenCharacters.delete(characterId);
+    this.arrangeCharacters();
   }
 
   setStage(stage: Stage) {
@@ -236,12 +253,19 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
 
     let i = 0;
     for (const [characterId, character] of this.stageCharacters.entries()) {
-      const k = i++ - (this.stageCharacters.size - 1) / 2;
+      const hidden = this._hiddenCharacters.has(characterId);
+      character.body.sprite.visible = !hidden;
+      character.outfit.sprite.visible = !hidden;
+      character.expression.sprite.visible = !hidden;
+      if (hidden) continue;
+
+      const k =
+        i++ - (this.stageCharacters.size - this._hiddenCharacters.size - 1) / 2;
       const posX =
         this.game.canvas.width / 2 +
         chunk * k * proximityModifier ** Math.abs(k);
 
-      console.log("Set character position X", {
+      console.debug("Set character position X", {
         chunk,
         k,
         characterId,

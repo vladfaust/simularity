@@ -121,6 +121,9 @@ onMounted(async () => {
   );
   await gameInstance.createScene(scene, "default");
 
+  // ADHOC: Hide the default character.
+  scene.hideCharacter(simulation.value.scenario.defaultCharacterId);
+
   // Connect the simulation to the scene.
   simulation.value.setStageRenderer(scene);
 
