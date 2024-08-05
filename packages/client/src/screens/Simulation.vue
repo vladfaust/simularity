@@ -17,6 +17,7 @@ import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
 import GameConsole from "./Simulation/GameConsole.vue";
 import Menu from "./Simulation/Menu.vue";
 import SandboxConsole from "./Simulation/SandboxConsole.vue";
+import AiSettingsModal from "./Simulation/AiSettingsModal.vue";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -31,6 +32,7 @@ const loadProgress = ref(0);
 const showConsoleModal = ref(false);
 const showSandboxConsole = ref(false);
 const showMenu = ref(false);
+const showAiSettingsModal = ref(false);
 
 // FIXME: Proper episode display.
 const currentEpisodeConsoleObject = computed(() =>
@@ -183,6 +185,7 @@ onUnmounted(() => {
         @main-menu="showMenu = true"
         @screenshot="screenshot"
         @sandbox="showSandboxConsole = !showSandboxConsole"
+        @ai-settings="showAiSettingsModal = true"
       )
 
   TransitionRoot.h-full.shrink-0(
@@ -201,6 +204,13 @@ onUnmounted(() => {
       :scenario="simulation.scenario"
       :state="simulation.state"
     )
+
+  AiSettingsModal(
+    v-if="simulation"
+    :open="showAiSettingsModal"
+    :simulation
+    @close="showAiSettingsModal = false"
+  )
 
   DeveloperConsole(
     :open="showConsoleModal"

@@ -15,7 +15,7 @@
     "drizzle-orm": "^0.30.10",
     "duration-fns": "^3.0.2",
     "fast-equals": "^5.0.1",
-    "lucide-vue-next": "^0.378.0",
+    "lucide-vue-next": "^0.399.0",
     "nanoid": "^5.0.7",
     "phaser": "^3.80.1",
     "pretty-bytes": "^6.1.1",

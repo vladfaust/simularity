@@ -15,10 +15,10 @@ import {
   UndoDotIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
-import GptStatus from "./GptStatus.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
 import { type PredictionOptions } from "@/lib/simulation/agents/writer";
+import AiStatus from "./AiStatus.vue";
 
 enum SendButtonState {
   Inferring,
@@ -37,6 +37,7 @@ const { simulation, fadeCanvas, screenshot } = defineProps<{
 const emit = defineEmits<{
   (event: "mainMenu"): void;
   (event: "sandbox"): void;
+  (event: "aiSettings"): void;
 }>();
 
 const modelSettings = ref<InferenceOptions>({
@@ -418,15 +419,9 @@ function switchUpdatesFullscreen() {
   //- Status.
   .flex.w-full.justify-between.p-2(class="bg-black/20")
     .flex.items-center.gap-2
-      GptStatus.h-full(
-        :gpt="simulation.writer.value?.gpt"
-        name="Writer"
-        key="writer"
-      )
-      GptStatus.h-full(
-        :gpt="simulation.director.value?.gpt"
-        name="Director"
-        key="director"
+      AiStatus.cursor-pointer.rounded.bg-white.bg-opacity-50.px-2.py-1.transition-transform.pressable(
+        :simulation
+        @click="emit('aiSettings')"
       )
 
       //- Temporary context gauge.

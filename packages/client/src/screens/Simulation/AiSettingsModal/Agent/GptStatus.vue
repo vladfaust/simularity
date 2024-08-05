@@ -15,19 +15,7 @@ enum Status {
 
 const props = defineProps<{
   gpt: Gpt | undefined;
-  name: string;
 }>();
-
-const driver = computed(() => {
-  switch (props.gpt?.driver.type) {
-    case "local":
-      return "Local";
-    case "remote":
-      return "Remote";
-    default:
-      return "Unknown";
-  }
-});
 
 const status = computed<Status | undefined>(() => {
   if (!props.gpt) return undefined;
@@ -59,8 +47,7 @@ const statusText = computed<string | undefined>(() => {
 </script>
 
 <template lang="pug">
-.flex.items-center.gap-1.rounded.bg-white.bg-opacity-90.px-2.py-1.shadow
-  span.text-sm.leading-none {{ name }} ({{ driver }})
+.flex.items-center.gap-1
   .h-2.w-2.rounded-full(
     :class="{ 'bg-green-500': status === Status.Ready, 'bg-[chartreuse]': status === Status.Queued, 'bg-yellow-500': status === Status.Busy, 'animate-pulse': status === Status.Busy }"
   )
