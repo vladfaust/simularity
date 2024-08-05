@@ -38,6 +38,9 @@ const MIGRATIONS: Migration[] = [
   await import(
     "./drizzle/migrations/014_add_did_consolidate_to_writer_updates.js"
   ),
+  await import(
+    "./drizzle/migrations/015_add_starter_episode_id_to_simulations.js"
+  ),
 ];
 
 const databaseUrl = await join(

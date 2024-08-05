@@ -9,6 +9,7 @@ import { onMounted } from "vue";
 import { ref } from "vue";
 import WrapBalancer from "vue-wrap-balancer";
 import Character from "./NewGame/Character.vue";
+import Episode from "./NewGame/Episode.vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
@@ -22,8 +23,8 @@ const scenario = ref<Scenario | undefined>();
 const thumbnailUrl = asyncComputed(() => scenario.value?.getThumbnailUrl());
 const coverImageUrl = asyncComputed(() => scenario.value?.getCoverImageUrl());
 
-async function play() {
-  const simulationId = await Simulation.create(props.scenarioId);
+async function play(episodeId?: string) {
+  const simulationId = await Simulation.create(props.scenarioId, episodeId);
 
   router.push(
     routeLocation({
@@ -74,7 +75,7 @@ onMounted(async () => {
           WrapBalancer.max-w-sm.text-center.leading-tight(as="p") {{ scenario.about }}
 
           button.btn.btn-md.btn-primary.mt-1.rounded-lg.shadow.transition-transform.pressable(
-            @click="play"
+            @click="play()"
           )
             CirclePlayIcon.drop-shadow(:size="20" :stroke-width="2.5")
             span Play
@@ -95,7 +96,7 @@ onMounted(async () => {
           h2.text-lg.font-semibold.leading-snug.tracking-wide Characters ({{ Object.keys(scenario.characters).length }})
           //- TODO: Use flex-wrap instead of grid.
           .grid.max-w-lg.gap-2(
-            class="max-3xs:grid-cols-1 max-2xs:grid-cols-2 max-sm:grid-cols-3 sm:grid-cols-4"
+            class="max-sm:grid-cols-3 max-2xs:grid-cols-2 max-3xs:grid-cols-1 sm:grid-cols-4"
           )
             Character.overflow-hidden.rounded-lg.border(
               v-for="[characterId, character] in Object.entries(scenario.characters)"
@@ -104,6 +105,18 @@ onMounted(async () => {
               :characterId
               :character
             )
-</template>
 
-<style lang="scss" scoped></style>
+          h2.text-lg.font-semibold.leading-snug.tracking-wide Episodes ({{ Object.keys(scenario.episodes).length }})
+          //- TODO: Use flex-wrap instead of grid.
+          .grid.w-full.max-w-lg.gap-2(
+            class="max-2xs:grid-cols-2 max-3xs:grid-cols-1 2xs:grid-cols-3"
+          )
+            Episode.cursor-pointer.overflow-hidden.rounded-lg.border.transition-transform.pressable(
+              v-for="[episodeId, episode] in Object.entries(scenario.episodes)"
+              :key="episodeId"
+              :scenario
+              :episodeId
+              :episode
+              @click="play(episodeId)"
+            )
+</template>

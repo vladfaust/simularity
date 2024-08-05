@@ -13,6 +13,7 @@ export const simulations = sqliteTable(
       .$defaultFn(() => nanoid()),
 
     scenarioId: text("scenario_id").notNull(),
+    starterEpisodeId: text("starter_episode_id"),
     currentUpdateId: text("current_writer_update_id"),
 
     createdAt: text("created_at")

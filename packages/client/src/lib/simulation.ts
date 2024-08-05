@@ -185,21 +185,30 @@ export class Simulation {
   /**
    * Create a new simulation.
    */
-  static async create(scenarioId: string) {
+  static async create(scenarioId: string, episodeId?: string) {
     const scenario = await ensureReadScenario(scenarioId);
+    episodeId ||= scenario.defaultEpisodeId;
 
-    const defaultEpisode = scenario.defaultEpisode;
+    const startingEpisode = scenario.findEpisode(episodeId);
+    if (!startingEpisode) {
+      throw new Error(
+        `Episode "${episodeId}" not found in scenario "${scenarioId}"`,
+      );
+    }
 
-    const chunk = defaultEpisode.chunks.at(0);
+    const chunk = startingEpisode.chunks.at(0);
     if (!chunk) {
-      throw new Error(`Episode "${defaultEpisode.name}" has no chunks`);
+      throw new Error(`Episode "${startingEpisode.name}" has no chunks`);
     }
 
     const simulationId = await d.db.transaction(async (tx) => {
       const simulation = (
         await tx
           .insert(d.simulations)
-          .values({ scenarioId })
+          .values({
+            scenarioId,
+            starterEpisodeId: episodeId,
+          })
           .returning({ id: d.simulations.id })
       )[0];
 
@@ -208,8 +217,8 @@ export class Simulation {
           .insert(d.checkpoints)
           .values({
             simulationId: simulation.id,
-            summary: defaultEpisode.initialCheckpoint.summary,
-            state: defaultEpisode.initialCheckpoint.state,
+            summary: startingEpisode.initialCheckpoint.summary,
+            state: startingEpisode.initialCheckpoint.state,
           })
           .returning({ id: d.checkpoints.id })
       )[0];
@@ -222,7 +231,7 @@ export class Simulation {
             checkpointId: checkpoint.id,
             characterId: chunk.writerUpdate.characterId,
             text: chunk.writerUpdate.text,
-            episodeId: scenario.defaultEpisodeId,
+            episodeId,
             episodeChunkIndex: 0,
           })
           .returning({
