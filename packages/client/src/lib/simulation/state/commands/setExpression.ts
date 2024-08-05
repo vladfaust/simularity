@@ -3,8 +3,8 @@ import { v } from "@/lib/valibot";
 /**
  * Set expression of a character.
  */
-export const SetCharacterExpressionSchema = v.object({
-  name: v.literal("setCharacterExpression"),
+export const SetExpressionSchema = v.object({
+  name: v.literal("setExpression"),
   args: v.object({
     /**
      * The ID of the character to update.

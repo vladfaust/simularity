@@ -2,55 +2,26 @@ import { v } from "@/lib/valibot";
 
 import { AddCharacterSchema } from "./commands/addCharacter";
 import { RemoveCharacterSchema } from "./commands/removeCharacter";
-import { SetCharacterExpressionSchema } from "./commands/setCharacterExpression";
-import { SetCharacterOutfitSchema } from "./commands/setCharacterOutfit";
+import { SetExpressionSchema } from "./commands/setExpression";
+import { SetOutfitSchema } from "./commands/setOutfit";
 import { SetSceneSchema } from "./commands/setScene";
 
-export const StageCommandSchema = v.union([
+export const StateCommandSchema = v.union([
   SetSceneSchema,
   AddCharacterSchema,
-  SetCharacterOutfitSchema,
-  SetCharacterExpressionSchema,
+  SetOutfitSchema,
+  SetExpressionSchema,
   RemoveCharacterSchema,
 ]);
 
-export type StateCommand = v.InferInput<typeof StageCommandSchema>;
+export type StateCommand = v.InferInput<typeof StateCommandSchema>;
 
 /**
- * Convert state commands to code.
+ * Convert a state command to line.
  *
- * @example stateCommandsToCodeLines(commands)
- * // => [
- * //   'setScene{sceneId:"a",clearScene:true}',
- * //   'addCharacter{sceneId:"b",outfitId:"c",expressionId:"d")'
- * // ]
+ * @example stateCommandToLine(command)
+ * // => '{"name":"setScene","args":{"sceneId":"scene1"}}'
  */
-export function stateCommandsToCodeLines(
-  commands: readonly StateCommand[],
-): string[] {
-  return commands.map(stateCommandToCodeLine);
-}
-
-/**
- * Convert state command to code line
- *
- * @example stateCommandToCodeLine(command)
- * // => setScene{sceneId:"a",clearScene:true}
- */
-export function stateCommandToCodeLine(command: StateCommand): string {
-  return `${command.name}{${Object.entries(command.args)
-    .map(([key, value]) => `${key}:${commandArgToCodeValue(value)}`)
-    .join(",")}}`;
-}
-
-function commandArgToCodeValue(arg: any) {
-  if (typeof arg === "string") {
-    return `"${arg}"`;
-  }
-
-  if (typeof arg === "boolean") {
-    return arg ? "true" : "false";
-  }
-
-  return JSON.stringify(arg);
+export function stateCommandToLine(command: StateCommand): string {
+  return JSON.stringify(command);
 }

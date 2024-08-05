@@ -196,3 +196,11 @@ export function safeParseJson<T>(json: any) {
     };
   }
 }
+
+/**
+ * Escape double quotes in a string.
+ * @example escapeQuotes('hello "world"') // => 'hello \\"world\\"'
+ */
+export function escapeQuotes(str: string): string {
+  return str.replace(/"/g, '\\"');
+}

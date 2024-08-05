@@ -1,15 +1,10 @@
 import { deepEqual } from "fast-equals";
-import { computed, readonly, ref } from "vue";
+import { computed, readonly, Ref, ref } from "vue";
 import { LuaEngine, LuaFactory } from "wasmoon";
 import { clone, unreachable } from "../utils";
 import { Scenario } from "./scenario";
 import { StageRenderer } from "./stageRenderer";
-import { StateCommand, stateCommandsToCodeLines } from "./state/commands";
-
-/**
- * When a Lua code has semantic error, such as missing arguments.
- */
-export class EngineCodeSemanticError extends Error {}
+import { StateCommand } from "./state/commands";
 
 /**
  * When state encounters a logical error, such as
@@ -21,11 +16,22 @@ export class StateError extends Error {}
  * A stage state.
  */
 export type Stage = {
-  sceneId: string | null;
+  /**
+   * The ID of the current scene.
+   */
+  sceneId: string;
 
   characters: {
     id: string;
+
+    /**
+     * The ID of the current outfit.
+     */
     outfitId: string;
+
+    /**
+     * The ID of the current expression.
+     */
     expressionId: string;
   }[];
 };
@@ -40,15 +46,13 @@ export type StateDto = {
     totalChunks: number;
     nextChunkIndex: number;
   } | null;
-  day?: number;
-  timeOfDay?: "morning" | "day" | "evening" | "night";
 };
 
 /**
  * A simulation state object.
  */
 export class State {
-  private readonly _stage = ref<Stage>({ sceneId: null, characters: [] });
+  private readonly _stage: Ref<Stage> = ref({ sceneId: "", characters: [] });
   readonly stage = readonly(this._stage);
 
   private readonly _currentEpisode = ref<
@@ -81,7 +85,24 @@ export class State {
   private _connectedRenderer?: StageRenderer;
   private _recentCalls: StateCommand[] = [];
 
-  constructor(readonly scenario: Scenario) {}
+  constructor(
+    readonly scenario: Scenario,
+    dto?: StateDto,
+  ) {
+    if (dto) {
+      this._stage = ref(clone(dto.stage));
+
+      if (dto.currentEpisode) {
+        this._currentEpisode.value = {
+          ...scenario.ensureEpisode(dto.currentEpisode.id),
+          id: dto.currentEpisode.id,
+          nextChunkIndex: dto.currentEpisode.nextChunkIndex,
+          totalChunks: scenario.ensureEpisode(dto.currentEpisode.id).chunks
+            .length,
+        };
+      }
+    }
+  }
 
   /**
    * Serialize the state to a DTO.
@@ -101,43 +122,18 @@ export class State {
   }
 
   /**
-   * Deserialize a state from a DTO.
-   */
-  static deserialize(dto: StateDto, scenario: Scenario): State {
-    const state = new State(scenario);
-    state._stage.value = clone(dto.stage);
-
-    if (dto.currentEpisode) {
-      const currentEpisode = scenario.ensureEpisode(dto.currentEpisode.id);
-
-      state._currentEpisode.value = {
-        ...currentEpisode,
-        id: dto.currentEpisode.id,
-        nextChunkIndex: dto.currentEpisode.nextChunkIndex,
-        totalChunks: currentEpisode.chunks.length,
-      };
-    }
-
-    return state;
-  }
-
-  /**
    * Return a delta of this state compared to another state DTO.
    * For example, if current state has a character that the other state
    * does not, the delta will include an `"add_character"` call.
    */
-  delta(otherState: StateDto | null | undefined): StateCommand[] {
+  delta(otherState?: StateDto): StateCommand[] {
     const delta: StateCommand[] = [];
-    let clear = false;
 
     if (this._stage.value.sceneId !== otherState?.stage.sceneId) {
-      clear = this._stage.value.characters.length === 0;
-
       delta.push({
         name: "setScene",
         args: {
           sceneId: this._stage.value.sceneId,
-          clearStage: clear,
         },
       });
     }
@@ -159,7 +155,7 @@ export class State {
       } else {
         if (character.outfitId !== otherCharacter.outfitId) {
           delta.push({
-            name: "setCharacterOutfit",
+            name: "setOutfit",
             args: {
               characterId: character.id,
               outfitId: character.outfitId,
@@ -169,7 +165,7 @@ export class State {
 
         if (character.expressionId !== otherCharacter.expressionId) {
           delta.push({
-            name: "setCharacterExpression",
+            name: "setExpression",
             args: {
               characterId: character.id,
               expressionId: character.expressionId,
@@ -179,7 +175,7 @@ export class State {
       }
     }
 
-    if (!clear && otherState?.stage.characters) {
+    if (otherState?.stage.characters) {
       for (const character of otherState.stage.characters) {
         if (!this._stage.value.characters.find((c) => c.id === character.id)) {
           delta.push({
@@ -196,96 +192,46 @@ export class State {
   }
 
   static async createLuaEngine(ctx: {
-    setScene: (sceneId: string, clearScene: boolean) => void;
+    setScene: (sceneId: string) => void;
     addCharacter: (
       characterId: string,
       outfitId: string,
       expressionId: string,
     ) => void;
     removeCharacter: (characterId: string) => void;
-    setCharacterOutfit: (characterId: string, outfitId: string) => void;
-    setCharacterExpression: (characterId: string, expressionId: string) => void;
+    setOutfit: (characterId: string, outfitId: string) => void;
+    setExpression: (characterId: string, expressionId: string) => void;
   }): Promise<LuaEngine> {
     return new LuaFactory().createEngine().then((lua) => {
       // Set the current scene.
-      lua.global.set(
-        "setScene",
-        (args: { sceneId?: string; clearScene?: boolean }) => {
-          if (!args.sceneId) {
-            throw new EngineCodeSemanticError("Missing argument: sceneId");
-          }
-
-          if (args.clearScene === undefined) {
-            throw new EngineCodeSemanticError("Missing argument: clear");
-          }
-
-          ctx.setScene(args.sceneId, args.clearScene);
-        },
-      );
+      lua.global.set("setScene", (sceneId: string) => {
+        ctx.setScene(sceneId);
+      });
 
       // Add a character to the stage.
       lua.global.set(
         "addCharacter",
-        (args: {
-          characterId?: string;
-          outfitId?: string;
-          expressionId?: string;
-        }) => {
-          if (!args.characterId) {
-            throw new EngineCodeSemanticError("Missing argument: characterId");
-          }
-
-          if (!args.outfitId) {
-            throw new EngineCodeSemanticError("Missing argument: outfitId");
-          }
-
-          if (!args.expressionId) {
-            throw new EngineCodeSemanticError("Missing argument: expressionId");
-          }
-
-          ctx.addCharacter(args.characterId, args.outfitId, args.expressionId);
+        (characterId: string, outfitId: string, expressionId: string) => {
+          ctx.addCharacter(characterId, outfitId, expressionId);
         },
       );
 
       // Set the outfit of a character.
-      lua.global.set(
-        "setCharacterOutfit",
-        (args: { characterId?: string; outfitId?: string }) => {
-          if (!args.characterId) {
-            throw new EngineCodeSemanticError("Missing argument: characterId");
-          }
-
-          if (!args.outfitId) {
-            throw new EngineCodeSemanticError("Missing argument: outfitId");
-          }
-
-          ctx.setCharacterOutfit(args.characterId, args.outfitId);
-        },
-      );
+      lua.global.set("setOutfit", (characterId: string, outfitId: string) => {
+        ctx.setOutfit(characterId, outfitId);
+      });
 
       // Set expression of a character.
       lua.global.set(
-        "setCharacterExpression",
-        (args: { characterId?: string; expressionId?: string }) => {
-          if (!args.characterId) {
-            throw new EngineCodeSemanticError("Missing argument: characterId");
-          }
-
-          if (!args.expressionId) {
-            throw new EngineCodeSemanticError("Missing argument: expressionId");
-          }
-
-          ctx.setCharacterExpression(args.characterId, args.expressionId);
+        "setExpression",
+        (characterId: string, expressionId: string) => {
+          ctx.setExpression(characterId, expressionId);
         },
       );
 
       // Remove a character from the stage.
-      lua.global.set("removeCharacter", (args: { characterId?: string }) => {
-        if (!args.characterId) {
-          throw new EngineCodeSemanticError("Missing argument: characterId");
-        }
-
-        ctx.removeCharacter(args.characterId);
+      lua.global.set("removeCharacter", (characterId: string) => {
+        ctx.removeCharacter(characterId);
       });
 
       return lua;
@@ -294,54 +240,39 @@ export class State {
 
   async initCodeEngine() {
     this._lua = await State.createLuaEngine({
-      setScene: (sceneId, clearScene) => {
-        this.setScene(sceneId, clearScene);
+      setScene: (sceneId) => {
+        this.setScene(sceneId);
         this._recentCalls.push({
           name: "setScene",
-          args: {
-            sceneId,
-            clearStage: clearScene,
-          },
+          args: { sceneId },
         });
       },
       addCharacter: (characterId, outfitId, expressionId) => {
         this.addCharacter(characterId, outfitId, expressionId);
         this._recentCalls.push({
           name: "addCharacter",
-          args: {
-            characterId,
-            outfitId,
-            expressionId,
-          },
+          args: { characterId, outfitId, expressionId },
         });
       },
-      setCharacterOutfit: (characterId, outfitId) => {
-        this.setCharacterOutfit(characterId, outfitId);
+      setOutfit: (characterId, outfitId) => {
+        this.setOutfit(characterId, outfitId);
         this._recentCalls.push({
-          name: "setCharacterOutfit",
-          args: {
-            characterId,
-            outfitId,
-          },
+          name: "setOutfit",
+          args: { characterId, outfitId },
         });
       },
-      setCharacterExpression: (characterId, expressionId) => {
-        this.setCharacterExpression(characterId, expressionId);
+      setExpression: (characterId, expressionId) => {
+        this.setExpression(characterId, expressionId);
         this._recentCalls.push({
-          name: "setCharacterExpression",
-          args: {
-            characterId,
-            expressionId,
-          },
+          name: "setExpression",
+          args: { characterId, expressionId },
         });
       },
       removeCharacter: (characterId) => {
         this.removeCharacter(characterId);
         this._recentCalls.push({
           name: "removeCharacter",
-          args: {
-            characterId,
-          },
+          args: { characterId },
         });
       },
     });
@@ -355,7 +286,7 @@ export class State {
   }
 
   /**
-   * Evaluate Lua code, returning the list of stage calls made.
+   * Evaluate Lua code, returning the list of state commands executed.
    */
   async eval(code: string): Promise<StateCommand[]> {
     if (!this._lua) throw new Error("Code engine not initialized");
@@ -371,7 +302,7 @@ export class State {
     for (const cmd of commands) {
       switch (cmd.name) {
         case "setScene":
-          this.setScene(cmd.args.sceneId, cmd.args.clearStage);
+          this.setScene(cmd.args.sceneId);
           break;
         case "addCharacter":
           this.addCharacter(
@@ -380,14 +311,11 @@ export class State {
             cmd.args.expressionId,
           );
           break;
-        case "setCharacterOutfit":
-          this.setCharacterOutfit(cmd.args.characterId, cmd.args.outfitId);
+        case "setOutfit":
+          this.setOutfit(cmd.args.characterId, cmd.args.outfitId);
           break;
-        case "setCharacterExpression":
-          this.setCharacterExpression(
-            cmd.args.characterId,
-            cmd.args.expressionId,
-          );
+        case "setExpression":
+          this.setExpression(cmd.args.characterId, cmd.args.expressionId);
           break;
         case "removeCharacter":
           this.removeCharacter(cmd.args.characterId);
@@ -401,12 +329,11 @@ export class State {
   /**
    * Reset the stage immediately to the given state.
    */
-  setState(state: StateDto | null) {
+  setState(state: StateDto) {
     state = clone(state);
-    this._stage.value.sceneId =
-      state?.stage.sceneId || this.scenario.defaultSceneId;
-    this._stage.value.characters = state?.stage.characters || [];
-    this._connectedRenderer?.setStage(state?.stage || null);
+    this._stage.value.sceneId = state.stage.sceneId;
+    this._stage.value.characters = state.stage.characters ?? [];
+    this._connectedRenderer?.setStage(this._stage.value);
   }
 
   /**
@@ -449,10 +376,7 @@ export class State {
     const { writerUpdate, directorUpdate } = currentEpisode.chunks[chunkIndex];
 
     if (directorUpdate?.length) {
-      console.debug(
-        "Applying stage code",
-        stateCommandsToCodeLines(directorUpdate),
-      );
+      console.debug("Applying stage code", directorUpdate);
       this.apply(directorUpdate);
       // TODO: if (scene.busy) await scene.busy;
     }
@@ -465,20 +389,11 @@ export class State {
     };
   }
 
-  setScene(sceneId: string | null, clear: boolean) {
-    if (sceneId) {
-      const scene = this.scenario.findEpisode(sceneId);
-      if (!scene) throw new StateError(`Scene not found: ${sceneId}`);
-      this._stage.value.sceneId = sceneId;
-    } else {
-      this._stage.value.sceneId = null;
-    }
-
-    if (clear) {
-      this._stage.value.characters = [];
-    }
-
-    this._connectedRenderer?.setScene(sceneId, clear);
+  setScene(sceneId: string) {
+    const scene = this.scenario.findScene(sceneId);
+    if (!scene) throw new StateError(`Scene not found: ${sceneId}`);
+    this._stage.value.sceneId = sceneId;
+    this._connectedRenderer?.setScene(sceneId);
   }
 
   addCharacter(characterId: string, outfitId: string, expressionId: string) {
@@ -489,18 +404,12 @@ export class State {
       throw new StateError(`Character already on stage: ${characterId}`);
     }
 
-    const outfit = this.scenario.findOutfit(characterId, outfitId);
-    if (!outfit) {
-      throw new StateError(
-        `Outfit not found for character ${characterId}: ${outfitId}`,
-      );
+    if (!this.scenario.findOutfit(characterId, outfitId)) {
+      throw new StateError(`Outfit not found for character ${characterId}`);
     }
 
-    const expression = this.scenario.findExpression(characterId, expressionId);
-    if (!expression) {
-      throw new StateError(
-        `Expression not found for character ${characterId}: ${expressionId}`,
-      );
+    if (!this.scenario.findExpression(characterId, expressionId)) {
+      throw new StateError(`Expression not found for character ${characterId}`);
     }
 
     this._stage.value.characters.push({
@@ -508,57 +417,54 @@ export class State {
       outfitId,
       expressionId,
     });
+
     this._connectedRenderer?.addCharacter(characterId, outfitId, expressionId);
   }
 
-  setCharacterOutfit(characterId: string, outfitId: string) {
+  setOutfit(characterId: string, outfitId: string) {
     const character = this._stage.value.characters.find(
       (c) => c.id === characterId,
     );
+
     if (!character) {
       throw new StateError(`Character not on stage: ${characterId}`);
     }
 
-    const scenarioCharacter = this.scenario.findCharacter(characterId);
-    if (!scenarioCharacter) {
+    if (!this.scenario.findCharacter(characterId)) {
       throw new StateError(`Character not found in scenario: ${characterId}`);
     }
 
-    const outfit = this.scenario.findOutfit(characterId, outfitId);
-    if (!outfit) {
+    if (!this.scenario.findOutfit(characterId, outfitId)) {
       throw new StateError(
         `Outfit not found for character ${characterId}: ${outfitId}`,
       );
     }
 
     character.outfitId = outfitId;
-
-    this._connectedRenderer?.setCharacterOutfit(characterId, outfitId);
+    this._connectedRenderer?.setOutfit(characterId, outfitId);
   }
 
-  setCharacterExpression(characterId: string, expressionId: string) {
+  setExpression(characterId: string, expressionId: string) {
     const character = this._stage.value.characters.find(
       (c) => c.id === characterId,
     );
+
     if (!character) {
       throw new StateError(`Character not on stage: ${characterId}`);
     }
 
-    const scenarioCharacter = this.scenario.findCharacter(characterId);
-    if (!scenarioCharacter) {
+    if (!this.scenario.findCharacter(characterId)) {
       throw new StateError(`Character not found in scenario: ${characterId}`);
     }
 
-    const expression = this.scenario.findExpression(characterId, expressionId);
-    if (!expression) {
+    if (!this.scenario.findExpression(characterId, expressionId)) {
       throw new StateError(
         `Expression not found for character ${characterId}: ${expressionId}`,
       );
     }
 
     character.expressionId = expressionId;
-
-    this._connectedRenderer?.setCharacterExpression(characterId, expressionId);
+    this._connectedRenderer?.setExpression(characterId, expressionId);
   }
 
   removeCharacter(characterId: string) {
@@ -571,19 +477,8 @@ export class State {
     }
 
     this._stage.value.characters.splice(index, 1);
-
     this._connectedRenderer?.removeCharacter(characterId);
   }
-}
-
-export function emptyStateDto(): StateDto {
-  return {
-    stage: {
-      sceneId: null,
-      characters: [],
-    },
-    currentEpisode: null,
-  };
 }
 
 /**
@@ -593,17 +488,12 @@ function applyCommandsToStateDtoUnsafe(
   state: StateDto | null,
   commands: StateCommand[],
 ): StateDto {
-  state = state || emptyStateDto();
+  state = state || { stage: { sceneId: "", characters: [] } };
 
   for (const cmd of commands) {
     switch (cmd.name) {
       case "setScene": {
         state.stage.sceneId = cmd.args.sceneId;
-
-        if (cmd.args.clearStage) {
-          state.stage.characters = [];
-        }
-
         break;
       }
 
@@ -615,11 +505,10 @@ function applyCommandsToStateDtoUnsafe(
         });
 
         state.stage.characters.sort((a, b) => a.id.localeCompare(b.id));
-
         break;
       }
 
-      case "setCharacterOutfit": {
+      case "setOutfit": {
         state.stage.characters.find(
           (c) => c.id === cmd.args.characterId,
         )!.outfitId = cmd.args.outfitId;
@@ -627,7 +516,7 @@ function applyCommandsToStateDtoUnsafe(
         break;
       }
 
-      case "setCharacterExpression": {
+      case "setExpression": {
         state.stage.characters.find(
           (c) => c.id === cmd.args.characterId,
         )!.expressionId = cmd.args.expressionId;

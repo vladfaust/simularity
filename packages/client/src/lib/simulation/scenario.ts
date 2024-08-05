@@ -9,10 +9,10 @@ import { join, resolve } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { resolveBaseDir } from "../tauri";
 import { safeParseJson } from "../utils";
-import { v } from "../valibot";
-import { StageCommandSchema } from "./state/commands";
+import { formatIssues, v } from "../valibot";
+import { StateCommandSchema } from "./state/commands";
 
-const IdSchema = v.pipe(v.string(), v.regex(/^[a-z][a-zA-Z0-9_-]*$/));
+const IdSchema = v.pipe(v.string(), v.regex(/^[a-zA-Z_][a-zA-Z0-9_-]*$/));
 
 // TODO: Semantic validation (proper IDs, etc.).
 const ScenarioSchema = v.object({
@@ -208,6 +208,24 @@ const ScenarioSchema = v.object({
       relationships: v.optional(v.record(IdSchema, v.string())),
 
       /**
+       * List of character expressions.
+       * The first expression is the default one.
+       */
+      expressions: v.array(IdSchema),
+
+      /**
+       * List of character outfits.
+       * The first outfit is the default one.
+       */
+      outfits: v.record(
+        IdSchema,
+        v.object({
+          name: v.string(),
+          prompt: v.string(),
+        }),
+      ),
+
+      /**
        * A layered sprites avatar comprises the following components:
        *
        * - body,
@@ -221,8 +239,8 @@ const ScenarioSchema = v.object({
         bodies: v.array(v.string()),
 
         /**
-         * Static character expressions (a.k.a. "animations").
-         * The first expression is the default one.
+         * Character expression sprites.
+         * Must match the upper-level `expressions` list.
          */
         expressions: v.record(
           IdSchema,
@@ -240,17 +258,12 @@ const ScenarioSchema = v.object({
         ),
 
         /**
-         * Character outfits.
-         * The first outfit is the default one.
+         * Character outfit sprites.
+         * Must match the upper-level `outfits` list.
          */
         outfits: v.record(
           IdSchema,
           v.object({
-            /**
-             * Outfit prompt.
-             */
-            prompt: v.string(),
-
             /**
              * Outfit sprite files, with index matching the body's.
              */
@@ -322,36 +335,42 @@ const ScenarioSchema = v.object({
       about: v.string(),
 
       /**
-       * Episode image URL.
+       * Episode image path.
        * Recommended aspect ratio: 16:9.
        */
-      imageUrl: v.optional(v.string()),
+      imagePath: v.optional(v.string()),
 
-      checkpoint: v.optional(
-        v.object({
-          summary: v.nullable(v.string()),
-          state: v.object({
-            stage: v.object({
-              sceneId: v.nullable(IdSchema),
-              characters: v.array(
-                v.object({
-                  id: IdSchema,
-                  expressionId: IdSchema,
-                  outfitId: IdSchema,
-                }),
-              ),
-            }),
+      /**
+       * If the scenario begins from this episode,
+       * the initial checkpoint is set here.
+       */
+      initialCheckpoint: v.object({
+        summary: v.nullable(v.string()),
+        state: v.object({
+          stage: v.object({
+            sceneId: IdSchema,
+            characters: v.array(
+              v.object({
+                id: IdSchema,
+                expressionId: IdSchema,
+                outfitId: IdSchema,
+              }),
+            ),
           }),
         }),
-      ),
+      }),
 
       chunks: v.array(
         v.object({
           writerUpdate: v.object({
+            /**
+             * Null for the narrator.
+             */
             characterId: v.nullable(IdSchema),
+
             text: v.string(),
           }),
-          directorUpdate: v.optional(v.array(StageCommandSchema)),
+          directorUpdate: v.optional(v.array(StateCommandSchema)),
         }),
       ),
     }),
@@ -441,9 +460,14 @@ export class Scenario {
     return found;
   }
 
+  defaultOutfitId(characterId: string) {
+    const character = this.ensureCharacter(characterId);
+    return Object.keys(character.outfits)[0];
+  }
+
   findOutfit(characterId: string, outfitId: string) {
     const character = this.ensureCharacter(characterId);
-    const outfit = character.layeredSpritesAvatar?.outfits[outfitId];
+    const outfit = character.outfits[outfitId];
     if (!outfit) return undefined;
     return outfit;
   }
@@ -454,12 +478,15 @@ export class Scenario {
     return found;
   }
 
+  defaultExpressionId(characterId: string) {
+    const character = this.ensureCharacter(characterId);
+    return character.expressions[0];
+  }
+
   findExpression(characterId: string, expressionId: string) {
     const character = this.ensureCharacter(characterId);
-    const expression =
-      character.layeredSpritesAvatar?.expressions[expressionId];
-    if (!expression) return undefined;
-    return expression;
+    if (!character.expressions.includes(expressionId)) return undefined;
+    return expressionId;
   }
 
   ensureExpression(characterId: string, expressionId: string) {
@@ -494,6 +521,10 @@ export class Scenario {
     const found = this.findScene(sceneId);
     if (!found) throw new Error(`Scene not found: ${sceneId}`);
     return found;
+  }
+
+  get episodes() {
+    return this.content.episodes;
   }
 
   findEpisode(episodeId: string) {
@@ -589,9 +620,7 @@ export async function readScenario(
     indexJsonParseResult.output,
   );
   if (!scenarioParseResult.success) {
-    const error = new ParseError(
-      formatValibotError(v.flatten(scenarioParseResult.issues)),
-    );
+    const error = new ParseError(formatIssues(scenarioParseResult.issues));
     return { id, basePath, error };
   }
 
@@ -607,21 +636,4 @@ export async function ensureReadScenario(
   if (scenario instanceof Scenario) return scenario;
 
   throw scenario.error;
-}
-
-/**
- * @example
- * {"nested":{"proto":["Invalid type: Expected string but received undefined"]}}
- * // => "At \"proto\": Invalid type: Expected string but received undefined"
- */
-function formatValibotError(flatErrors: v.FlatErrors<typeof ScenarioSchema>) {
-  let text = "";
-
-  if (flatErrors.nested) {
-    text += Object.entries(flatErrors.nested)
-      .map(([path, errors]) => `At "${path}": ${errors?.join(", ")}`)
-      .join("; ");
-  }
-
-  return text;
 }

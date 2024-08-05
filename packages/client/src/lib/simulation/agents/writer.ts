@@ -223,9 +223,9 @@ export class Writer {
             relationships: character.relationships,
             scenarioPrompt: character.scenarioPrompt,
             canonicalOutfits: Object.fromEntries(
-              Object.entries(character.layeredSpritesAvatar.outfits).map(
-                ([_, outfit]) => [outfit.prompt],
-              ),
+              Object.entries(character.outfits).map(([_, outfit]) => [
+                outfit.prompt,
+              ]),
             ),
           },
         ]),
@@ -436,7 +436,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
             line += `\n<${SYSTEM}> <${command.args.characterId}> leaves the stage.`;
             break;
 
-          case "setCharacterOutfit":
+          case "setOutfit":
             line += `\n<${SYSTEM}> <${command.args.characterId}> changes outfit to "${command.args.outfitId}".`;
             break;
 
@@ -448,14 +448,10 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
               line += `\n<${SYSTEM}> Scene set to undefined (void, empty).`;
             }
 
-            if (command.args.clearStage) {
-              line += " All characters removed from the stage.";
-            }
-
             break;
           }
 
-          case "setCharacterExpression":
+          case "setExpression":
             break;
 
           default:

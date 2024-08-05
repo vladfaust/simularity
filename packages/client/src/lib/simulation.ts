@@ -14,16 +14,8 @@ import {
 } from "./simulation/agents/writer";
 import { Scenario, ensureReadScenario } from "./simulation/scenario";
 import { StageRenderer } from "./simulation/stageRenderer";
-import {
-  State,
-  StateDto,
-  comparesStateDeltas,
-  emptyStateDto,
-} from "./simulation/state";
-import {
-  StateCommand,
-  stateCommandsToCodeLines,
-} from "./simulation/state/commands";
+import { State, StateDto, comparesStateDeltas } from "./simulation/state";
+import { StateCommand } from "./simulation/state/commands";
 import { Update } from "./simulation/update";
 import { assert, assertCallback, clone, unreachable } from "./utils";
 
@@ -51,7 +43,7 @@ export class Simulation {
   private readonly _futureUpdates = ref<Raw<Update>[]>([]);
 
   private _busy = ref(false);
-  private _previousState = shallowRef<StateDto | null>(null);
+  private _previousState = shallowRef<StateDto>();
 
   // TODO: Make it always defined (i.e. simulation is always in valid state).
   private _checkpoint = shallowRef<
@@ -216,8 +208,8 @@ export class Simulation {
           .insert(d.checkpoints)
           .values({
             simulationId: simulation.id,
-            summary: defaultEpisode.checkpoint?.summary,
-            state: defaultEpisode.checkpoint?.state || emptyStateDto(),
+            summary: defaultEpisode.initialCheckpoint.summary,
+            state: defaultEpisode.initialCheckpoint.state,
           })
           .returning({ id: d.checkpoints.id })
       )[0];
@@ -504,6 +496,10 @@ export class Simulation {
       throw new Error("No current update");
     }
 
+    if (!this._previousState.value) {
+      throw new Error("[BUG] No previous state to reset to");
+    }
+
     this._busy.value = true;
     try {
       // Clear the future updates.
@@ -559,6 +555,10 @@ export class Simulation {
       throw new Error(
         `Variant index out of range (${variantIndex}, expected [0, ${currentUpdate.variants.length})`,
       );
+    }
+
+    if (!this._previousState.value) {
+      throw new Error("[BUG] No previous state to reset to");
     }
 
     const newVariant = currentUpdate.variants[variantIndex];
@@ -963,14 +963,8 @@ export class Simulation {
 
     if (directorUpdate) {
       this._dumpCurrentState();
-
-      console.debug(
-        "Applying stage code",
-        stateCommandsToCodeLines(directorUpdate.code),
-      );
-
+      console.debug("Applying stage code", directorUpdate.code);
       this.state.apply(directorUpdate.code);
-
       console.debug("State after applying stage code", this.state.serialize());
     }
   }
@@ -1399,11 +1393,7 @@ export class Simulation {
       const directorUpdate = update.chosenVariant?.directorUpdate;
 
       if (directorUpdate) {
-        console.debug(
-          "Applying stage code",
-          stateCommandsToCodeLines(directorUpdate.code),
-        );
-
+        console.debug("Applying stage code", directorUpdate.code);
         this.state.apply(directorUpdate.code);
       }
 
@@ -1662,8 +1652,7 @@ export class Simulation {
   }
 
   private async _inferDirectorUpdate(inferenceAbortSignal?: AbortSignal) {
-    return;
-    await this.director.value!.inferUpdate(
+    const result = await this.director.value!.inferUpdate(
       this._checkpoint.value!.state,
       this.state.serialize(),
       this._recentUpdates.value,
@@ -1675,6 +1664,8 @@ export class Simulation {
       undefined,
       inferenceAbortSignal,
     );
+
+    console.log(result);
   }
 
   //

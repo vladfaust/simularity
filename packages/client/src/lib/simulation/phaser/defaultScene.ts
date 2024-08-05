@@ -57,9 +57,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       console.debug(`Total failed files: ${this.load.totalFailed}`);
 
       if (this.initialState) {
-        if (this.initialState.sceneId) {
-          this.setScene(this.initialState.sceneId, false);
-        }
+        this.setScene(this.initialState.sceneId);
 
         for (const { id, outfitId, expressionId } of this.initialState
           .characters) {
@@ -127,22 +125,17 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     this.onPreloadProgress?.(1);
   }
 
-  setStage(stage: Stage | null) {
+  setStage(stage: Stage) {
     if (stage) {
-      if (stage.sceneId) {
-        this.setScene(stage.sceneId, stage.characters.length === 0);
-      } else {
-        this.stageScene?.bg.destroy();
-        this.stageScene = null;
-      }
+      this.setScene(stage.sceneId);
 
       // Add or update characters.
       for (const { id, outfitId, expressionId } of stage.characters) {
         if (!this.stageCharacters.has(id)) {
           this.addCharacter(id, outfitId, expressionId);
         } else {
-          this.setCharacterOutfit(id, outfitId);
-          this.setCharacterExpression(id, expressionId);
+          this.setOutfit(id, outfitId);
+          this.setExpression(id, expressionId);
         }
       }
 
@@ -165,41 +158,28 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
   /**
    * Set the scene, clearing it if necessary.
    */
-  setScene(sceneId: string | null, clearScene: boolean) {
-    console.log("setScene", { sceneId, clearScene });
+  setScene(sceneId: string) {
+    console.log("setScene", { sceneId });
 
-    if (sceneId) {
-      const scene = this.scenario.findScene(sceneId);
-      if (!scene) throw new SceneError(`Scene not found: ${sceneId}`);
+    const scene = this.scenario.findScene(sceneId);
+    if (!scene) throw new SceneError(`Scene not found: ${sceneId}`);
 
-      const texture = this._sceneTextureKey(sceneId);
+    const texture = this._sceneTextureKey(sceneId);
 
-      if (this.stageScene) {
-        this.stageScene.bg.setTexture(texture);
-        this.stageScene.qualifiedId = sceneId;
-      } else {
-        const bg = this.add.image(
-          this.game.canvas.width / 2,
-          this.game.canvas.height / 2,
-          texture,
-        );
-
-        this.stageScene = {
-          qualifiedId: sceneId,
-          bg,
-        };
-      }
+    if (this.stageScene) {
+      this.stageScene.bg.setTexture(texture);
+      this.stageScene.qualifiedId = sceneId;
     } else {
-      if (this.stageScene) {
-        this.stageScene.bg.destroy();
-        this.stageScene = null;
-      }
-    }
+      const bg = this.add.image(
+        this.game.canvas.width / 2,
+        this.game.canvas.height / 2,
+        texture,
+      );
 
-    if (clearScene) {
-      for (const characterId of this.stageCharacters.keys()) {
-        this.removeCharacter(characterId);
-      }
+      this.stageScene = {
+        qualifiedId: sceneId,
+        bg,
+      };
     }
   }
 
@@ -210,10 +190,10 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       throw new SceneError(`Character already on scene: ${characterId}`);
     }
 
-    const expression = this.scenario.ensureExpression(
-      characterId,
-      expressionId,
-    );
+    const expression =
+      this.scenario.characters[characterId].layeredSpritesAvatar.expressions[
+        expressionId
+      ];
 
     this.stageCharacters.set(characterId, {
       body: {
@@ -274,7 +254,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     }
   }
 
-  setCharacterOutfit(characterId: string, outfitId: string) {
+  setOutfit(characterId: string, outfitId: string) {
     console.log("setCharacterOutfit", characterId, outfitId);
 
     const character = this.stageCharacters.get(characterId);
@@ -292,7 +272,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     );
   }
 
-  setCharacterExpression(characterId: string, expressionId: string) {
+  setExpression(characterId: string, expressionId: string) {
     console.log("setCharacterExpression", characterId, expressionId);
 
     const character = this.stageCharacters.get(characterId);
@@ -300,10 +280,10 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       throw new SceneError(`Character not on scene: ${characterId}`);
     }
 
-    const expression = this.scenario.ensureExpression(
-      characterId,
-      expressionId,
-    );
+    const expression =
+      this.scenario.characters[characterId].layeredSpritesAvatar.expressions[
+        expressionId
+      ];
 
     character.body.index = expression.bodyId;
     character.body.sprite.setTexture(
