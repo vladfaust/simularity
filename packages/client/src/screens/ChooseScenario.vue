@@ -26,18 +26,21 @@ onMounted(async () => {
       ArrowLeft(:size="20")
       span Back
 
-  ul.grid.p-3(class="2xs:grid-cols-2 xs:grid-cols-3")
-    li.cursor-pointer.overflow-hidden.rounded-lg.border.transition-transform.pressable(
+  ul.grid.gap-2.p-3(class="2xs:grid-cols-2 xs:grid-cols-3")
+    li.overflow-hidden.rounded-lg.border(
       v-for="scenario in scenarios"
       :key="scenario.id"
       :scenario
+      :class="{ 'cursor-pointer transition-transform pressable': scenario instanceof Scenario }"
     )
       RouterLink(
         v-if="scenario instanceof Scenario && true"
         :to="routeLocation({ name: 'NewGame', params: { scenarioId: scenario.id } })"
       )
         ScenarioVue(:scenario)
-      p(v-else) {{ scenario }}
+      .flex.flex-col.p-2(v-else)
+        span.break-all.font-semibold.tracking-wide.text-error-500 Error at {{ scenario.basePath }}
+        code.max-h-48.overflow-scroll.text-xs {{ scenario.error }}
 </template>
 
 <style lang="scss" scoped></style>
