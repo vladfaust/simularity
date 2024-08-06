@@ -12,12 +12,11 @@ import {
 } from "@tauri-apps/api/fs";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import prettyBytes from "pretty-bytes";
-import { computed, onMounted, onUnmounted, ref, shallowRef } from "vue";
-import DeveloperConsole from "./Simulation/DeveloperConsole.vue";
+import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import GameConsole from "./Simulation/GameConsole.vue";
 import Menu from "./Simulation/Menu.vue";
-import SandboxConsole from "./Simulation/SandboxConsole.vue";
 import AiSettingsModal from "./Simulation/AiSettingsModal.vue";
+import DevConsole from "./Simulation/DevConsole.vue";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -29,30 +28,15 @@ const canvasFade = ref(false);
 const fullFade = ref(true);
 const loadProgress = ref(0);
 
-const showConsoleModal = ref(false);
-const showSandboxConsole = ref(false);
+const showDevModal = ref(false);
 const showMenu = ref(false);
 const showAiSettingsModal = ref(false);
-
-// FIXME: Proper episode display.
-const currentEpisodeConsoleObject = computed(() =>
-  simulation.value?.state.currentEpisode.value
-    ? {
-        id: simulation.value?.state.currentEpisode.value.id,
-        chunks: {
-          current:
-            simulation.value?.state.currentEpisode.value.nextChunkIndex - 1,
-          total: simulation.value?.state.currentEpisode.value.totalChunks,
-        },
-      }
-    : null,
-);
 
 function consoleEventListener(event: KeyboardEvent) {
   // Detect tilda key press on different keyboard layouts.
   // FIXME: Enable [, disable when input fields is focused.
   if (["~", "§", "`", ">"].includes(event.key)) {
-    showConsoleModal.value = !showConsoleModal.value;
+    showDevModal.value = !showDevModal.value;
     event.preventDefault();
   }
 }
@@ -184,26 +168,8 @@ onUnmounted(() => {
         :screenshot
         @main-menu="showMenu = true"
         @screenshot="screenshot"
-        @sandbox="showSandboxConsole = !showSandboxConsole"
         @ai-settings="showAiSettingsModal = true"
       )
-
-  TransitionRoot.h-full.shrink-0(
-    class="w-1/3"
-    :unmount="true"
-    :show="showSandboxConsole"
-    enter="transition duration-200 ease-in"
-    enter-from="opacity-0 translate-x-full"
-    enter-to="opacity-100 translate-x-0"
-    leave="transition duration-200 ease-out"
-    leave-from="opacity-100 translate-x-0"
-    leave-to="opacity-0 translate-x-full"
-  )
-    SandboxConsole.h-full(
-      v-if="simulation?.scenario"
-      :scenario="simulation.scenario"
-      :state="simulation.state"
-    )
 
   AiSettingsModal(
     v-if="simulation"
@@ -212,13 +178,11 @@ onUnmounted(() => {
     @close="showAiSettingsModal = false"
   )
 
-  DeveloperConsole(
-    :open="showConsoleModal"
-    :writer="simulation?.writer.value?.gpt"
-    :committed-writer-prompt="simulation?.writer.value?.recentPrompt.value ?? ''"
-    :episode="currentEpisodeConsoleObject"
-    :stage-state-delta="simulation?.previousStateDelta.value ?? []"
-    @close="showConsoleModal = false"
+  DevConsole(
+    v-if="simulation"
+    :open="showDevModal"
+    :simulation
+    @close="showDevModal = false"
   )
 
   Menu(:open="showMenu" @close="showMenu = false" @to-main-menu="toMainMenu")

@@ -160,7 +160,7 @@ const characterPfpUrl = asyncComputed(() =>
 </script>
 
 <template lang="pug">
-.flex.w-full.flex-col.place-self-start.rounded-lg.rounded-bl-none.border-2.bg-white.px-3.py-3.opacity-90.transition-opacity(
+.flex.w-full.flex-col.place-self-start.rounded-lg.border-2.bg-white.px-3.py-3.opacity-90.transition-opacity(
   class="hover:opacity-100"
   :class="rootClass"
 )

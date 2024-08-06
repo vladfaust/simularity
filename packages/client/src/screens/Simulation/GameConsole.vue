@@ -9,7 +9,6 @@ import {
   MenuIcon,
   RedoDotIcon,
   SendHorizontalIcon,
-  ShapesIcon,
   SkipForwardIcon,
   SquareIcon,
   UndoDotIcon,
@@ -36,7 +35,6 @@ const { simulation, fadeCanvas, screenshot } = defineProps<{
 
 const emit = defineEmits<{
   (event: "mainMenu"): void;
-  (event: "sandbox"): void;
   (event: "aiSettings"): void;
 }>();
 
@@ -437,8 +435,6 @@ function switchUpdatesFullscreen() {
           span.text-white {{ willConsolidate ? "Will consolidate" : "Do not consolidate" }}
 
     .flex.gap-2
-      button._status-button(@click="emit('sandbox')")
-        ShapesIcon(:size="20")
       button._status-button(@click="emit('mainMenu')")
         MenuIcon(:size="20")
 </template>
