@@ -8,6 +8,9 @@ const props = defineProps<{
   characterId: string;
   outfitId?: string;
   expressionId?: string;
+  translateX?: number;
+  translateY?: number;
+  scale?: number;
 }>();
 
 const character = computed(() =>
@@ -46,12 +49,18 @@ const outfitSrc = asyncComputed(() =>
     ],
   ),
 );
+
+const style = computed(() => ({
+  transform: `translate(${props.translateX || 0}px, ${props.translateY || 0}px) scale(${
+    props.scale || 1
+  })`,
+}));
 </script>
 
 <template lang="pug">
 //- TODO: Render to a canvas element instead of using img tags.
-.relative.select-none
-  img.absolute.h-full.w-full.object-cover(:src="bodySrc")
-  img.absolute.h-full.w-full.object-cover(:src="outfitSrc")
-  img.absolute.h-full.w-full.object-cover(:src="expressionSrc")
+.relative.select-none.overflow-hidden
+  img.absolute.h-full.w-full.object-cover(:src="bodySrc" :style)
+  img.absolute.h-full.w-full.object-cover(:src="outfitSrc" :style)
+  img.absolute.h-full.w-full.object-cover(:src="expressionSrc" :style)
 </template>

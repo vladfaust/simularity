@@ -41,6 +41,18 @@ const sceneBgUrl = asyncComputed(() =>
   ),
 );
 
+const expressionPreviewTranform = computed(
+  () =>
+    simulation.scenario.ensureCharacter(characterId).layeredSpritesAvatar
+      .expressionsPreviewTransform,
+);
+
+const outfitPreviewTranform = computed(
+  () =>
+    simulation.scenario.ensureCharacter(characterId).layeredSpritesAvatar
+      .outfitsPreviewTransform,
+);
+
 function selectOutfitId(outfitId: string) {
   selectedOutfitId.value = outfitId;
 
@@ -110,6 +122,9 @@ function removeFromStage() {
         :character-id
         :outfit-id
         :expression-id="selectedExpressionId"
+        :translate-x="outfitPreviewTranform?.x"
+        :translate-y="outfitPreviewTranform?.y"
+        :scale="outfitPreviewTranform?.scale"
         @click="selectOutfitId(outfitId)"
       )
 
@@ -124,6 +139,9 @@ function removeFromStage() {
         :character-id
         :outfit-id="selectedOutfitId"
         :expression-id
+        :translate-x="expressionPreviewTranform?.x"
+        :translate-y="expressionPreviewTranform?.y"
+        :scale="expressionPreviewTranform?.scale"
         @click="selectExpressionId(expressionId)"
       )
 

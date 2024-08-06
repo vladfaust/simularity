@@ -14,6 +14,23 @@ import { StateCommandSchema } from "./state/commands";
 
 const IdSchema = v.pipe(v.string(), v.regex(/^[a-zA-Z_][a-zA-Z0-9_-]*$/));
 
+const SpriteTransformSchema = v.object({
+  /**
+   * X-axis offset in pixels.
+   */
+  x: v.optional(v.number()),
+
+  /**
+   * Y-axis offset in pixels.
+   */
+  y: v.optional(v.number()),
+
+  /**
+   * Scale factor.
+   */
+  scale: v.optional(v.number()),
+});
+
 // TODO: Semantic validation (proper IDs, etc.).
 const ScenarioSchema = v.object({
   /**
@@ -233,6 +250,18 @@ const ScenarioSchema = v.object({
        * - and outfit.
        */
       layeredSpritesAvatar: v.object({
+        /**
+         * Expressions preview transformation settings,
+         * e.g. for the character selection screen.
+         */
+        expressionsPreviewTransform: v.optional(SpriteTransformSchema),
+
+        /**
+         * Outfits preview transformation settings,
+         * e.g. for the character selection screen.
+         */
+        outfitsPreviewTransform: v.optional(SpriteTransformSchema),
+
         /**
          * Body sprite files.
          */
