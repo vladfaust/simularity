@@ -58,6 +58,12 @@ export const writerUpdates = sqliteTable(
 
     text: text("text").notNull(),
 
+    /**
+     * Direct Preference of the update (for DPO).
+     * True if the update is preferred, false otherwise.
+     */
+    preference: integer("preference", { mode: "boolean" }),
+
     createdAt: text("created_at")
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

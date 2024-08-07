@@ -1001,6 +1001,45 @@ export class Simulation {
     this._futureUpdates.value.push(...updates);
   }
 
+  /**
+   * Prefer, disprefer or remove preference from writer update.
+   */
+  async preferWriterUpdate(update: Update, preference: boolean | null) {
+    const writerUpdate = update.ensureChosenVariant.writerUpdate;
+
+    if (writerUpdate.preference === preference) {
+      console.warn("Writer update preference is already set to", preference);
+      return;
+    }
+
+    await d.db
+      .update(d.writerUpdates)
+      .set({ preference })
+      .where(eq(d.writerUpdates.id, writerUpdate.id));
+
+    writerUpdate.preference = preference;
+  }
+
+  /**
+   * Prefer, disprefer or remove preference from a director update.
+   */
+  async preferDirectorUpdate(update: Update, preference: boolean | null) {
+    const directorUpdate = update.ensureChosenVariant.directorUpdate;
+    if (!directorUpdate) throw new Error("BUG: No update to prefer");
+
+    if (directorUpdate.preference === preference) {
+      console.warn("Director update preference is already set to", preference);
+      return;
+    }
+
+    await d.db
+      .update(d.directorUpdates)
+      .set({ preference })
+      .where(eq(d.directorUpdates.id, directorUpdate.id));
+
+    directorUpdate.preference = preference;
+  }
+
   //#region Private methods
   //
 
@@ -1044,6 +1083,7 @@ export class Simulation {
                 ${d.writerUpdates.episodeId.name},
                 ${d.writerUpdates.episodeChunkIndex.name},
                 ${d.writerUpdates.llamaInferenceId.name},
+                ${d.writerUpdates.preference.name},
                 ${d.writerUpdates.createdAt.name}
               FROM
                 ${writerUpdatesTableName}
@@ -1062,6 +1102,7 @@ export class Simulation {
                 parent.${d.writerUpdates.episodeId.name},
                 parent.${d.writerUpdates.episodeChunkIndex.name},
                 parent.${d.writerUpdates.llamaInferenceId.name},
+                parent.${d.writerUpdates.preference.name},
                 parent.${d.writerUpdates.createdAt.name}
               FROM
                 ${writerUpdatesTableName} parent
@@ -1116,6 +1157,7 @@ export class Simulation {
                 ${d.writerUpdates.episodeId.name},
                 ${d.writerUpdates.episodeChunkIndex.name},
                 ${d.writerUpdates.llamaInferenceId.name},
+                ${d.writerUpdates.preference.name},
                 ${d.writerUpdates.createdAt.name}
               FROM
                 ${writerUpdatesTableName}
@@ -1135,6 +1177,7 @@ export class Simulation {
                 next.${d.writerUpdates.episodeId.name},
                 next.${d.writerUpdates.episodeChunkIndex.name},
                 next.${d.writerUpdates.llamaInferenceId.name},
+                next.${d.writerUpdates.preference.name},
                 next.${d.writerUpdates.createdAt.name}
               FROM
                 ${writerUpdatesTableName} next

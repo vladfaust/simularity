@@ -41,6 +41,7 @@ const MIGRATIONS: Migration[] = [
   await import(
     "./drizzle/migrations/015_add_starter_episode_id_to_simulations.js"
   ),
+  await import("./drizzle/migrations/016_add_preference_to_updates.js"),
 ];
 
 const databaseUrl = await join(

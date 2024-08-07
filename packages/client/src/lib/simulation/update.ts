@@ -26,11 +26,12 @@ export class Update {
         | "createdByPlayer"
         | "episodeId"
         | "episodeChunkIndex"
+        | "preference"
         | "createdAt"
       >;
       directorUpdate?: Pick<
         typeof d.directorUpdates.$inferSelect,
-        "id" | "code" | "createdAt"
+        "id" | "code" | "preference" | "createdAt"
       > | null;
     }[] = [],
     chosenVariantIndex = 0,

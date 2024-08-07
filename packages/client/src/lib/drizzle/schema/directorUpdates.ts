@@ -25,6 +25,12 @@ export const directorUpdates = sqliteTable(
 
     code: text("code", { mode: "json" }).$type<StateCommand[]>().notNull(),
 
+    /**
+     * Direct Preference of the update (for DPO).
+     * True if the update is preferred, false otherwise.
+     */
+    preference: integer("preference", { mode: "boolean" }),
+
     createdAt: text("created_at")
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

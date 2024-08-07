@@ -9,6 +9,8 @@ import {
   CircleChevronRight,
   CircleSlashIcon,
   Edit3Icon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import Contenteditable from "vue-contenteditable";
@@ -157,6 +159,27 @@ const characterPfpUrl = asyncComputed(() =>
     ? props.simulation.scenario.getCharacterPfpUrl(characterId.value)
     : undefined,
 );
+
+const preferenceInProgress = ref(false);
+async function prefer(preference: boolean) {
+  preferenceInProgress.value = true;
+
+  try {
+    if (
+      props.update.ensureChosenVariant.writerUpdate.preference === preference
+    ) {
+      console.debug(
+        `Preference already set to ${preference}, resetting to null`,
+      );
+      await props.simulation.preferWriterUpdate(props.update, null);
+    } else {
+      console.debug("Setting preference to", preference);
+      await props.simulation.preferWriterUpdate(props.update, preference);
+    }
+  } finally {
+    preferenceInProgress.value = false;
+  }
+}
 </script>
 
 <template lang="pug">
@@ -183,6 +206,21 @@ const characterPfpUrl = asyncComputed(() =>
     //- Buttons.
     .flex.items-center.gap-2
       span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
+
+      .flex.items-center.gap-1
+        button.btn-pressable(
+          :class="{ 'text-success-500': update.chosenVariant?.writerUpdate.preference === true }"
+          @click="prefer(true)"
+          :disabled="preferenceInProgress"
+        )
+          ThumbsUpIcon(:size="18" style="margin-top: -0.3rem")
+
+        button.btn-pressable(
+          :class="{ 'text-error-500': update.chosenVariant?.writerUpdate.preference === false }"
+          @click="prefer(false)"
+          :disabled="preferenceInProgress"
+        )
+          ThumbsDownIcon(:size="18" style="margin-top: 0.3rem")
 
       //- Variant navigation.
       .flex.items-center.gap-1(
