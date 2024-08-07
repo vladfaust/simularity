@@ -5,6 +5,8 @@ import { asyncComputed } from "@vueuse/core";
 import { computed } from "vue";
 import CharacterAvatar from "@/components/CharacterAvatar.vue";
 import { ref } from "vue";
+import OnStageMark from "../OnStageMark.vue";
+import { Grid2x2Icon, Grid2x2XIcon } from "lucide-vue-next";
 
 const { simulation, characterId, character } = defineProps<{
   simulation: Simulation;
@@ -86,34 +88,40 @@ function removeFromStage() {
 .grid.grid-cols-2.divide-x.overflow-y-hidden
   //- Info.
   .flex.h-full.flex-col.items-center.gap-1.overflow-y-auto.p-3
-    //- Pfp.
-    img.aspect-square.w-32.rounded-lg.border-2.border-white.object-cover.shadow-lg(
-      v-if="pfpUrl"
-      :src="pfpUrl"
-    )
-    Placeholder.aspect-square.w-32.rounded-lg.border-2.border-white.shadow-lg(
-      v-else
-    )
+    .relative
+      //- Pfp.
+      img.aspect-square.w-24.rounded-lg.border-2.border-white.object-cover.shadow-lg(
+        v-if="pfpUrl"
+        :src="pfpUrl"
+      )
+      Placeholder.aspect-square.w-24.rounded-lg.border-2.border-white.shadow-lg(
+        v-else
+      )
+      OnStageMark.absolute.-bottom-1.-right-1.shadow-lg(v-if="isOnStage")
 
     //- Info.
-    span.mt-2.text-lg.font-semibold.leading-tight(
-      :style="{ color: character.color }"
-    ) {{ character.name }}
+    span.mt-2.font-semibold.leading-tight(:style="{ color: character.color }") {{ character.name }}
     p.text-center.text-sm.leading-tight {{ character.about }}
 
     //- Add/remove from stage button.
     button.btn.btn-md.btn-error.btn-pressable.mt-1.rounded(
       v-if="isOnStage"
       @click="removeFromStage"
-    ) Remove from stage
+      title="Remove from stage"
+    )
+      Grid2x2XIcon(:size="16" :stroke-width="3")
+      | Remove
     button.btn.btn-md.btn-primary.btn-pressable.mt-1.rounded(
       v-else
       @click="addToStage"
-    ) Add to stage
+      title="Add to stage"
+    )
+      Grid2x2Icon(:size="16" :stroke-width="3")
+      | Add
 
     //- Outfits.
     h1.font-semibold.tracking-wide Outfits
-    ul.grid.w-full.grid-cols-3.gap-2
+    ul.grid.w-full.gap-2(class="max-lg:grid-cols-2 lg:grid-cols-3")
       CharacterAvatar.h-24.w-full.cursor-pointer.rounded-lg.border-2.shadow-lg.transition-transform.pressable-sm(
         v-for="outfitId of Object.keys(character.outfits)"
         :key="outfitId"
@@ -130,7 +138,7 @@ function removeFromStage() {
 
     //- Expressions.
     h1.font-semibold.tracking-wide Expressions
-    ul.grid.w-full.grid-cols-3.gap-2
+    ul.grid.w-full.gap-2(class="max-lg:grid-cols-2 lg:grid-cols-3")
       CharacterAvatar.h-24.w-full.cursor-pointer.rounded-lg.border-2.shadow-lg.transition-transform.pressable-sm(
         v-for="expressionId of (character.expressions)"
         :key="expressionId"

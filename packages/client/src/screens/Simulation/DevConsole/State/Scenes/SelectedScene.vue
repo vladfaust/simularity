@@ -2,6 +2,8 @@
 import { Scenario, Simulation } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
 import { computed } from "vue";
+import OnStageMark from "../OnStageMark.vue";
+import { Grid2X2Icon } from "lucide-vue-next";
 
 const { simulation, sceneId, scene } = defineProps<{
   simulation: Simulation;
@@ -19,11 +21,19 @@ function set() {
 
 <template lang="pug">
 .flex.h-full.flex-col.items-center.gap-2.overflow-y-auto
-  img.aspect-video.rounded-lg.object-cover.shadow-lg(v-if="bgUrl" :src="bgUrl")
-  span.mt-1.text-center.text-lg.font-semibold.leading-tight {{ scene.name }}
+  .relative
+    img.aspect-video.rounded-lg.border-2.border-white.object-cover.shadow-lg(
+      v-if="bgUrl"
+      :src="bgUrl"
+    )
+    OnStageMark.absolute.-bottom-1.-right-1.shadow-lg(v-if="isSet")
+  span.mt-1.text-center.font-semibold.leading-tight {{ scene.name }}
   button.btn.btn-md.btn-primary.btn-pressable.rounded(
     :disabled="isSet"
     @click="set"
-  ) Set as scene
+    title="Set scene"
+  )
+    Grid2X2Icon(:size="16" :stroke-width="3")
+    | Set
   p.text-center.font-mono.text-sm.leading-tight {{ scene.prompt }}
 </template>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Simulation } from "@/lib/simulation";
-import { CheckSquare2Icon, CircleOffIcon, DramaIcon } from "lucide-vue-next";
+import { CircleOffIcon, DramaIcon } from "lucide-vue-next";
 import { ref } from "vue";
 import Character from "./Characters/Character.vue";
 import SelectedCharacter from "./Characters/SelectedCharacter.vue";
+import OnStageMark from "./OnStageMark.vue";
 
 const { simulation } = defineProps<{
   simulation: Simulation;
@@ -23,17 +24,12 @@ const selectedCharacterId = ref<string | undefined>(
     //- Header.
     .flex.w-full.gap-2.border-b.p-3
       .flex.items-center.gap-1
-        DramaIcon(:size="24")
-        h1.text-lg.font-semibold.tracking-wide Characters
-      .flex.w-full
-        input.w-full.grow.rounded-lg.bg-neutral-100.px-2(
-          type="text"
-          placeholder="Filter..."
-        )
+        DramaIcon(:size="20")
+        h1.font-semibold.tracking-wide Characters
 
     //- Characters list.
     .h-full.overflow-y-auto(@click="selectedCharacterId = undefined")
-      ul.grid.grid-cols-3.gap-2.p-3
+      ul.grid.gap-2.p-3(class="max-lg:grid-cols-2 lg:grid-cols-3")
         li.relative.h-max.cursor-pointer.drop-shadow-lg.transition-transform.pressable-sm(
           v-for="[characterId, character] in Object.entries(simulation.scenario.characters).slice(1)"
           :key="characterId"
@@ -44,10 +40,9 @@ const selectedCharacterId = ref<string | undefined>(
             :is-selected="selectedCharacterId === characterId"
             @click.stop="selectedCharacterId = characterId"
           )
-          .absolute.-bottom-1.-right-1.rounded-lg.bg-primary-500.p-1.shadow-lg(
+          OnStageMark.absolute.-bottom-1.-right-1.shadow-lg(
             v-if="simulation.state.stage.value.characters.find((c) => c.id === characterId)"
           )
-            CheckSquare2Icon.text-white(:size="20")
 
   //- Selected character.
   SelectedCharacter.col-span-2.border-l(
