@@ -1,8 +1,16 @@
 import * as settings from "@/settings";
 import { latestDirectorSession, latestWriterSession } from "@/store";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
-import { Raw, computed, markRaw, readonly, ref, shallowRef } from "vue";
+import {
+  Raw,
+  computed,
+  markRaw,
+  readonly,
+  ref,
+  shallowRef,
+  triggerRef,
+} from "vue";
 import { d, parseSelectResult, sqlite } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
 import { InferenceOptions } from "./simularity/common";
@@ -14,10 +22,10 @@ import {
 } from "./simulation/agents/writer";
 import { Scenario, ensureReadScenario } from "./simulation/scenario";
 import { StageRenderer } from "./simulation/stageRenderer";
-import { State, StateDto, comparesStateDeltas } from "./simulation/state";
+import { State, StateDto, compareStateDeltas } from "./simulation/state";
 import { StateCommand } from "./simulation/state/commands";
 import { Update } from "./simulation/update";
-import { assert, assertCallback, clone, unreachable } from "./utils";
+import { assert, assertCallback, unreachable } from "./utils";
 
 export { Scenario, State };
 
@@ -169,6 +177,8 @@ export class Simulation {
    */
   readonly busy = readonly(this._busy);
 
+  readonly previousState = computed(() => this._previousState.value);
+
   readonly previousStateDelta = computed(() => {
     return this._previousState.value
       ? this.state.delta(this._previousState.value)
@@ -313,8 +323,6 @@ export class Simulation {
 
     this._busy.value = true;
     try {
-      await this._commitCurrentState();
-
       const { episodeId, chunkIndex, writerUpdate, directorUpdate } =
         await this.state.advanceCurrentEpisode();
 
@@ -337,7 +345,9 @@ export class Simulation {
       });
 
       // Add the new episode update to the recent updates.
-      const episodeUpdate = markRaw(new Update(parentUpdateId, [incoming]));
+      const episodeUpdate = markRaw(
+        new Update(parentUpdateId, shallowRef([incoming])),
+      );
       this._recentUpdates.value.push(episodeUpdate);
 
       // Decode the resulting prompt.
@@ -375,6 +385,7 @@ export class Simulation {
     this._busy.value = true;
     try {
       await this._commitCurrentState();
+      this._dumpCurrentState();
 
       const parentUpdateId =
         this.currentUpdate.value?.chosenVariant?.writerUpdate.id;
@@ -393,7 +404,7 @@ export class Simulation {
       if (this._futureUpdates.value.length) {
         // Add a new variant to the existing next update.
         const update = this._futureUpdates.value.shift()!;
-        update.variants.push(saved);
+        update.variants.value.push(saved);
         update.setChosenVariantToLast();
 
         // Shift the future update to the recent updates.
@@ -403,7 +414,7 @@ export class Simulation {
         this._futureUpdates.value = [];
       } else {
         // Create a new update object.
-        const update = markRaw(new Update(parentUpdateId, [saved]));
+        const update = markRaw(new Update(parentUpdateId, shallowRef([saved])));
 
         // Add the new update to the recent updates.
         this._recentUpdates.value.push(update);
@@ -436,9 +447,9 @@ export class Simulation {
       throw new Error("Writer is not initialized");
     }
 
-    if (!this.director.value) {
-      throw new Error("Director is not initialized");
-    }
+    // if (!this.director.value) {
+    //   throw new Error("Director is not initialized");
+    // }
 
     if (this.state.shallAdvanceEpisode.value) {
       throw new Error("Cannot create assistant update during an episode");
@@ -452,6 +463,7 @@ export class Simulation {
 
     try {
       await this._commitCurrentState();
+      this._dumpCurrentState();
 
       const update = markRaw(
         new Update(this.currentUpdate.value?.chosenVariant?.writerUpdate.id),
@@ -515,6 +527,7 @@ export class Simulation {
       this._futureUpdates.value = [];
 
       // Reset the state to the previous one.
+      await this._commitCurrentState();
       this.state.setState(this._previousState.value);
       console.debug("State after reset", this.state.serialize());
 
@@ -560,9 +573,11 @@ export class Simulation {
       throw new Error("No current update");
     }
 
-    if (!(variantIndex >= 0 && variantIndex < currentUpdate.variants.length)) {
+    if (
+      !(variantIndex >= 0 && variantIndex < currentUpdate.variants.value.length)
+    ) {
       throw new Error(
-        `Variant index out of range (${variantIndex}, expected [0, ${currentUpdate.variants.length})`,
+        `Variant index out of range (${variantIndex}, expected [0, ${currentUpdate.variants.value.length})`,
       );
     }
 
@@ -570,12 +585,24 @@ export class Simulation {
       throw new Error("[BUG] No previous state to reset to");
     }
 
-    const newVariant = currentUpdate.variants[variantIndex];
+    await this._commitCurrentState();
+
+    currentUpdate.chosenVariantIndex.value = variantIndex;
+    const newVariant = currentUpdate.ensureChosenVariant;
 
     // Synchronize the state with the chosen variant.
     this.state.setState(this._previousState.value);
+    if (newVariant.directorUpdate === undefined) {
+      console.debug("Fetching applied director update for the chosen variant");
+      newVariant.directorUpdate = await Simulation._fetchAppliedDirectorUpdate(
+        newVariant.writerUpdate.id,
+      );
+    }
     const code = newVariant.directorUpdate?.code;
-    if (code) this.state.apply(code);
+    if (code) {
+      console.debug("Applying director update code", code);
+      this.state.apply(code);
+    }
 
     // Fetch new future updates.
     this._futureUpdates.value = newVariant.writerUpdate.nextUpdateId
@@ -614,7 +641,7 @@ export class Simulation {
    * @assert There are changes to apply.
    */
   async editUpdateVariant(
-    variant: (typeof Update.prototype.variants)[0],
+    variant: (typeof Update.prototype.variants)["value"][0],
     newText?: string,
     newCharacterId?: string | null,
   ) {
@@ -786,6 +813,8 @@ export class Simulation {
   async goBack() {
     if (!this.canGoBack.value) throw new Error("Cannot go back");
 
+    await this._commitCurrentState();
+
     if (this._recentUpdates.value.length > 1) {
       console.debug("Going back to the previous recent update");
 
@@ -847,6 +876,8 @@ export class Simulation {
       console.warn("Already at the current update");
       return;
     }
+
+    await this._commitCurrentState();
 
     // Jump to a historical update, which may be of a different checkpoint,
     // thus requiring full refetch.
@@ -953,12 +984,19 @@ export class Simulation {
       );
     }
 
+    await this._commitCurrentState();
+    this._dumpCurrentState();
+
     this._recentUpdates.value.push(nextCurrentUpdate);
 
     const variant = nextCurrentUpdate.chosenVariant;
     if (!variant) throw new Error("BUG: No chosen variant");
 
     const directorUpdate = variant.directorUpdate;
+    console.debug("directorUpdate", directorUpdate);
+
+    // FIXME: It should be `(directorUpdate === undefined)`,
+    // but it's sometimes `null`.
     if (directorUpdate === undefined) {
       console.debug(
         "Fetching missing director update for",
@@ -971,11 +1009,16 @@ export class Simulation {
     }
 
     if (directorUpdate) {
-      this._dumpCurrentState();
       console.debug("Applying stage code", directorUpdate.code);
       this.state.apply(directorUpdate.code);
       console.debug("State after applying stage code", this.state.serialize());
     }
+
+    // Update simulation's current update ID.
+    await d.db
+      .update(d.simulations)
+      .set({ currentUpdateId: variant.writerUpdate.id })
+      .where(eq(d.simulations.id, this.id));
   }
 
   /**
@@ -1038,6 +1081,42 @@ export class Simulation {
       .where(eq(d.directorUpdates.id, directorUpdate.id));
 
     directorUpdate.preference = preference;
+  }
+
+  /**
+   * Manually overwrite the director update of the current update.
+   * Will prefer it over the other director updates for the same writer update.
+   */
+  async overwriteDirectorUpdate(update: Update, code: StateCommand[]) {
+    const writerUpdateId = update.ensureChosenVariant.writerUpdate.id;
+
+    console.log("Overwriting director update", {
+      writerUpdateId,
+      code,
+    });
+
+    const directorUpdate = await d.db.transaction(async (tx) => {
+      // Un-prefer the previous director updates.
+      await tx
+        .update(d.directorUpdates)
+        .set({ preference: false })
+        .where(eq(d.directorUpdates.writerUpdateId, writerUpdateId));
+
+      // Create a new preferred director update.
+      return (
+        await tx
+          .insert(d.directorUpdates)
+          .values({
+            writerUpdateId,
+            preference: true,
+            code,
+          })
+          .returning()
+      )[0];
+    });
+
+    update.ensureChosenVariant.directorUpdate = directorUpdate;
+    triggerRef(update.variants);
   }
 
   //#region Private methods
@@ -1206,7 +1285,7 @@ export class Simulation {
     return (
       (await d.db.query.directorUpdates.findFirst({
         where: eq(d.directorUpdates.writerUpdateId, writerUpdateId),
-        orderBy: asc(d.directorUpdates.createdAt),
+        orderBy: desc(d.directorUpdates.createdAt),
       })) ?? null
     );
   }
@@ -1244,14 +1323,18 @@ export class Simulation {
     const update = markRaw(
       new Update(
         writerUpdate.parentUpdateId,
-        siblings.map((sibling) => ({
-          writerUpdate: sibling,
-        })),
+        shallowRef(
+          siblings.map((sibling) => ({
+            writerUpdate: sibling,
+          })),
+        ),
       ),
     );
 
     update.chosenVariantIndex.value = assertCallback(
-      update.variants.findIndex((v) => v.writerUpdate.id === writerUpdate.id),
+      update.variants.value.findIndex(
+        (v) => v.writerUpdate.id === writerUpdate.id,
+      ),
       (index) => index >= 0,
       "BUG: Chosen variant not found in siblings",
     );
@@ -1318,9 +1401,9 @@ export class Simulation {
       console.debug("Writer initialization progress", event.progress);
     });
 
-    this._initDirector((event) => {
-      console.debug("Director initialization progress", event.progress);
-    });
+    // this._initDirector((event) => {
+    //   console.debug("Director initialization progress", event.progress);
+    // });
   }
 
   /**
@@ -1442,6 +1525,7 @@ export class Simulation {
       this._recentUpdates.value.length - (includeCurrentUpdate ? 0 : 1)
     ) {
       const update = this._recentUpdates.value[i];
+      console.debug("Applying update", update.chosenVariant?.writerUpdate.text);
       const directorUpdate = update.chosenVariant?.directorUpdate;
 
       if (directorUpdate) {
@@ -1512,14 +1596,13 @@ export class Simulation {
    */
   private _dumpCurrentState() {
     this._previousState.value = this.state.serialize();
-    console.debug("Saved previous state", clone(this._previousState.value));
+    console.debug("Saved previous state", this._previousState.value);
   }
 
   /**
    * Check the current state, and save it as a new director update if
    * it differs from the current update's applied director update
    * (e.g. the user has changed it from the sandbox console).
-   * Dumps the current state to {@link _previousState} afterwards.
    */
   // TODO: Same applies to a user update, when it has code.
   private async _commitCurrentState() {
@@ -1531,11 +1614,13 @@ export class Simulation {
 
       console.debug(
         "Latest director update delta",
+        update.chosenVariant?.writerUpdate,
+        update.chosenVariant?.directorUpdate,
         update.chosenVariant?.directorUpdate?.code,
       );
 
       const deltasEqual = update.chosenVariant?.directorUpdate
-        ? comparesStateDeltas(
+        ? compareStateDeltas(
             this.state.serialize(),
             actualDelta,
             update.chosenVariant.directorUpdate.code,
@@ -1554,6 +1639,7 @@ export class Simulation {
           .values({
             writerUpdateId: update.ensureChosenVariant.writerUpdate.id,
             code: actualDelta,
+            preference: true, // Because these are manual changes.
           })
           .returning()
           .then((directorUpdates) => {
@@ -1561,8 +1647,6 @@ export class Simulation {
           });
       }
     }
-
-    this._dumpCurrentState();
   }
 
   /**
@@ -1691,7 +1775,7 @@ export class Simulation {
         },
       });
 
-      update.variants.push({
+      update.variants.value.push({
         writerUpdate,
         directorUpdate: null,
       });
@@ -1704,20 +1788,21 @@ export class Simulation {
   }
 
   private async _inferDirectorUpdate(inferenceAbortSignal?: AbortSignal) {
-    const result = await this.director.value!.inferUpdate(
-      this._checkpoint.value!.state,
-      this.state.serialize(),
-      this._recentUpdates.value,
-      256,
-      { temp: 0.5 },
-      (e) => {
-        console.log(`Director decoding progress: ${e.progress}`);
-      },
-      undefined,
-      inferenceAbortSignal,
-    );
+    return;
+    // const result = await this.director.value!.inferUpdate(
+    //   this._checkpoint.value!.state,
+    //   this.state.serialize(),
+    //   this._recentUpdates.value,
+    //   256,
+    //   { temp: 0.5 },
+    //   (e) => {
+    //     console.log(`Director decoding progress: ${e.progress}`);
+    //   },
+    //   undefined,
+    //   inferenceAbortSignal,
+    // );
 
-    console.log(result);
+    // console.log(result);
   }
 
   //

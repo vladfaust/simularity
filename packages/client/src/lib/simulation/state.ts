@@ -126,7 +126,7 @@ export class State {
    * For example, if current state has a character that the other state
    * does not, the delta will include an `"add_character"` call.
    */
-  delta(otherState?: StateDto): StateCommand[] {
+  delta(otherState?: Readonly<StateDto>): StateCommand[] {
     const delta: StateCommand[] = [];
 
     if (this._stage.value.sceneId !== otherState?.stage.sceneId) {
@@ -329,7 +329,7 @@ export class State {
   /**
    * Reset the stage immediately to the given state.
    */
-  setState(state: StateDto) {
+  setState(state: Readonly<StateDto>) {
     state = clone(state);
     this._stage.value.sceneId = state.stage.sceneId;
     this._stage.value.characters = state.stage.characters ?? [];
@@ -486,7 +486,7 @@ export class State {
  */
 function applyCommandsToStateDtoUnsafe(
   state: StateDto | null,
-  commands: StateCommand[],
+  commands: Readonly<StateCommand[]>,
 ): StateDto {
   state = state || { stage: { sceneId: "", characters: [] } };
 
@@ -544,12 +544,12 @@ function applyCommandsToStateDtoUnsafe(
  * Compare two state command lists and return whether
  * — if applied to `base` — they result in equivalent states.
  */
-export function comparesStateDeltas(
-  base: StateDto | null,
-  commandsA: StateCommand[],
-  commandsB: StateCommand[],
+export function compareStateDeltas(
+  base: Readonly<StateDto> | null,
+  commandsA: Readonly<StateCommand[]>,
+  commandsB: Readonly<StateCommand[]>,
 ): boolean {
-  const stateA = applyCommandsToStateDtoUnsafe(base, commandsA);
-  const stateB = applyCommandsToStateDtoUnsafe(base, commandsB);
+  const stateA = applyCommandsToStateDtoUnsafe(clone(base), commandsA);
+  const stateB = applyCommandsToStateDtoUnsafe(clone(base), commandsB);
   return deepEqual(stateA, stateB);
 }

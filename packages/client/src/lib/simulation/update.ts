@@ -1,5 +1,5 @@
 import { d } from "@/lib/drizzle";
-import { ref } from "vue";
+import { ref, shallowRef, ShallowRef } from "vue";
 
 export class Update {
   readonly chosenVariantIndex = ref(0);
@@ -14,33 +14,35 @@ export class Update {
 
   constructor(
     readonly parentId: string | null | undefined,
-    public variants: {
-      writerUpdate: Pick<
-        typeof d.writerUpdates.$inferSelect,
-        | "id"
-        | "nextUpdateId"
-        | "checkpointId"
-        | "didConsolidate"
-        | "characterId"
-        | "text"
-        | "createdByPlayer"
-        | "episodeId"
-        | "episodeChunkIndex"
-        | "preference"
-        | "createdAt"
-      >;
-      directorUpdate?: Pick<
-        typeof d.directorUpdates.$inferSelect,
-        "id" | "code" | "preference" | "createdAt"
-      > | null;
-    }[] = [],
+    public variants: ShallowRef<
+      {
+        writerUpdate: Pick<
+          typeof d.writerUpdates.$inferSelect,
+          | "id"
+          | "nextUpdateId"
+          | "checkpointId"
+          | "didConsolidate"
+          | "characterId"
+          | "text"
+          | "createdByPlayer"
+          | "episodeId"
+          | "episodeChunkIndex"
+          | "preference"
+          | "createdAt"
+        >;
+        directorUpdate?: Pick<
+          typeof d.directorUpdates.$inferSelect,
+          "id" | "code" | "preference" | "createdAt"
+        > | null;
+      }[]
+    > = shallowRef([]),
     chosenVariantIndex = 0,
   ) {
     this.chosenVariantIndex.value = chosenVariantIndex;
   }
 
   get chosenVariant() {
-    return this.variants.at(this.chosenVariantIndex.value);
+    return this.variants.value.at(this.chosenVariantIndex.value);
   }
 
   /**
@@ -58,7 +60,7 @@ export class Update {
    * @throws {Error} If there are no variants.
    */
   setChosenVariantToLast() {
-    if (this.variants.length === 0) throw new Error("No variants");
-    this.chosenVariantIndex.value = this.variants.length - 1;
+    if (this.variants.value.length === 0) throw new Error("No variants");
+    this.chosenVariantIndex.value = this.variants.value.length - 1;
   }
 }

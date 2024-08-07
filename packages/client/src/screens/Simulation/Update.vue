@@ -50,9 +50,8 @@ function onClickPreviousVariant() {
   }
 
   if (props.update.chosenVariantIndex.value) {
-    props.update.chosenVariantIndex.value--;
     rText.value = props.update.ensureChosenVariant.writerUpdate.text;
-    emit("chooseVariant", props.update.chosenVariantIndex.value);
+    emit("chooseVariant", props.update.chosenVariantIndex.value - 1);
   }
 }
 
@@ -63,11 +62,10 @@ function onClickNextVariant() {
 
   if (
     props.update.chosenVariantIndex.value <
-    props.update.variants.length - 1
+    props.update.variants.value.length - 1
   ) {
-    props.update.chosenVariantIndex.value++;
     rText.value = props.update.ensureChosenVariant.writerUpdate.text;
-    emit("chooseVariant", props.update.chosenVariantIndex.value);
+    emit("chooseVariant", props.update.chosenVariantIndex.value + 1);
   } else {
     emit("regenerate");
   }
@@ -230,8 +228,8 @@ async function prefer(preference: boolean) {
           @click.stop="onClickPreviousVariant"
         )
           CircleChevronLeft(:size="18")
-        span.leading-none(v-if="update.inProgressVariant.value") {{ update.variants.length + 1 }} / {{ update.variants.length + 1 }}
-        span.leading-none(v-else) {{ update.chosenVariantIndex.value + 1 }} / {{ update.variants.length }}
+        span.leading-none(v-if="update.inProgressVariant.value") {{ update.variants.value.length + 1 }} / {{ update.variants.value.length + 1 }}
+        span.leading-none(v-else) {{ update.chosenVariantIndex.value + 1 }} / {{ update.variants.value.length }}
         button.transition-transform.pressable(@click.stop="onClickNextVariant")
           CircleChevronRight(:size="18")
 
@@ -250,7 +248,7 @@ async function prefer(preference: boolean) {
         span.-my-1.inline-block.h-5.w-2.animate-pulse.bg-black(
           style="animation-duration: 500ms"
         )
-    template(v-else-if="update.variants.length")
+    template(v-else-if="update.variants.value.length")
       Contenteditable.leading-snug(
         tag="p"
         ref="rTextElement"

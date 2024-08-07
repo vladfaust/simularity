@@ -230,7 +230,7 @@ async function onUpdateVariantEdit(
   const update = simulation.updates.value[updateIndex];
   if (!update) throw new Error("Update not found");
 
-  const variant = update.variants[variantIndex];
+  const variant = update.variants.value[variantIndex];
   if (!variant) throw new Error("Variant not found");
 
   if (busy.value) throw new Error("Already busy");
@@ -254,19 +254,19 @@ async function regenerateUpdate(updateIndex: number) {
   inferenceDecodingProgress.value = 0;
 
   try {
-    await fadeCanvas(async () => {
-      if (updateIndex !== simulation.currentUpdateIndex.value) {
+    if (updateIndex !== simulation.currentUpdateIndex.value) {
+      await fadeCanvas(async () => {
         await simulation.jumpToIndex(updateIndex);
-      }
+      });
+    }
 
-      await simulation.createCurrentUpdateVariant(
-        N_EVAL,
-        predictionOptions.value,
-        modelSettings.value,
-        (e) => (inferenceDecodingProgress.value = e.progress),
-        inferenceAbortController.value!.signal,
-      );
-    });
+    await simulation.createCurrentUpdateVariant(
+      N_EVAL,
+      predictionOptions.value,
+      modelSettings.value,
+      (e) => (inferenceDecodingProgress.value = e.progress),
+      inferenceAbortController.value!.signal,
+    );
   } finally {
     inferenceDecodingProgress.value = undefined;
     inferenceAbortController.value = null;

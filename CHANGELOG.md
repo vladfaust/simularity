@@ -63,6 +63,7 @@
 - [x] feat(client): choose scenario (Fri 2)
       Allows to load scenarios from a directory.
 - [x] feat(client): updates' preferences for DPO (Wed 7)
+- [x] feat(client): developer console with stage modifications
 
 ### July 2024
 

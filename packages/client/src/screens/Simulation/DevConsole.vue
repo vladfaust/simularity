@@ -9,6 +9,7 @@ import {
 import UpdateVue from "./Update.vue";
 import StateScenes from "./DevConsole/State/Scenes.vue";
 import StateCharacters from "./DevConsole/State/Characters.vue";
+import DirectorUpdate from "./DevConsole/DirectorUpdate.vue";
 
 defineProps<{
   open: boolean;
@@ -46,7 +47,6 @@ Dialog.relative.z-50(
         .flex.flex-col.gap-3(@click="onRootClick")
           //- Writer update.
           .flex.flex-col.gap-2.rounded-xl.p-3(class="bg-white/20")
-            h1.font-medium.leading-tight.tracking-wide.text-white Writer update
             UpdateVue(
               v-if="simulation.currentUpdate.value"
               :simulation
@@ -59,8 +59,14 @@ Dialog.relative.z-50(
             )
 
           //- Director update.
-          .flex.flex-col.gap-2.rounded-xl.p-3(class="bg-white/20")
-            h1.font-medium.leading-tight.tracking-wide.text-white Director update
+          .flex.flex-col.gap-2.rounded-xl.p-3(
+            class="bg-white/20"
+            v-if="simulation.currentUpdate.value"
+          )
+            DirectorUpdate(
+              :simulation
+              :update="simulation.currentUpdate.value"
+            )
 
         //- State.
         .col-span-2.grid.h-full.grid-rows-2.flex-col.gap-2.overflow-y-hidden.rounded-xl.p-3(
