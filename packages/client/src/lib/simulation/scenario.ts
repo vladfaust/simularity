@@ -120,6 +120,11 @@ const ScenarioSchema = v.object({
       pfpPath: v.optional(v.string()),
 
       /**
+       * Whether the character is disabled.
+       */
+      disabled: v.optional(v.boolean()),
+
+      /**
        * The full name of the character, if any.
        */
       fullName: v.optional(v.string()),

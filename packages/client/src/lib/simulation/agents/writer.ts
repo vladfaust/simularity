@@ -343,9 +343,17 @@ Simulation setup complete. Have fun!
       )
       .join("\n");
 
+    const enabledCharacterIds = Object.entries(scenario.characters)
+      .filter(([_, character]) => !character.disabled)
+      .map(([characterId, _]) => characterId);
+
     return `
 [Summary]
 ${checkpoint.summary || "(empty)"}
+
+[Enabled characters]
+// If a character is not in this list, they are considered absent from the scene, and their actions are not allowed.
+${enabledCharacterIds.map((id) => `<${id}>`).join(", ")}
 
 [Transcription]${includeDirectorUpdates ? "\n" + checkpointLine : ""}
 ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
@@ -477,7 +485,8 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
     } else {
       const allowedCharacterIds = Object.entries(scenario.characters)
         .filter(
-          ([characterId, _]) => scenario.defaultCharacterId !== characterId,
+          ([characterId, character]) =>
+            !character.disabled && scenario.defaultCharacterId !== characterId,
         )
         .map(([characterId, _]) => characterId);
 
