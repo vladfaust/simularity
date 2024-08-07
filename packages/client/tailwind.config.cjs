@@ -25,7 +25,7 @@ module.exports = {
         ["warn-base"]: colors.white,
         error: colors.red,
         ["error-base"]: colors.white,
-        success: colors.teal,
+        success: colors.green,
         ["success-base"]: colors.white,
       },
       fontFamily: {

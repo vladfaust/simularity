@@ -13,10 +13,21 @@
   }
 }
 
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+}
+
 @layer components {
   .btn {
     @apply flex items-center justify-center;
     @apply disabled:cursor-not-allowed disabled:opacity-50;
+    @apply text-shadow;
+
+    & > * {
+      @apply drop-shadow;
+    }
   }
 
   .btn-pressable {
@@ -36,31 +47,22 @@
   }
 
   .btn-primary {
-    @apply border-b-2 border-primary-600 bg-primary-500 text-primary-base shadow-inner;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-
-    & > * {
-      @apply drop-shadow;
-    }
+    @apply border-b-2 border-primary-600 bg-primary-500 text-primary-base;
   }
 
   .btn-secondary {
-    @apply border-b-2 border-secondary-600 bg-secondary-500 text-secondary-base shadow-inner;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    & > * {
-      @apply drop-shadow;
-    }
+    @apply border-b-2 border-secondary-600 bg-secondary-500 text-secondary-base;
   }
 
   .btn-success {
-    @apply border border-success-600 bg-success-500 text-success-base;
+    @apply border-b-2 border-success-600 bg-success-500 text-success-base;
   }
 
   .btn-warn {
-    @apply border border-warn-600 bg-warn-500 text-warn-base;
+    @apply border-b-2 border-warn-600 bg-warn-500 text-warn-base;
   }
 
   .btn-error {
-    @apply bg-error-500 text-error-base;
+    @apply border-b-2 border-error-600 bg-error-500 text-error-base;
   }
 }
