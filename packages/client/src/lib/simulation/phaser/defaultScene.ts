@@ -176,8 +176,6 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
    * Set the scene, clearing it if necessary.
    */
   setScene(sceneId: string) {
-    console.log("setScene", { sceneId });
-
     const scene = this.scenario.findScene(sceneId);
     if (!scene) throw new SceneError(`Scene not found: ${sceneId}`);
 
@@ -201,8 +199,6 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
   }
 
   addCharacter(characterId: string, outfitId: string, expressionId: string) {
-    console.log("addCharacter", characterId, outfitId, expressionId);
-
     if (this.stageCharacters.has(characterId)) {
       throw new SceneError(`Character already on scene: ${characterId}`);
     }
@@ -279,8 +275,6 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
   }
 
   setOutfit(characterId: string, outfitId: string) {
-    console.log("setCharacterOutfit", characterId, outfitId);
-
     const character = this.stageCharacters.get(characterId);
     if (!character) {
       throw new SceneError(`Character not on scene: ${characterId}`);
@@ -297,8 +291,6 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
   }
 
   setExpression(characterId: string, expressionId: string) {
-    console.log("setCharacterExpression", characterId, expressionId);
-
     const character = this.stageCharacters.get(characterId);
     if (!character) {
       throw new SceneError(`Character not on scene: ${characterId}`);
@@ -332,8 +324,6 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
    * Remove a character from the stage.
    */
   removeCharacter(characterId: string) {
-    console.log("removeCharacter", { characterId });
-
     const character = this.stageCharacters.get(characterId);
     if (!character) {
       throw new SceneError(`Character not on stage: ${characterId}`);
