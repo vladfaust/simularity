@@ -262,7 +262,8 @@ Simulacra and narrator refer the to Player's character as "you", and the story r
 Avoid acting for characters which are not currently present on the stage.
 Prefer character utterances over narrator's voice whenever possible.
 Prefer detailed, step-by-step story unfolding; leave space for other characters to react, let the story breathe.
-Do not rush the ending of a scene, do not skip days without a reason; let the story develop slowly, let the Player savour the experience in detail.
+Do not rush the ending of a scene, DO NOT skip action without a reason, DO NOT fast-forward time.
+Let the story develop slowly, naturally in real-time, let the Player savour the experience in detail.
 
 [Transcription example (playerCharacter: <bob>)]
 ${includeDirectorUpdates ? `<${SYSTEM}> Scene set to "The Enchanted Forest": The sun is shining through the leaves, birds are chirping. Characters on stage: <alice> (outfit: "blue dress"), <bob> (outfit: "green suit").` : ""}<${NARRATOR}> And the story begins...
