@@ -11,7 +11,7 @@ import { Ref, computed } from "vue";
 import { Scenario } from "../scenario";
 import { Update } from "../update";
 
-const NARRATOR = "narrator";
+export const NARRATOR = "narrator";
 const SYSTEM = "system";
 
 class ResponseError extends Error {
@@ -22,19 +22,10 @@ class ResponseError extends Error {
 
 export type PredictionOptions = {
   /**
-   * Overrides other options and forces the character ID to be this value.
+   * List of allowed character IDs, including {@link NARRATOR}.
+   * If not set, allows all but the default character ID.
    */
-  characterId?: string | null;
-
-  /**
-   * Allow the narrator to be used (false by default).
-   */
-  allowNarrator?: boolean;
-
-  /**
-   * Allow the player character ID to be used (false by default).
-   */
-  allowPlayerCharacterId?: boolean;
+  allowedCharacterIds?: string[];
 };
 
 type Checkpoint = Pick<typeof d.checkpoints.$inferSelect, "summary" | "state">;
@@ -344,17 +335,9 @@ Simulation setup complete. Have fun!
       )
       .join("\n");
 
-    const enabledCharacterIds = Object.entries(scenario.characters)
-      .filter(([_, character]) => !character.disabled)
-      .map(([characterId, _]) => characterId);
-
     return `
 [Summary]
 ${checkpoint.summary || "(empty)"}
-
-[Enabled characters]
-// If a character is not in this list, they are considered absent from the scene, and their actions are not allowed.
-${enabledCharacterIds.map((id) => `<${id}>`).join(", ")}
 
 [Transcription]${includeDirectorUpdates ? "\n" + checkpointLine : ""}
 ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
@@ -479,28 +462,15 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
     scenario: Scenario,
     options?: PredictionOptions,
   ): string {
-    let characterIdRule: string;
-
-    if (options?.characterId !== undefined) {
-      characterIdRule = options.characterId || NARRATOR;
-    } else {
-      const allowedCharacterIds = Object.entries(scenario.characters)
-        .filter(
-          ([characterId, character]) =>
-            !character.disabled && scenario.defaultCharacterId !== characterId,
-        )
+    const allowedCharacterIds =
+      options?.allowedCharacterIds ||
+      Object.entries(scenario.characters)
+        .filter(([characterId]) => scenario.defaultCharacterId !== characterId)
         .map(([characterId, _]) => characterId);
 
-      if (options?.allowNarrator) {
-        allowedCharacterIds.push(NARRATOR);
-      }
-
-      if (options?.allowPlayerCharacterId) {
-        allowedCharacterIds.push(scenario.defaultCharacterId);
-      }
-
-      characterIdRule = allowedCharacterIds.map((id) => `"${id}"`).join(" | ");
-    }
+    const characterIdRule = allowedCharacterIds
+      .map((id) => `"${id}"`)
+      .join(" | ");
 
     return `
 root ::= "<" characterId "> " ["A-Za-z*] [a-zA-Z .,!?*"'-]+ "\n"
@@ -532,41 +502,17 @@ characterId ::= ${characterIdRule}
     const rawCharacterId: string = match[1];
     const text: string = match[2];
 
-    let characterId: string | null;
+    const allowedCharacterIds =
+      options?.allowedCharacterIds ||
+      Object.entries(scenario.characters)
+        .filter(([characterId]) => scenario.defaultCharacterId !== characterId)
+        .map(([characterId, _]) => characterId);
 
-    if (rawCharacterId === NARRATOR) {
-      if (options?.characterId !== null && !options?.allowNarrator) {
-        throw new ResponseError(`Unexpected character ID: ${rawCharacterId}`);
-      }
-
-      characterId = null;
-    } else {
-      let allowedCharacterIds: string[];
-
-      if (options?.characterId !== undefined) {
-        allowedCharacterIds = [options.characterId || NARRATOR];
-      } else {
-        allowedCharacterIds = Object.entries(scenario.characters)
-          .filter(
-            ([characterId, _]) => scenario.defaultCharacterId !== characterId,
-          )
-          .map(([characterId, _]) => characterId);
-
-        if (options?.allowNarrator) {
-          allowedCharacterIds.push(NARRATOR);
-        }
-
-        if (options?.allowPlayerCharacterId) {
-          allowedCharacterIds.push(scenario.defaultCharacterId);
-        }
-      }
-
-      if (!allowedCharacterIds.includes(rawCharacterId)) {
-        throw new ResponseError(`Unexpected character ID: ${rawCharacterId}`);
-      }
-
-      characterId = rawCharacterId;
+    if (!allowedCharacterIds.includes(rawCharacterId)) {
+      throw new ResponseError(`Unexpected character ID: ${rawCharacterId}`);
     }
+
+    const characterId = rawCharacterId === NARRATOR ? null : rawCharacterId;
 
     return { characterId, text };
   }

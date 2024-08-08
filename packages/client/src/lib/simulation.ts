@@ -1539,7 +1539,7 @@ export class Simulation {
         ++i ===
         (this._recentUpdates.value.length > 1
           ? this._recentUpdates.value.length - 1
-          : 0)
+          : 1)
       ) {
         this._dumpCurrentState();
       }
@@ -1745,7 +1745,7 @@ export class Simulation {
     }
 
     update.inProgressVariant.value = {
-      characterId: predictionOptions?.characterId,
+      characterId: undefined,
       text: "",
     };
 

@@ -16,8 +16,13 @@ import {
 import { computed, ref } from "vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
-import { type PredictionOptions } from "@/lib/simulation/agents/writer";
+import {
+  NARRATOR,
+  type PredictionOptions,
+} from "@/lib/simulation/agents/writer";
 import AiStatus from "./AiStatus.vue";
+import AiSettingsModal from "./AiSettingsModal.vue";
+import { useLocalStorage } from "@vueuse/core";
 
 enum SendButtonState {
   Inferring,
@@ -35,7 +40,6 @@ const { simulation, fadeCanvas, screenshot } = defineProps<{
 
 const emit = defineEmits<{
   (event: "mainMenu"): void;
-  (event: "aiSettings"): void;
 }>();
 
 const modelSettings = ref<InferenceOptions>({
@@ -45,6 +49,11 @@ const modelSettings = ref<InferenceOptions>({
     tau: 5,
     eta: 0.1,
   },
+  penalty: {
+    lastN: 256,
+    repeat: 1.05,
+  },
+  temp: 1.1,
 });
 
 const userInput = ref("");
@@ -72,9 +81,9 @@ const inferenceDecodingProgress = ref<number | undefined>();
  */
 const updatesFullscreen = ref(false);
 
-const predictionOptions = ref<PredictionOptions>({
-  allowNarrator: true,
-});
+const predictionOptions = computed<PredictionOptions>(() => ({
+  allowedCharacterIds: enabledCharacterIds.value,
+}));
 
 const willConsolidate = ref(false);
 
@@ -86,6 +95,12 @@ const sendButtonState = computed<SendButtonState>(() => {
     return SendButtonState.WillSkipTurn;
   }
 });
+
+const showAiSettingsModal = ref(false);
+const enabledCharacterIds = useLocalStorage(
+  `simulation:${simulation.id}:enabledCharacterIds`,
+  [...Object.keys(simulation.scenario.characters), NARRATOR],
+);
 
 function progressCallback(eventName: string) {
   return (event: { progress: number }) => {
@@ -277,6 +292,16 @@ async function regenerateUpdate(updateIndex: number) {
 function switchUpdatesFullscreen() {
   updatesFullscreen.value = !updatesFullscreen.value;
 }
+
+function switchEnabledCharacter(characterId: string) {
+  const index = enabledCharacterIds.value.indexOf(characterId);
+
+  if (index === -1) {
+    enabledCharacterIds.value.push(characterId);
+  } else {
+    enabledCharacterIds.value.splice(index, 1);
+  }
+}
 </script>
 
 <template lang="pug">
@@ -419,7 +444,7 @@ function switchUpdatesFullscreen() {
     .flex.items-center.gap-2
       AiStatus.cursor-pointer.rounded.bg-white.bg-opacity-50.px-2.py-1.transition-transform.pressable(
         :simulation
-        @click="emit('aiSettings')"
+        @click="showAiSettingsModal = true"
       )
 
       //- Temporary context gauge.
@@ -437,6 +462,15 @@ function switchUpdatesFullscreen() {
     .flex.gap-2
       button._status-button(@click="emit('mainMenu')")
         MenuIcon(:size="20")
+
+  AiSettingsModal(
+    v-if="simulation"
+    :open="showAiSettingsModal"
+    :simulation
+    :enabled-character-ids
+    @switch-enabled-character="switchEnabledCharacter"
+    @close="showAiSettingsModal = false"
+  )
 </template>
 
 <style lang="scss" scoped>

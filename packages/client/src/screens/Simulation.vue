@@ -15,7 +15,6 @@ import prettyBytes from "pretty-bytes";
 import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import GameConsole from "./Simulation/GameConsole.vue";
 import Menu from "./Simulation/Menu.vue";
-import AiSettingsModal from "./Simulation/AiSettingsModal.vue";
 import DevConsole from "./Simulation/DevConsole.vue";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
@@ -30,7 +29,6 @@ const loadProgress = ref(0);
 
 const showDevModal = ref(false);
 const showMenu = ref(false);
-const showAiSettingsModal = ref(false);
 
 function consoleEventListener(event: KeyboardEvent) {
   // Detect tilda key press on different keyboard layouts.
@@ -168,15 +166,7 @@ onUnmounted(() => {
         :screenshot
         @main-menu="showMenu = true"
         @screenshot="screenshot"
-        @ai-settings="showAiSettingsModal = true"
       )
-
-  AiSettingsModal(
-    v-if="simulation"
-    :open="showAiSettingsModal"
-    :simulation
-    @close="showAiSettingsModal = false"
-  )
 
   DevConsole(
     v-if="simulation"

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import Placeholder from "@/components/Placeholder.vue";
 import { Scenario, Simulation } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
 import { computed } from "vue";
@@ -7,18 +6,13 @@ import CharacterAvatar from "@/components/CharacterAvatar.vue";
 import { ref } from "vue";
 import OnStageMark from "../OnStageMark.vue";
 import { Grid2x2Icon, Grid2x2XIcon } from "lucide-vue-next";
+import CharacterPfp from "@/components/CharacterPfp.vue";
 
 const { simulation, characterId, character } = defineProps<{
   simulation: Simulation;
   characterId: string;
   character: Scenario["characters"][string];
 }>();
-
-const pfpUrl = asyncComputed(() =>
-  character.pfpPath
-    ? simulation.scenario.resourceUrl(character.pfpPath)
-    : undefined,
-);
 
 const onStageCharacter = computed(() =>
   simulation.state.stage.value.characters.find((c) => c.id === characterId),
@@ -90,12 +84,9 @@ function removeFromStage() {
   .flex.h-full.flex-col.items-center.gap-1.overflow-y-auto.p-3
     .relative
       //- Pfp.
-      img.aspect-square.w-24.rounded-lg.border-2.border-white.object-cover.shadow-lg(
-        v-if="pfpUrl"
-        :src="pfpUrl"
-      )
-      Placeholder.aspect-square.w-24.rounded-lg.border-2.border-white.shadow-lg(
-        v-else
+      CharacterPfp.aspect-square.w-24.rounded-lg.border-2.border-white.object-cover.shadow-lg(
+        :scenario="simulation.scenario"
+        :character
       )
       OnStageMark.absolute.-bottom-1.-right-1.shadow-lg(v-if="isOnStage")
 
