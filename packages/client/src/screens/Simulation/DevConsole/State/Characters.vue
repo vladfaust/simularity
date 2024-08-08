@@ -1,20 +1,18 @@
 <script setup lang="ts">
 import { Simulation } from "@/lib/simulation";
 import { CircleOffIcon, DramaIcon } from "lucide-vue-next";
-import { ref } from "vue";
 import Character from "./Characters/Character.vue";
 import SelectedCharacter from "./Characters/SelectedCharacter.vue";
 import OnStageMark from "./OnStageMark.vue";
+import { useSessionStorage } from "@vueuse/core";
 
 const { simulation } = defineProps<{
   simulation: Simulation;
 }>();
 
-const selectedCharacterId = ref<string | undefined>(
-  // Find the last added character that is not the default character.
-  simulation.state.stage.value.characters
-    .filter((c) => c.id !== simulation.scenario.defaultCharacterId)
-    .at(-1)?.id,
+const selectedCharacterId = useSessionStorage<string | undefined>(
+  `simulation:${simulation.id}:stateLatestSelectedCharacterId`,
+  undefined,
 );
 </script>
 
