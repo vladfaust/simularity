@@ -11,7 +11,7 @@ import {
   shallowRef,
   triggerRef,
 } from "vue";
-import { d, parseSelectResult, sqlite } from "./drizzle";
+import { Transaction, d, parseSelectResult, sqlite } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
 import { InferenceOptions } from "./simularity/common";
 import { GptDriver, InferenceAbortError } from "./simularity/gpt";
@@ -257,10 +257,11 @@ export class Simulation {
       }
 
       // Set simulation current update ID.
-      await tx
-        .update(d.simulations)
-        .set({ currentUpdateId: writerUpdate.id })
-        .where(eq(d.simulations.id, simulation.id));
+      await Simulation._updateSimulationHead(
+        tx,
+        simulation.id,
+        writerUpdate.id,
+      );
 
       return simulation.id;
     });
@@ -627,10 +628,11 @@ export class Simulation {
       }
 
       // Update simulation's current update ID.
-      await tx
-        .update(d.simulations)
-        .set({ currentUpdateId: newVariant.writerUpdate.id })
-        .where(eq(d.simulations.id, this.id));
+      await Simulation._updateSimulationHead(
+        tx,
+        this.id,
+        newVariant.writerUpdate.id,
+      );
     });
   }
 
@@ -911,6 +913,13 @@ export class Simulation {
       // NOTE: Would need to set pre-previous state, therefore simple
       // `this.state.setState(this._previousState.value)` is not enough.
       this._resetStateToCurrentUpdate(newStateIncludesCurrentUpdate);
+
+      // Set simulation head to the new current update.
+      await Simulation._updateSimulationHead(
+        d.db,
+        this.id,
+        this.currentUpdate.value!.ensureChosenVariant.writerUpdate.id,
+      );
     }
 
     // Jump to a future update, which may be of a different checkpoint.
@@ -1015,10 +1024,11 @@ export class Simulation {
     }
 
     // Update simulation's current update ID.
-    await d.db
-      .update(d.simulations)
-      .set({ currentUpdateId: variant.writerUpdate.id })
-      .where(eq(d.simulations.id, this.id));
+    await Simulation._updateSimulationHead(
+      d.db,
+      this.id,
+      variant.writerUpdate.id,
+    );
   }
 
   /**
@@ -1379,6 +1389,23 @@ export class Simulation {
     }
   }
 
+  /**
+   * Set simulation current (head) writer update ID to `writerUpdateId`.
+   */
+  private static async _updateSimulationHead(
+    tx: Transaction | typeof d.db = d.db,
+    simulationId: string,
+    writerUpdateId: string,
+  ) {
+    return tx
+      .update(d.simulations)
+      .set({
+        currentUpdateId: writerUpdateId,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(d.simulations.id, simulationId));
+  }
+
   private constructor(id: string, scenarioId: string, scenario: Scenario) {
     this.id = id;
     this.scenarioId = scenarioId;
@@ -1503,6 +1530,13 @@ export class Simulation {
 
     // Set the state to the current update.
     this._resetStateToCurrentUpdate(newStateIncludesCurrentUpdate);
+
+    // Set simulation head to the new current update.
+    await Simulation._updateSimulationHead(
+      d.db,
+      this.id,
+      this.currentUpdate.value!.ensureChosenVariant.writerUpdate.id,
+    );
   }
 
   /**
@@ -1708,13 +1742,7 @@ export class Simulation {
       }
 
       // Update the simulation's current update ID.
-      await tx
-        .update(d.simulations)
-        .set({
-          currentUpdateId: childWriterUpdate.id,
-          updatedAt: sql`CURRENT_TIMESTAMP`,
-        })
-        .where(eq(d.simulations.id, this.id));
+      await Simulation._updateSimulationHead(tx, this.id, childWriterUpdate.id);
 
       return { writerUpdate: childWriterUpdate, directorUpdate };
     });
