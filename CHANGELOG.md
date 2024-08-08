@@ -64,6 +64,7 @@
       Allows to load scenarios from a directory.
 - [x] feat(client): updates' preferences for DPO (Wed 7)
 - [x] feat(client): developer console with stage modifications (Wed 7)
+- [x] feat(client): scene ambiences (Thu 8)
 
 ### July 2024
 

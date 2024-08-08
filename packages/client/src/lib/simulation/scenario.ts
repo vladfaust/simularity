@@ -343,6 +343,11 @@ const ScenarioSchema = v.object({
        * Scene background image URL.
        */
       bg: v.string(),
+
+      /**
+       * Scene ambient sound paths in different formats.
+       */
+      ambienceSoundPaths: v.optional(v.array(v.string())),
     }),
   ),
 

@@ -43,6 +43,31 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     return this._busy;
   }
 
+  private _currentAmbience: Phaser.Sound.BaseSound | null = null;
+  private _ambientVolume = 0.5;
+
+  /**
+   * Get the ambient volume.
+   */
+  get ambientVolume() {
+    return this._ambientVolume;
+  }
+
+  /**
+   * Set the ambient volume.
+   */
+  // TODO: Implement volume control.
+  set ambientVolume(value: number) {
+    this._ambientVolume = value;
+
+    if (
+      this._currentAmbience instanceof Phaser.Sound.HTML5AudioSound ||
+      this._currentAmbience instanceof Phaser.Sound.WebAudioSound
+    ) {
+      this._currentAmbience.setVolume(value);
+    }
+  }
+
   constructor(
     readonly scenario: Scenario,
     private readonly initialState: DeepReadonly<Stage> | null = null,
@@ -80,6 +105,17 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
         this._sceneTextureKey(sceneId),
         await this.scenario.resourceUrl(scene.bg),
       );
+
+      if (scene.ambienceSoundPaths) {
+        this.load.audio(
+          this._sceneAmbienceKey(sceneId),
+          await Promise.all(
+            scene.ambienceSoundPaths.map((path) =>
+              this.scenario.resourceUrl(path),
+            ),
+          ),
+        );
+      }
     }
 
     for (const [characterId, character] of Object.entries(
@@ -195,6 +231,40 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
         qualifiedId: sceneId,
         bg,
       };
+    }
+
+    if (this._currentAmbience) {
+      const oldAmbience = this._currentAmbience;
+
+      this.tweens.add({
+        targets: oldAmbience,
+        volume: 0,
+        duration: 500,
+        onComplete: () => {
+          oldAmbience.destroy();
+        },
+      });
+    }
+
+    if (scene.ambienceSoundPaths) {
+      try {
+        const newAmbience = this.sound.add(this._sceneAmbienceKey(sceneId), {
+          loop: true,
+          volume: 0,
+        });
+
+        newAmbience.play();
+
+        this.tweens.add({
+          targets: newAmbience,
+          volume: this._ambientVolume,
+          duration: 500,
+        });
+
+        this._currentAmbience = newAmbience;
+      } catch (e) {
+        console.error(e);
+      }
     }
   }
 
@@ -339,6 +409,10 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
 
   private _sceneTextureKey(sceneId: string) {
     return `scene:${sceneId}`;
+  }
+
+  private _sceneAmbienceKey(sceneId: string) {
+    return `scene:${sceneId}:ambience`;
   }
 
   private _characterBodyTextureKey(characterId: string, bodyIndex: number) {
