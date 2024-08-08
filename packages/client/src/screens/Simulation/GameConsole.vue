@@ -302,6 +302,24 @@ function switchEnabledCharacter(characterId: string) {
     enabledCharacterIds.value.splice(index, 1);
   }
 }
+
+function enableOnlyCharacter(characterId: string) {
+  // If the character is already the only one enabled, select all except them.
+  if (
+    enabledCharacterIds.value.length === 1 &&
+    enabledCharacterIds.value[0] === characterId
+  ) {
+    enabledCharacterIds.value = [
+      ...Object.keys(simulation.scenario.characters).filter(
+        (id) => id !== characterId,
+      ),
+      NARRATOR,
+    ];
+  } else {
+    // Otherwise, enable only the selected character.
+    enabledCharacterIds.value = [characterId];
+  }
+}
 </script>
 
 <template lang="pug">
@@ -469,6 +487,7 @@ function switchEnabledCharacter(characterId: string) {
     :simulation
     :enabled-character-ids
     @switch-enabled-character="switchEnabledCharacter"
+    @enable-only-character="enableOnlyCharacter"
     @close="showAiSettingsModal = false"
   )
 </template>

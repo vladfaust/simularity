@@ -20,7 +20,16 @@ defineProps<{
 const emit = defineEmits<{
   (event: "close"): void;
   (event: "switchEnabledCharacter", characterId: string): void;
+  (event: "enableOnlyCharacter", characterId: string): void;
 }>();
+
+function onCharacterClick(event: MouseEvent, characterId: string) {
+  if (event.metaKey) {
+    emit("enableOnlyCharacter", characterId);
+  } else {
+    emit("switchEnabledCharacter", characterId);
+  }
+}
 </script>
 
 <template lang="pug">
@@ -62,7 +71,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
             ._inference-settings-character.grid.h-full.place-items-center(
               :class="{ grayscale: !enabledCharacterIds.includes(NARRATOR), 'border-primary-500': enabledCharacterIds.includes(NARRATOR) }"
               title="Narrator"
-              @click="emit('switchEnabledCharacter', NARRATOR)"
+              @click="onCharacterClick($event, NARRATOR)"
             )
               FeatherIcon.text-primary-500(:size="28" :stroke-width="1.5")
             CharacterPfp._inference-settings-character(
@@ -72,7 +81,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
               :character
               :class="{ grayscale: !enabledCharacterIds.includes(characterId), 'border-primary-500': enabledCharacterIds.includes(characterId) }"
               :title="character.name"
-              @click="emit('switchEnabledCharacter', characterId)"
+              @click="onCharacterClick($event, characterId)"
             )
 
           //- Writer agent.
