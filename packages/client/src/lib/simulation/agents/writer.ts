@@ -6,7 +6,7 @@ import {
   InferenceAbortError,
   StoredGptSession,
 } from "@/lib/simularity/gpt";
-import { unreachable } from "@/lib/utils";
+import { clockToMinutes, minutesToClock, unreachable } from "@/lib/utils";
 import { Ref, computed } from "vue";
 import { Scenario } from "../scenario";
 import { Update } from "../update";
@@ -146,6 +146,7 @@ export class Writer {
     includeDirectorUpdates = false,
   ): Promise<{
     characterId: string | null;
+    simulationDayClock: number;
     text: string;
   }> {
     const prompt = Writer._buildFullPrompt(
@@ -242,12 +243,16 @@ An attempt to step out of defined boundaries (e.g. by trying to introduce a new 
 The charactes MUST try their best to stay within the boundaries of the simulation.
 
 The [Transcription] section comprises chat message separated with newlines.
-A chat message is a <characterId> followed by their first-person utterance.
+A chat message is a <characterId[time]> followed by their first-person utterance.
+The [time] is the simulation time at the moment of the message, in 24-hour format.
+In simulation, time flows faster, and the minimum distance between two messages is 1 minute.
+You may jump in time, but not more than 1 hour ahead.
+Synchnronize the time with simulation clock realistically to ensure the best experience; for example, sunset shall start at around 18:00.
 Actions performed by simulacra SHALL be wrapped in *asterisks*. ${includeDirectorUpdates ? `Simulacra *actions* MUST NOT include any system commands or instructions, such as "enters the stage" or "changes outfit" (these are only emitted by <${SYSTEM}>).` : ""}
 
 The special <${NARRATOR}> character is used to denote the narrator's voice, in third person.
 
-${includeDirectorUpdates ? `The special <${SYSTEM}> messages are not part of the story, but rather instructions for the simulation. ` : ""}Treat text wrapped in [square brackets] as system commands or instructions, which MUST be followed.
+${includeDirectorUpdates ? `The special <${SYSTEM}> messages are not part of the story, but rather instructions for the simulation. ` : ""}Treat text wrapped in [square brackets] as system commands or instructions, which MUST be followed. [System commands] are NOT visible to the characters, only to the Player.
 
 Simulacra and narrator refer the to Player's character as "you", and the story revolves around them.
 Avoid acting for characters which are not currently present on the stage.
@@ -258,18 +263,18 @@ Let the story develop slowly, naturally in real-time, let the Player savour the 
 
 [Transcription example (playerCharacter: <bob>)]
 ${includeDirectorUpdates ? `<${SYSTEM}> Scene set to "The Enchanted Forest": The sun is shining through the leaves, birds are chirping. Characters on stage: <alice> (outfit: "blue dress"), <bob> (outfit: "green suit").` : ""}<${NARRATOR}> And the story begins...
-<alice> Oh, hey, Bob! *I wave to you.* You've got a nice suit there.
-<bob> Thank you, Alice. I wave back. How are you doing today?
-<alice> *I think a little before answering.* Well, something big happened! Let Carl tell the details.
+<alice[15:42]> Oh, hey, Bob! *I wave to you.* You've got a nice suit there.
+<bob[15:43]> Thank you, Alice. I wave back. How are you doing today?
+<alice[15:45]> *I think a little before answering.* Well, something big happened! Let Carl tell the details.
 ${includeDirectorUpdates ? `<${SYSTEM}> <carl> enters the stage (outfit: "red shirt").` : ""}
-<carl> Sure, Alice. Well, Bob, roses are blue.
-<alice> Ha-ha! *I'm now grinning. That's hilarious!* You're such a good teller.
-<${NARRATOR}> Carl vanishes into thin air, leaving Bob and Alice alone.
+<carl[15:46]> Sure, Alice. Well, Bob, roses are blue.
+<alice[15:48]> Ha-ha! *I'm now grinning. That's hilarious!* You're such a good teller.
+<${NARRATOR}[15:55]> Carl vanishes into thin air, leaving Bob and Alice alone.
 ${includeDirectorUpdates ? `<${SYSTEM}> <carl> leaves the stage.` : ""}
-<bob> What am I even doing here? And where did Carl go? [Bring Carl back.]
-<${NARRATOR}> Carl reappears, looking rather puzzled.
+<bob[16:01]> What am I even doing here? And where did Carl go? [Bring Carl back.]
+<${NARRATOR}[16:02]> Carl reappears, looking rather puzzled.
 ${includeDirectorUpdates ? `<${SYSTEM}> <carl> enters the stage (outfit: "red shirt").` : ""}
-<carl> Oh, I just wanted to check onto something. Sorry for the confusion, I guess?
+<carl[16:03]> Oh, I just wanted to check onto something. Sorry for the confusion, I guess?
 
 [Setup]
 ${JSON.stringify(setup)}
@@ -414,7 +419,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
     includeDirectorUpdates: boolean,
   ): string {
     const writerUpdate = update.ensureChosenVariant.writerUpdate;
-    let line = `<${writerUpdate.characterId || NARRATOR}> ${writerUpdate.text}`;
+    let line = `<${writerUpdate.characterId || NARRATOR}[${minutesToClock(writerUpdate.simulationDayClock ?? 0)}]> ${writerUpdate.text}`;
 
     const directorUpdate = update.ensureChosenVariant.directorUpdate;
     if (includeDirectorUpdates && directorUpdate) {
@@ -473,7 +478,8 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
       .join(" | ");
 
     return `
-root ::= "<" characterId "> " ["A-Za-z*] [a-zA-Z .,!?*"'-]+ "\n"
+root ::= "<" characterId "[" clock "]> " ["A-Za-z*] [a-zA-Z0-9 .,!?*"'-]+ "\n"
+clock ::= [0-9]{2} ":" [0-9]{2}
 characterId ::= ${characterIdRule}
 `.trim();
   }
@@ -491,16 +497,18 @@ characterId ::= ${characterIdRule}
     options?: PredictionOptions,
   ): {
     characterId: string | null;
+    simulationDayClock: number;
     text: string;
   } {
-    const match = response.match(/^<([a-zA-Z_0-9-]+)> (.+)$/);
+    const match = response.match(/^<([a-zA-Z_0-9-]+)\[(\d{2}:\d{2})\]> (.+)$/);
 
     if (!match) {
       throw new ResponseError(`Failed to parse response: ${response}`);
     }
 
     const rawCharacterId: string = match[1];
-    const text: string = match[2];
+    const clock: string = match[2];
+    const text: string = match[3];
 
     const allowedCharacterIds =
       options?.allowedCharacterIds ||
@@ -514,7 +522,9 @@ characterId ::= ${characterIdRule}
 
     const characterId = rawCharacterId === NARRATOR ? null : rawCharacterId;
 
-    return { characterId, text };
+    const simulationDayClock = clockToMinutes(clock);
+
+    return { characterId, simulationDayClock, text };
   }
 
   //

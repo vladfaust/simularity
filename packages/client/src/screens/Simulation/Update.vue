@@ -158,6 +158,17 @@ const characterPfpUrl = asyncComputed(() =>
     : undefined,
 );
 
+const clock = computed(() => {
+  if (props.update.inProgressVariant.value) {
+    return props.update.inProgressVariant.value.clockString;
+  } else {
+    const minutes = props.update.chosenVariant?.writerUpdate.simulationDayClock;
+    return minutes
+      ? `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`
+      : "";
+  }
+});
+
 const preferenceInProgress = ref(false);
 async function prefer(preference: boolean) {
   preferenceInProgress.value = true;
@@ -197,6 +208,7 @@ async function prefer(preference: boolean) {
         span.font-semibold.leading-none(:style="{ color: character.color }") {{ character.name }}
       template(v-else-if="character === null")
         span.font-semibold.leading-none Narrator
+      span.leading-none {{ clock }}
       span.leading-none(
         v-if="update.chosenVariant?.writerUpdate.didConsolidate"
       ) [C]

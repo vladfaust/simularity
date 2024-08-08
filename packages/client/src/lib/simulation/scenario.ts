@@ -402,6 +402,27 @@ const ScenarioSchema = v.object({
              */
             characterId: v.nullable(IdSchema),
 
+            /**
+             * Simulation day clock for this chunk,
+             * in 24h format, e.g. "16:20" or "04:20".
+             */
+            clock: v.pipe(
+              v.string(),
+              v.regex(/^\d{2}:\d{2}$/),
+              v.check((input) => {
+                const hours = parseInt(input.slice(0, 2));
+                return hours >= 0 && hours <= 24;
+              }, "Hours must be between 0 and 24"),
+              v.check((input) => {
+                const minutes = parseInt(input.slice(3, 5));
+                return minutes >= 0 && minutes <= 60;
+              }, "Minutes must be between 0 and 60"),
+              v.transform((input) => ({
+                hours: parseInt(input.slice(0, 2)),
+                minutes: parseInt(input.slice(3, 5)),
+              })),
+            ),
+
             text: v.string(),
           }),
           directorUpdate: v.optional(v.array(StateCommandSchema)),

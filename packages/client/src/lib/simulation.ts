@@ -2,6 +2,7 @@ import * as settings from "@/settings";
 import { latestDirectorSession, latestWriterSession } from "@/store";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
+import { toMinutes } from "duration-fns";
 import {
   Raw,
   computed,
@@ -243,6 +244,10 @@ export class Simulation {
             text: chunk.writerUpdate.text,
             episodeId,
             episodeChunkIndex: 0,
+            simulationDayClock: toMinutes({
+              hours: chunk.writerUpdate.clock.hours,
+              minutes: chunk.writerUpdate.clock.minutes,
+            }),
           })
           .returning({
             id: d.writerUpdates.id,
@@ -338,6 +343,10 @@ export class Simulation {
           parentUpdateId,
           checkpointId: this._checkpoint.value!.id,
           characterId: writerUpdate.characterId,
+          simulationDayClock: toMinutes({
+            hours: writerUpdate.clock.hours,
+            minutes: writerUpdate.clock.minutes,
+          }),
           text: writerUpdate.text,
           episodeId,
           episodeChunkIndex: chunkIndex,
@@ -388,8 +397,9 @@ export class Simulation {
       await this._commitCurrentState();
       this._dumpCurrentState();
 
-      const parentUpdateId =
-        this.currentUpdate.value?.chosenVariant?.writerUpdate.id;
+      const parentWriterUpdate =
+        this.currentUpdate.value?.chosenVariant?.writerUpdate;
+      const parentUpdateId = parentWriterUpdate?.id;
 
       // Insert the new writer update to the database.
       let saved = await this._saveUpdatesToDb({
@@ -397,6 +407,12 @@ export class Simulation {
           parentUpdateId,
           checkpointId: this._checkpoint.value!.id,
           characterId,
+
+          // TODO: Allow specifying the clock.
+          simulationDayClock: parentWriterUpdate
+            ? parentWriterUpdate.simulationDayClock + 1
+            : 0,
+
           text,
           createdByPlayer: true,
         },
@@ -1161,38 +1177,14 @@ export class Simulation {
           WITH
             writer_updates_tree AS (
               SELECT
-                ${d.writerUpdates.id.name},
-                ${d.writerUpdates.simulationId.name},
-                ${d.writerUpdates.parentUpdateId.name},
-                ${d.writerUpdates.checkpointId.name},
-                ${d.writerUpdates.didConsolidate.name},
-                ${d.writerUpdates.createdByPlayer.name},
-                ${d.writerUpdates.characterId.name},
-                ${d.writerUpdates.text.name},
-                ${d.writerUpdates.episodeId.name},
-                ${d.writerUpdates.episodeChunkIndex.name},
-                ${d.writerUpdates.llamaInferenceId.name},
-                ${d.writerUpdates.preference.name},
-                ${d.writerUpdates.createdAt.name}
+                ${this.__writerSelectFields()}
               FROM
                 ${writerUpdatesTableName}
               WHERE
                 ${d.writerUpdates.id.name} = ? ${checkpointClauseA}
               UNION ALL
               SELECT
-                parent.${d.writerUpdates.id.name},
-                parent.${d.writerUpdates.simulationId.name},
-                parent.${d.writerUpdates.parentUpdateId.name},
-                parent.${d.writerUpdates.checkpointId.name},
-                parent.${d.writerUpdates.didConsolidate.name},
-                parent.${d.writerUpdates.createdByPlayer.name},
-                parent.${d.writerUpdates.characterId.name},
-                parent.${d.writerUpdates.text.name},
-                parent.${d.writerUpdates.episodeId.name},
-                parent.${d.writerUpdates.episodeChunkIndex.name},
-                parent.${d.writerUpdates.llamaInferenceId.name},
-                parent.${d.writerUpdates.preference.name},
-                parent.${d.writerUpdates.createdAt.name}
+                ${this.__writerSelectFields("parent.")}
               FROM
                 ${writerUpdatesTableName} parent
                 JOIN writer_updates_tree child ON child.${d.writerUpdates.parentUpdateId.name} = parent.${d.writerUpdates.id.name}
@@ -1234,40 +1226,14 @@ export class Simulation {
           WITH
             writer_updates_tree AS (
               SELECT
-                ${d.writerUpdates.id.name},
-                ${d.writerUpdates.simulationId.name},
-                ${d.writerUpdates.parentUpdateId.name},
-                ${d.writerUpdates.nextUpdateId.name},
-                ${d.writerUpdates.checkpointId.name},
-                ${d.writerUpdates.didConsolidate.name},
-                ${d.writerUpdates.createdByPlayer.name},
-                ${d.writerUpdates.characterId.name},
-                ${d.writerUpdates.text.name},
-                ${d.writerUpdates.episodeId.name},
-                ${d.writerUpdates.episodeChunkIndex.name},
-                ${d.writerUpdates.llamaInferenceId.name},
-                ${d.writerUpdates.preference.name},
-                ${d.writerUpdates.createdAt.name}
+                ${this.__writerSelectFields()}
               FROM
                 ${writerUpdatesTableName}
               WHERE
                 ${d.writerUpdates.id.name} = ?
               UNION ALL
               SELECT
-                next.${d.writerUpdates.id.name},
-                next.${d.writerUpdates.simulationId.name},
-                next.${d.writerUpdates.parentUpdateId.name},
-                next.${d.writerUpdates.nextUpdateId.name},
-                next.${d.writerUpdates.didConsolidate.name},
-                next.${d.writerUpdates.checkpointId.name},
-                next.${d.writerUpdates.createdByPlayer.name},
-                next.${d.writerUpdates.characterId.name},
-                next.${d.writerUpdates.text.name},
-                next.${d.writerUpdates.episodeId.name},
-                next.${d.writerUpdates.episodeChunkIndex.name},
-                next.${d.writerUpdates.llamaInferenceId.name},
-                next.${d.writerUpdates.preference.name},
-                next.${d.writerUpdates.createdAt.name}
+                ${this.__writerSelectFields("next.")}
               FROM
                 ${writerUpdatesTableName} next
                 JOIN writer_updates_tree parent ON parent.${d.writerUpdates.nextUpdateId.name} = next.${d.writerUpdates.id.name}
@@ -1404,6 +1370,27 @@ export class Simulation {
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .where(eq(d.simulations.id, simulationId));
+  }
+
+  /**
+   * An utility function to save on duplication.
+   */
+  private static __writerSelectFields(prefix: string = "") {
+    return `${prefix}${d.writerUpdates.id.name},
+${prefix}${d.writerUpdates.simulationId.name},
+${prefix}${d.writerUpdates.parentUpdateId.name},
+${prefix}${d.writerUpdates.nextUpdateId.name},
+${prefix}${d.writerUpdates.checkpointId.name},
+${prefix}${d.writerUpdates.didConsolidate.name},
+${prefix}${d.writerUpdates.createdByPlayer.name},
+${prefix}${d.writerUpdates.characterId.name},
+${prefix}${d.writerUpdates.simulationDayClock.name},
+${prefix}${d.writerUpdates.text.name},
+${prefix}${d.writerUpdates.episodeId.name},
+${prefix}${d.writerUpdates.episodeChunkIndex.name},
+${prefix}${d.writerUpdates.llamaInferenceId.name},
+${prefix}${d.writerUpdates.preference.name},
+${prefix}${d.writerUpdates.createdAt.name}`;
   }
 
   private constructor(id: string, scenarioId: string, scenario: Scenario) {
@@ -1692,6 +1679,7 @@ export class Simulation {
       checkpointId: number;
       didConsolidate?: boolean;
       characterId?: string | null;
+      simulationDayClock: number;
       text: string;
     } & (
       | {
@@ -1774,6 +1762,7 @@ export class Simulation {
 
     update.inProgressVariant.value = {
       characterId: undefined,
+      clockString: undefined,
       text: "",
     };
 
@@ -1799,6 +1788,7 @@ export class Simulation {
           parentUpdateId: update.parentId,
           checkpointId: this._checkpoint.value!.id,
           characterId: writerResponse.characterId,
+          simulationDayClock: writerResponse.simulationDayClock,
           text: writerResponse.text,
         },
       });

@@ -7,6 +7,7 @@ export class Update {
   readonly inProgressVariant = ref<
     | {
         characterId?: string | null;
+        clockString?: string;
         text: string;
       }
     | undefined
@@ -23,6 +24,7 @@ export class Update {
           | "checkpointId"
           | "didConsolidate"
           | "characterId"
+          | "simulationDayClock"
           | "text"
           | "createdByPlayer"
           | "episodeId"

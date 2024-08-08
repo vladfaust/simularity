@@ -56,6 +56,12 @@ export const writerUpdates = sqliteTable(
      */
     characterId: text("character_id", { length: 32 }),
 
+    /**
+     * The simulation day clock when this update was created, in minutes.
+     * For example, 16:20 is 16 * 60 + 20 = 980.
+     */
+    simulationDayClock: integer("simulation_day_clock").notNull(),
+
     text: text("text").notNull(),
 
     /**

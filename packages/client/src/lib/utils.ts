@@ -204,3 +204,28 @@ export function safeParseJson<T>(json: any) {
 export function escapeQuotes(str: string): string {
   return str.replace(/"/g, '\\"');
 }
+
+/**
+ * Convert a number of minutes to a clock string.
+ * @example minutesToClock(980) // => "16:20"
+ */
+export function minutesToClock(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const minutesRemainder = minutes % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutesRemainder).padStart(2, "0")}`;
+}
+
+/**
+ * Convert a clock string to a number of minutes.
+ * @example clockToMinutes("16:20") // => 980
+ * @throws {Error} If the clock format is invalid.
+ */
+export function clockToMinutes(clock: string): number {
+  if (!/^\d{2}:\d{2}$/.test(clock)) {
+    throw new Error(`Invalid clock format: ${clock}`);
+  }
+
+  const [hours, minutes] = clock.split(":").map(Number);
+  return hours * 60 + minutes;
+}

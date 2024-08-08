@@ -65,6 +65,8 @@
 - [x] feat(client): updates' preferences for DPO (Wed 7)
 - [x] feat(client): developer console with stage modifications (Wed 7)
 - [x] feat(client): scene ambiences (Thu 8)
+- [x] feat(client): simulation clock (Thu 8)
+      Tick-tock, tick-tock.
 
 ### July 2024
 
