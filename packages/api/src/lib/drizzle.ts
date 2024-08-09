@@ -6,11 +6,10 @@ import { pick } from "./utils.js";
 export const d = {
   db: drizzleDb(pg, { schema }),
   ...pick(schema, [
-    "gptSessions",
-    "gptDecodings",
-    "gptInferences",
-    "gptCommits",
-    "gptSessionHashes",
-    "gptResets",
+    "llmCompletions",
+    "llmModels",
+    "llmSessions",
+    "llmWorkers",
+    "users",
   ]),
 };

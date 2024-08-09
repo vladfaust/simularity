@@ -32,7 +32,6 @@ dotenv.config();
 const parseResult = v.safeParse(
   v.object({
     DATABASE_URL: v.pipe(v.string(), v.url()),
-    REDIS_URL: v.pipe(v.string(), v.url()),
 
     HOST: v.string(),
     PORT: v.pipe(
@@ -41,24 +40,15 @@ const parseResult = v.safeParse(
       v.check((x) => x > 0 && x < 65536, "must be between 0 and 65536"),
     ),
 
-    /**
-     * The secret key used to authenticate inference nodes.
-     */
-    INFERENCE_NODE_SECRET: v.string(),
-
-    /**
-     * The time-to-live (in seconds) for inference node keys.
-     */
-    INFERENCE_NODE_TTL: v.pipe(
+    JWT_SECRET: v.pipe(
       v.string(),
-      v.transform((x) => parseInt(x, 10)),
-      v.check((x) => x > 0, "must be greater than 0"),
+      v.transform((str) => Buffer.from(str, "hex")),
     ),
 
-    /**
-     * Whether to allow all session caches, used in dev.
-     */
-    ALLOW_ALL_SESSION_CACHE: v.optional(envBool()),
+    JWT_ISSUER: v.string(),
+
+    RUNPOD_BASE_URL: v.pipe(v.string(), v.url()),
+    RUNPOD_API_KEY: v.string(),
   }),
   process.env,
 );

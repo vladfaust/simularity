@@ -19,6 +19,7 @@
     "db:drop": "node dist/scripts/db/drop.js"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/morgan": "^1.9.9",
@@ -33,6 +34,7 @@
   },
   "dependencies": {
     "@types/node": "^20.14.2",
+    "bcrypt": "^5.1.1",
     "body-parser": "^2.0.0-beta.2",
     "chalk": "^5.3.0",
     "cors": "^2.8.5",
@@ -40,10 +42,11 @@
     "drizzle-orm": "^0.31.2",
     "duration-fns": "^3.0.2",
     "express": "^5.0.0-beta.3",
-    "ioredis": "^5.4.1",
+    "jose": "^5.6.3",
     "morgan": "^1.10.0",
     "p-retry": "^6.2.0",
     "postgres": "^3.4.4",
+    "runpod-sdk": "^1.0.7",
     "valibot": "^0.31.0"
   }
 }

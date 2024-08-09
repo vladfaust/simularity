@@ -1,6 +1,5 @@
 import { Router } from "express";
 
-import gpts from "./routes/gpts.js";
-import inferenceNodes from "./routes/inferenceNodes.js";
+import v1 from "./routes/v1.js";
 
-export default Router().use(gpts).use(inferenceNodes);
+export default Router().use("/v1", v1);
