@@ -27,10 +27,6 @@
     {
       "name": "web",
       "path": "packages/web"
-    },
-    {
-      "name": "inference",
-      "path": "packages/inference"
     }
   ],
   "settings": {
