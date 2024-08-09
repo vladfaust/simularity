@@ -1,5 +1,6 @@
-import { MultiCurrencyCostSchema } from "@/lib/schemas.js";
 import { v } from "@/lib/valibot.js";
+import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
+import { LlmCompletionParamsSchema } from "@simularity/api-sdk/v1/completions/create";
 import {
   index,
   integer,
@@ -12,24 +13,6 @@ import {
 } from "drizzle-orm/pg-core";
 import { llmSessions } from "./llmSessions.js";
 import { llmWorkers } from "./llmWorkers.js";
-
-export const LlmCompletionParamsSchema = v.object({
-  // OpenAI-compatible.
-  max_tokens: v.optional(v.number()),
-  presence_penalty: v.optional(v.number()),
-  stop: v.optional(v.array(v.string())),
-  temperature: v.optional(v.number()),
-  top_p: v.optional(v.number()),
-
-  // vLLM-specific.
-  top_k: v.optional(v.number()),
-  min_p: v.optional(v.number()),
-  repetition_penalty: v.optional(v.number()),
-  stop_token_ids: v.optional(v.array(v.number())),
-  include_stop_str_in_output: v.optional(v.boolean()),
-  min_tokens: v.optional(v.number()),
-  guided_grammar: v.optional(v.string()),
-});
 
 export const llmCompletions = pgTable(
   "llm_completions",
@@ -44,7 +27,10 @@ export const llmCompletions = pgTable(
       .notNull()
       .references(() => llmWorkers.id, { onDelete: "restrict" }),
 
-    params: json("params").notNull(),
+    params: json("params")
+      .$type<v.InferOutput<typeof LlmCompletionParamsSchema>>()
+      .notNull(),
+
     input: text("input").notNull(),
     providerExternalId: varchar("provider_external_id"),
     delayTimeMs: integer("delay_time_ms"),

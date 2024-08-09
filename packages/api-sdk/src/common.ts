@@ -1,4 +1,4 @@
-import { v } from "./valibot.js";
+import { v } from "./lib/valibot";
 
 export const LangSchema = v.union([v.literal("en")]);
 export const MultiLangTextSchema = v.record(LangSchema, v.string());

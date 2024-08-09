@@ -1,10 +1,13 @@
 import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
-import { LlmCompletionParamsSchema } from "@/lib/drizzle/schema.js";
 import { konsole } from "@/lib/konsole.js";
-import { MultiCurrencyCostSchema } from "@/lib/schemas.js";
 import { omit } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
+import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
+import {
+  RequestBodySchema,
+  ResponseSchema,
+} from "@simularity/api-sdk/v1/completions/create";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { and, eq } from "drizzle-orm";
@@ -12,12 +15,6 @@ import { toMilliseconds } from "duration-fns";
 import { Router } from "express";
 import runpodSdk from "runpod-sdk";
 import { ensureUser } from "../auth/common.js";
-
-const RequestBodySchema = v.object({
-  model: v.string(),
-  prompt: v.string(),
-  ...LlmCompletionParamsSchema.entries,
-});
 
 const RunpodResultOutputSchema = v.object({
   id: v.string(),
@@ -35,17 +32,6 @@ const RunpodResultOutputSchema = v.object({
     completion_tokens: v.number(),
     prompt_tokens: v.number(),
     total_tokens: v.number(),
-  }),
-});
-
-const ResponseSchema = v.object({
-  sessionId: v.string(),
-  completionId: v.string(),
-  output: v.string(),
-  usage: v.object({
-    promptTokens: v.number(),
-    completionTokens: v.number(),
-    totalTokens: v.number(),
   }),
 });
 

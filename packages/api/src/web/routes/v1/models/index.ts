@@ -1,4 +1,6 @@
 import { d } from "@/lib/drizzle.js";
+import { v } from "@/lib/valibot.js";
+import { ResponseSchema } from "@simularity/api-sdk/v1/models/index";
 import cors from "cors";
 import { eq } from "drizzle-orm";
 import { Router } from "express";
@@ -20,5 +22,5 @@ export default Router()
       },
     });
 
-    return res.json(llmModels);
+    return res.json(llmModels satisfies v.InferOutput<typeof ResponseSchema>);
   });

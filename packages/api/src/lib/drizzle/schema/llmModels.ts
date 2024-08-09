@@ -1,5 +1,5 @@
-import { MultiLangTextSchema } from "@/lib/schemas.js";
 import { v } from "@/lib/valibot.js";
+import { MultiLangTextSchema } from "@simularity/api-sdk/common";
 import {
   boolean,
   index,
@@ -20,7 +20,7 @@ export const llmModels = pgTable(
   {
     id: varchar("id").primaryKey(),
     enabled: boolean("enabled").notNull().default(false),
-    task: llmModelTaskEnum("task"),
+    task: llmModelTaskEnum("task").notNull(),
     name: varchar("name").notNull(),
     description:
       json("description").$type<v.InferOutput<typeof MultiLangTextSchema>>(),

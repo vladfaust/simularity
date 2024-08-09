@@ -1,5 +1,5 @@
-import { CurrencySchema } from "@/lib/schemas.js";
 import { v } from "@/lib/valibot.js";
+import { CurrencySchema } from "@simularity/api-sdk/common";
 import {
   boolean,
   index,

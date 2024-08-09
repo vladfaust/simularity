@@ -1,0 +1,36 @@
+{
+  "name": "@simularity/api-sdk",
+  "version": "1.0.0",
+  "description": "Simularity AI™️ API SDK",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "<simularity.ai>",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "valibot": "^0.37.0"
+  },
+  "files": [
+    "./dist/common",
+    "./dist/v1/**/*"
+  ],
+  "exports": {
+    "./common": {
+      "import": "./dist/common.js",
+      "types": "./dist/common.d.ts"
+    },
+    "./v1/completions/create": {
+      "import": "./dist/v1/completions/create.js",
+      "types": "./dist/v1/completions/create.d.ts"
+    },
+    "./v1/models/index": {
+      "import": "./dist/v1/models/index.js",
+      "types": "./dist/v1/models/index.d.ts"
+    }
+  }
+}

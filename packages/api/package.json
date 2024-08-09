@@ -33,6 +33,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
+    "@simularity/api-sdk": "../api-sdk",
     "@types/node": "^20.14.2",
     "bcrypt": "^5.1.1",
     "body-parser": "^2.0.0-beta.2",
@@ -47,6 +48,6 @@
     "p-retry": "^6.2.0",
     "postgres": "^3.4.4",
     "runpod-sdk": "^1.0.7",
-    "valibot": "^0.31.0"
+    "valibot": "^0.37.0"
   }
 }
