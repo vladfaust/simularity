@@ -25,6 +25,10 @@
       "path": "packages/api"
     },
     {
+      "name": "web",
+      "path": "packages/web"
+    },
+    {
       "name": "inference",
       "path": "packages/inference"
     }
