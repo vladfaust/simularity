@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import * as settings from "@/settings";
-import { watch } from "vue";
 import { ref } from "vue";
 import * as dialog from "@tauri-apps/api/dialog";
-import * as simularityLocal from "@/lib/simularity/local";
-import { onMounted } from "vue";
-import { unreachable } from "@/lib/utils";
+import * as fsExtra from "tauri-plugin-fs-extra-api";
+import * as tauri from "@/lib/tauri";
+import * as api from "@/lib/api";
 import {
   ActivityIcon,
   FolderIcon,
@@ -17,22 +15,27 @@ import {
 } from "lucide-vue-next";
 import prettyBytes from "pretty-bytes";
 import GptStatus from "./Agent/GptStatus.vue";
-import { Gpt } from "@/lib/simularity/gpt";
+import { getCachedLlm, setCachedLlm, type CachedLlm } from "@/store";
+import * as store from "@/store";
+import { toSeconds } from "duration-fns";
+import { type BaseLlmDriver } from "@/lib/inference/BaseLlmDriver";
+import { watchImmediate } from "@vueuse/core";
+import { onMounted } from "vue";
+
+type LlmAgentId = "writer" | "director";
+
+const apiBaseUrl = ref(import.meta.env.VITE_DEFAULT_API_BASE_URL);
+const jwt = ref(import.meta.env.VITE_API_JWT);
 
 const props = defineProps<{
-  agentId: settings.AgentId;
+  agentId: LlmAgentId;
   name: string;
-  gpt: Gpt | undefined;
+  driverInstance: BaseLlmDriver | undefined;
 }>();
 
-const driver = ref<settings.AgentDriver | undefined>();
-watch(driver, async (newDriver) => {
-  if (!newDriver) return;
-  const setDriver = await settings.getAgentDriver(props.agentId);
-  if (setDriver === newDriver) return;
-  await settings.setAgentDriver(props.agentId, newDriver);
-  await settings.save();
-});
+const driverType = ref<store.LlmDriverConfig["type"]>(
+  store.writerDriverConfig.value?.type ?? "tauri",
+);
 
 const localModelPath = ref<string | null>(null);
 const localModelParams = ref<{
@@ -40,7 +43,92 @@ const localModelParams = ref<{
   nParams: number;
   nCtxTrain: number;
 } | null>(null);
-const remoteModel = ref<string | null>(null);
+const remoteModelId = ref<string | null>(null);
+
+const latestLocalModelPath =
+  props.agentId === "writer"
+    ? store.latestWriterLocalModelPath
+    : store.latestDirectorLocalModelPath;
+
+const latestRemoteModelId =
+  props.agentId === "writer"
+    ? store.latestWriterRemoteModelId
+    : store.latestDirectorRemoteModelId;
+
+const driverConfigStorage =
+  props.agentId === "writer"
+    ? store.writerDriverConfig
+    : store.directorDriverConfig;
+
+async function findOrCreateLocalCachedLlm(
+  modelPath: string,
+): Promise<CachedLlm> {
+  let cachedLlm = getCachedLlm(modelPath);
+  let meta: fsExtra.Metadata;
+
+  if (cachedLlm) {
+    meta = await fsExtra.metadata(modelPath);
+
+    if (
+      cachedLlm.modifiedAt !==
+      toSeconds({ milliseconds: meta.modifiedAt.getTime() })
+    ) {
+      console.log("Model has been modified, updating cache");
+      cachedLlm = null;
+    }
+  }
+
+  if (!cachedLlm) {
+    console.debug("Model not found in cache, loading model");
+    const loadedModel = await tauri.gpt.loadModel(modelPath);
+    console.debug("Model loaded", loadedModel);
+    const { xx64Hash: modelHash } =
+      await tauri.gpt.getModelHashByPath(modelPath);
+    console.debug("Model hash", modelHash);
+    meta ||= await fsExtra.metadata(modelPath);
+
+    cachedLlm = {
+      path: modelPath,
+      contextSize: loadedModel.nCtxTrain,
+      modelHash,
+      nParams: loadedModel.nParams,
+      ramSize: loadedModel.size,
+      modifiedAt: toSeconds({ milliseconds: meta.modifiedAt.getTime() }),
+    };
+    setCachedLlm(modelPath, cachedLlm);
+  }
+
+  return cachedLlm;
+}
+
+async function setTauriDriverConfig(modelPath: string) {
+  let cachedLlm = await findOrCreateLocalCachedLlm(modelPath);
+
+  driverConfigStorage.value = {
+    type: "tauri",
+    modelPath,
+    contextSize: cachedLlm.contextSize,
+  };
+
+  localModelParams.value = {
+    size: cachedLlm.ramSize,
+    nParams: cachedLlm.nParams,
+    nCtxTrain: cachedLlm.contextSize,
+  };
+}
+
+async function setRemoteDriverConfig(modelId: string | null) {
+  if (modelId) {
+    driverConfigStorage.value = {
+      type: "remote",
+      modelId,
+      baseUrl: apiBaseUrl.value,
+      jwt: jwt.value,
+    };
+  } else {
+    driverConfigStorage.value = null;
+  }
+}
 
 async function openLocalModelSelectionDialog() {
   const modelPath = await dialog.open({
@@ -50,49 +138,52 @@ async function openLocalModelSelectionDialog() {
   });
 
   if (typeof modelPath === "string") {
+    latestLocalModelPath.value = modelPath;
     localModelPath.value = modelPath;
-    const model = await simularityLocal.gpt.loadModel(modelPath);
-
-    localModelPath.value = modelPath;
-    localModelParams.value = model;
-    console.log(model);
-
-    await settings.setAgentLocalModelPath(props.agentId, modelPath);
-    await settings.save();
+    await setTauriDriverConfig(modelPath);
   }
 }
 
-onMounted(async () => {
-  const setDriver = await settings.getAgentDriver(props.agentId);
-
-  switch (setDriver) {
-    case "local": {
-      driver.value = "local";
-
-      localModelPath.value = await settings.getAgentLocalModelPath(
-        props.agentId,
-      );
+watchImmediate(driverType, async (newType) => {
+  if (!newType) return;
+  switch (newType) {
+    case "tauri": {
+      localModelPath.value = latestLocalModelPath.value;
+      remoteModelId.value = null;
 
       if (localModelPath.value) {
-        const model = await simularityLocal.gpt.loadModel(localModelPath.value);
-        localModelParams.value = model;
-        console.debug({ model });
-        const modelHash = await simularityLocal.gpt.modelHash(model.modelId);
-        console.log({ modelHash: modelHash.xx64Hash });
+        await setTauriDriverConfig(localModelPath.value);
       }
 
       break;
     }
 
-    case "remote":
-    case null:
-      driver.value = "remote";
-      remoteModel.value = await settings.getAgentRemoteModel(props.agentId);
-      break;
+    case "remote": {
+      remoteModelId.value = latestRemoteModelId.value;
+      localModelPath.value = null;
+      localModelParams.value = null;
 
-    default:
-      throw unreachable(setDriver);
+      if (remoteModelId.value) {
+        setRemoteDriverConfig(remoteModelId.value);
+      }
+
+      break;
+    }
   }
+});
+
+const remoteModels = ref<
+  Awaited<ReturnType<typeof api.v1.models.index>> | undefined
+>();
+
+onMounted(() => {
+  api.v1.users.get(apiBaseUrl.value, jwt.value).then((res) => {
+    console.log(res);
+  });
+
+  api.v1.models.index(apiBaseUrl.value, jwt.value).then((res) => {
+    remoteModels.value = res;
+  });
 });
 </script>
 
@@ -105,14 +196,14 @@ onMounted(async () => {
     //- Driver tabs.
     .grid.shrink-0.grid-cols-2.gap-1.overflow-hidden.rounded-t-lg.border-x.border-t.p-2
       button.btn.btn-sm.w-full.rounded.transition-transform.pressable(
-        :class="{ 'btn-primary': driver === 'local', 'btn-neutral': driver !== 'local' }"
-        @click="driver = 'local'"
+        :class="{ 'btn-primary': driverType === 'tauri', 'btn-neutral': driverType !== 'tauri' }"
+        @click="driverType = 'tauri'"
       )
         HardDriveIcon(:size="20")
         span Local
       button.btn.btn-sm.rounded.transition-transform.pressable(
-        :class="{ 'btn-primary': driver === 'remote', 'btn-neutral': driver !== 'remote' }"
-        @click="driver = 'remote'"
+        :class="{ 'btn-primary': driverType === 'remote', 'btn-neutral': driverType !== 'remote' }"
+        @click="driverType = 'remote'"
       )
         GlobeIcon(:size="20")
         span Remote
@@ -120,14 +211,25 @@ onMounted(async () => {
   //- Driver content.
   .flex.w-full.flex-col.gap-2.rounded-b-lg.rounded-l-lg.border.p-2
     //- Remote driver.
-    .grid.w-full.gap-2(
-      v-if="driver === 'remote'"
+    .flex.w-full.flex-col.gap-2(
+      v-if="driverType === 'remote'"
       style="grid-template-columns: max-content auto"
     )
-      span Can select model here
+      .flex.justify-between
+        span Model
+        select.select.select-sm.w-max(
+          v-model="remoteModelId"
+          @change="setRemoteDriverConfig(remoteModelId)"
+        )
+          option(value="" disabled) Select a model
+          option(
+            v-for="model in remoteModels"
+            :key="model.id"
+            :value="model.id"
+          ) {{ model.name }}
 
     //- Local driver.
-    .flex.flex-col.gap-2(v-else-if="driver === 'local'")
+    .flex.flex-col.gap-2(v-else-if="driverType === 'tauri'")
       //- Model path.
       .flex.gap-2
         .flex.items-center.gap-1
@@ -159,10 +261,10 @@ onMounted(async () => {
           span.font-mono.leading-tight {{ localModelParams ? localModelParams.nCtxTrain : "Unknown" }}
 
       //- Status.
-      .flex.gap-1(v-if="gpt")
+      .flex.gap-1(v-if="driverInstance")
         .flex.w-full.w-full.items-center.justify-center.gap-1.rounded.bg-neutral-100.p-2
           ActivityIcon(:size="20")
-          GptStatus(:gpt="gpt")
+          GptStatus(:driver="driverInstance")
         button.btn-neutral.btn-sm.btn.btn-pressable.rounded(
           disabled
           title="Logs (not implemented yet)"

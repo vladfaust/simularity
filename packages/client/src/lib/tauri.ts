@@ -1,6 +1,7 @@
 import { appLocalDataDir, BaseDirectory } from "@tauri-apps/api/path";
 
-export * from "./tauri/sqlite";
+export * as gpt from "./tauri/gpt";
+export * as sqlite from "./tauri/sqlite";
 
 export async function resolveBaseDir(baseDir: BaseDirectory) {
   switch (baseDir) {

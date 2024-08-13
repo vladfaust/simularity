@@ -229,3 +229,17 @@ export function clockToMinutes(clock: string): number {
   const [hours, minutes] = clock.split(":").map(Number);
   return hours * 60 + minutes;
 }
+
+/**
+ * Merge multiple AbortSignals into one, which will be aborted
+ * if any of the input signals is aborted.
+ */
+export function mergeAbortSignals(...signals: AbortSignal[]): AbortSignal {
+  const controller = new AbortController();
+
+  for (const signal of signals) {
+    signal.addEventListener("abort", () => controller.abort());
+  }
+
+  return controller.signal;
+}

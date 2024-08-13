@@ -31,6 +31,10 @@
     "./v1/models/index": {
       "import": "./dist/v1/models/index.js",
       "types": "./dist/v1/models/index.d.ts"
+    },
+    "./v1/users/get": {
+      "import": "./dist/v1/users/get.js",
+      "types": "./dist/v1/users/get.d.ts"
     }
   }
 }

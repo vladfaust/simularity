@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api";
 export { create } from "./gpt/create";
-export { decode } from "./gpt/decode";
 export { infer } from "./gpt/infer";
 
 export type LoadModelResult = {
@@ -24,6 +23,7 @@ export type LoadModelResult = {
 
 /**
  * Load a GPT model from a file path.
+ * Can be called multiple times with the same model path.
  */
 export async function loadModel(modelPath: string) {
   return invoke("gpt_load_model", {
@@ -36,17 +36,30 @@ export type ModelHashResult = {
 };
 
 /**
- * Compute the hash of a GPT model.
+ * Compute the hash of a GPT model by its ID (memoized).
  */
-export async function modelHash(modelId: string) {
-  return invoke("gpt_model_hash", { modelId }) as Promise<ModelHashResult>;
+export async function getModelHashById(modelId: string) {
+  return invoke("gpt_model_hash_by_id", {
+    modelId,
+  }) as Promise<ModelHashResult>;
 }
 
 /**
- * Return whether a GPT session exists.
+ * Compute the hash of a GPT model by its ID.
+ */
+export async function getModelHashByPath(modelPath: string) {
+  return invoke("gpt_model_hash_by_path", {
+    modelPath,
+  }) as Promise<ModelHashResult>;
+}
+
+/**
+ * Find a GPT session, and return its model ID if found.
  */
 export async function find(sessionId: string) {
-  return (await invoke("gpt_find", { sessionId })) as boolean;
+  return (await invoke("gpt_find", { sessionId })) as {
+    modelId: string;
+  } | null;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { MultiLangTextSchema } from "../../common";
-import { v } from "../../lib/valibot";
+import * as v from "valibot";
 
 export const ResponseSchema = v.array(
   v.object({

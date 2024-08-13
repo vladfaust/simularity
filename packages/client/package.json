@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@headlessui/vue": "^1.7.21",
+    "@simularity/api-sdk": "../api-sdk",
     "@tauri-apps/api": "^1.5.4",
     "@vueuse/core": "^10.11.0",
     "drizzle-orm": "^0.30.10",
@@ -19,8 +20,9 @@
     "nanoid": "^5.0.7",
     "phaser": "^3.80.1",
     "pretty-bytes": "^6.1.1",
+    "tauri-plugin-fs-extra-api": "github:tauri-apps/tauri-plugin-fs-extra#v1",
     "tauri-plugin-store-api": "github:tauri-apps/tauri-plugin-store#v1",
-    "valibot": "^0.33.3",
+    "valibot": "^0.37.0",
     "vue": "^3.4.21",
     "vue-contenteditable": "^4.1.0",
     "vue-router": "^4.3.2",

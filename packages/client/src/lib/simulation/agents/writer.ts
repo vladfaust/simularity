@@ -1,13 +1,17 @@
 import { d } from "@/lib/drizzle";
-import { InferenceOptions } from "@/lib/simularity/common";
 import {
-  Gpt,
-  GptDriver,
-  InferenceAbortError,
-  StoredGptSession,
-} from "@/lib/simularity/gpt";
-import { clockToMinutes, minutesToClock, unreachable } from "@/lib/utils";
-import { Ref, computed } from "vue";
+  BaseLlmDriver,
+  CompletionAbortError,
+  CompletionOptions,
+  LlmGrammarLang,
+} from "@/lib/inference/BaseLlmDriver";
+import {
+  clockToMinutes,
+  minutesToClock,
+  trimEndAny,
+  unreachable,
+} from "@/lib/utils";
+import { ShallowRef, computed, ref, shallowRef } from "vue";
 import { Scenario } from "../scenario";
 import { Update } from "../update";
 
@@ -31,43 +35,17 @@ export type PredictionOptions = {
 type Checkpoint = Pick<typeof d.checkpoints.$inferSelect, "summary" | "state">;
 
 export class Writer {
-  static async init(
-    driver: GptDriver,
-    sessionRef: Ref<StoredGptSession | null>,
-    scenario: Scenario,
-    checkpoint: Checkpoint,
-    historicalUpdates: Update[],
-    recentUpdates: Update[],
-    progressCallback: (event: { progress: number }) => void,
-    includeDirectorUpdates = false,
-  ): Promise<Writer> {
-    const staticPrompt = this._buildStaticPrompt(
-      scenario,
-      includeDirectorUpdates,
-    );
+  readonly contextSize = computed(() => this.llmDriver.value?.contextSize);
+  readonly contextLength = ref<number | undefined>();
+  readonly llmDriver: ShallowRef<BaseLlmDriver | null>;
+  readonly ready = computed(() => this.llmDriver.value?.ready.value);
 
-    const dynamicPrompt = this._buildDynamicPrompt(
-      scenario,
-      checkpoint,
-      historicalUpdates,
-      recentUpdates,
-      includeDirectorUpdates,
-    );
-
-    const { gpt } = await Gpt.findOrCreate(
-      driver,
-      sessionRef,
-      staticPrompt,
-      dynamicPrompt,
-      progressCallback,
-    );
-
-    return new Writer(scenario, gpt);
+  constructor(
+    llmDriver: BaseLlmDriver | null,
+    private scenario: Scenario,
+  ) {
+    this.llmDriver = shallowRef(llmDriver);
   }
-
-  readonly recentPrompt = computed(() => this.gpt.prompt.value);
-  readonly contextSize = computed(() => this.gpt.contextSize.value);
-  readonly contextLength = computed(() => this.gpt.contextLength.value);
 
   async summarize(
     oldCheckpoint: Checkpoint,
@@ -78,6 +56,11 @@ export class Writer {
   ): Promise<{
     newSummary: string;
   }> {
+    if (!this.llmDriver.value) throw new Error("Driver is not set");
+    if (!this.llmDriver.value.ready.value) {
+      throw new Error("Driver is not ready");
+    }
+
     const summarizationPrompt = Writer._buildSummarizationPrompt(
       this.scenario,
       oldCheckpoint,
@@ -88,17 +71,17 @@ export class Writer {
 
     console.debug("Summarization prompt", summarizationPrompt);
 
-    const summarizationResult = await this.gpt.infer(
+    const summarizationResult = await this.llmDriver.value.createCompletion(
       summarizationPrompt,
       nEval,
       {
         temp: 0.2,
         stopSequences: ["\n"],
-        grammar: Writer._buildSummarizationGrammar(),
+        grammar: Writer._buildSummarizationGrammar(
+          this.llmDriver.value.grammarLang,
+        ),
       },
-      (decodingEvent) => {
-        console.log("Summarization decoding progress", decodingEvent.progress);
-      },
+      undefined,
       undefined,
       inferenceAbortSignal,
     );
@@ -107,30 +90,12 @@ export class Writer {
 
     if (inferenceAbortSignal?.aborted) {
       console.warn("Summarization aborted", summarizationResult);
-      throw new InferenceAbortError(summarizationResult);
+      throw new CompletionAbortError(summarizationResult);
     }
 
     return {
       newSummary: summarizationResult.result,
     };
-  }
-
-  async decodeFullPrompt(
-    checkpoint: Checkpoint,
-    historicalUpdates: Update[],
-    recentUpdates: Update[],
-    decodeProgressCallback: (event: { progress: number }) => void,
-    includeDirectorUpdates = false,
-  ) {
-    const prompt = Writer._buildFullPrompt(
-      this.scenario,
-      checkpoint,
-      historicalUpdates,
-      recentUpdates,
-      includeDirectorUpdates,
-    );
-
-    await this.gpt.decode(prompt, decodeProgressCallback);
   }
 
   async inferUpdate(
@@ -139,7 +104,7 @@ export class Writer {
     recentUpdates: Update[],
     nEval: number,
     predictionOptions?: PredictionOptions,
-    inferenceOptions?: InferenceOptions,
+    inferenceOptions?: CompletionOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     onInferenceProgress?: (event: { content: string }) => void,
     inferenceAbortSignal?: AbortSignal,
@@ -149,6 +114,11 @@ export class Writer {
     simulationDayClock: number;
     text: string;
   }> {
+    if (!this.llmDriver.value) throw new Error("Driver is not set");
+    if (!this.llmDriver.value.ready.value) {
+      throw new Error("Driver is not ready");
+    }
+
     const prompt = Writer._buildFullPrompt(
       this.scenario,
       checkpoint,
@@ -159,15 +129,19 @@ export class Writer {
 
     const stopSequences = ["\n"];
 
-    const options: InferenceOptions = {
+    const options: CompletionOptions = {
       stopSequences,
-      grammar: Writer._buildChatGrammar(this.scenario, predictionOptions),
+      grammar: Writer._buildChatGrammar(
+        this.scenario,
+        predictionOptions,
+        this.llmDriver.value.grammarLang,
+      ),
       ...inferenceOptions,
     };
 
     console.log("Inferring update", prompt, nEval, options, predictionOptions);
 
-    const inferenceResult = await this.gpt.infer(
+    const inferenceResult = await this.llmDriver.value.createCompletion(
       prompt,
       nEval,
       options,
@@ -177,26 +151,20 @@ export class Writer {
     );
 
     const parsedResult = Writer._parsePrediction(
-      inferenceResult.result,
+      trimEndAny(inferenceResult.result, stopSequences),
       this.scenario,
       predictionOptions,
     );
 
+    this.contextLength.value = inferenceResult.totalTokens;
+
     return parsedResult;
   }
-
-  //#region Private methods
-  //
-
-  private constructor(
-    readonly scenario: Scenario,
-    readonly gpt: Gpt,
-  ) {}
 
   /**
    * A static prompt is re-used throughout the simulation.
    */
-  private static _buildStaticPrompt(
+  static buildStaticPrompt(
     scenario: Scenario,
     includeDirectorUpdates: boolean,
   ): string {
@@ -288,6 +256,9 @@ Simulation setup complete. Have fun!
     return prompt;
   }
 
+  //#region Private methods
+  //
+
   /**
    * A dynamic prompt is generated based on the history of the simulation.
    *
@@ -350,7 +321,7 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
   }
 
   /**
-   * A literal sum of {@link _buildStaticPrompt} and {@link _buildDynamicPrompt}.
+   * A literal sum of {@link buildStaticPrompt} and {@link _buildDynamicPrompt}.
    */
   private static _buildFullPrompt(
     scenario: Scenario,
@@ -360,7 +331,7 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
     includeDirectorUpdates: boolean,
   ): string {
     return (
-      this._buildStaticPrompt(scenario, includeDirectorUpdates) +
+      this.buildStaticPrompt(scenario, includeDirectorUpdates) +
       this._buildDynamicPrompt(
         scenario,
         checkpoint,
@@ -406,8 +377,17 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
     );
   }
 
-  private static _buildSummarizationGrammar() {
-    return `root ::= [a-zA-Z .,!?*"'_-]+ "\n"`;
+  private static _buildSummarizationGrammar(lang: LlmGrammarLang): string {
+    switch (lang) {
+      case LlmGrammarLang.Gnbf:
+        return `root ::= [a-zA-Z0-9: .,!?*"'_-]+ "\n"`;
+      case LlmGrammarLang.Regex:
+        return /^([a-zA-Z0-9: \.,!?*"'_-]+)\n$/.source;
+      case LlmGrammarLang.Lark:
+        return `start: [a-zA-Z0-9: .,!?*"'_-]+ "\n"`;
+      default:
+        throw unreachable(lang);
+    }
   }
 
   /**
@@ -465,7 +445,8 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
    */
   private static _buildChatGrammar(
     scenario: Scenario,
-    options?: PredictionOptions,
+    options: PredictionOptions | undefined,
+    lang: LlmGrammarLang,
   ): string {
     const allowedCharacterIds =
       options?.allowedCharacterIds ||
@@ -473,15 +454,42 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
         .filter(([characterId]) => scenario.defaultCharacterId !== characterId)
         .map(([characterId, _]) => characterId);
 
-    const characterIdRule = allowedCharacterIds
-      .map((id) => `"${id}"`)
-      .join(" | ");
+    switch (lang) {
+      case LlmGrammarLang.Gnbf: {
+        const characterIdRule = allowedCharacterIds
+          .map((id) => `"${id}"`)
+          .join(" | ");
 
-    return `
-root ::= "<" characterId "[" clock "]> " ["A-Za-z*] [a-zA-Z0-9 .,!?*"'-]+ "\n"
+        return `
+root ::= "<" characterId "[" clock "]> " ["A-Za-z*] [a-zA-Z0-9: .,!?*"'-]+ "\n"
 clock ::= [0-9]{2} ":" [0-9]{2}
 characterId ::= ${characterIdRule}
 `.trim();
+      }
+
+      case LlmGrammarLang.Regex: {
+        const characterIdRule = allowedCharacterIds
+          .map((id) => `(${id})`)
+          .join("|");
+
+        return `<(${characterIdRule})\\[[0-9]{2}:[0-9]{2}\\]> ([a-zA-Z0-9: \\.,!?*"'-]+)`;
+      }
+
+      case LlmGrammarLang.Lark: {
+        const characterIdRule = allowedCharacterIds
+          .map((id) => `"${id}"`)
+          .join(" | ");
+
+        return `
+start: "<" (${characterIdRule}) "[" clock "]> " text
+clock: [0-9]{2} ":" [0-9]{2}
+text: ["A-Za-z*] [a-zA-Z0-9: .,!?*"'-]+ "\n"
+`.trim();
+      }
+
+      default:
+        throw unreachable(lang);
+    }
   }
 
   /**

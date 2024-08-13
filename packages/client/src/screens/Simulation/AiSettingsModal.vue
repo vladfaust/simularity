@@ -86,17 +86,17 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
 
           //- Writer agent.
           Agent(
-            :agent-id="'writer'"
-            :gpt="simulation.writer.value?.gpt"
+            agent-id="writer"
             name="Writer"
+            :driver-instance="simulation.writer.llmDriver.value ?? undefined"
           )
 
-          //- Director agent.
-          Agent(
-            :agent-id="'director'"
-            :gpt="simulation.director.value?.gpt"
-            name="Director"
-          )
+          //- //- Director agent.
+          //- Agent(
+          //-   :agent-id="'director'"
+          //-   :gpt="simulation.director.value?.gpt"
+          //-   name="Director"
+          //- )
 </template>
 
 <style lang="scss" scoped>

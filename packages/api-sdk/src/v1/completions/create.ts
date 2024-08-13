@@ -1,4 +1,4 @@
-import { v } from "../../lib/valibot";
+import * as v from "valibot";
 
 export const LlmCompletionParamsSchema = v.object({
   // OpenAI-compatible.

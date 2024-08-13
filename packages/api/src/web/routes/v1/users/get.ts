@@ -1,3 +1,5 @@
+import { v } from "@/lib/valibot.js";
+import { ResponseSchema } from "@simularity/api-sdk/v1/users/get";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { Router } from "express";
@@ -16,5 +18,5 @@ export default Router()
     return res.json({
       id: user.id,
       username: user.username,
-    });
+    } satisfies v.InferOutput<typeof ResponseSchema>);
   });

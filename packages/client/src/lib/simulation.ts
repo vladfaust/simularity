@@ -1,5 +1,5 @@
-import * as settings from "@/settings";
-import { latestDirectorSession, latestWriterSession } from "@/store";
+import { latestWriterSessionId, writerDriverConfig } from "@/store";
+import { watchImmediate } from "@vueuse/core";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { toMinutes } from "duration-fns";
@@ -14,8 +14,12 @@ import {
 } from "vue";
 import { Transaction, d, parseSelectResult, sqlite } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
-import { InferenceOptions } from "./simularity/common";
-import { GptDriver, InferenceAbortError } from "./simularity/gpt";
+import {
+  CompletionAbortError,
+  CompletionOptions,
+} from "./inference/BaseLlmDriver";
+import { RemoteLlmDriver } from "./inference/RemoteLlmDriver";
+import { TauriLlmDriver } from "./inference/TauriLlmDriver";
 import { Director } from "./simulation/agents/director";
 import {
   Writer,
@@ -59,8 +63,8 @@ export class Simulation {
     typeof d.checkpoints.$inferSelect | undefined
   >();
 
-  private _writer = shallowRef<Writer | undefined>();
-  private _director = shallowRef<Director | undefined>();
+  private _writer: Writer;
+  private _director: Director;
   //#endregion
 
   readonly state: State;
@@ -165,13 +169,16 @@ export class Simulation {
   /**
    * The writer instance.
    */
-  // TODO: Make it deferred back.
-  readonly writer = computed(() => this._writer.value);
+  get writer() {
+    return this._writer;
+  }
 
   /**
    * The director instance.
    */
-  readonly director = computed(() => this._director.value);
+  get director() {
+    return this._director;
+  }
 
   /**
    * Whether the simulation is busy.
@@ -308,15 +315,13 @@ export class Simulation {
    * @assert There is current episode.
    * @assert The episode has chunks left.
    */
-  async advanceCurrentEpisode(
-    decodeProgressCallback: (event: { progress: number }) => void,
-  ) {
+  async advanceCurrentEpisode() {
     if (this.busy.value) {
       throw new Error("Simulation is busy");
     }
 
-    if (!this.writer.value) {
-      throw new Error("Writer is not initialized");
+    if (!this.writer.ready.value) {
+      throw new Error("Writer is not ready");
     }
 
     if (!this.state.currentEpisode.value) {
@@ -359,14 +364,6 @@ export class Simulation {
         new Update(parentUpdateId, shallowRef([incoming])),
       );
       this._recentUpdates.value.push(episodeUpdate);
-
-      // Decode the resulting prompt.
-      this.writer.value.decodeFullPrompt(
-        this._checkpoint.value!,
-        this._historicalUpdates.value,
-        this._recentUpdates.value,
-        decodeProgressCallback,
-      );
     } finally {
       this._busy.value = false;
     }
@@ -452,7 +449,7 @@ export class Simulation {
   async predictUpdate(
     nEval: number,
     predictionOptions?: WriterPredictionOptions,
-    inferenceOptions?: InferenceOptions,
+    inferenceOptions?: CompletionOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
   ) {
@@ -460,8 +457,8 @@ export class Simulation {
       throw new Error("Simulation is busy");
     }
 
-    if (!this.writer.value) {
-      throw new Error("Writer is not initialized");
+    if (!this.writer.ready.value) {
+      throw new Error("Writer is not ready");
     }
 
     // if (!this.director.value) {
@@ -522,7 +519,7 @@ export class Simulation {
   async createCurrentUpdateVariant(
     nEval: number,
     predictionOptions?: WriterPredictionOptions,
-    inferenceOptions?: InferenceOptions,
+    inferenceOptions?: CompletionOptions,
     onInferenceDecodingProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
   ) {
@@ -705,8 +702,8 @@ export class Simulation {
       return new Error("Simulation is busy");
     }
 
-    if (!this.writer.value) {
-      return new Error("Writer is not initialized");
+    if (!this.writer.ready.value) {
+      return new Error("Writer is not ready");
     }
 
     if (this.state.shallAdvanceEpisode.value) {
@@ -740,13 +737,17 @@ export class Simulation {
       throw this.consolidationPreliminaryError.value;
     }
 
-    if (!this.writer.value) return new Error("Writer is not initialized");
+    if (!this.writer.ready.value) {
+      return new Error("Writer is not ready");
+    }
 
     const writerUpdate = this.currentUpdate.value?.chosenVariant?.writerUpdate;
-    if (!writerUpdate) throw new Error("No current update");
+    if (!writerUpdate) {
+      throw new Error("No current update");
+    }
 
     try {
-      const summarizationResult = await this.writer.value.summarize(
+      const summarizationResult = await this.writer.summarize(
         this._checkpoint.value!,
         this._historicalUpdates.value,
         this._recentUpdates.value,
@@ -790,7 +791,7 @@ export class Simulation {
       // Clear the future updates.
       this._futureUpdates.value = [];
     } catch (e: any) {
-      if (e instanceof InferenceAbortError) {
+      if (e instanceof CompletionAbortError) {
         console.warn("Inference aborted");
       } else {
         throw e;
@@ -1321,41 +1322,6 @@ export class Simulation {
   }
 
   /**
-   * Fetch the simulation's agent driver.
-   */
-  private static async _fetchDriver(
-    agent: settings.AgentId,
-  ): Promise<GptDriver> {
-    const driverType = (await settings.getAgentDriver(agent)) || "remote";
-
-    switch (driverType) {
-      case "remote": {
-        const baseUrl = await settings.getRemoteInferenceUrl();
-        const model = await settings.getAgentRemoteModel(agent);
-
-        return {
-          type: "remote",
-          baseUrl,
-          model,
-        };
-      }
-
-      case "local": {
-        const modelPath = await settings.getAgentLocalModelPath(agent);
-        if (!modelPath) throw new Error("Local model path not set");
-
-        return {
-          type: "local",
-          modelPath,
-        };
-      }
-
-      default:
-        throw unreachable(driverType);
-    }
-  }
-
-  /**
    * Set simulation current (head) writer update ID to `writerUpdateId`.
    */
   private static async _updateSimulationHead(
@@ -1398,6 +1364,8 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     this.scenarioId = scenarioId;
     this.scenario = scenario;
     this.state = new State(scenario);
+    this._writer = new Writer(null, this.scenario);
+    this._director = new Director(null, this.scenario);
   }
 
   /**
@@ -1411,9 +1379,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       await this._jumpToId(currentWriterUpdateId);
     }
 
-    this._initWriter((event) => {
-      console.debug("Writer initialization progress", event.progress);
-    });
+    this._initWriter();
 
     // this._initDirector((event) => {
     //   console.debug("Director initialization progress", event.progress);
@@ -1580,35 +1546,87 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
   }
 
   /**
-   * Prepare writer GPT for the simulation.
+   * Prepare writer LLM for the simulation.
    */
-  private async _initWriter(
-    progressCallback: (event: { progress: number }) => void,
-  ) {
-    this._writer.value = await Writer.init(
-      await Simulation._fetchDriver("writer"),
-      latestWriterSession,
-      this.scenario,
-      this._checkpoint.value!,
-      this._historicalUpdates.value,
-      this._recentUpdates.value,
-      progressCallback,
-    );
-  }
+  private async _initWriter() {
+    watchImmediate(
+      () => writerDriverConfig.value,
+      async (driverConfig) => {
+        if (driverConfig) {
+          if (this._writer.llmDriver.value) {
+            console.debug("Comparing driver configs.", { other: driverConfig });
+            if (!this._writer.llmDriver.value.compareConfig(driverConfig)) {
+              console.log("Driver config is different, destroying the driver.");
+              this._writer.llmDriver.value.destroy();
+              this._writer.llmDriver.value = null;
+            } else {
+              console.debug("Driver config is the same.");
+              return;
+            }
+          }
 
-  /**
-   * Prepare director GPT for the simulation.
-   */
-  private async _initDirector(
-    progressCallback: (event: { progress: number }) => void,
-  ) {
-    this._director.value = await Director.init(
-      await Simulation._fetchDriver("director"),
-      latestDirectorSession,
-      this.scenario,
-      this._checkpoint.value!.state,
-      this._recentUpdates.value,
-      progressCallback,
+          switch (driverConfig.type) {
+            case "tauri": {
+              let driver: TauriLlmDriver | null = null;
+
+              if (latestWriterSessionId.value) {
+                driver = await TauriLlmDriver.find(
+                  driverConfig,
+                  "modelHash",
+                  latestWriterSessionId.value,
+                );
+              }
+
+              if (!driver) {
+                console.log("Creating new TauriLlmDriver", { driverConfig });
+
+                const initialPrompt = Writer.buildStaticPrompt(
+                  this.scenario,
+                  false,
+                );
+
+                driver = TauriLlmDriver.create(
+                  driverConfig,
+                  initialPrompt,
+                  true,
+                );
+              } else {
+                console.log(`Restored TauriLlmDriver`, {
+                  sessionId: latestWriterSessionId.value,
+                  driverConfig,
+                });
+              }
+
+              this._writer.llmDriver.value = driver;
+              break;
+            }
+
+            case "remote": {
+              console.log("Creating new RemoteLlmDriver", {
+                driverConfig,
+                sessionId: latestWriterSessionId.value,
+              });
+
+              this._writer.llmDriver.value = await RemoteLlmDriver.create(
+                driverConfig,
+                latestWriterSessionId.value ?? undefined,
+              );
+
+              break;
+            }
+
+            default:
+              throw unreachable(driverConfig);
+          }
+        } else {
+          // New driver config is empty.
+          // Destroy the driver instance if it exists.
+          if (this._writer.llmDriver.value) {
+            this._writer.llmDriver.value.destroy();
+            this._writer.llmDriver.value = null;
+          }
+        }
+      },
     );
   }
 
@@ -1749,15 +1767,15 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     recentUpdates: Update[],
     nEval: number,
     predictionOptions?: WriterPredictionOptions,
-    inferenceOptions?: InferenceOptions,
+    inferenceOptions?: CompletionOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
   ): Promise<{
     characterId: string | null;
     text: string;
   }> {
-    if (!this.writer.value) {
-      throw new Error("Writer is not initialized");
+    if (!this.writer.ready.value) {
+      throw new Error("Writer is not ready");
     }
 
     update.inProgressVariant.value = {
@@ -1767,7 +1785,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     };
 
     try {
-      const writerResponse = await this.writer.value.inferUpdate(
+      const writerResponse = await this.writer.inferUpdate(
         this._checkpoint.value!,
         this._historicalUpdates.value,
         recentUpdates,

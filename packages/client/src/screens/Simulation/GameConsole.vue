@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { type InferenceOptions } from "@/lib/simularity/common";
 import { Simulation } from "@/lib/simulation";
 import { TransitionRoot } from "@headlessui/vue";
 import {
@@ -23,6 +22,7 @@ import {
 import AiStatus from "./AiStatus.vue";
 import AiSettingsModal from "./AiSettingsModal.vue";
 import { useLocalStorage } from "@vueuse/core";
+import { type CompletionOptions } from "@/lib/inference/BaseLlmDriver";
 
 enum SendButtonState {
   Inferring,
@@ -42,7 +42,7 @@ const emit = defineEmits<{
   (event: "mainMenu"): void;
 }>();
 
-const modelSettings = ref<InferenceOptions>({
+const modelSettings = ref<CompletionOptions>({
   minP: 0.1,
   mirostat: {
     version: "v1",
@@ -53,7 +53,7 @@ const modelSettings = ref<InferenceOptions>({
     lastN: 256,
     repeat: 1.05,
   },
-  temp: 1.1,
+  temp: 0.8,
 });
 
 const userInput = ref("");
@@ -101,13 +101,6 @@ const enabledCharacterIds = useLocalStorage(
   `simulation:${simulation.id}:enabledCharacterIds`,
   [...Object.keys(simulation.scenario.characters), NARRATOR],
 );
-
-function progressCallback(eventName: string) {
-  return (event: { progress: number }) => {
-    const progress = Math.round(event.progress * 100);
-    console.log(`${eventName}: ${progress}%`);
-  };
-}
 
 function onSendButtonClick() {
   if (inferenceAbortController.value) {
@@ -180,7 +173,7 @@ async function advance() {
   busy.value = true;
   try {
     if (simulation.state.shallAdvanceEpisode.value) {
-      await simulation.advanceCurrentEpisode(progressCallback("Decoding"));
+      await simulation.advanceCurrentEpisode();
     } else {
       if (!willConsolidate.value && simulation.canGoForward.value) {
         await simulation.goForward();
@@ -467,7 +460,7 @@ function enableOnlyCharacter(characterId: string) {
 
       //- Temporary context gauge.
       .flex.items-center.gap-1.text-sm
-        span.text-white {{ simulation.writer.value?.contextLength.value }} / {{ simulation.writer.value?.contextSize.value }}
+        span.text-white {{ simulation.writer.contextLength.value }} / {{ simulation.writer.contextSize.value }}
         button.rounded.px-2.py-1.transition-transform.pressable(
           @click="willConsolidate = !willConsolidate"
           :class="willConsolidate ? 'bg-green-500' : 'bg-gray-500'"

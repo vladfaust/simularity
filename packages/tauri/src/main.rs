@@ -32,6 +32,7 @@ fn main() {
         .manage(AppState::new())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_persisted_scope::init())
+        .plugin(tauri_plugin_fs_extra::init())
         .setup(|_| {
             simularity_core::init(None, None);
             Ok(())

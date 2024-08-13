@@ -1,7 +1,7 @@
 import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
-import { omit } from "@/lib/utils.js";
+import { omit, pick } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
 import {
@@ -16,24 +16,19 @@ import { Router } from "express";
 import runpodSdk from "runpod-sdk";
 import { ensureUser } from "../auth/common.js";
 
-const RunpodResultOutputSchema = v.object({
-  id: v.string(),
-  choices: v.array(
-    v.object({
-      finish_reason: v.string(),
-      index: v.number(),
-      text: v.string(),
+const RunpodResultOutputSchema = v.array(
+  v.object({
+    choices: v.array(
+      v.object({
+        tokens: v.array(v.string()),
+      }),
+    ),
+    usage: v.object({
+      input: v.number(),
+      output: v.number(),
     }),
-  ),
-  model: v.string(),
-  system_fingerprint: v.string(),
-  object: v.literal("text_completion"),
-  usage: v.object({
-    completion_tokens: v.number(),
-    prompt_tokens: v.number(),
-    total_tokens: v.number(),
   }),
-});
+);
 
 /**
  * Create a new LLM completion.
@@ -129,12 +124,19 @@ export default Router()
 
     if (!session) {
       session = (
-        await d.db.insert(d.llmSessions).values({
-          userId: user.id,
-          modelId: body.output.model,
-        })
+        await d.db
+          .insert(d.llmSessions)
+          .values({
+            userId: user.id,
+            modelId: body.output.model,
+          })
+          .returning({
+            id: d.llmSessions.id,
+          })
       )[0];
     }
+
+    konsole.debug("Session", session);
 
     let llmCompletion: Pick<typeof d.llmCompletions.$inferSelect, "id">;
     let output: string;
@@ -144,19 +146,55 @@ export default Router()
       totalTokens: number;
     };
 
-    try {
-      const runResult = await endpoint.runSync({
-        input: {
-          ...omit(body.output, ["model"]),
-        },
-        policy: {
-          executionTimeout: toMilliseconds({
-            seconds: 10,
-          }),
-        },
-      });
+    const input = {
+      prompt: body.output.prompt,
+      sampling_params: pick(body.output, [
+        // OpenAI-compatible.
+        "max_tokens",
+        "presence_penalty",
+        "stop",
+        "temperature",
+        "top_p",
 
-      if (runResult.status === "SUCCESS") {
+        // vLLM-specific.
+        "top_k",
+        "min_p",
+        "repetition_penalty",
+        "stop_token_ids",
+        "include_stop_str_in_output",
+        "min_tokens",
+      ]),
+
+      // vLLM-specific.
+      guided_options_request: pick(body.output, [
+        "guided_grammar",
+        "guided_regex",
+      ]),
+    };
+
+    konsole.debug("Runpod input", omit(input, ["prompt"]));
+
+    try {
+      // TODO: Extract to @/lib/runpod.ts
+      const runResult = await endpoint.runSync(
+        {
+          input,
+          policy: {
+            executionTimeout: toMilliseconds({
+              seconds: 30,
+            }),
+          },
+        },
+        toMilliseconds({ seconds: 120 }),
+      );
+
+      konsole.debug(
+        "Runpod result",
+        runResult,
+        JSON.stringify(runResult.output),
+      );
+
+      if (runResult.status === "COMPLETED") {
         let estimatedCost:
           | v.InferOutput<typeof MultiCurrencyCostSchema>
           | undefined;
@@ -177,6 +215,10 @@ export default Router()
 
         if (!parsedOutput.success) {
           // Invalid Runpod result output.
+          konsole.error("Invalid Runpod result output", {
+            issues: v.flatten(parsedOutput.issues),
+          });
+
           llmCompletion = (
             await d.db
               .insert(d.llmCompletions)
@@ -188,7 +230,7 @@ export default Router()
                 providerExternalId: runResult.id,
                 delayTimeMs: runResult.delayTime,
                 executionTimeMs: runResult.executionTime,
-                error: `Invalid Runpod result output: ${v.flatten(parsedOutput.issues)}`,
+                error: `Invalid Runpod result output: ${JSON.stringify(v.flatten(parsedOutput.issues))}`,
                 estimatedCost,
               })
               .returning({
@@ -202,11 +244,13 @@ export default Router()
           });
         }
 
-        output = parsedOutput.output.choices[0].text;
+        output = parsedOutput.output[0].choices[0].tokens[0];
         usage = {
-          promptTokens: parsedOutput.output.usage.prompt_tokens,
-          completionTokens: parsedOutput.output.usage.completion_tokens,
-          totalTokens: parsedOutput.output.usage.total_tokens,
+          promptTokens: parsedOutput.output[0].usage.input,
+          completionTokens: parsedOutput.output[0].usage.output,
+          totalTokens:
+            parsedOutput.output[0].usage.input +
+            parsedOutput.output[0].usage.output,
         };
 
         // Success.
@@ -224,13 +268,19 @@ export default Router()
               output,
               promptTokens: usage.promptTokens,
               completionTokens: usage.completionTokens,
+              estimatedCost,
             })
             .returning({
               id: d.llmCompletions.id,
             })
         )[0];
       } else {
+        // TODO: Handle "IN_QUEUE".
         // Invalid Runpod result status.
+        konsole.error("Invalid Runpod result status", {
+          status: runResult.status,
+        });
+
         llmCompletion = (
           await d.db
             .insert(d.llmCompletions)
@@ -255,6 +305,8 @@ export default Router()
         });
       }
     } catch (e: any) {
+      console.error(e);
+
       // Unexpected error (e.g. network error).
       llmCompletion = (
         await d.db

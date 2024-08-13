@@ -1,13 +1,11 @@
-import { InferenceOptions } from "@/lib/simularity/common";
 import {
-  Gpt,
-  GptDriver,
-  InferenceResult,
-  StoredGptSession,
-} from "@/lib/simularity/gpt";
-import { escapeQuotes, safeParseJson } from "@/lib/utils";
+  BaseLlmDriver,
+  CompletionOptions,
+  LlmGrammarLang,
+} from "@/lib/inference/BaseLlmDriver";
+import { escapeQuotes, safeParseJson, unreachable } from "@/lib/utils";
 import { formatIssues, v } from "@/lib/valibot";
-import { Ref, computed } from "vue";
+import { ShallowRef, computed, ref, shallowRef } from "vue";
 import { Scenario } from "../scenario";
 import { StateDto } from "../state";
 import {
@@ -25,37 +23,16 @@ class CommandParseError extends Error {
 }
 
 export class Director {
-  /**
-   * Initialize a new director agent.
-   *
-   * @param rootState The initial state before any user input.
-   * @param recentUpdates The updates that have been made since the root state.
-   */
-  static async init(
-    driver: GptDriver,
-    sessionRef: Ref<StoredGptSession | null>,
-    scenario: Scenario,
-    rootState: StateDto,
-    recentUpdates: Update[],
-    progressCallback: (event: { progress: number }) => void,
-  ): Promise<Director> {
-    const staticPrompt = this._buildStaticPrompt(scenario);
-    const dynamicPrompt = this._buildDynamicPrompt(rootState, recentUpdates);
+  readonly contextSize = computed(() => this.llmDriver.value?.contextSize);
+  readonly contextLength = ref<number | undefined>();
+  readonly llmDriver: ShallowRef<BaseLlmDriver | null>;
 
-    const { gpt } = await Gpt.findOrCreate(
-      driver,
-      sessionRef,
-      staticPrompt,
-      dynamicPrompt,
-      progressCallback,
-    );
-
-    return new Director(scenario, gpt);
+  constructor(
+    llmDriver: BaseLlmDriver | null,
+    private scenario: Scenario,
+  ) {
+    this.llmDriver = shallowRef(llmDriver);
   }
-
-  readonly recentPrompt = computed(() => this.gpt.prompt.value);
-  readonly contextSize = computed(() => this.gpt.contextSize);
-  readonly contextLength = computed(() => this.gpt.contextLength.value);
 
   /**
    * Infer the update that should be made to the state.
@@ -71,15 +48,24 @@ export class Director {
     _actualState: StateDto,
     recentUpdates: Update[],
     nEval: number,
-    inferenceOptions?: InferenceOptions,
+    inferenceOptions?: CompletionOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     onInferenceProgress?: (event: { content: string }) => void,
     inferenceAbortSignal?: AbortSignal,
   ): Promise<
     {
-      inferenceResult: InferenceResult;
+      inferenceResult: {
+        result: string;
+        totalTokens: number;
+        aborted: boolean;
+      };
     } & ({ parsedCommands: StateCommand[] } | { parseError: CommandParseError })
   > {
+    if (!this.llmDriver.value) throw new Error("Driver is not set");
+    if (!this.llmDriver.value.ready.value) {
+      throw new Error("Driver is not ready");
+    }
+
     const staticPrompt = Director._buildStaticPrompt(this.scenario);
     const dynamicPrompt = Director._buildDynamicPrompt(
       rootState,
@@ -88,15 +74,15 @@ export class Director {
 
     const prompt = `${staticPrompt}${dynamicPrompt}<|end|>\n<|assistant|>\n`;
 
-    const options: InferenceOptions = {
-      grammar: Director._buildGnbf(),
+    const options: CompletionOptions = {
+      grammar: Director._buildGrammar(this.llmDriver.value.grammarLang),
       stopSequences: ["<|end|>"],
       ...inferenceOptions,
     };
 
     console.log("Inferring director update", prompt, options, nEval);
 
-    const inferenceResult = await this.gpt.infer(
+    const inferenceResult = await this.llmDriver.value.createCompletion(
       prompt,
       nEval,
       options,
@@ -409,11 +395,24 @@ ${JSON.stringify(functions)}
     return text;
   }
 
+  private static _buildGrammar(lang: LlmGrammarLang): string {
+    switch (lang) {
+      case LlmGrammarLang.Gnbf:
+        return Director._buildGrammarGnbf();
+      case LlmGrammarLang.Regex:
+        return Director._buildGrammarRegex();
+      case LlmGrammarLang.Lark:
+        return Director._buildGrammarLark();
+      default:
+        throw unreachable(lang);
+    }
+  }
+
   /**
    * Build a GNBF grammar to constrain director output.
    * @see https://github.com/ggerganov/llama.cpp/blob/master/grammars/README.md.
    */
-  private static _buildGnbf(): string {
+  private static _buildGrammarGnbf(): string {
     /**
      * Prepare string for GNBF grammar.
      *
@@ -520,6 +519,28 @@ ${Object.entries(auxRules)
   }
 
   /**
+   * Build a Regex grammar to constrain director output.
+   * @see https://outlines-dev.github.io/outlines/reference/regex.
+   */
+  private static _buildGrammarRegex(): string {
+    const id = `([a-zA-Z_][a-zA-Z0-9_-]*)`;
+    const setScene = `"\\{"name":"setScene","args":\\{"sceneId":${id}\\}\\}"`;
+    const addCharacter = `"\\{"name":"addCharacter","args":\\{"characterId":${id},"outfitId":${id},"expressionId":${id}\\}\\}"`;
+    const removeCharacter = `"\\{"name":"removeCharacter","args":\\{"characterId":${id}\\}\\}"`;
+    const setOutfit = `"\\{"name":"setOutfit","args":\\{"characterId":${id},"outfitId":${id}\\}\\}"`;
+    const setExpression = `"\\{"name":"setExpression","args":\\{"characterId":${id},"expressionId":${id}\\}\\}"`;
+    return `^(${setScene}|${addCharacter}|${removeCharacter}|${setOutfit}|${setExpression}\\n)*$`;
+  }
+
+  /**
+   * Build a Lark grammar to constrain director output.
+   * @see https://outlines-dev.github.io/outlines/reference/cfg.
+   */
+  private static _buildGrammarLark(): string {
+    return "TODO: Implement Lark grammar";
+  }
+
+  /**
    * Parse the prediction into a list of state commands.
    * @throws {CommandParseError} If the prediction is not a valid state command.
    */
@@ -559,9 +580,4 @@ ${Object.entries(auxRules)
 
     return commands;
   }
-
-  private constructor(
-    private scenario: Scenario,
-    readonly gpt: Gpt,
-  ) {}
 }

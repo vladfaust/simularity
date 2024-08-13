@@ -1,7 +1,6 @@
-import { v } from "@/lib/valibot";
+import { CompletionOptions } from "@/lib/inference/BaseLlmDriver";
 import { invoke } from "@tauri-apps/api";
 import { emit, listen } from "@tauri-apps/api/event";
-import { InferenceOptionsSchema } from "../../common";
 
 type Response = {
   result: string;
@@ -28,19 +27,27 @@ export async function infer(
   sessionId: string,
   prompt: string | null,
   numEval: number,
-  inferOptions: v.InferInput<typeof InferenceOptionsSchema> = {},
+  inferOptions: CompletionOptions = {},
   decodeCallback?: (event: DecodeProgressEventPayload) => void,
   inferenceCallback?: (event: InferenceEventPayload) => void,
   abortSignal?: AbortSignal,
 ): Promise<Response> {
+  const decodeCallbackEventName = decodeCallback
+    ? `${DECODING_EVENT_NAME}/${sessionId}`
+    : undefined;
+
+  const inferenceCallbackEventName = inferenceCallback
+    ? `${INFERENCE_EVENT_NAME}/${sessionId}`
+    : undefined;
+
   const unlistenDecode = decodeCallback
-    ? await listen(DECODING_EVENT_NAME, (event) => {
+    ? await listen(decodeCallbackEventName!, (event) => {
         decodeCallback(event.payload as DecodeProgressEventPayload);
       })
     : undefined;
 
   const unlistenInference = inferenceCallback
-    ? await listen(INFERENCE_EVENT_NAME, (event) => {
+    ? await listen(inferenceCallbackEventName!, (event) => {
         inferenceCallback(event.payload as InferenceEventPayload);
       })
     : undefined;
@@ -64,10 +71,8 @@ export async function infer(
 
     nEval: numEval,
     options: inferOptions,
-    decodeCallbackEventName: decodeCallback ? DECODING_EVENT_NAME : undefined,
-    inferenceCallbackEventName: inferenceCallback
-      ? INFERENCE_EVENT_NAME
-      : undefined,
+    decodeCallbackEventName,
+    inferenceCallbackEventName,
   })) as Response;
 
   unlistenDecode?.();

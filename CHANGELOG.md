@@ -67,6 +67,8 @@
 - [x] feat(client): scene ambiences (Thu 8)
 - [x] feat(client): simulation clock (Thu 8)
       Tick-tock, tick-tock.
+- [x] feat: Runpod inference (Mon 12)
+      Crude, but it works. Uses vLLM.
 
 ### July 2024
 

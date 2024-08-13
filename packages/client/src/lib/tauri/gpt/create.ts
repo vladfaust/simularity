@@ -17,6 +17,7 @@ const PROGRESS_EVENT_NAME = "app://gpt/progress";
 
 /**
  * Create a new GPT instance.
+ * May take time to decode the initial prompt.
  */
 export async function create(
   modelId: string,

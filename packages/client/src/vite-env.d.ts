@@ -13,14 +13,11 @@ interface ImportMetaEnv {
   /** SQLite database path, relative to $APPLOCALDATA. */
   readonly VITE_DATABASE_PATH: string;
 
-  /** Default remote inference server base URL. */
-  readonly VITE_DEFAULT_REMOTE_INFERENCE_SERVER_BASE_URL: string;
+  /** Default API server base URL. */
+  readonly VITE_DEFAULT_API_BASE_URL: string;
 
-  /** Default remote inference model for Writer. */
-  readonly VITE_DEFAULT_REMOTE_WRITER_MODEL: string;
-
-  /** Default remote inference model for Director. */
-  readonly VITE_DEFAULT_REMOTE_DIRECTOR_MODEL: string;
+  /** ADHOC: API server JWT. */
+  readonly VITE_API_JWT: string;
 }
 
 interface ImportMeta {

@@ -9,4 +9,16 @@ export default defineConfig({
       "@": "/src",
     },
   },
+  optimizeDeps: {
+    include: [
+      "@simularity/api-sdk/v1/completions/create",
+      "@simularity/api-sdk/v1/models/index",
+      "@simularity/api-sdk/v1/users/get",
+    ],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/@simularity\/api-sdk/, /node_modules/],
+    },
+  },
 });
