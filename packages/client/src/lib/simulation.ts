@@ -320,10 +320,6 @@ export class Simulation {
       throw new Error("Simulation is busy");
     }
 
-    if (!this.writer.ready.value) {
-      throw new Error("Writer is not ready");
-    }
-
     if (!this.state.currentEpisode.value) {
       throw new Error("No episode to advance");
     }
