@@ -1,6 +1,6 @@
 import * as api from "@/lib/api";
 import { toMilliseconds } from "duration-fns";
-import { ref } from "vue";
+import { Ref, ref } from "vue";
 import { mergeAbortSignals, timeoutSignal } from "../utils";
 import {
   BaseLlmDriver,
@@ -13,39 +13,37 @@ import {
 export type RemoteLlmDriverConfig = {
   type: "remote";
   baseUrl: string;
-  jwt: string;
   modelId: string;
 };
 
 export class RemoteLlmDriver implements BaseLlmDriver {
   readonly busy = ref(false);
 
-  static async create(config: RemoteLlmDriverConfig, sessionId?: string) {
+  static async create(
+    config: RemoteLlmDriverConfig,
+    jwt: Readonly<Ref<string | null>>,
+    sessionId: Ref<string | null>,
+  ) {
     const models = await api.v1.models.index(config.baseUrl);
     const model = models.find((model) => model.id === config.modelId);
     if (!model) {
       throw new Error(`Model ${config.modelId} not found`);
     }
 
-    return new RemoteLlmDriver(config, model.contextSize, sessionId);
+    return new RemoteLlmDriver(config, model.contextSize, jwt, sessionId);
   }
 
   readonly grammarLang = LlmGrammarLang.Regex;
   readonly needsWarmup = false;
   readonly ready = ref(true);
   readonly progress = ref<number | undefined>();
-  private _sessionId?: string;
-  get sessionId() {
-    return this._sessionId;
-  }
 
   private constructor(
     readonly config: RemoteLlmDriverConfig,
     readonly contextSize: number,
-    sessionId?: string,
-  ) {
-    this._sessionId = sessionId;
-  }
+    readonly jwt: Readonly<Ref<string | null>>,
+    readonly sessionId: Ref<string | null>,
+  ) {}
 
   compareConfig(other: RemoteLlmDriverConfig): boolean {
     return (
@@ -67,6 +65,10 @@ export class RemoteLlmDriver implements BaseLlmDriver {
     totalTokens: number;
     aborted: boolean;
   }> {
+    if (!this.jwt.value) {
+      throw new Error("JWT token not set");
+    }
+
     try {
       this.busy.value = true;
 
@@ -80,8 +82,8 @@ export class RemoteLlmDriver implements BaseLlmDriver {
 
       const response = await api.v1.completions.create(
         this.config.baseUrl,
-        this.config.jwt,
-        this._sessionId,
+        this.jwt.value,
+        this.sessionId.value ?? undefined,
         {
           model: this.config.modelId,
           prompt: prompt,
@@ -98,7 +100,7 @@ export class RemoteLlmDriver implements BaseLlmDriver {
         signal,
       );
 
-      this._sessionId = response.sessionId;
+      this.sessionId.value = response.sessionId;
 
       return {
         result: response.output,

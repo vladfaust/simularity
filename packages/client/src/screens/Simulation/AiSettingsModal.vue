@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import Agent from "./AiSettingsModal/Agent.vue";
 import { Simulation } from "@/lib/simulation";
 import { NARRATOR } from "@/lib/simulation/agents/writer";
+import * as storage from "@/lib/storage";
+import { clone, tap } from "@/lib/utils";
 import {
   Dialog,
   DialogPanel,
@@ -10,6 +11,8 @@ import {
   TransitionRoot,
 } from "@headlessui/vue";
 import { BrainCircuitIcon, FeatherIcon, XIcon } from "lucide-vue-next";
+import { ref } from "vue";
+import LlmAgent from "./AiSettingsModal/LlmAgent.vue";
 
 defineProps<{
   open: boolean;
@@ -30,12 +33,25 @@ function onCharacterClick(event: MouseEvent, characterId: string) {
     emit("switchEnabledCharacter", characterId);
   }
 }
+
+const writerConfig = storage.llm.useDriverConfig("writer");
+const tempWriterConfig = ref(tap(writerConfig.value, clone) ?? null);
+
+const directorConfig = storage.llm.useDriverConfig("director");
+const tempDirectorConfig = ref(tap(directorConfig, clone) ?? null);
+
+function onClose() {
+  writerConfig.value = tempWriterConfig.value;
+  directorConfig.value = tempDirectorConfig.value;
+
+  emit("close");
+}
 </script>
 
 <template lang="pug">
 Dialog.relative.z-50.w-screen.overflow-hidden(
   :open="open"
-  @close="emit('close')"
+  @close="onClose"
   :unmount="false"
   :static="true"
 )
@@ -49,7 +65,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
       leave-from="opacity-100"
       leave-to="opacity-0"
     )
-      DialogPanel.flex.max-h-full.w-full.max-w-lg.flex-col.overflow-y-hidden.rounded-lg.bg-white.shadow-lg
+      DialogPanel.flex.max-h-full.w-full.max-w-xl.flex-col.overflow-y-hidden.rounded-lg.bg-white.shadow-lg
         .flex.items-center.justify-between.gap-2.border-b.p-3
           h1.flex.shrink-0.items-center.gap-1
             BrainCircuitIcon.inline-block(:size="20")
@@ -85,14 +101,15 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
             )
 
           //- Writer agent.
-          Agent(
+          LlmAgent(
             agent-id="writer"
             name="Writer"
             :driver-instance="simulation.writer.llmDriver.value ?? undefined"
+            v-model:driver-config="tempWriterConfig"
           )
 
           //- //- Director agent.
-          //- Agent(
+          //- LlmAgent(
           //-   :agent-id="'director'"
           //-   :gpt="simulation.director.value?.gpt"
           //-   name="Director"

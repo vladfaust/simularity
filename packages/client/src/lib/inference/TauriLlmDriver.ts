@@ -9,16 +9,17 @@ import {
   LlmGrammarLang,
 } from "./BaseLlmDriver";
 
-type TauriLlmDriverOptions = Omit<
-  CompletionOptions,
-  "grammar" | "stopSequences"
->;
-
 export type TauriLlmDriverConfig = {
-  type: "tauri";
+  type: "local";
   modelPath: string;
+
+  /**
+   * May be larger than the model's training context window.
+   */
+  // TODO: In that case, use RoPE.
   contextSize: number;
-  options?: TauriLlmDriverOptions;
+
+  completionOptions?: Omit<CompletionOptions, "grammar" | "stopSequences">;
 };
 
 export class TauriLlmDriver implements BaseLlmDriver {
@@ -72,14 +73,20 @@ export class TauriLlmDriver implements BaseLlmDriver {
    * @param initialPrompt Initial prompt to seed the model.
    * May take time to initialize, unless the session was dumped before.
    * @param dumpSession Whether to dump the session to disk.
+   * @param initCallback Callback to receive the session ID.
    */
   static create(
     config: TauriLlmDriverConfig,
     initialPrompt: string,
     dumpSession: boolean,
+    initCallback: ({ sessionId }: { sessionId: string }) => void,
   ): TauriLlmDriver {
     const driver = new TauriLlmDriver(undefined, config);
-    driver._init(initialPrompt, dumpSession);
+
+    driver._init(initialPrompt, dumpSession).then(() => {
+      initCallback({ sessionId: driver._sessionId! });
+    });
+
     return driver;
   }
 
@@ -105,7 +112,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
         dumpSession,
       );
 
-      this.sessionId = result.sessionId;
+      this._sessionId = result.sessionId;
       this.initialized.value = true;
     } finally {
       this.progress.value = undefined;
@@ -125,7 +132,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
   }
 
   private constructor(
-    private sessionId: string | undefined,
+    private _sessionId: string | undefined,
     readonly config: TauriLlmDriverConfig,
   ) {}
 
@@ -148,7 +155,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
     totalTokens: number;
     aborted: boolean;
   }> {
-    if (!this.sessionId) {
+    if (!this._sessionId) {
       throw new Error("TauriLlmDriver not initialized");
     }
 
@@ -156,7 +163,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
     try {
       let decoded = false;
       const response = await tauri.gpt.infer(
-        this.sessionId,
+        this._sessionId,
         prompt,
         nEval,
         inferenceOptions,
@@ -192,12 +199,12 @@ export class TauriLlmDriver implements BaseLlmDriver {
       await sleep(100);
     }
 
-    if (this.sessionId) {
+    if (this._sessionId) {
       console.log("Destroying TauriLlmDriver session", {
-        sessionId: this.sessionId,
+        sessionId: this._sessionId,
       });
 
-      await tauri.gpt.destroy(this.sessionId);
+      await tauri.gpt.destroy(this._sessionId);
     }
   }
 }

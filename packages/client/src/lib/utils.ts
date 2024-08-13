@@ -243,3 +243,11 @@ export function mergeAbortSignals(...signals: AbortSignal[]): AbortSignal {
 
   return controller.signal;
 }
+
+export function tap<T, U>(
+  value: T,
+  callable: (value: NonNullable<T>) => U,
+): U | undefined {
+  if (value) return callable(value);
+  else return undefined;
+}

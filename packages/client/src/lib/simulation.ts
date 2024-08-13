@@ -1,4 +1,3 @@
-import { latestWriterSessionId, writerDriverConfig } from "@/store";
 import { watchImmediate } from "@vueuse/core";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
@@ -30,6 +29,7 @@ import { StageRenderer } from "./simulation/stageRenderer";
 import { State, StateDto, compareStateDeltas } from "./simulation/state";
 import { StateCommand } from "./simulation/state/commands";
 import { Update } from "./simulation/update";
+import * as storage from "./storage";
 import { assert, assertCallback, unreachable } from "./utils";
 
 export { Scenario, State };
@@ -1549,9 +1549,13 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
    * Prepare writer LLM for the simulation.
    */
   private async _initWriter() {
+    const driverConfig = storage.llm.useDriverConfig("writer");
+    const latestSessionId = storage.llm.useLatestSessionId("writer");
+
     watchImmediate(
-      () => writerDriverConfig.value,
+      () => driverConfig.value,
       async (driverConfig) => {
+        console.debug("Writer driver config changed", driverConfig);
         if (driverConfig) {
           if (this._writer.llmDriver.value) {
             console.debug("Comparing driver configs.", { other: driverConfig });
@@ -1559,6 +1563,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
               console.log("Driver config is different, destroying the driver.");
               this._writer.llmDriver.value.destroy();
               this._writer.llmDriver.value = null;
+              latestSessionId.value = null;
             } else {
               console.debug("Driver config is the same.");
               return;
@@ -1566,14 +1571,14 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
           }
 
           switch (driverConfig.type) {
-            case "tauri": {
+            case "local": {
               let driver: TauriLlmDriver | null = null;
 
-              if (latestWriterSessionId.value) {
+              if (latestSessionId.value) {
                 driver = await TauriLlmDriver.find(
                   driverConfig,
                   "modelHash",
-                  latestWriterSessionId.value,
+                  latestSessionId.value,
                 );
               }
 
@@ -1589,10 +1594,13 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
                   driverConfig,
                   initialPrompt,
                   true,
+                  ({ sessionId }) => {
+                    latestSessionId.value = sessionId;
+                  },
                 );
               } else {
                 console.log(`Restored TauriLlmDriver`, {
-                  sessionId: latestWriterSessionId.value,
+                  sessionId: latestSessionId.value,
                   driverConfig,
                 });
               }
@@ -1604,12 +1612,13 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
             case "remote": {
               console.log("Creating new RemoteLlmDriver", {
                 driverConfig,
-                sessionId: latestWriterSessionId.value,
+                sessionId: latestSessionId.value,
               });
 
               this._writer.llmDriver.value = await RemoteLlmDriver.create(
                 driverConfig,
-                latestWriterSessionId.value ?? undefined,
+                storage.remoteServerJwt,
+                latestSessionId,
               );
 
               break;
