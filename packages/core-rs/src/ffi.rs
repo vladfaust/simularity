@@ -59,11 +59,14 @@ extern "C" {
         model_info: *mut SimularityModelInfo,
     ) -> c_int;
 
-    // uint64_t simularity_model_hash(const char *model_id);
-    pub fn simularity_model_hash(model_id: *const c_char) -> u64;
+    // uint64_t simularity_model_get_hash_by_id(const char *model_id);
+    pub fn simularity_model_get_hash_by_id(model_id: *const c_char) -> u64;
 
     // int simularity_model_unload(const char *model_id);
     pub fn simularity_model_unload(model_id: *const c_char) -> c_int;
+
+    // uint64_t simularity_model_get_hash_by_path(const char *model_path);
+    pub fn simularity_model_get_hash_by_path(model_path: *const c_char) -> u64;
 
     // int simularity_gpt_create(
     //     const char *model_id,

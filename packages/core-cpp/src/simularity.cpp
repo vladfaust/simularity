@@ -79,7 +79,7 @@ extern "C" int simularity_model_load(
   return 0;
 }
 
-extern "C" uint64_t simularity_model_hash(const char *model_id) {
+extern "C" uint64_t simularity_model_get_hash_by_id(const char *model_id) {
   spdlog::debug("simularity_model_hash(model_id: {})", model_id);
 
   // Acquire the models mutex lock.
@@ -104,6 +104,11 @@ extern "C" uint64_t simularity_model_hash(const char *model_id) {
     if (hash > 0) model->xx64_hash = hash;
     return hash;
   }
+}
+
+extern "C" uint64_t simularity_model_get_hash_by_path(const char *model_path) {
+  spdlog::debug("simularity_model_hash(model_path: {})", model_path);
+  return gguf_hash_xx64(model_path);
 }
 
 extern "C" int simularity_model_unload(const char *model_id) {

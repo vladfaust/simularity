@@ -20,10 +20,16 @@ static XXH64_hash_t gguf_hash_xx64(const char *fname) {
 
   XXH64_hash_t const seed = 0;
   if (XXH64_reset(xxh64_model_hash_state, seed) == XXH_ERROR) {
+    XXH64_freeState(xxh64_model_hash_state);
     return -1;
   }
 
-  struct gguf_context *ctx       = gguf_init_from_file(fname, params);
+  struct gguf_context *ctx = gguf_init_from_file(fname, params);
+  if (ctx == NULL) {
+    XXH64_freeState(xxh64_model_hash_state);
+    return -1;
+  }
+
   const int n_tensors            = gguf_get_n_tensors(ctx);
   bool tensor_layer_in_manifest  = false;
   bool model_in_manifest         = false;
@@ -37,6 +43,9 @@ static XXH64_hash_t gguf_hash_xx64(const char *fname) {
     auto *raw_data          = cur->data;
 
     if (XXH64_update(xxh64_model_hash_state, raw_data, n_bytes) == XXH_ERROR) {
+      XXH64_freeState(xxh64_model_hash_state);
+      ggml_free(ctx_data);
+      gguf_free(ctx);
       return -1;
     }
   }

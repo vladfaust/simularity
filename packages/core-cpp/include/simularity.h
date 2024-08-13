@@ -61,7 +61,18 @@ int simularity_model_load(
   @return The xx64 hash of the model.
   @return -1 if there was an error hashing the model.
  */
-uint64_t simularity_model_hash(const char *model_id);
+uint64_t simularity_model_get_hash_by_id(const char *model_id);
+
+/**
+  Get the xx64 hash of the model with the given path. This function does not
+  memoize the result.
+
+  @param model_path Path to the model file.
+
+  @return The xx64 hash of the model.
+  @return -1 if there was an error hashing the model.
+ */
+uint64_t simularity_model_get_hash_by_path(const char *model_path);
 
 /**
   Unload a model with the given ID.

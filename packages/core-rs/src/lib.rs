@@ -71,9 +71,19 @@ pub enum ModelHashError {
 }
 
 /// Get the hash of a model by its ID.
-pub fn model_hash(model_id: &str) -> Result<u64, ModelHashError> {
+pub fn model_get_hash_by_id(model_id: &str) -> Result<u64, ModelHashError> {
     let model_id = CString::new(model_id).unwrap();
-    let result = unsafe { ffi::simularity_model_hash(model_id.as_ptr()) };
+    let result = unsafe { ffi::simularity_model_get_hash_by_id(model_id.as_ptr()) };
+    match result {
+        0 => Err(ModelHashError::Unknown(result as i32)),
+        _ => Ok(result),
+    }
+}
+
+/// Get the hash of a model by its path.
+pub fn model_get_hash_by_path(model_path: &str) -> Result<u64, ModelHashError> {
+    let model_path = CString::new(model_path).unwrap();
+    let result = unsafe { ffi::simularity_model_get_hash_by_path(model_path.as_ptr()) };
     match result {
         0 => Err(ModelHashError::Unknown(result as i32)),
         _ => Ok(result),
