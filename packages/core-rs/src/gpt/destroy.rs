@@ -16,7 +16,7 @@ pub fn destroy(session_id: u32) -> Result<(), Error> {
 
     match result {
         -1 => Err(Error::SessionNotFound),
-        x if x > 0 => Ok(()),
+        x if x >= 0 => Ok(()),
         x => Err(Error::Unknown(x)),
     }
 }
