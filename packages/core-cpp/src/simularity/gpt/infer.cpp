@@ -107,9 +107,6 @@ int simularity_gpt_infer(
         session->model(), options.stop_sequences[i], false, false
     );
 
-    // FIXME: For some reason, "\n" results in [28705, 13].
-    tokens.erase(tokens.begin());
-
     spdlog::debug(
         "Stop sequence: `{:np}` ({}) ({})",
         spdlog::to_hex(string),
