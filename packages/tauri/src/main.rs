@@ -11,8 +11,8 @@ mod commands;
 mod sqlite;
 
 struct AppState {
-    /// { id => created }.
-    pub gpt_sessions: Mutex<HashMap<u32, ()>>,
+    /// { id => model_id }.
+    pub gpt_sessions: Mutex<HashMap<u32, String>>,
 
     /// { uri => connection }. A connection will be held until it is closed.
     pub sqlite_connections: Mutex<HashMap<String, Arc<Mutex<rusqlite::Connection>>>>,

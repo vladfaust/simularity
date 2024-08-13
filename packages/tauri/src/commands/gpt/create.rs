@@ -154,7 +154,7 @@ pub async fn gpt_create(
     let context_length = 0;
 
     let mut hash_map_lock = state.gpt_sessions.lock().await;
-    hash_map_lock.insert(session_id, ());
+    hash_map_lock.insert(session_id, model_id.to_string());
 
     Ok(Response {
         session_id: session_id.to_string(),
