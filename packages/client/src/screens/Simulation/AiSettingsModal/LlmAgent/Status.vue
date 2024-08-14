@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type BaseLlmDriver } from "@/lib/inference/BaseLlmDriver";
+import { type BaseLlmDriver } from "@/lib/ai/llm/BaseLlmDriver";
 import { computed } from "vue";
 
 enum Status {

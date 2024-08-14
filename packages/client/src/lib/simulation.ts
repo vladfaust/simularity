@@ -11,14 +11,14 @@ import {
   triggerRef,
   type Raw,
 } from "vue";
-import { d, parseSelectResult, sqlite, type Transaction } from "./drizzle";
-import { writerUpdatesTableName } from "./drizzle/schema";
 import {
   CompletionAbortError,
   type CompletionOptions,
-} from "./inference/BaseLlmDriver";
-import { RemoteLlmDriver } from "./inference/RemoteLlmDriver";
-import { TauriLlmDriver } from "./inference/TauriLlmDriver";
+} from "./ai/llm/BaseLlmDriver";
+import { RemoteLlmDriver } from "./ai/llm/RemoteLlmDriver";
+import { TauriLlmDriver } from "./ai/llm/TauriLlmDriver";
+import { d, parseSelectResult, sqlite, type Transaction } from "./drizzle";
+import { writerUpdatesTableName } from "./drizzle/schema";
 import { Director } from "./simulation/agents/director";
 import {
   Writer,

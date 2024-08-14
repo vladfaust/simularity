@@ -1,8 +1,8 @@
+import { d } from "@/lib/drizzle";
+import * as tauri from "@/lib/tauri";
+import { sleep } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 import { computed, ref } from "vue";
-import { d } from "../drizzle";
-import * as tauri from "../tauri";
-import { sleep } from "../utils";
 import {
   LlmGrammarLang,
   type BaseLlmDriver,

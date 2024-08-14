@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type CompletionOptions } from "@/lib/inference/BaseLlmDriver";
+import { type CompletionOptions } from "@/lib/ai/llm/BaseLlmDriver";
 import { Simulation } from "@/lib/simulation";
 import {
   NARRATOR,

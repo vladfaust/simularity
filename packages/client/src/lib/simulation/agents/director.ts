@@ -3,7 +3,7 @@ import {
   type BaseLlmDriver,
   type CompletionOptions,
   type CompletionResult,
-} from "@/lib/inference/BaseLlmDriver";
+} from "@/lib/ai/llm/BaseLlmDriver";
 import { escapeQuotes, safeParseJson, unreachable } from "@/lib/utils";
 import { formatIssues, v } from "@/lib/valibot";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";

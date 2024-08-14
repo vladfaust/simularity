@@ -1,10 +1,10 @@
-import { d } from "@/lib/drizzle";
 import {
   CompletionAbortError,
   LlmGrammarLang,
   type BaseLlmDriver,
   type CompletionOptions,
-} from "@/lib/inference/BaseLlmDriver";
+} from "@/lib/ai/llm/BaseLlmDriver";
+import { d } from "@/lib/drizzle";
 import {
   clockToMinutes,
   minutesToClock,

@@ -1,7 +1,7 @@
+import { type RemoteLlmDriverConfig } from "@/lib/ai/llm/RemoteLlmDriver";
+import { type TauriLlmDriverConfig } from "@/lib/ai/llm/TauriLlmDriver";
 import { StorageSerializers, useLocalStorage } from "@vueuse/core";
 import { type Ref } from "vue";
-import { type RemoteLlmDriverConfig } from "../inference/RemoteLlmDriver";
-import { type TauriLlmDriverConfig } from "../inference/TauriLlmDriver";
 
 export type LlmDriverConfig = TauriLlmDriverConfig | RemoteLlmDriverConfig;
 export type LlmAgentId = "writer" | "director";
