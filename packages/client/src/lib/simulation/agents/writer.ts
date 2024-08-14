@@ -1,9 +1,9 @@
 import { d } from "@/lib/drizzle";
 import {
-  BaseLlmDriver,
   CompletionAbortError,
-  CompletionOptions,
   LlmGrammarLang,
+  type BaseLlmDriver,
+  type CompletionOptions,
 } from "@/lib/inference/BaseLlmDriver";
 import {
   clockToMinutes,
@@ -11,7 +11,7 @@ import {
   trimEndAny,
   unreachable,
 } from "@/lib/utils";
-import { ShallowRef, computed, ref, shallowRef } from "vue";
+import { computed, ref, shallowRef, type ShallowRef } from "vue";
 import { Scenario } from "../scenario";
 import { Update } from "../update";
 

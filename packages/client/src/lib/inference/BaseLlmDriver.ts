@@ -1,4 +1,4 @@
-import { Ref } from "vue";
+import { type Ref } from "vue";
 import { v } from "../valibot";
 
 export class CompletionAbortError extends Error {

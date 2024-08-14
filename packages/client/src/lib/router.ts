@@ -1,8 +1,8 @@
 import {
-  RouteLocationNamedRaw,
-  RouteRecordRaw,
   createRouter,
   createWebHistory,
+  type RouteLocationNamedRaw,
+  type RouteRecordRaw,
 } from "vue-router";
 import ChooseScenario from "../screens/ChooseScenario.vue";
 import LoadSimulations from "../screens/LoadSimulations.vue";

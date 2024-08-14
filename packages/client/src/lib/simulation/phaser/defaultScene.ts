@@ -1,9 +1,9 @@
 import { Scenario } from "@/lib/simulation";
 import { sleep } from "@/lib/utils";
 import Phaser from "phaser";
-import { DeepReadonly } from "vue";
-import { StageRenderer } from "../stageRenderer";
-import { Stage } from "../state";
+import { type DeepReadonly } from "vue";
+import { type StageRenderer } from "../stageRenderer";
+import { type Stage } from "../state";
 
 /**
  * An unexpected scene error.

@@ -4,12 +4,12 @@ import { d } from "../drizzle";
 import * as tauri from "../tauri";
 import { sleep } from "../utils";
 import {
-  BaseLlmDriver,
-  CompletionOptions,
-  CompletionProgressEventPayload,
-  CompletionResult,
-  DecodeProgressEventPayload,
   LlmGrammarLang,
+  type BaseLlmDriver,
+  type CompletionOptions,
+  type CompletionProgressEventPayload,
+  type CompletionResult,
+  type DecodeProgressEventPayload,
 } from "./BaseLlmDriver";
 
 export type TauriLlmDriverConfig = {

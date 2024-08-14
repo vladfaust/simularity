@@ -1,4 +1,4 @@
-import { Stage } from "./state";
+import { type Stage } from "./state";
 
 /**
  * An abstract {@link Stage} renderer object.

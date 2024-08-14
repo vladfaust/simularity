@@ -1,10 +1,10 @@
 import { deepEqual } from "fast-equals";
-import { computed, readonly, Ref, ref } from "vue";
+import { computed, readonly, ref, type Ref } from "vue";
 import { LuaEngine, LuaFactory } from "wasmoon";
 import { clone, unreachable } from "../utils";
 import { Scenario } from "./scenario";
-import { StageRenderer } from "./stageRenderer";
-import { StateCommand } from "./state/commands";
+import { type StageRenderer } from "./stageRenderer";
+import { type StateCommand } from "./state/commands";
 
 /**
  * When state encounters a logical error, such as

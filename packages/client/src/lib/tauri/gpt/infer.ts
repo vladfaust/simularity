@@ -1,4 +1,4 @@
-import { CompletionOptions } from "@/lib/inference/BaseLlmDriver";
+import { type CompletionOptions } from "@/lib/inference/BaseLlmDriver";
 import { invoke } from "@tauri-apps/api";
 import { emit, listen } from "@tauri-apps/api/event";
 

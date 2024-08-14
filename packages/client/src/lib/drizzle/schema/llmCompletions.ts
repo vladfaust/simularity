@@ -1,4 +1,4 @@
-import { CompletionOptions } from "@/lib/inference/BaseLlmDriver";
+import { type CompletionOptions } from "@/lib/inference/BaseLlmDriver";
 import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";

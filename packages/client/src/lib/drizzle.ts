@@ -1,9 +1,12 @@
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
-import { InferSelectModel } from "drizzle-orm";
-import { SQLiteTable, TableConfig } from "drizzle-orm/sqlite-core";
+import { type InferSelectModel } from "drizzle-orm";
+import { SQLiteTable, type TableConfig } from "drizzle-orm/sqlite-core";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import * as schema from "./drizzle/schema";
-import { Migration, migrate as migrate_ } from "./drizzle/scripts/migrate.js";
+import {
+  migrate as migrate_,
+  type Migration,
+} from "./drizzle/scripts/migrate.js";
 import { Sqlite, queryResultToObjects } from "./tauri/sqlite";
 import { pick } from "./utils";
 

@@ -1,18 +1,18 @@
 import {
-  BaseLlmDriver,
-  CompletionOptions,
-  CompletionResult,
   LlmGrammarLang,
+  type BaseLlmDriver,
+  type CompletionOptions,
+  type CompletionResult,
 } from "@/lib/inference/BaseLlmDriver";
 import { escapeQuotes, safeParseJson, unreachable } from "@/lib/utils";
 import { formatIssues, v } from "@/lib/valibot";
-import { ShallowRef, computed, ref, shallowRef } from "vue";
+import { computed, ref, shallowRef, type ShallowRef } from "vue";
 import { Scenario } from "../scenario";
-import { StateDto } from "../state";
+import { type StateDto } from "../state";
 import {
-  StateCommand,
   StateCommandSchema,
   stateCommandToLine,
+  type StateCommand,
 } from "../state/commands";
 import { Update } from "../update";
 

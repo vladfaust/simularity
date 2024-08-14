@@ -1,4 +1,4 @@
-import { StateDto } from "@/lib/simulation/state";
+import { type StateDto } from "@/lib/simulation/state";
 import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
 import {

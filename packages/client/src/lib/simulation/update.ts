@@ -1,5 +1,5 @@
 import { d } from "@/lib/drizzle";
-import { ref, shallowRef, ShallowRef } from "vue";
+import { ref, shallowRef, type ShallowRef } from "vue";
 
 export class Update {
   readonly chosenVariantIndex = ref(0);
