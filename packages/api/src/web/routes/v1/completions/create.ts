@@ -16,6 +16,8 @@ import { Router } from "express";
 import runpodSdk from "runpod-sdk";
 import { ensureUser } from "../auth/common.js";
 
+const RUNPOD_TIMEOUT = toMilliseconds({ minutes: 10 });
+
 const RunpodResultOutputSchema = v.array(
   v.object({
     choices: v.array(
@@ -175,17 +177,24 @@ export default Router()
     konsole.debug("Runpod input", omit(input, ["prompt"]));
 
     try {
+      res.setTimeout(RUNPOD_TIMEOUT, () => {
+        konsole.error("Request timed out", {
+          timeout: RUNPOD_TIMEOUT,
+        });
+      });
+
       // TODO: Extract to @/lib/runpod.ts
       const runResult = await endpoint.runSync(
         {
           input,
           policy: {
             executionTimeout: toMilliseconds({
-              seconds: 30,
+              // May need some time to warm up.
+              minutes: 5,
             }),
           },
         },
-        toMilliseconds({ seconds: 120 }),
+        RUNPOD_TIMEOUT,
       );
 
       konsole.debug(
