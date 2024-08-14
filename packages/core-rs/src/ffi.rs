@@ -68,6 +68,9 @@ extern "C" {
     // uint64_t simularity_model_get_hash_by_path(const char *model_path);
     pub fn simularity_model_get_hash_by_path(model_path: *const c_char) -> u64;
 
+    // int simularity_gpt_token_length(const char *model_id, const char *prompt);
+    pub fn simularity_gpt_token_length(model_id: *const c_char, prompt: *const c_char) -> c_int;
+
     // int simularity_gpt_create(
     //     const char *model_id,
     //     unsigned context_size,

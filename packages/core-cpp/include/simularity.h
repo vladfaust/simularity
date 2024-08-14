@@ -83,6 +83,20 @@ uint64_t simularity_model_get_hash_by_path(const char *model_path);
 int simularity_model_unload(const char *model_id);
 
 /**
+  Return token length of the prompt using the given model ID.
+
+  @param model_id The model ID.
+  @param prompt The prompt.
+
+  @return The token length of the prompt (zero if empty).
+  @return -1 if the model was not found.
+  @return Negative on other errors.
+
+  SAFETY: This function is thread-safe.
+ */
+int simularity_gpt_token_length(const char *model_id, const char *prompt);
+
+/**
   Create a new GPT session with the given model ID and initial prompt.
 
   @param model_id The model ID.
