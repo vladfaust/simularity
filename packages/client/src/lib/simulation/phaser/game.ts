@@ -76,4 +76,8 @@ export class Game {
   screenshot(mime = "image/jpeg", quality = 0.8) {
     return this._game.canvas.toDataURL(mime, quality);
   }
+
+  destroy() {
+    this._game.destroy(true);
+  }
 }

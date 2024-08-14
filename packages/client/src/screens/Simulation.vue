@@ -122,6 +122,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener("keypress", consoleEventListener);
+  simulation.value?.destroy();
+  gameInstance.destroy();
 });
 </script>
 

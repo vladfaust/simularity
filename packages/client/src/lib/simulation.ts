@@ -1142,6 +1142,14 @@ export class Simulation {
     triggerRef(update.variants);
   }
 
+  destroy() {
+    this._writer.llmDriver.value?.destroy();
+    storage.llm.useLatestSession("writer").value = null;
+
+    this._director.llmDriver.value?.destroy();
+    storage.llm.useLatestSession("director").value = null;
+  }
+
   //#region Private methods
   //
 
