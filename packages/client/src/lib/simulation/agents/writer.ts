@@ -13,6 +13,7 @@ import {
 } from "@/lib/utils";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
 import { Scenario } from "../scenario";
+import type { StateDto } from "../state";
 import { Update } from "../update";
 
 export const NARRATOR = "narrator";
@@ -51,6 +52,7 @@ export class Writer {
     oldCheckpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
+    currentState: StateDto,
     nEval: number,
     inferenceAbortSignal?: AbortSignal,
   ): Promise<{
@@ -67,6 +69,7 @@ export class Writer {
       oldCheckpoint,
       historicalUpdates,
       recentUpdates,
+      currentState,
       nEval,
     );
 
@@ -104,13 +107,13 @@ export class Writer {
     checkpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
+    currentState: StateDto,
     nEval: number,
     predictionOptions?: PredictionOptions,
     inferenceOptions?: CompletionOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     onInferenceProgress?: (event: { content: string }) => void,
     inferenceAbortSignal?: AbortSignal,
-    includeDirectorUpdates = false,
   ): Promise<{
     completionId: number;
     characterId: string | null;
@@ -127,7 +130,7 @@ export class Writer {
       checkpoint,
       historicalUpdates,
       recentUpdates,
-      includeDirectorUpdates,
+      currentState,
     );
 
     const stopSequences = ["\n"];
@@ -174,10 +177,7 @@ export class Writer {
   /**
    * A static prompt is re-used throughout the simulation.
    */
-  static buildStaticPrompt(
-    scenario: Scenario,
-    includeDirectorUpdates: boolean,
-  ): string {
+  static buildStaticPrompt(scenario: Scenario): string {
     const setup = {
       excerpt: scenario.excerpt,
       globalScenario: scenario.globalScenario,
@@ -222,15 +222,15 @@ The charactes MUST try their best to stay within the boundaries of the simulatio
 
 The [Transcription] section comprises chat message separated with newlines.
 A chat message is a <characterId[time]> followed by their first-person utterance.
-The [time] is the simulation time at the moment of the message, in 24-hour format.
-In simulation, time flows faster, and the minimum distance between two messages is 1 minute.
-You may jump in time, but not more than 1 hour ahead.
-Synchnronize the time with simulation clock realistically to ensure the best experience; for example, sunset shall start at around 18:00.
-Actions performed by simulacra SHALL be wrapped in *asterisks*. ${includeDirectorUpdates ? `Simulacra *actions* MUST NOT include any system commands or instructions, such as "enters the stage" or "changes outfit" (these are only emitted by <${SYSTEM}>).` : ""}
+The [time] is the simulation time synchronized with the message, in 24-hour format.
+In simulation time flows faster, and the minimum distance between two messages is 1 minute.
+You may jump ahead in time, but try not to skip too much, as the Player may miss important details.
+Synchnronize the time with simulation clock realistically to ensure the best experience; for example, 10:00 is morning, and sunset shall usually begin at around 18:00.
+Actions performed by simulacra SHALL be wrapped in *asterisks*.
 
 The special <${NARRATOR}> character is used to denote the narrator's voice, in third person.
 
-${includeDirectorUpdates ? `The special <${SYSTEM}> messages are not part of the story, but rather instructions for the simulation. ` : ""}Treat text wrapped in [square brackets] as system commands or instructions, which MUST be followed. [System commands] are NOT visible to the characters, only to the Player.
+The special <${SYSTEM}> messages are not part of the story, but rather instructions for narrator. Treat text wrapped in [square brackets] as narrator commands or instructions, which MUST be followed. System commands are NOT visible to the characters.
 
 Simulacra and narrator refer the to Player's character as "you", and the story revolves around them.
 Avoid acting for characters which are not currently present on the stage.
@@ -240,18 +240,14 @@ Do not rush the ending of a scene, DO NOT skip action without a reason, DO NOT f
 Let the story develop slowly, naturally in real-time, let the Player savour the experience in detail.
 
 [Transcription example (playerCharacter: <bob>)]
-${includeDirectorUpdates ? `<${SYSTEM}> Scene set to "The Enchanted Forest": The sun is shining through the leaves, birds are chirping. Characters on stage: <alice> (outfit: "blue dress"), <bob> (outfit: "green suit").` : ""}<${NARRATOR}> And the story begins...
 <alice[15:42]> Oh, hey, Bob! *I wave to you.* You've got a nice suit there.
 <bob[15:43]> Thank you, Alice. I wave back. How are you doing today?
 <alice[15:45]> *I think a little before answering.* Well, something big happened! Let Carl tell the details.
-${includeDirectorUpdates ? `<${SYSTEM}> <carl> enters the stage (outfit: "red shirt").` : ""}
 <carl[15:46]> Sure, Alice. Well, Bob, roses are blue.
 <alice[15:48]> Ha-ha! *I'm now grinning. That's hilarious!* You're such a good teller.
 <${NARRATOR}[15:55]> Carl vanishes into thin air, leaving Bob and Alice alone.
-${includeDirectorUpdates ? `<${SYSTEM}> <carl> leaves the stage.` : ""}
 <bob[16:01]> What am I even doing here? And where did Carl go? [Bring Carl back.]
 <${NARRATOR}[16:02]> Carl reappears, looking rather puzzled.
-${includeDirectorUpdates ? `<${SYSTEM}> <carl> enters the stage (outfit: "red shirt").` : ""}
 <carl[16:03]> Oh, I just wanted to check onto something. Sorry for the confusion, I guess?
 
 [Setup]
@@ -283,50 +279,41 @@ Simulation setup complete. Have fun!
     checkpoint: Checkpoint,
     historicalUpdate: Update[],
     recentUpdates: Update[],
-    includeDirectorUpdates: boolean,
+    currentState: StateDto,
     maxHistoricalLines = 3,
   ): string {
-    let checkpointLine = includeDirectorUpdates ? `<${SYSTEM}> ` : "";
+    let stateLine = `<${SYSTEM}> `;
 
-    if (includeDirectorUpdates) {
-      if (checkpoint.state.stage.sceneId) {
-        const scene = scenario.ensureScene(checkpoint.state.stage.sceneId);
-        checkpointLine += ` Scene set to "${scene.name}": ${scene.prompt}.`;
-      } else {
-        checkpointLine += " Scene set to undefined (void, empty).";
-      }
+    const scene = scenario.ensureScene(currentState.stage.sceneId);
+    stateLine += `Rendered stage set to '${scene.name}': '${scene.prompt}'.`;
 
-      if (checkpoint.state.stage.characters.length) {
-        checkpointLine += ` Characters on stage: ${checkpoint.state.stage.characters
-          .map(
-            (character) =>
-              `<${character.id}> (outfit: "${character.outfitId}")`,
-          )
-          .join(", ")}.`;
-      } else {
-        checkpointLine += " There are no characters on stage.";
-      }
+    if (currentState.stage.characters.length) {
+      stateLine += ` Characters on stage: ${currentState.stage.characters
+        .map(
+          (character) =>
+            `<${character.id}> (rendered outfit: "${character.outfitId}")`,
+        )
+        .join(", ")}.`;
+    } else {
+      stateLine += " There are no characters on stage.";
     }
 
     const historicalLines = historicalUpdate
       .slice(-maxHistoricalLines)
-      .map((update) =>
-        this.updateToLine(scenario, update, includeDirectorUpdates),
-      )
+      .map((update) => this.updateToLine(update))
       .join("\n");
 
     const recentLines = recentUpdates
-      .map((update) =>
-        this.updateToLine(scenario, update, includeDirectorUpdates),
-      )
+      .map((update) => this.updateToLine(update))
       .join("\n");
 
     return `
 [Summary]
 ${checkpoint.summary || "(empty)"}
 
-[Transcription]${includeDirectorUpdates ? "\n" + checkpointLine : ""}
+[Transcription]
 ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
+${stateLine}
 `;
   }
 
@@ -338,16 +325,16 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
     checkpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
-    includeDirectorUpdates: boolean,
+    currentState: StateDto,
   ): string {
     return (
-      this.buildStaticPrompt(scenario, includeDirectorUpdates) +
+      this.buildStaticPrompt(scenario) +
       this._buildDynamicPrompt(
         scenario,
         checkpoint,
         historicalUpdates,
         recentUpdates,
-        includeDirectorUpdates,
+        currentState,
       )
     );
   }
@@ -364,6 +351,7 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
     previousCheckpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
+    currentState: StateDto,
     tokenLimit: number,
   ): string {
     return (
@@ -372,7 +360,7 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}
         previousCheckpoint,
         historicalUpdates,
         recentUpdates,
-        false,
+        currentState,
       ) +
       `
 Due to technology limitations, the transcription must be summarized from time to time.
@@ -403,50 +391,9 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
   /**
    * Convert a single `update` to a line.
    */
-  static updateToLine(
-    scenario: Scenario,
-    update: Update,
-    includeDirectorUpdates: boolean,
-  ): string {
+  static updateToLine(update: Update): string {
     const writerUpdate = update.ensureChosenVariant.writerUpdate;
     let line = `<${writerUpdate.characterId || NARRATOR}[${minutesToClock(writerUpdate.simulationDayClock ?? 0)}]> ${writerUpdate.text}`;
-
-    const directorUpdate = update.ensureChosenVariant.directorUpdate;
-    if (includeDirectorUpdates && directorUpdate) {
-      for (const command of directorUpdate.code) {
-        switch (command.name) {
-          case "addCharacter":
-            line += `\n<${SYSTEM}> <${command.args.characterId}> enters the stage (outfit: "${command.args.outfitId}").`;
-            break;
-
-          case "removeCharacter":
-            line += `\n<${SYSTEM}> <${command.args.characterId}> leaves the stage.`;
-            break;
-
-          case "setOutfit":
-            line += `\n<${SYSTEM}> <${command.args.characterId}> changes outfit to "${command.args.outfitId}".`;
-            break;
-
-          case "setScene": {
-            if (command.args.sceneId) {
-              const scene = scenario.ensureScene(command.args.sceneId);
-              line += `\n<${SYSTEM}> Scene set to "${scene.name}": ${scene.prompt}.`;
-            } else {
-              line += `\n<${SYSTEM}> Scene set to undefined (void, empty).`;
-            }
-
-            break;
-          }
-
-          case "setExpression":
-            break;
-
-          default:
-            throw unreachable(command);
-        }
-      }
-    }
-
     return line;
   }
 

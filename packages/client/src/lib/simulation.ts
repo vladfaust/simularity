@@ -747,6 +747,7 @@ export class Simulation {
         this._checkpoint.value!,
         this._historicalUpdates.value,
         this._recentUpdates.value,
+        this.state.serialize(),
         256,
         inferenceAbortSignal,
       );
@@ -1589,10 +1590,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
               if (!driver) {
                 console.log("Creating new TauriLlmDriver", { driverConfig });
 
-                const initialPrompt = Writer.buildStaticPrompt(
-                  this.scenario,
-                  false,
-                );
+                const initialPrompt = Writer.buildStaticPrompt(this.scenario);
 
                 driver = TauriLlmDriver.create(
                   driverConfig,
@@ -1807,6 +1805,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         this._checkpoint.value!,
         this._historicalUpdates.value,
         recentUpdates,
+        this.state.serialize(),
         nEval,
         predictionOptions,
         inferenceOptions,
