@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Settings from "@/components/Settings.vue";
 import {
   Dialog,
   DialogPanel,
@@ -7,7 +8,6 @@ import {
 } from "@headlessui/vue";
 import { HomeIcon, SettingsIcon } from "lucide-vue-next";
 import { ref } from "vue";
-import Settings from "@/components/Settings.vue";
 
 defineProps<{
   open: boolean;

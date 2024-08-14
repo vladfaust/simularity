@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Simulation } from "@/lib/simulation";
+import { useSessionStorage } from "@vueuse/core";
 import { CircleOffIcon, DramaIcon } from "lucide-vue-next";
 import Character from "./Characters/Character.vue";
 import SelectedCharacter from "./Characters/SelectedCharacter.vue";
 import OnStageMark from "./OnStageMark.vue";
-import { useSessionStorage } from "@vueuse/core";
 
 const { simulation } = defineProps<{
   simulation: Simulation;

@@ -13,9 +13,9 @@ import {
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import prettyBytes from "pretty-bytes";
 import { onMounted, onUnmounted, ref, shallowRef } from "vue";
+import DevConsole from "./Simulation/DevConsole.vue";
 import GameConsole from "./Simulation/GameConsole.vue";
 import Menu from "./Simulation/Menu.vue";
-import DevConsole from "./Simulation/DevConsole.vue";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 

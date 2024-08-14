@@ -5,12 +5,11 @@ import { Simulation } from "@/lib/simulation";
 import { readScenario, Scenario } from "@/lib/simulation/scenario";
 import { asyncComputed } from "@vueuse/core";
 import { ArrowLeft, CirclePlayIcon } from "lucide-vue-next";
-import { onMounted } from "vue";
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import WrapBalancer from "vue-wrap-balancer";
 import Character from "./NewGame/Character.vue";
 import Episode from "./NewGame/Episode.vue";
-import { useRouter } from "vue-router";
 
 const router = useRouter();
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { useRoute, useRouter } from "vue-router";
+import { type UnlistenFn } from "@tauri-apps/api/event";
 import { appWindow } from "@tauri-apps/api/window";
 import { onMounted, onUnmounted } from "vue";
-import { type UnlistenFn } from "@tauri-apps/api/event";
+import { useRoute, useRouter } from "vue-router";
 import { routeLocation } from "./lib/router";
 
 const route = useRoute();

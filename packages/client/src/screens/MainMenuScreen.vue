@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { BookMarkedIcon, BookOpenIcon, SettingsIcon } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import { routeLocation } from "../lib/router";
-import { BookMarkedIcon, BookOpenIcon, SettingsIcon } from "lucide-vue-next";
 </script>
 
 <template lang="pug">

@@ -1,6 +1,12 @@
 <script setup lang="ts">
+import { type CompletionOptions } from "@/lib/inference/BaseLlmDriver";
 import { Simulation } from "@/lib/simulation";
+import {
+  NARRATOR,
+  type PredictionOptions,
+} from "@/lib/simulation/agents/writer";
 import { TransitionRoot } from "@headlessui/vue";
+import { useLocalStorage } from "@vueuse/core";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -13,16 +19,10 @@ import {
   UndoDotIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
+import AiSettingsModal from "./AiSettingsModal.vue";
+import AiStatus from "./AiStatus.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
-import {
-  NARRATOR,
-  type PredictionOptions,
-} from "@/lib/simulation/agents/writer";
-import AiStatus from "./AiStatus.vue";
-import AiSettingsModal from "./AiSettingsModal.vue";
-import { useLocalStorage } from "@vueuse/core";
-import { type CompletionOptions } from "@/lib/inference/BaseLlmDriver";
 
 enum SendButtonState {
   Inferring,

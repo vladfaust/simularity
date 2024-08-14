@@ -6,10 +6,10 @@ import {
   TransitionChild,
   TransitionRoot,
 } from "@headlessui/vue";
-import UpdateVue from "./Update.vue";
-import StateScenes from "./DevConsole/State/Scenes.vue";
-import StateCharacters from "./DevConsole/State/Characters.vue";
 import DirectorUpdate from "./DevConsole/DirectorUpdate.vue";
+import StateCharacters from "./DevConsole/State/Characters.vue";
+import StateScenes from "./DevConsole/State/Scenes.vue";
+import UpdateVue from "./Update.vue";
 
 defineProps<{
   open: boolean;

@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { Simulation } from "@/lib/simulation";
-import { computed } from "vue";
-import Command from "./DirectorUpdate/Command.vue";
-import { AsteriskIcon, SaveIcon, ThumbsUpIcon } from "lucide-vue-next";
 import { compareStateDeltas } from "@/lib/simulation/state";
 import { Update } from "@/lib/simulation/update";
-import { ref } from "vue";
+import { AsteriskIcon, SaveIcon, ThumbsUpIcon } from "lucide-vue-next";
+import { computed, ref } from "vue";
+import Command from "./DirectorUpdate/Command.vue";
 
 const props = defineProps<{
   simulation: Simulation;

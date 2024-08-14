@@ -1,14 +1,13 @@
 <script setup lang="ts">
+import { routeLocation } from "@/lib/router";
 import {
   readScenarios,
   Scenario,
   type ErroredScenario,
 } from "@/lib/simulation/scenario";
-import { onMounted } from "vue";
-import ScenarioVue from "./ChooseScenario/Scenario.vue";
-import { shallowRef } from "vue";
-import { routeLocation } from "@/lib/router";
 import { ArrowLeft } from "lucide-vue-next";
+import { onMounted, shallowRef } from "vue";
+import ScenarioVue from "./ChooseScenario/Scenario.vue";
 
 const scenarios = shallowRef<(Scenario | ErroredScenario)[]>([]);
 

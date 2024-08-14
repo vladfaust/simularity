@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import Placeholder from "@/components/Placeholder.vue";
 import { Scenario } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
-import Placeholder from "@/components/Placeholder.vue";
 
 const props = defineProps<{
   scenario: Scenario;

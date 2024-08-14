@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Scenario, Simulation } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
+import { Grid2X2Icon } from "lucide-vue-next";
 import { computed } from "vue";
 import OnStageMark from "../OnStageMark.vue";
-import { Grid2X2Icon } from "lucide-vue-next";
 
 const { simulation, sceneId, scene } = defineProps<{
   simulation: Simulation;

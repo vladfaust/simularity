@@ -2,9 +2,9 @@
 import { Simulation } from "@/lib/simulation";
 import { ImageIcon, ImageOffIcon } from "lucide-vue-next";
 import { ref } from "vue";
+import OnStageMark from "./OnStageMark.vue";
 import Scene from "./Scenes/Scene.vue";
 import SelectedScene from "./Scenes/SelectedScene.vue";
-import OnStageMark from "./OnStageMark.vue";
 
 const { simulation } = defineProps<{
   simulation: Simulation;

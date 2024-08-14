@@ -1,12 +1,11 @@
 <script setup lang="ts">
+import CharacterAvatar from "@/components/CharacterAvatar.vue";
+import CharacterPfp from "@/components/CharacterPfp.vue";
 import { Scenario, Simulation } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
-import { computed } from "vue";
-import CharacterAvatar from "@/components/CharacterAvatar.vue";
-import { ref } from "vue";
-import OnStageMark from "../OnStageMark.vue";
 import { Grid2x2Icon, Grid2x2XIcon } from "lucide-vue-next";
-import CharacterPfp from "@/components/CharacterPfp.vue";
+import { computed, ref } from "vue";
+import OnStageMark from "../OnStageMark.vue";
 
 const { simulation, characterId, character } = defineProps<{
   simulation: Simulation;

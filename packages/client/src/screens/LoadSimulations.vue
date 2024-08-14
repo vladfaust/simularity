@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { routeLocation } from "@/lib/router";
 import { d } from "@/lib/drizzle";
+import { routeLocation } from "@/lib/router";
 import { desc } from "drizzle-orm";
+import { onMounted, ref } from "vue";
 import Simulation from "./LoadSimulations/Simulation.vue";
 
 const simulations = ref<Pick<typeof d.simulations.$inferSelect, "id">[]>([]);

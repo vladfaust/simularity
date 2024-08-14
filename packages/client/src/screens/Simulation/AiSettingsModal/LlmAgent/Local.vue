@@ -7,10 +7,8 @@ import * as fs from "@tauri-apps/api/fs";
 import * as path from "@tauri-apps/api/path";
 import { FolderOpenIcon } from "lucide-vue-next";
 import * as fsExtra from "tauri-plugin-fs-extra-api";
-import { onMounted, shallowRef } from "vue";
+import { onMounted, ref, shallowRef, triggerRef } from "vue";
 import Model from "./Local/Model.vue";
-import { ref } from "vue";
-import { triggerRef } from "vue";
 
 // TODO: Hashing takes some time, consider displaying a temp model div.
 

@@ -2,11 +2,8 @@
 import * as api from "@/lib/api";
 import * as storage from "@/lib/storage";
 import { remoteServerJwt } from "@/lib/storage";
-import { shallowRef } from "vue";
-import { onMounted } from "vue";
+import { onMounted, ref, shallowRef, watch } from "vue";
 import Model from "./Remote/Model.vue";
-import { ref } from "vue";
-import { watch } from "vue";
 
 const props = defineProps<{
   agentId: storage.llm.LlmAgentId;
