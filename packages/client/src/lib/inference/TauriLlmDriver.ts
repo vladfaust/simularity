@@ -1,10 +1,13 @@
+import { eq } from "drizzle-orm";
 import { computed, ref } from "vue";
+import { d } from "../drizzle";
 import * as tauri from "../tauri";
 import { sleep } from "../utils";
 import {
   BaseLlmDriver,
   CompletionOptions,
   CompletionProgressEventPayload,
+  CompletionResult,
   DecodeProgressEventPayload,
   LlmGrammarLang,
 } from "./BaseLlmDriver";
@@ -24,44 +27,95 @@ export type TauriLlmDriverConfig = {
 
 export class TauriLlmDriver implements BaseLlmDriver {
   /**
-   * Find an existing TauriLlmDriver (GPT instance) by session ID.
+   * Find an existing TauriLlmDriver (GPT instance) by database session ID.
    * Note that the sessions are cleared upon application restart;
    * therefore, if found, the session is guaranteed to be active,
    * and doesn't need a warmup.
    *
-   * @param modelHash Expected model hash for sanity check.
-   * If the model hash does not match, returns `null`.
+   * @param config Configuration of the driver, to validate against the session.
    */
   static async find(
+    latestSessionDatabaseId: number,
     config: TauriLlmDriverConfig,
-    modelHash: string,
-    sessionId: string,
   ): Promise<TauriLlmDriver | null> {
-    const found = await tauri.gpt.find(sessionId);
+    const dbSession = await d.db.query.llmLocalSessions.findFirst({
+      where: eq(d.llmLocalSessions.id, latestSessionDatabaseId),
+      columns: {
+        internalId: true,
+        modelPath: true,
+        modelHash: true,
+        contextSize: true,
+      },
+    });
 
-    if (found) {
-      const { xx64Hash } = await tauri.gpt.getModelHashById(found.modelId);
-      if (modelHash !== xx64Hash) {
-        console.warn(`Model hash mismatch.`, {
-          expected: modelHash,
+    if (!dbSession) {
+      console.warn(`Session not found in DB`, {
+        dbSessionId: latestSessionDatabaseId,
+      });
+
+      return null;
+    }
+
+    if (dbSession.modelPath !== config.modelPath) {
+      console.warn(`Config model path mismatch`, {
+        dbSessionId: latestSessionDatabaseId,
+        dbSessionModelPath: dbSession.modelPath,
+        configModelPath: config.modelPath,
+      });
+
+      return null;
+    }
+
+    if (dbSession.contextSize !== config.contextSize) {
+      console.warn(`Config context size mismatch`, {
+        dbSessionId: latestSessionDatabaseId,
+        dbSessionContextSize: dbSession.contextSize,
+        configContextSize: config.contextSize,
+      });
+
+      return null;
+    }
+
+    const internalSession = await tauri.gpt.find(dbSession.internalId);
+
+    if (internalSession) {
+      console.debug({ internalSession });
+
+      const { xx64Hash } = await tauri.gpt.getModelHashById(
+        internalSession.modelId,
+      );
+
+      if (dbSession.modelHash !== xx64Hash) {
+        console.warn(`Model hash mismatch`, {
+          expected: dbSession.modelHash,
           actual: xx64Hash,
         });
 
         return null;
       }
 
-      const { nCtxTrain } = await tauri.gpt.loadModel(found.modelId);
-      if (nCtxTrain !== config.contextSize) {
-        console.warn(`Context size mismatch.`, {
-          expected: config.contextSize,
+      const { nCtxTrain } = await tauri.gpt.loadModel(dbSession.modelPath);
+      if (nCtxTrain !== dbSession.contextSize) {
+        console.warn(`Trained context size mismatch`, {
+          expected: dbSession.contextSize,
           actual: nCtxTrain,
         });
 
         return null;
       }
 
-      return new TauriLlmDriver(sessionId, config);
+      return new TauriLlmDriver(
+        config,
+        latestSessionDatabaseId,
+        dbSession.internalId,
+        true,
+      );
     } else {
+      console.log(`Session not found in Tauri`, {
+        dbSessionId: latestSessionDatabaseId,
+        internalId: dbSession.internalId,
+      });
+
       return null;
     }
   }
@@ -79,12 +133,16 @@ export class TauriLlmDriver implements BaseLlmDriver {
     config: TauriLlmDriverConfig,
     initialPrompt: string,
     dumpSession: boolean,
-    initCallback: ({ sessionId }: { sessionId: string }) => void,
+    initCallback: ({
+      databaseSessionId,
+    }: {
+      databaseSessionId: number;
+    }) => void,
   ): TauriLlmDriver {
-    const driver = new TauriLlmDriver(undefined, config);
+    const driver = new TauriLlmDriver(config);
 
     driver._init(initialPrompt, dumpSession).then(() => {
-      initCallback({ sessionId: driver._sessionId! });
+      initCallback({ databaseSessionId: driver._databaseSessionId! });
     });
 
     return driver;
@@ -103,6 +161,8 @@ export class TauriLlmDriver implements BaseLlmDriver {
         );
       }
 
+      const modelHashPromise = tauri.gpt.getModelHashById(modelId);
+
       this.progress.value = 0;
       const result = await tauri.gpt.create(
         modelId,
@@ -112,7 +172,18 @@ export class TauriLlmDriver implements BaseLlmDriver {
         dumpSession,
       );
 
-      this._sessionId = result.sessionId;
+      this._internalSessionId = result.sessionId;
+      this._databaseSessionId = (
+        await d.db
+          .insert(d.llmLocalSessions)
+          .values({
+            internalId: result.sessionId,
+            modelPath: this.config.modelPath,
+            modelHash: (await modelHashPromise).xx64Hash,
+            contextSize: this.config.contextSize,
+          })
+          .returning({ id: d.llmLocalSessions.id })
+      )[0].id;
       this.initialized.value = true;
     } finally {
       this.progress.value = undefined;
@@ -132,9 +203,13 @@ export class TauriLlmDriver implements BaseLlmDriver {
   }
 
   private constructor(
-    private _sessionId: string | undefined,
     readonly config: TauriLlmDriverConfig,
-  ) {}
+    private _databaseSessionId?: number,
+    private _internalSessionId?: string,
+    initialized: boolean = false,
+  ) {
+    this.initialized.value = initialized;
+  }
 
   compareConfig(other: TauriLlmDriverConfig): boolean {
     return (
@@ -150,20 +225,22 @@ export class TauriLlmDriver implements BaseLlmDriver {
     decodeCallback?: (event: DecodeProgressEventPayload) => void,
     completionCallback?: (event: CompletionProgressEventPayload) => void,
     abortSignal?: AbortSignal,
-  ): Promise<{
-    result: string;
-    totalTokens: number;
-    aborted: boolean;
-  }> {
-    if (!this._sessionId) {
+  ): Promise<CompletionResult> {
+    if (
+      !this.initialized ||
+      !this._internalSessionId ||
+      !this._databaseSessionId
+    ) {
       throw new Error("TauriLlmDriver not initialized");
     }
 
     this.busy.value = true;
+    const startedAt = Date.now();
     try {
       let decoded = false;
+
       const response = await tauri.gpt.infer(
-        this._sessionId,
+        this._internalSessionId,
         prompt,
         nEval,
         inferenceOptions,
@@ -183,11 +260,42 @@ export class TauriLlmDriver implements BaseLlmDriver {
         abortSignal,
       );
 
+      const completion = (
+        await d.db
+          .insert(d.llmCompletions)
+          .values({
+            localSessionId: this._databaseSessionId,
+            options: inferenceOptions,
+            input: prompt,
+            inputLength: response.inputContextLength,
+            output: response.result,
+            outputLength: response.outputContextLength,
+            error: abortSignal?.aborted ? "Aborted" : undefined,
+            realTime: Date.now() - startedAt,
+          })
+          .returning()
+      )[0];
+
       return {
-        result: response.result,
-        totalTokens: response.contextLength,
+        completion: {
+          id: completion.id,
+          input: completion.input,
+          inputLength: response.inputContextLength,
+          output: response.result,
+          outputLength: response.outputContextLength,
+        },
         aborted: abortSignal?.aborted ?? false,
       };
+    } catch (e: any) {
+      await d.db.insert(d.llmCompletions).values({
+        localSessionId: this._databaseSessionId,
+        options: inferenceOptions,
+        input: prompt,
+        error: e.message,
+        executionTime: Date.now() - startedAt,
+      });
+
+      throw e;
     } finally {
       this.progress.value = undefined;
       this.busy.value = false;
@@ -199,12 +307,12 @@ export class TauriLlmDriver implements BaseLlmDriver {
       await sleep(100);
     }
 
-    if (this._sessionId) {
+    if (this._internalSessionId) {
       console.log("Destroying TauriLlmDriver session", {
-        sessionId: this._sessionId,
+        sessionId: this._internalSessionId,
       });
 
-      await tauri.gpt.destroy(this._sessionId);
+      await tauri.gpt.destroy(this._internalSessionId);
     }
   }
 }

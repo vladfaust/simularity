@@ -68,19 +68,31 @@ export function useCustomModels(agent: LlmAgentId): Ref<string[]> {
 // Latest session ID.
 //
 
-function _useLatestSessionId(agent: LlmAgentId) {
-  return useLocalStorage<string | null>(`llm:${agent}:latestSessionId`, null);
+export type LatestSession = {
+  driver: LlmDriverConfig["type"];
+  id: number;
+};
+
+function _useLatestSession(agent: LlmAgentId) {
+  return useLocalStorage<LatestSession | null>(
+    `llm:${agent}:latestSession`,
+    null,
+    { serializer: StorageSerializers.object },
+  );
 }
 
-const latestWriterSessionId = _useLatestSessionId("writer");
-const latestDirectorSessionId = _useLatestSessionId("director");
+const latestWriterSession = _useLatestSession("writer");
+const latestDirectorSession = _useLatestSession("director");
 
-export function useLatestSessionId(agent: LlmAgentId): Ref<string | null> {
+/**
+ * Use to get the latest session object.
+ */
+export function useLatestSession(agent: LlmAgentId): Ref<LatestSession | null> {
   switch (agent) {
     case "director":
-      return latestWriterSessionId;
+      return latestWriterSession;
     case "writer":
-      return latestDirectorSessionId;
+      return latestDirectorSession;
   }
 }
 

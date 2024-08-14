@@ -25,7 +25,7 @@ export const RequestBodySchema = v.object({
   ...LlmCompletionParamsSchema.entries,
 });
 
-export const ResponseSchema = v.object({
+export const ResponseSchema = v.strictObject({
   sessionId: v.string(),
   completionId: v.string(),
   output: v.string(),
@@ -33,5 +33,7 @@ export const ResponseSchema = v.object({
     promptTokens: v.number(),
     completionTokens: v.number(),
     totalTokens: v.number(),
+    delayTime: v.number(),
+    executionTime: v.number(),
   }),
 });

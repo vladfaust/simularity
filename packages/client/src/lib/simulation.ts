@@ -1350,7 +1350,7 @@ ${prefix}${d.writerUpdates.simulationDayClock.name},
 ${prefix}${d.writerUpdates.text.name},
 ${prefix}${d.writerUpdates.episodeId.name},
 ${prefix}${d.writerUpdates.episodeChunkIndex.name},
-${prefix}${d.writerUpdates.llamaInferenceId.name},
+${prefix}${d.writerUpdates.llmCompletionId.name},
 ${prefix}${d.writerUpdates.preference.name},
 ${prefix}${d.writerUpdates.createdAt.name}`;
   }
@@ -1546,12 +1546,13 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
    */
   private async _initWriter() {
     const driverConfig = storage.llm.useDriverConfig("writer");
-    const latestSessionId = storage.llm.useLatestSessionId("writer");
+    const latestSession = storage.llm.useLatestSession("writer");
 
     watchImmediate(
       () => driverConfig.value,
       async (driverConfig) => {
-        console.debug("Writer driver config changed", driverConfig);
+        console.debug("Writer driver config watch trigger", driverConfig);
+
         if (driverConfig) {
           if (this._writer.llmDriver.value) {
             console.debug("Comparing driver configs.", { other: driverConfig });
@@ -1559,7 +1560,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
               console.log("Driver config is different, destroying the driver.");
               this._writer.llmDriver.value.destroy();
               this._writer.llmDriver.value = null;
-              latestSessionId.value = null;
+              latestSession.value = null;
             } else {
               console.debug("Driver config is the same.");
               return;
@@ -1570,11 +1571,10 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
             case "local": {
               let driver: TauriLlmDriver | null = null;
 
-              if (latestSessionId.value) {
+              if (latestSession.value?.driver === "local") {
                 driver = await TauriLlmDriver.find(
+                  latestSession.value.id,
                   driverConfig,
-                  "modelHash",
-                  latestSessionId.value,
                 );
               }
 
@@ -1590,13 +1590,16 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
                   driverConfig,
                   initialPrompt,
                   true,
-                  ({ sessionId }) => {
-                    latestSessionId.value = sessionId;
+                  ({ databaseSessionId }) => {
+                    latestSession.value = {
+                      driver: "local",
+                      id: databaseSessionId,
+                    };
                   },
                 );
               } else {
                 console.log(`Restored TauriLlmDriver`, {
-                  sessionId: latestSessionId.value,
+                  latestSession: latestSession.value,
                   driverConfig,
                 });
               }
@@ -1608,13 +1611,13 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
             case "remote": {
               console.log("Creating new RemoteLlmDriver", {
                 driverConfig,
-                sessionId: latestSessionId.value,
+                latestSession: latestSession.value,
               });
 
               this._writer.llmDriver.value = await RemoteLlmDriver.create(
                 driverConfig,
+                latestSession,
                 storage.remoteServerJwt,
-                latestSessionId,
               );
 
               break;
@@ -1704,6 +1707,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       characterId?: string | null;
       simulationDayClock: number;
       text: string;
+      llmCompletionId?: number | null;
     } & (
       | {
           episodeId: string;
@@ -1715,6 +1719,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       | {}
     );
     directorUpdate?: {
+      llmCompletionId?: number | null;
       code: StateCommand[];
     };
   }) {
@@ -1813,6 +1818,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
           characterId: writerResponse.characterId,
           simulationDayClock: writerResponse.simulationDayClock,
           text: writerResponse.text,
+          llmCompletionId: writerResponse.completionId,
         },
       });
 

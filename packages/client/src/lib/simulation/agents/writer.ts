@@ -54,6 +54,7 @@ export class Writer {
     nEval: number,
     inferenceAbortSignal?: AbortSignal,
   ): Promise<{
+    completionId: number;
     newSummary: string;
   }> {
     if (!this.llmDriver.value) throw new Error("Driver is not set");
@@ -88,13 +89,14 @@ export class Writer {
 
     console.log("Summarization result", summarizationResult);
 
-    if (inferenceAbortSignal?.aborted) {
+    if (summarizationResult.aborted) {
       console.warn("Summarization aborted", summarizationResult);
-      throw new CompletionAbortError(summarizationResult);
+      throw new CompletionAbortError();
     }
 
     return {
-      newSummary: summarizationResult.result,
+      completionId: summarizationResult.completion.id,
+      newSummary: summarizationResult.completion.output,
     };
   }
 
@@ -110,6 +112,7 @@ export class Writer {
     inferenceAbortSignal?: AbortSignal,
     includeDirectorUpdates = false,
   ): Promise<{
+    completionId: number;
     characterId: string | null;
     simulationDayClock: number;
     text: string;
@@ -150,15 +153,22 @@ export class Writer {
       inferenceAbortSignal,
     );
 
+    console.log("Inference result", inferenceResult);
+
     const parsedResult = Writer._parsePrediction(
-      trimEndAny(inferenceResult.result, stopSequences),
+      trimEndAny(inferenceResult.completion.output, stopSequences),
       this.scenario,
       predictionOptions,
     );
 
-    this.contextLength.value = inferenceResult.totalTokens;
+    this.contextLength.value =
+      inferenceResult.completion.inputLength +
+      inferenceResult.completion.outputLength;
 
-    return parsedResult;
+    return {
+      completionId: inferenceResult.completion.id,
+      ...parsedResult,
+    };
   }
 
   /**

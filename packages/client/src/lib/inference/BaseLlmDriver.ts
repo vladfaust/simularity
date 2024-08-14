@@ -2,13 +2,7 @@ import { Ref } from "vue";
 import { v } from "../valibot";
 
 export class CompletionAbortError extends Error {
-  constructor(
-    readonly intermediateResult: {
-      result: string;
-      totalTokens: number;
-      aborted: boolean;
-    },
-  ) {
+  constructor() {
     super(`Completion aborted`);
   }
 }
@@ -65,6 +59,16 @@ export const CompletionOptionsSchema = v.object({
 });
 
 export type CompletionOptions = v.InferOutput<typeof CompletionOptionsSchema>;
+export type CompletionResult = {
+  completion: {
+    id: number;
+    input: string;
+    inputLength: number;
+    output: string;
+    outputLength: number;
+  };
+  aborted: boolean;
+};
 
 export interface BaseLlmDriver {
   grammarLang: LlmGrammarLang;
@@ -101,8 +105,13 @@ export interface BaseLlmDriver {
     completionCallback?: (event: CompletionProgressEventPayload) => void,
     abortSignal?: AbortSignal,
   ): Promise<{
-    result: string;
-    totalTokens: number;
+    completion: {
+      id: number;
+      input: string;
+      inputLength: number;
+      output: string;
+      outputLength: number;
+    };
     aborted: boolean;
   }>;
 

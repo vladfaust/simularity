@@ -146,6 +146,8 @@ export default Router()
       promptTokens: number;
       completionTokens: number;
       totalTokens: number;
+      delayTime: number;
+      executionTime: number;
     };
 
     const input = {
@@ -260,6 +262,8 @@ export default Router()
           totalTokens:
             parsedOutput.output[0].usage.input +
             parsedOutput.output[0].usage.output,
+          delayTime: runResult.delayTime,
+          executionTime: runResult.executionTime,
         };
 
         // Success.

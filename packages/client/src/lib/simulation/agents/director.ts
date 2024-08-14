@@ -1,6 +1,7 @@
 import {
   BaseLlmDriver,
   CompletionOptions,
+  CompletionResult,
   LlmGrammarLang,
 } from "@/lib/inference/BaseLlmDriver";
 import { escapeQuotes, safeParseJson, unreachable } from "@/lib/utils";
@@ -53,13 +54,8 @@ export class Director {
     onInferenceProgress?: (event: { content: string }) => void,
     inferenceAbortSignal?: AbortSignal,
   ): Promise<
-    {
-      inferenceResult: {
-        result: string;
-        totalTokens: number;
-        aborted: boolean;
-      };
-    } & ({ parsedCommands: StateCommand[] } | { parseError: CommandParseError })
+    CompletionResult &
+      ({ parsedCommands: StateCommand[] } | { parseError: CommandParseError })
   > {
     if (!this.llmDriver.value) throw new Error("Driver is not set");
     if (!this.llmDriver.value.ready.value) {
@@ -95,11 +91,13 @@ export class Director {
 
     let parsedCommands: StateCommand[];
     try {
-      parsedCommands = await Director._parsePrediction(inferenceResult.result);
-      return { inferenceResult, parsedCommands };
+      parsedCommands = await Director._parsePrediction(
+        inferenceResult.completion.output,
+      );
+      return { ...inferenceResult, parsedCommands };
     } catch (e: any) {
       if (e instanceof CommandParseError) {
-        return { inferenceResult, parseError: e };
+        return { ...inferenceResult, parseError: e };
       } else {
         throw e;
       }

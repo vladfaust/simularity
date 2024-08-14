@@ -4,7 +4,8 @@ import { emit, listen } from "@tauri-apps/api/event";
 
 type Response = {
   result: string;
-  contextLength: number;
+  inputContextLength: number;
+  outputContextLength: number;
 };
 
 type DecodeProgressEventPayload = {

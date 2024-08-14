@@ -4,7 +4,7 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 import { checkpoints } from "./checkpoints";
 import { directorUpdates } from "./directorUpdates";
-import { llamaInferences } from "./llamaInferences";
+import { llmCompletions } from "./llmCompletions";
 import { simulations } from "./simulations";
 
 // FIXME: `writerUpdates._` is `undefined` in runtime.
@@ -46,9 +46,9 @@ export const writerUpdates = sqliteTable(
     episodeId: text("episode_id"),
     episodeChunkIndex: integer("episode_chunk_index"),
 
-    llamaInferenceId: integer("llama_inference_id").references(
-      () => llamaInferences.id,
-      { onDelete: "set null" },
+    llmCompletionId: integer("llm_completion_id").references(
+      () => llmCompletions.id,
+      { onDelete: "restrict" },
     ),
 
     /**
@@ -91,9 +91,9 @@ export const writerUpdateRelatiosn = relations(
       fields: [writerUpdates.checkpointId],
       references: [checkpoints.id],
     }),
-    llamaInference: one(llamaInferences, {
-      fields: [writerUpdates.llamaInferenceId],
-      references: [llamaInferences.id],
+    completion: one(llmCompletions, {
+      fields: [writerUpdates.llmCompletionId],
+      references: [llmCompletions.id],
       relationName: "writer_updates",
     }),
     directorUpdates: many(directorUpdates),

@@ -3,7 +3,7 @@ import { sortByKey } from "@/lib/utils";
 import { relations, sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
-import { llamaInferences } from "./llamaInferences";
+import { llmCompletions } from "./llmCompletions";
 import { writerUpdates } from "./writerUpdates";
 
 export const directorUpdates = sqliteTable(
@@ -18,9 +18,9 @@ export const directorUpdates = sqliteTable(
       .references(() => writerUpdates.id, { onDelete: "cascade" })
       .notNull(),
 
-    llamaInferenceId: integer("llama_inference_id").references(
-      () => llamaInferences.id,
-      { onDelete: "set null" },
+    llmCompletionId: integer("llm_completion_id").references(
+      () => llmCompletions.id,
+      { onDelete: "restrict" },
     ),
 
     code: text("code", { mode: "json" }).$type<StateCommand[]>().notNull(),
@@ -44,9 +44,9 @@ export const directorUpdateRelatiosn = relations(
       fields: [directorUpdates.writerUpdateId],
       references: [writerUpdates.id],
     }),
-    llamaInference: one(llamaInferences, {
-      fields: [directorUpdates.llamaInferenceId],
-      references: [llamaInferences.id],
+    completion: one(llmCompletions, {
+      fields: [directorUpdates.llmCompletionId],
+      references: [llmCompletions.id],
       relationName: "director_updates",
     }),
   }),

@@ -3,6 +3,8 @@ use std::{
     time::Instant,
 };
 
+use crate::AppState;
+
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DecodeProgressEventPayload {
@@ -19,11 +21,13 @@ struct InferenceEventPayload {
 #[serde(rename_all = "camelCase")]
 pub struct Response {
     pub result: String,
-    pub context_length: u32,
+    pub input_context_length: u32,
+    pub output_context_length: u32,
 }
 
 const ABORT_SIGNAL: &str = "app://gpt/abort-inference";
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 /// Predict the next token(s) given a prompt.
 pub async fn gpt_infer(
@@ -34,6 +38,7 @@ pub async fn gpt_infer(
     decode_callback_event_name: Option<&str>,
     inference_callback_event_name: Option<&str>,
     window: tauri::Window,
+    state: tauri::State<'_, AppState>,
 ) -> Result<Response, tauri::InvokeError> {
     println!(
         "gpt_infer(gpt_id: {}, prompt: {}, n_eval: {})",
@@ -45,6 +50,13 @@ pub async fn gpt_infer(
     let session_id = session_id
         .parse::<u32>()
         .map_err(|_| tauri::InvokeError::from(format!("Invalid session ID: {}", session_id)))?;
+
+    let hash_map_lock = state.gpt_sessions.lock().await;
+    let model_id = hash_map_lock.get(&session_id);
+    if model_id.is_none() {
+        return Err(tauri::InvokeError::from("Session not found"));
+    }
+    let model_id = model_id.unwrap();
 
     // OPTIMIZE: Use a more efficient way to abort the inference,
     // as we're always in the same thread?
@@ -105,6 +117,28 @@ pub async fn gpt_infer(
         None
     };
 
+    let input_token_length = if let Some(prompt) = prompt {
+        simularity_core::gpt::token_length(model_id, prompt)
+    } else {
+        Ok(0)
+    };
+
+    if let Err(error) = input_token_length {
+        match error {
+            simularity_core::gpt::token_length::Error::ModelNotFound => {
+                return Err(tauri::InvokeError::from("Model not found"))
+            }
+            simularity_core::gpt::token_length::Error::Unknown(code) => {
+                return Err(tauri::InvokeError::from(format!(
+                    "Unknown error code {}",
+                    code
+                )))
+            }
+        }
+    }
+
+    let input_token_length = input_token_length.unwrap();
+
     let inference_result = simularity_core::gpt::infer(
         session_id,
         prompt,
@@ -114,10 +148,11 @@ pub async fn gpt_infer(
         inference_callback,
     );
 
-    if let Ok(context_length) = inference_result {
+    if let Ok(new_context_length) = inference_result {
         Ok(Response {
             result: resulting_string,
-            context_length,
+            input_context_length: input_token_length,
+            output_context_length: new_context_length - input_token_length,
         })
     } else {
         match inference_result.unwrap_err() {

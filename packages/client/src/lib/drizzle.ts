@@ -45,6 +45,9 @@ const MIGRATIONS: Migration[] = [
   await import(
     "./drizzle/migrations/017_add_simulation_day_clock_to_writer_updates.js"
   ),
+  await import("./drizzle/migrations/018_create_llm_sessions.js"),
+  await import("./drizzle/migrations/019_refactor_llm_completions.js"),
+  await import("./drizzle/migrations/020_add_real_time_to_llm_completions.js"),
 ];
 
 const databaseUrl = await join(
@@ -113,7 +116,9 @@ const d = {
   db,
   ...pick(schema, [
     "directorUpdates",
-    "llamaInferences",
+    "llmCompletions",
+    "llmLocalSessions",
+    "llmRemoteSessions",
     "simulations",
     "writerUpdates",
     "checkpoints",

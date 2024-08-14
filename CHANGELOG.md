@@ -69,6 +69,7 @@
       Tick-tock, tick-tock.
 - [x] feat: Runpod inference (Mon 12)
       Crude, but it works. Uses vLLM.
+- [x] feat: store LLM completions locally (Wed 14)
 
 ### July 2024
 
