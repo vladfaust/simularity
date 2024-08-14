@@ -404,7 +404,7 @@ function enableOnlyCharacter(characterId: string) {
 
       button._button.relative.aspect-square.h-full(
         @click="onSendButtonClick"
-        :disabled="busy && !inferenceAbortController"
+        :disabled="(!simulation.ready.value && !simulation.state.shallAdvanceEpisode.value) || (busy && !inferenceAbortController)"
       )
         //- REFACTOR: Make a component for such multi-state animations.
         TransitionRoot.absolute(

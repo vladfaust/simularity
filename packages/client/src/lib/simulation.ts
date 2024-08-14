@@ -193,6 +193,8 @@ export class Simulation {
       : null;
   });
 
+  readonly ready = computed(() => this.writer.ready.value);
+
   /**
    * Set the stage renderer, and sync it to the current stage state.
    */
