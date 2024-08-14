@@ -15,6 +15,7 @@ export default defineConfig({
       "@simularity/api-sdk/v1/models/index",
       "@simularity/api-sdk/v1/users/get",
     ],
+    force: true,
   },
   build: {
     commonjsOptions: {
