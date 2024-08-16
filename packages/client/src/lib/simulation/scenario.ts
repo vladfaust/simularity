@@ -239,6 +239,31 @@ const ScenarioSchema = v.object({
         v.object({
           name: v.string(),
           prompt: v.string(),
+          visualization: v.optional(
+            v.object({
+              sd: v.optional(
+                v.object({
+                  prompt: v.string(),
+                }),
+              ),
+            }),
+          ),
+        }),
+      ),
+
+      visualization: v.optional(
+        v.object({
+          sd: v.optional(
+            v.object({
+              lora: v.optional(
+                v.object({
+                  id: v.string(),
+                  baseWeight: v.optional(v.number(), 1),
+                }),
+              ),
+              prompt: v.string(),
+            }),
+          ),
         }),
       ),
 
@@ -348,6 +373,16 @@ const ScenarioSchema = v.object({
        * Scene ambient sound paths in different formats.
        */
       ambienceSoundPaths: v.optional(v.array(v.string())),
+
+      visualization: v.optional(
+        v.object({
+          sd: v.optional(
+            v.object({
+              prompt: v.string(),
+            }),
+          ),
+        }),
+      ),
     }),
   ),
 

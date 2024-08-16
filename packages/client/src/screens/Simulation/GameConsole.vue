@@ -8,6 +8,7 @@ import {
 import { TransitionRoot } from "@headlessui/vue";
 import { useLocalStorage } from "@vueuse/core";
 import {
+  CameraIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   Loader2Icon,
@@ -21,6 +22,7 @@ import {
 import { computed, ref } from "vue";
 import AiSettingsModal from "./AiSettingsModal.vue";
 import AiStatus from "./AiStatus.vue";
+import VisualizeModal from "./GameConsole/VisualizeModal.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
 
@@ -101,6 +103,8 @@ const enabledCharacterIds = useLocalStorage(
   `simulation:${simulation.id}:enabledCharacterIds`,
   [...Object.keys(simulation.scenario.characters), NARRATOR],
 );
+
+const showVisualizeModal = ref(false);
 
 function onSendButtonClick() {
   if (inferenceAbortController.value) {
@@ -378,6 +382,13 @@ function enableOnlyCharacter(characterId: string) {
             ChevronUpIcon(:size="20")
 
         .flex.flex-col.gap-1
+          //- Visualization button.
+          button._button.aspect-square.w-full(
+            title="Go back"
+            @click="showVisualizeModal = true"
+          )
+            CameraIcon(:size="20")
+
           button._button.aspect-square.w-full(
             title="Go back"
             :disabled="!simulation.canGoBack.value"
@@ -482,6 +493,13 @@ function enableOnlyCharacter(characterId: string) {
     @switch-enabled-character="switchEnabledCharacter"
     @enable-only-character="enableOnlyCharacter"
     @close="showAiSettingsModal = false"
+  )
+
+  VisualizeModal(
+    v-if="simulation"
+    :open="showVisualizeModal"
+    :simulation
+    @close="showVisualizeModal = false"
   )
 </template>
 

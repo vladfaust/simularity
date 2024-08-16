@@ -22,6 +22,7 @@ import { writerUpdatesTableName } from "./drizzle/schema";
 import { Director } from "./simulation/agents/director";
 import {
   Writer,
+  type VisualizationOptions,
   type PredictionOptions as WriterPredictionOptions,
 } from "./simulation/agents/writer";
 import { Scenario, ensureReadScenario } from "./simulation/scenario";
@@ -1143,6 +1144,27 @@ export class Simulation {
 
     update.ensureChosenVariant.directorUpdate = directorUpdate;
     triggerRef(update.variants);
+  }
+
+  /**
+   * Infer visual prompt for current update.
+   */
+  async inferVisualPrompt(
+    nEval = 128,
+    visualizationOptions?: VisualizationOptions,
+    completionOptions?: CompletionOptions,
+    abortSignal?: AbortSignal,
+  ) {
+    return await this.writer.visualize(
+      this._checkpoint.value!,
+      this._historicalUpdates.value,
+      this._recentUpdates.value,
+      this.state.serialize(),
+      nEval,
+      visualizationOptions,
+      completionOptions,
+      abortSignal,
+    );
   }
 
   destroy() {

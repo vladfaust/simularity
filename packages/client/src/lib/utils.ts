@@ -251,3 +251,12 @@ export function tap<T, U>(
   if (value) return callable(value);
   else return undefined;
 }
+
+/**
+ * Return the value if it is not null or undefined, otherwise throw.
+ * @throws {Error} If the value is null or undefined.
+ */
+export function nonNullable<T>(value: T): NonNullable<T> {
+  if (!value) throw new Error("Value is null or undefined");
+  return value as NonNullable<T>;
+}

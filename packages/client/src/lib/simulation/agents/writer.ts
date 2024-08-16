@@ -33,6 +33,13 @@ export type PredictionOptions = {
   allowedCharacterIds?: string[];
 };
 
+export type VisualizationOptions = {
+  /**
+   * Make it a point-of-view visualization.
+   */
+  pov?: boolean;
+};
+
 type Checkpoint = Pick<typeof d.checkpoints.$inferSelect, "summary" | "state">;
 
 export class Writer {
@@ -172,6 +179,91 @@ export class Writer {
       completionId: inferenceResult.completion.id,
       ...parsedResult,
     };
+  }
+
+  async visualize(
+    checkpoint: Checkpoint,
+    historicalUpdates: Update[],
+    recentUpdates: Update[],
+    currentState: StateDto,
+    nEval: number,
+    visualizationOptions?: VisualizationOptions,
+    inferenceOptions?: CompletionOptions,
+    inferenceAbortSignal?: AbortSignal,
+  ) {
+    if (!this.llmDriver.value) throw new Error("Driver is not set");
+
+    const prompt =
+      Writer._buildFullPrompt(
+        this.scenario,
+        checkpoint,
+        historicalUpdates,
+        recentUpdates,
+        currentState,
+      ) +
+      `
+Visualize the current state of the simulation by responding with a visual description of the scene in the form of Stable Diffusion prompt, capturing characters and their positions. The description shall be a single line of text. Respond with visual prompt of the resulting scene only, as a collection of visual tags in this moment. Pay special attention to the characters' positions, interactions, appearances, and emotions. Respond with Stable Diffusion prompt only, without any additional text.
+
+Most popular tags are: long_hair, breasts, highres, blush, smile, looking_at_viewer, short_hair, blue_eyes, open_mouth, skirt, thighhighs, large_breasts, blonde_hair, red_eyes, brown_hair, bad_id, hat, bad_pixiv_id, ribbon, underwear, simple_background, dress, gloves, black_hair, hair_ornament, panties, navel, bow, twintails, brown_eyes, cleavage, medium_breasts, white_background, school_uniform, sitting, animal_ears, green_eyes, very_long_hair, bare_shoulders, nipples, blue_hair, shirt, black_legwear, jewelry, weapon, swimsuit, hair_ribbon, long_sleeves, purple_eyes, absurdres, bangs, tail, ass, purple_hair, flower, yellow_eyes, pink_hair, wings, hair_bow, boots, silver_hair.... You get the idea.
+
+[Examples]
+Stable diffusion prompt: bench, park, chatting
+Stable diffusion prompt: poolside, reading book, nude, pussy
+
+[Response]
+Stable diffusion prompt: `;
+
+    const stopSequences = ["\n"];
+
+    const options: CompletionOptions = {
+      stopSequences,
+      ...inferenceOptions,
+    };
+
+    console.log("Visualizing", prompt, options);
+
+    const visualizationResult = await this.llmDriver.value.createCompletion(
+      prompt,
+      nEval,
+      options,
+      undefined,
+      undefined,
+      inferenceAbortSignal,
+    );
+
+    console.log("Visualization result", visualizationResult);
+
+    if (visualizationResult.aborted) {
+      console.warn("Visualization aborted", visualizationResult);
+      throw new CompletionAbortError();
+    }
+
+    let result = `score_9, score_8, rating_explicit, 1boy, ${currentState.stage.characters.length - 1}girl${currentState.stage.characters.length - 1 > 1 ? "s" : ""}, ${visualizationOptions?.pov ? "pov, " : ""}`;
+
+    result += visualizationResult.completion.output;
+
+    for (const character of currentState.stage.characters) {
+      const scenarioCharacter = this.scenario.ensureCharacter(character.id);
+      if (scenarioCharacter.visualization?.sd) {
+        result += `; (${character.id}: `;
+        if (scenarioCharacter.visualization.sd.lora) {
+          let weight =
+            scenarioCharacter.visualization.sd.lora.baseWeight /
+            (currentState.stage.characters.length - 1);
+          weight = Math.round(weight * 10) / 10;
+
+          result += `<lora:${scenarioCharacter.visualization.sd.lora.id}:${weight}> `;
+        }
+        result += `${scenarioCharacter.visualization.sd.prompt}`;
+        const outfit = scenarioCharacter.outfits[character.outfitId];
+        if (outfit.visualization?.sd) {
+          result += `, ${outfit.visualization.sd.prompt}`;
+        }
+        result += ")";
+      }
+    }
+
+    return result;
   }
 
   /**
