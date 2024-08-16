@@ -1051,12 +1051,7 @@ export class Simulation {
     const variant = nextCurrentUpdate.chosenVariant;
     if (!variant) throw new Error("BUG: No chosen variant");
 
-    const directorUpdate = variant.directorUpdate;
-    console.debug("directorUpdate", directorUpdate);
-
-    // FIXME: It should be `(directorUpdate === undefined)`,
-    // but it's sometimes `null`.
-    if (directorUpdate === undefined) {
+    if (variant.directorUpdate === undefined) {
       console.debug(
         "Fetching missing director update for",
         variant.writerUpdate.id,
@@ -1067,10 +1062,13 @@ export class Simulation {
       );
     }
 
+    const directorUpdate = variant.directorUpdate;
     if (directorUpdate) {
       console.debug("Applying stage code", directorUpdate.code);
       this.state.apply(directorUpdate.code);
       console.debug("State after applying stage code", this.state.serialize());
+    } else {
+      console.debug("No director update to apply");
     }
 
     // Update simulation's current update ID.
@@ -1396,7 +1394,7 @@ export class Simulation {
       "BUG: Chosen variant not found in siblings",
     );
 
-    update.ensureChosenVariant.directorUpdate = directorUpdate ?? null;
+    update.ensureChosenVariant.directorUpdate = directorUpdate;
 
     return update;
   }
@@ -1618,6 +1616,15 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       i <
       this._recentUpdates.value.length - (includeCurrentUpdate ? 0 : 1)
     ) {
+      if (
+        i ===
+        (this._recentUpdates.value.length > 1
+          ? this._recentUpdates.value.length - 1
+          : 0)
+      ) {
+        this._dumpCurrentState();
+      }
+
       const update = this._recentUpdates.value[i];
       console.debug("Applying update", update.chosenVariant?.writerUpdate.text);
       const directorUpdate = update.chosenVariant?.directorUpdate;
@@ -1625,18 +1632,11 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       if (directorUpdate) {
         console.debug("Applying stage code", directorUpdate.code);
         this.state.apply(directorUpdate.code);
+      } else {
+        console.debug("No director update to apply");
       }
 
-      // Set previous state to the -1st update's.
-      // If there is only one recent update, it will be it.
-      if (
-        ++i ===
-        (this._recentUpdates.value.length > 1
-          ? this._recentUpdates.value.length - 1
-          : 1)
-      ) {
-        this._dumpCurrentState();
-      }
+      i++;
     }
 
     // Set the current episode if needed.
@@ -1765,14 +1765,13 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
 
     if (update) {
       const actualDelta = this.previousStateDelta.value ?? [];
-      console.debug("Actual delta", actualDelta);
 
-      console.debug(
-        "Latest director update delta",
-        this.state.serialize(),
+      console.debug({
+        previousState: this.previousState.value,
+        state: this.state.serialize(),
         actualDelta,
-        update.chosenVariant?.directorUpdate?.code,
-      );
+        directorUpdate: update.chosenVariant?.directorUpdate?.code,
+      });
 
       const deltasEqual = update.chosenVariant?.directorUpdate
         ? compareStateDeltas(
