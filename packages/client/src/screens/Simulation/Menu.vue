@@ -56,7 +56,7 @@ TransitionRoot(:show="open" as="template")
         leave-from="opacity-100 scale-100"
         leave-to="opacity-0 scale-95"
       )
-        DialogPanel.max-w-sm.rounded-lg.bg-white.shadow-lg(v-bind="$attrs")
+        DialogPanel.rounded-lg.bg-white.shadow-lg(v-bind="$attrs")
           .flex.w-full.max-w-xs.flex-col.gap-2.p-3(v-if="state === null")
             button._btn.w-full(@click="emit('toMainMenu')")
               HomeIcon(:size="20")

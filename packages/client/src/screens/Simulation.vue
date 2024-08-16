@@ -3,6 +3,7 @@ import router, { routeLocation } from "@/lib/router";
 import { Simulation } from "@/lib/simulation";
 import { DefaultScene } from "@/lib/simulation/phaser/defaultScene";
 import { Game } from "@/lib/simulation/phaser/game";
+import { ambientVolumeStorage } from "@/lib/storage";
 import { TransitionRoot } from "@headlessui/vue";
 import {
   BaseDirectory,
@@ -11,6 +12,7 @@ import {
   writeBinaryFile,
 } from "@tauri-apps/api/fs";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
+import { watchImmediate } from "@vueuse/core";
 import prettyBytes from "pretty-bytes";
 import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import DevConsole from "./Simulation/DevConsole.vue";
@@ -118,6 +120,13 @@ onMounted(async () => {
   // because there is currently no easy way to detect
   // if there have been any real updates.
   screenshot(false);
+
+  watchImmediate(
+    () => ambientVolumeStorage.value,
+    (ambientVolume) => {
+      scene.ambientVolume = ambientVolume / 100;
+    },
+  );
 });
 
 onUnmounted(() => {

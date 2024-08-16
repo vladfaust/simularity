@@ -1,4 +1,21 @@
+<script lang="ts" setup>
+import { ref } from "vue";
+import { ambientVolumeStorage } from "@/lib/storage";
+import { TreesIcon } from "lucide-vue-next";
+
+const ambientVolume = ref(ambientVolumeStorage);
+</script>
+
 <template lang="pug">
-.flex.flex-col.gap-2.p-3
+.flex.w-full.flex-col.gap-2.p-3
   h1.text-lg.font-semibold.leading-tight.tracking-wide Settings
+
+  //- Ambient volume slider.
+  .flex.items-center.gap-2
+    .flex.gap-1
+      TreesIcon(:size="20")
+      span.font-medium Ambience volume
+    .flex.items-center.gap-1
+      input(type="range" min="0" max="100" v-model="ambientVolume")
+      span {{ ambientVolume }}%
 </template>

@@ -8,3 +8,11 @@ export const remoteServerJwt = useLocalStorage<string | null>(
 );
 
 export * as llm from "./storage/llm";
+
+/**
+ * Ambient volume storage, from 0 to 100.
+ */
+export const ambientVolumeStorage = useLocalStorage<number>(
+  "ambientVolume",
+  50,
+);
