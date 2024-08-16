@@ -1,5 +1,6 @@
 import { Scenario } from "@/lib/simulation";
 import { sleep } from "@/lib/utils";
+import pRetry from "p-retry";
 import Phaser from "phaser";
 import { type DeepReadonly } from "vue";
 import { type StageRenderer } from "../stageRenderer";
@@ -209,9 +210,13 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
   }
 
   /**
-   * Set the scene, clearing it if necessary.
+   * Set the scene.
    */
   setScene(sceneId: string) {
+    if (this.stageScene?.qualifiedId === sceneId) {
+      return;
+    }
+
     const scene = this.scenario.findScene(sceneId);
     if (!scene) throw new SceneError(`Scene not found: ${sceneId}`);
 
@@ -247,24 +252,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     }
 
     if (scene.ambienceSoundPaths) {
-      try {
-        const newAmbience = this.sound.add(this._sceneAmbienceKey(sceneId), {
-          loop: true,
-          volume: 0,
-        });
-
-        newAmbience.play();
-
-        this.tweens.add({
-          targets: newAmbience,
-          volume: this._ambientVolume,
-          duration: 500,
-        });
-
-        this._currentAmbience = newAmbience;
-      } catch (e) {
-        console.error(e);
-      }
+      // Sometimes the sound is not loaded yet.
+      this._setAmbienceWithRetry(sceneId);
     }
   }
 
@@ -432,5 +421,32 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     expressionId: string,
   ) {
     return `character:${characterId}:expression:${expressionId}`;
+  }
+
+  private async _setAmbienceWithRetry(sceneId: string, retries = 4) {
+    pRetry(
+      () => {
+        const newAmbience = this.sound.add(this._sceneAmbienceKey(sceneId), {
+          loop: true,
+          volume: 0,
+        });
+
+        newAmbience.play();
+
+        this.tweens.add({
+          targets: newAmbience,
+          volume: this._ambientVolume,
+          duration: 500,
+        });
+
+        this._currentAmbience = newAmbience;
+      },
+      {
+        retries,
+        onFailedAttempt: (error) => {
+          console.error("Failed to play ambience sound", error);
+        },
+      },
+    );
   }
 }
