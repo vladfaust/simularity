@@ -107,6 +107,13 @@ const enabledCharacterIds = useLocalStorage(
 
 const showVisualizeModal = ref(false);
 
+const contextGaugeCssVar = computed(() => {
+  const contextLength = simulation.contextLength.value;
+  const contextSize = simulation.writer.contextSize.value;
+  if (!contextLength || !contextSize) return 0;
+  return (contextLength / contextSize) * 100 + "%";
+});
+
 function onSendButtonClick() {
   if (inferenceAbortController.value) {
     // Abort inference.
@@ -484,7 +491,9 @@ function enableOnlyCharacter(characterId: string) {
             :max="simulation.writer.contextSize.value"
             title="Context length"
           )
-          span.pointer-events-none.absolute.transform.select-none.rounded.text-xs.font-medium.text-secondary-900
+          span._ctx-progress-text.pointer-events-none.absolute.w-full.select-none.text-center.text-xs.font-medium(
+            :style="`--value: ${contextGaugeCssVar}`"
+          )
             | {{ simulation.contextLength.value ?? "?" }}/{{ simulation.writer.contextSize.value }}
         button._status-button(
           @click="simulation.consolidate()"
@@ -534,5 +543,11 @@ function enableOnlyCharacter(characterId: string) {
   &::-webkit-progress-bar {
     @apply overflow-hidden rounded bg-white;
   }
+}
+
+._ctx-progress-text {
+  background: linear-gradient(to right, white var(--value, 50%), black 0);
+  background-clip: text;
+  color: transparent;
 }
 </style>
