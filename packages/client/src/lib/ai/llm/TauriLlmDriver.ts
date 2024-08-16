@@ -277,13 +277,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
       )[0];
 
       return {
-        completion: {
-          id: completion.id,
-          input: completion.input,
-          inputLength: response.inputContextLength,
-          output: response.result,
-          outputLength: response.outputContextLength,
-        },
+        completion,
         aborted: abortSignal?.aborted ?? false,
       };
     } catch (e: any) {

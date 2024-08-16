@@ -20,6 +20,7 @@ export class Update {
         writerUpdate: Pick<
           typeof d.writerUpdates.$inferSelect,
           | "id"
+          | "llmCompletionId"
           | "nextUpdateId"
           | "checkpointId"
           | "didConsolidate"
@@ -31,7 +32,12 @@ export class Update {
           | "episodeChunkIndex"
           | "preference"
           | "createdAt"
-        >;
+        > & {
+          completion?: Pick<
+            typeof d.llmCompletions.$inferSelect,
+            "inputLength" | "outputLength"
+          > | null;
+        };
         directorUpdate?: Pick<
           typeof d.directorUpdates.$inferSelect,
           "id" | "code" | "preference" | "createdAt"
@@ -41,6 +47,20 @@ export class Update {
     chosenVariantIndex = 0,
   ) {
     this.chosenVariantIndex.value = chosenVariantIndex;
+  }
+
+  get completionLength(): number | undefined {
+    const chosenVariant = this.chosenVariant;
+    if (!chosenVariant) return undefined;
+
+    const completion = chosenVariant.writerUpdate.completion;
+    if (!completion) return undefined;
+
+    if (completion.inputLength === null || completion.outputLength === null) {
+      return undefined;
+    }
+
+    return completion.inputLength + completion.outputLength;
   }
 
   get chosenVariant() {

@@ -1,3 +1,4 @@
+import type { d } from "@/lib/drizzle";
 import { v } from "@/lib/valibot";
 import { type Ref } from "vue";
 
@@ -60,13 +61,7 @@ export const CompletionOptionsSchema = v.object({
 
 export type CompletionOptions = v.InferOutput<typeof CompletionOptionsSchema>;
 export type CompletionResult = {
-  completion: {
-    id: number;
-    input: string;
-    inputLength: number;
-    output: string;
-    outputLength: number;
-  };
+  completion: typeof d.llmCompletions.$inferSelect;
   aborted: boolean;
 };
 
@@ -104,16 +99,7 @@ export interface BaseLlmDriver {
     decodeCallback?: (event: DecodeProgressEventPayload) => void,
     completionCallback?: (event: CompletionProgressEventPayload) => void,
     abortSignal?: AbortSignal,
-  ): Promise<{
-    completion: {
-      id: number;
-      input: string;
-      inputLength: number;
-      output: string;
-      outputLength: number;
-    };
-    aborted: boolean;
-  }>;
+  ): Promise<CompletionResult>;
 
   destroy(): Promise<void>;
 }

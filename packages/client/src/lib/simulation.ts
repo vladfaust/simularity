@@ -1,5 +1,5 @@
 import { watchImmediate } from "@vueuse/core";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { toMinutes } from "duration-fns";
 import {
@@ -195,6 +195,34 @@ export class Simulation {
   });
 
   readonly ready = computed(() => this.writer.ready.value);
+
+  /**
+   * Context length of the current update, or the most recent update.
+   */
+  readonly contextLength = computed(() => {
+    if (this.currentUpdate.value?.completionLength) {
+      return this.currentUpdate.value.completionLength;
+    } else if (this._recentUpdates.value.length) {
+      for (let i = this._recentUpdates.value.length; i >= 0; i--) {
+        const update = this._recentUpdates.value.at(i);
+
+        if (update?.completionLength) {
+          return update.completionLength;
+        }
+      }
+    } else if (this._historicalUpdates.value.length) {
+      for (let i = this._historicalUpdates.value.length; i >= 0; i--) {
+        const update = this._historicalUpdates.value.at(i);
+
+        if (update?.completionLength) {
+          return update.completionLength;
+        }
+      }
+    }
+  });
+
+  private readonly _consolidationInProgress = ref(false);
+  readonly consolidationInProgress = readonly(this._consolidationInProgress);
 
   /**
    * Set the stage renderer, and sync it to the current stage state.
@@ -745,6 +773,8 @@ export class Simulation {
       throw new Error("No current update");
     }
 
+    this._busy.value = true;
+    this._consolidationInProgress.value = true;
     try {
       const summarizationResult = await this.writer.summarize(
         this._checkpoint.value!,
@@ -796,6 +826,9 @@ export class Simulation {
       } else {
         throw e;
       }
+    } finally {
+      this._consolidationInProgress.value = false;
+      this._busy.value = false;
     }
   }
 
@@ -1190,6 +1223,7 @@ export class Simulation {
     descendantUpdateId: string,
     checkpointId?: number | null,
     limit?: number,
+    includeCompletions = true,
   ) {
     let checkpointClauseA = "";
     let checkpointClauseB = "";
@@ -1236,7 +1270,13 @@ export class Simulation {
     if (limit) params.push(limit);
 
     const result = await sqlite.query(writerUpdatesQuery.sql, params);
-    return parseSelectResult(d.writerUpdates, result);
+    const writerUpdates = parseSelectResult(d.writerUpdates, result);
+
+    if (includeCompletions) {
+      return this._fetchLlmCompletions(writerUpdates);
+    } else {
+      return writerUpdates;
+    }
   }
 
   /**
@@ -1250,6 +1290,7 @@ export class Simulation {
   private static async _fetchWriterUpdateDescendants(
     nextUpdateId: string,
     limit?: number,
+    includeCompletions = true,
   ) {
     const writerUpdatesQuery = new SQLiteSyncDialect().sqlToQuery(
       sql.raw(`
@@ -1280,8 +1321,13 @@ export class Simulation {
     if (limit) params.push(limit);
 
     const result = await sqlite.query(writerUpdatesQuery.sql, params);
+    const writerUpdates = parseSelectResult(d.writerUpdates, result);
 
-    return parseSelectResult(d.writerUpdates, result);
+    if (includeCompletions) {
+      return this._fetchLlmCompletions(writerUpdates);
+    } else {
+      return writerUpdates;
+    }
   }
 
   /**
@@ -1307,7 +1353,9 @@ export class Simulation {
    */
   // FIXME: `isCheckpoint` doesn't feel right.
   private static async _createUpdate(
-    writerUpdate: typeof d.writerUpdates.$inferSelect,
+    writerUpdate: typeof d.writerUpdates.$inferSelect & {
+      completion?: typeof d.llmCompletions.$inferSelect | null;
+    },
     fetchSiblings = false,
     fetchAppliedDirectorUpdate = false,
   ): Promise<Update> {
@@ -1319,6 +1367,9 @@ export class Simulation {
               ? eq(d.writerUpdates.parentUpdateId, writerUpdate.parentUpdateId)
               : isNull(d.writerUpdates.parentUpdateId),
           ),
+          with: {
+            completion: true,
+          },
         })
       : [writerUpdate];
 
@@ -1386,6 +1437,33 @@ ${prefix}${d.writerUpdates.episodeChunkIndex.name},
 ${prefix}${d.writerUpdates.llmCompletionId.name},
 ${prefix}${d.writerUpdates.preference.name},
 ${prefix}${d.writerUpdates.createdAt.name}`;
+  }
+
+  /**
+   * Fetch LLM completions for the writer updates,
+   * returning the updates with `completion` field.
+   */
+  private static async _fetchLlmCompletions(
+    writerUpdates: (typeof d.writerUpdates.$inferSelect)[],
+  ) {
+    const llmCompletionIds = writerUpdates
+      .filter((u) => u.llmCompletionId)
+      .map((u) => u.llmCompletionId) as number[];
+
+    if (llmCompletionIds.length) {
+      const llmCompletions = await d.db.query.llmCompletions.findMany({
+        where: inArray(d.llmCompletions.id, llmCompletionIds),
+      });
+
+      return writerUpdates.map((writerUpdate) => ({
+        ...writerUpdate,
+        completion:
+          llmCompletions.find((c) => c.id === writerUpdate.llmCompletionId) ??
+          null,
+      }));
+    }
+
+    return writerUpdates;
   }
 
   private constructor(id: string, scenarioId: string, scenario: Scenario) {
@@ -1849,12 +1927,15 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
           characterId: writerResponse.characterId,
           simulationDayClock: writerResponse.simulationDayClock,
           text: writerResponse.text,
-          llmCompletionId: writerResponse.completionId,
+          llmCompletionId: writerResponse.completion.id,
         },
       });
 
       update.variants.value.push({
-        writerUpdate,
+        writerUpdate: {
+          ...writerUpdate,
+          completion: writerResponse.completion,
+        },
         directorUpdate: null,
       });
 

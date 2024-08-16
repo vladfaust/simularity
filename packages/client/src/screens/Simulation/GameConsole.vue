@@ -17,6 +17,7 @@ import {
   SendHorizontalIcon,
   SkipForwardIcon,
   SquareIcon,
+  SquareSigmaIcon,
   UndoDotIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
@@ -463,27 +464,39 @@ function enableOnlyCharacter(characterId: string) {
 
   //- Status.
   .flex.w-full.justify-between.p-2(class="bg-black/20")
-    .flex.items-center.gap-2
+    .flex.w-full.items-center.gap-2
+      .flex.gap-2
+        button._status-button(@click="emit('mainMenu')")
+          MenuIcon(:size="20")
+
       AiStatus.cursor-pointer.rounded.bg-white.bg-opacity-50.px-2.py-1.transition-transform.pressable(
         :simulation
         @click="showAiSettingsModal = true"
       )
 
-      //- Temporary context gauge.
-      .flex.items-center.gap-1.text-sm
-        span.text-white {{ simulation.writer.contextLength.value }} / {{ simulation.writer.contextSize.value }}
-        button.rounded.px-2.py-1.transition-transform.pressable(
-          @click="willConsolidate = !willConsolidate"
-          :class="willConsolidate ? 'bg-green-500' : 'bg-gray-500'"
+      //- Context gauge.
+      .flex.w-full.items-center.gap-2
+        .relative.flex.w-full.items-center.justify-center.shadow-lg(
+          :class="{ 'animate-pulse': simulation.consolidationInProgress.value }"
+        )
+          progress._ctx-progress.h-5.w-full(
+            :value="simulation.contextLength.value"
+            :max="simulation.writer.contextSize.value"
+            title="Context length"
+          )
+          span.pointer-events-none.absolute.transform.select-none.rounded.text-xs.font-medium.text-secondary-900
+            | {{ simulation.contextLength.value ?? "?" }}/{{ simulation.writer.contextSize.value }}
+        button._status-button(
+          @click="simulation.consolidate()"
           class="disabled:cursor-not-allowed disabled:opacity-50"
           :disabled="!simulation.canConsolidate.value"
           :title="simulation.consolidationPreliminaryError.value?.message ?? 'Consolidate'"
         )
-          span.text-white {{ willConsolidate ? "Will consolidate" : "Do not consolidate" }}
-
-    .flex.gap-2
-      button._status-button(@click="emit('mainMenu')")
-        MenuIcon(:size="20")
+          Loader2Icon.animate-spin(
+            v-if="simulation.consolidationInProgress.value"
+            :size="20"
+          )
+          SquareSigmaIcon(v-else :size="20")
 
   AiSettingsModal(
     v-if="simulation"
@@ -510,6 +523,16 @@ function enableOnlyCharacter(characterId: string) {
 }
 
 ._status-button {
-  @apply rounded bg-white px-2 py-1 shadow transition-transform pressable;
+  @apply aspect-square rounded bg-white p-1 shadow transition-transform pressable;
+}
+
+._ctx-progress {
+  &::-webkit-progress-value {
+    @apply bg-gradient-to-t from-secondary-600 to-secondary-500;
+  }
+
+  &::-webkit-progress-bar {
+    @apply overflow-hidden rounded bg-white;
+  }
 }
 </style>

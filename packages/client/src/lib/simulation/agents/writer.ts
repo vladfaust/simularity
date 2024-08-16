@@ -106,7 +106,7 @@ export class Writer {
 
     return {
       completionId: summarizationResult.completion.id,
-      newSummary: summarizationResult.completion.output,
+      newSummary: summarizationResult.completion.output!,
     };
   }
 
@@ -122,7 +122,7 @@ export class Writer {
     onInferenceProgress?: (event: { content: string }) => void,
     inferenceAbortSignal?: AbortSignal,
   ): Promise<{
-    completionId: number;
+    completion: typeof d.llmCompletions.$inferSelect;
     characterId: string | null;
     simulationDayClock: number;
     text: string;
@@ -166,17 +166,17 @@ export class Writer {
     console.log("Inference result", inferenceResult);
 
     const parsedResult = Writer._parsePrediction(
-      trimEndAny(inferenceResult.completion.output, stopSequences),
+      trimEndAny(inferenceResult.completion.output!, stopSequences),
       this.scenario,
       predictionOptions,
     );
 
     this.contextLength.value =
-      inferenceResult.completion.inputLength +
-      inferenceResult.completion.outputLength;
+      inferenceResult.completion.inputLength! +
+      inferenceResult.completion.outputLength!;
 
     return {
-      completionId: inferenceResult.completion.id,
+      completion: inferenceResult.completion,
       ...parsedResult,
     };
   }
