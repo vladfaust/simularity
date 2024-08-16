@@ -1769,8 +1769,8 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
 
       console.debug(
         "Latest director update delta",
-        update.chosenVariant?.writerUpdate,
-        update.chosenVariant?.directorUpdate,
+        this.state.serialize(),
+        actualDelta,
         update.chosenVariant?.directorUpdate?.code,
       );
 
@@ -1784,6 +1784,10 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       console.log("Deltas equal?", deltasEqual);
 
       if (!deltasEqual) {
+        if (actualDelta.length === 0) {
+          throw new Error("BUG: Actual delta is empty");
+        }
+
         console.log(
           "Saving actual delta as a new director update",
           actualDelta,
