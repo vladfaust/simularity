@@ -122,7 +122,7 @@ class StreamingInputs(BaseModel):
     add_wav_header: bool = True
 
     # The following are the default values.
-    stream_chunk_size: int = 20
+    stream_chunk_size: int = 100
     overlap_wav_len: int = 1024
     temperature: float = 0.75
     length_penalty: float = 1
@@ -158,7 +158,7 @@ def predict_streaming_generator(parsed_input: StreamingInputs):
     )
 
     t0 = time.time()
-    wav_chunks = []
+    # wav_chunks = []
     for i, chunk in enumerate(chunks):
         if i == 0:
             print(
@@ -173,7 +173,7 @@ def predict_streaming_generator(parsed_input: StreamingInputs):
         else:
             yield chunk.tobytes()
 
-        wav_chunks.append(chunk)
+        # wav_chunks.append(chunk)
 
     inference_time = time.time() - t0
     print(

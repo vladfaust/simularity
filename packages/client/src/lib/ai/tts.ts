@@ -26,6 +26,12 @@ const TTS_PAYLOAD = v.object({
   }).entries,
 });
 
+const TTS_STREAM_PAYLOAD = v.object({
+  ...TTS_PAYLOAD.entries,
+  stream_chunk_size: v.optional(v.number()),
+  add_wav_header: v.optional(v.boolean()),
+});
+
 export class Tts {
   constructor(
     public baseUrl: string,
@@ -68,5 +74,52 @@ export class Tts {
     return response.arrayBuffer();
   }
 
-  async ttsStream() {}
+  /**
+   * Generate speech from text and stream the audio data.
+   * @yields WAV audio data.
+   */
+  async *ttsStream(
+    body: v.InferOutput<typeof TTS_STREAM_PAYLOAD>,
+    signal: AbortSignal | undefined = timeoutSignal(
+      toMilliseconds({
+        minutes: 5,
+      }),
+    ),
+  ) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (this.jwt) {
+      headers["Authorization"] = `Bearer ${this.jwt}`;
+    }
+
+    const response = await fetch(`${this.baseUrl}/tts_stream`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new ServerError(
+        `Failed to create completion: ${response.status} ${await response.text()}`,
+      );
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("Failed to create reader");
+    }
+
+    let done = false;
+    while (!done) {
+      const { value, done: readerDone } = await reader.read();
+      done = readerDone;
+      if (value) {
+        console.debug(`Received ${value.byteLength} bytes`);
+        yield value;
+      }
+    }
+  }
 }

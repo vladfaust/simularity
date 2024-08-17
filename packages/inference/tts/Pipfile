@@ -13,6 +13,9 @@ pysbd = "*"
 torch = "*"
 tts = "*"
 
+# See https://github.com/coqui-ai/TTS/issues/3833#issuecomment-2247137551.
+transformers = "==4.40.2"
+
 [dev-packages]
 
 [requires]
