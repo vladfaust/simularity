@@ -4,7 +4,8 @@
 
 ```sh
 pipenv install
-pipenv run uvicorn src/fastapi:app --port 9090
+MODEL_NAME="tts_models/multilingual/multi-dataset/xtts_v2" \
+  pipenv run uvicorn src.fastapi:app --port 9090
 ```
 
 ```sh

@@ -1,8 +1,17 @@
-from fastapi.responses import Response, StreamingResponse
+import os
+
+from . core import Core, StreamingInputs, TTSInputs
 from fastapi.applications import FastAPI
 from fastapi.datastructures import UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from . import core
+from fastapi.responses import Response, StreamingResponse
+
+model_name = os.getenv("MODEL_NAME")
+if model_name is None:
+    raise ValueError("MODEL_NAME environment variable is not set")
+
+
+core = Core(model_name)
 
 app = FastAPI(
     title="TTS Streaming server",
@@ -33,7 +42,7 @@ def create_speaker(wav_file: UploadFile):
 
 
 @app.post("/tts_stream")
-def create_tts_stream(parsed_input: core.StreamingInputs):
+def create_tts_stream(parsed_input: StreamingInputs):
     return StreamingResponse(
         core.predict_streaming_generator(parsed_input),
         media_type="audio/wav",
@@ -41,8 +50,8 @@ def create_tts_stream(parsed_input: core.StreamingInputs):
 
 
 @app.post("/tts")
-def create_tts(parsed_input: core.TTSInputs):
-    wav_bytes = core.predict_speech(parsed_input)
+def create_tts(parsed_input: TTSInputs):
+    wav_bytes = core.predict_speech(parsed_input, False)
     return Response(content=wav_bytes, media_type="audio/wav")
 
 
