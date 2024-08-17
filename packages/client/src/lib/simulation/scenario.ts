@@ -325,6 +325,25 @@ const ScenarioSchema = v.object({
           }),
         ),
       }),
+
+      /**
+       * Voice models and embeddings for the character.
+       */
+      voices: v.optional(
+        v.object({
+          /**
+           * An XTTSv2 voice model.
+           */
+          xttsV2: v.optional(
+            v.object({
+              /**
+               * Voice embedding path.
+               */
+              embeddingPath: v.string(),
+            }),
+          ),
+        }),
+      ),
     }),
   ),
 

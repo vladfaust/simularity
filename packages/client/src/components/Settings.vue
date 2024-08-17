@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ref } from "vue";
-import { ambientVolumeStorage } from "@/lib/storage";
-import { TreesIcon } from "lucide-vue-next";
+import { ambientVolumeStorage, speechVolumeStorage } from "@/lib/storage";
+import { SpeechIcon, TreesIcon } from "lucide-vue-next";
 
 const ambientVolume = ref(ambientVolumeStorage);
 </script>
@@ -18,4 +18,13 @@ const ambientVolume = ref(ambientVolumeStorage);
     .flex.items-center.gap-1
       input(type="range" min="0" max="100" v-model="ambientVolume")
       span {{ ambientVolume }}%
+
+  //- Speech volume slider.
+  .flex.items-center.gap-2
+    .flex.gap-1
+      SpeechIcon(:size="20")
+      span.font-medium Speech volume
+    .flex.items-center.gap-1
+      input(type="range" min="0" max="100" v-model="speechVolumeStorage")
+      span {{ speechVolumeStorage }}%
 </template>

@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import Placeholder from "@/components/Placeholder.vue";
+import { TTS_SPEAKER, Tts } from "@/lib/ai/tts";
+import * as resources from "@/lib/resources";
 import { Simulation } from "@/lib/simulation";
 import { Update } from "@/lib/simulation/update";
+import { speechVolumeStorage } from "@/lib/storage";
+import { v } from "@/lib/valibot";
 import { asyncComputed, watchImmediate } from "@vueuse/core";
 import {
   CircleCheckIcon,
@@ -9,8 +13,10 @@ import {
   CircleChevronRight,
   CircleSlashIcon,
   Edit3Icon,
+  Loader2Icon,
   ThumbsDownIcon,
   ThumbsUpIcon,
+  Volume2Icon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import Contenteditable from "vue-contenteditable";
@@ -189,6 +195,80 @@ async function prefer(preference: boolean) {
     preferenceInProgress.value = false;
   }
 }
+
+const ttsInProgress = ref(false);
+async function tts() {
+  ttsInProgress.value = true;
+  try {
+    let wav = await resources.tts.loadAudio(
+      props.simulation.id,
+      props.update.ensureChosenVariant.writerUpdate.id,
+      ".wav",
+    );
+
+    if (!wav) {
+      console.log("No cached audio, will generate new TTS");
+
+      if (!characterId.value) {
+        console.warn("No characterId");
+        return;
+      }
+
+      const character = props.simulation.scenario.ensureCharacter(
+        characterId.value,
+      );
+      if (!character.voices?.xttsV2) {
+        console.warn("No voices");
+        return;
+      }
+
+      const embeddingsUrl = await props.simulation.scenario.resourceUrl(
+        character.voices.xttsV2.embeddingPath,
+      );
+
+      // Load embeddings as JSON.
+      console.debug(`Fetching voice embeddings from ${embeddingsUrl}...`);
+      const embeddings = await fetch(embeddingsUrl)
+        .then((res) => res.json())
+        .then((json) => v.parse(TTS_SPEAKER, json));
+      console.log(`Fetched voice embeddings from ${embeddingsUrl}`);
+
+      const ttsInstance = new Tts(import.meta.env.VITE_TTS_BASE_URL);
+      console.log("Generating new TTS...");
+      wav = await ttsInstance.tts({
+        ...embeddings,
+        text: rText.value!,
+        language: "en",
+      });
+
+      await resources.tts.saveAudio(
+        props.simulation.id,
+        props.update.ensureChosenVariant.writerUpdate.id,
+        wav,
+        ".wav",
+      );
+    }
+
+    // Play audio from the generated WAV.
+    const audio = new Audio(
+      URL.createObjectURL(new Blob([wav], { type: "audio/wav" })),
+    );
+
+    const watchStopHandle = watchImmediate(
+      () => speechVolumeStorage.value,
+      (volume) => {
+        audio.volume = volume / 100;
+      },
+    );
+
+    await audio.play();
+    audio.onended = () => {
+      watchStopHandle();
+    };
+  } finally {
+    ttsInProgress.value = false;
+  }
+}
 </script>
 
 <template lang="pug">
@@ -216,6 +296,11 @@ async function prefer(preference: boolean) {
     //- Buttons.
     .flex.items-center.gap-2
       span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
+
+      //- TTS.
+      button.btn-pressable(@click.stop="tts" :disabled="ttsInProgress")
+        Loader2Icon.animate-spin(:size="20" v-if="ttsInProgress")
+        Volume2Icon(:size="20" v-else)
 
       .flex.items-center.gap-1
         button.btn-pressable(

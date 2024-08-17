@@ -1,0 +1,22 @@
+FROM python:3.11.7
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+    sox libsox-fmt-all curl wget gcc git git-lfs build-essential libaio-dev libsndfile1 ssh ffmpeg && \
+    apt-get clean && apt-get -y autoremove
+
+RUN pip install pipenv
+
+WORKDIR /app
+
+COPY Pipfile Pipfile.lock .
+RUN pipenv install
+
+RUN mkdir -p /app/tts_models
+COPY index.py Pipfile Pipfile.lock .
+
+ENV USE_CPU=1
+
+EXPOSE 80
+CMD ["pipenv", "run", "uvicorn", "index:app", "--host", "0.0.0.0", "--port", "80"]

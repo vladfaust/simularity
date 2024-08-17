@@ -16,3 +16,8 @@ export const ambientVolumeStorage = useLocalStorage<number>(
   "ambientVolume",
   50,
 );
+
+/**
+ * Speech volume storage, from 0 to 100.
+ */
+export const speechVolumeStorage = useLocalStorage<number>("speechVolume", 50);

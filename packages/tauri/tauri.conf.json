@@ -43,7 +43,8 @@
         "asset": true,
         "assetScope": [
           "$APPLOCALDATA/screenshots/*",
-          "$APPLOCALDATA/scenarios/**/*"
+          "$APPLOCALDATA/scenarios/**/*",
+          "$APPLOCALDATA/simulations/**/*"
         ]
       },
       "window": {
