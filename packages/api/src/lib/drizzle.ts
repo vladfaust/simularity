@@ -10,6 +10,9 @@ export const d = {
     "llmModels",
     "llmSessions",
     "llmWorkers",
+    "ttsInferences",
+    "ttsModels",
+    "ttsWorkers",
     "users",
   ]),
 };

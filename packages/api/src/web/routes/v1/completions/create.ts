@@ -1,36 +1,21 @@
-import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
+import {
+  VllmEndpoint,
+  VllmEndpointInputSchema,
+} from "@/lib/runpod/endpoints/vllm.js";
 import { omit, pick } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
-import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
 import {
   RequestBodySchema,
   ResponseSchema,
 } from "@simularity/api-sdk/v1/completions/create";
+import assert from "assert";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { and, eq } from "drizzle-orm";
-import { toMilliseconds } from "duration-fns";
 import { Router } from "express";
-import runpodSdk from "runpod-sdk";
 import { ensureUser } from "../auth/common.js";
-
-const RUNPOD_TIMEOUT = toMilliseconds({ minutes: 10 });
-
-const RunpodResultOutputSchema = v.array(
-  v.object({
-    choices: v.array(
-      v.object({
-        tokens: v.array(v.string()),
-      }),
-    ),
-    usage: v.object({
-      input: v.number(),
-      output: v.number(),
-    }),
-  }),
-);
 
 /**
  * Create a new LLM completion.
@@ -72,11 +57,7 @@ export default Router()
       });
     }
 
-    const runpod = runpodSdk(env.RUNPOD_API_KEY, {
-      baseUrl: env.RUNPOD_BASE_URL,
-    });
-
-    const endpoint = runpod.endpoint(worker.providerExternalId);
+    const endpoint = VllmEndpoint.create(worker);
     if (!endpoint) {
       konsole.error("Runpod endpoint unavailable", {
         endpointId: worker.providerExternalId,
@@ -140,16 +121,6 @@ export default Router()
 
     konsole.debug("Session", session);
 
-    let llmCompletion: Pick<typeof d.llmCompletions.$inferSelect, "id">;
-    let output: string;
-    let usage: {
-      promptTokens: number;
-      completionTokens: number;
-      totalTokens: number;
-      delayTime: number;
-      executionTime: number;
-    };
-
     const input = {
       prompt: body.output.prompt,
       sampling_params: pick(body.output, [
@@ -174,178 +145,40 @@ export default Router()
         "guided_grammar",
         "guided_regex",
       ]),
-    };
+    } satisfies v.InferInput<typeof VllmEndpointInputSchema>;
+    konsole.debug("vLLM endpoint input", omit(input, ["prompt"]));
 
-    konsole.debug("Runpod input", omit(input, ["prompt"]));
+    const llmCompletion = await endpoint.run(session.id, input);
 
-    try {
-      res.setTimeout(RUNPOD_TIMEOUT, () => {
-        konsole.error("Request timed out", {
-          timeout: RUNPOD_TIMEOUT,
-        });
+    if (llmCompletion.error) {
+      konsole.error("Failed to complete request", {
+        completionId: llmCompletion.id,
+        error: llmCompletion.error,
       });
-
-      // TODO: Extract to @/lib/runpod.ts
-      const runResult = await endpoint.runSync(
-        {
-          input,
-          policy: {
-            executionTimeout: toMilliseconds({
-              // May need some time to warm up.
-              minutes: 5,
-            }),
-          },
-        },
-        RUNPOD_TIMEOUT,
-      );
-
-      konsole.debug(
-        "Runpod result",
-        runResult,
-        JSON.stringify(runResult.output),
-      );
-
-      if (runResult.status === "COMPLETED") {
-        let estimatedCost:
-          | v.InferOutput<typeof MultiCurrencyCostSchema>
-          | undefined;
-
-        switch (worker.providerPricing?.type) {
-          case "perSecond": {
-            estimatedCost = {
-              [worker.providerPricing.currency]:
-                (runResult.executionTime * worker.providerPricing.price) / 1000,
-            };
-          }
-        }
-
-        const parsedOutput = v.safeParse(
-          RunpodResultOutputSchema,
-          runResult.output,
-        );
-
-        if (!parsedOutput.success) {
-          // Invalid Runpod result output.
-          konsole.error("Invalid Runpod result output", {
-            issues: v.flatten(parsedOutput.issues),
-          });
-
-          llmCompletion = (
-            await d.db
-              .insert(d.llmCompletions)
-              .values({
-                sessionId: session.id,
-                workerId: worker.id,
-                params: omit(body.output, ["model", "prompt"]),
-                input: body.output.prompt,
-                providerExternalId: runResult.id,
-                delayTimeMs: runResult.delayTime,
-                executionTimeMs: runResult.executionTime,
-                error: `Invalid Runpod result output: ${JSON.stringify(v.flatten(parsedOutput.issues))}`,
-                estimatedCost,
-              })
-              .returning({
-                id: d.llmCompletions.id,
-              })
-          )[0];
-
-          return res.status(500).json({
-            error: "Failed to complete request",
-            completionId: llmCompletion.id,
-          });
-        }
-
-        output = parsedOutput.output[0].choices[0].tokens[0];
-        usage = {
-          promptTokens: parsedOutput.output[0].usage.input,
-          completionTokens: parsedOutput.output[0].usage.output,
-          totalTokens:
-            parsedOutput.output[0].usage.input +
-            parsedOutput.output[0].usage.output,
-          delayTime: runResult.delayTime,
-          executionTime: runResult.executionTime,
-        };
-
-        // Success.
-        llmCompletion = (
-          await d.db
-            .insert(d.llmCompletions)
-            .values({
-              sessionId: session.id,
-              workerId: worker.id,
-              params: omit(body.output, ["model", "prompt"]),
-              input: body.output.prompt,
-              providerExternalId: runResult.id,
-              delayTimeMs: runResult.delayTime,
-              executionTimeMs: runResult.executionTime,
-              output,
-              promptTokens: usage.promptTokens,
-              completionTokens: usage.completionTokens,
-              estimatedCost,
-            })
-            .returning({
-              id: d.llmCompletions.id,
-            })
-        )[0];
-      } else {
-        // TODO: Handle "IN_QUEUE".
-        // Invalid Runpod result status.
-        konsole.error("Invalid Runpod result status", {
-          status: runResult.status,
-        });
-
-        llmCompletion = (
-          await d.db
-            .insert(d.llmCompletions)
-            .values({
-              sessionId: session.id,
-              workerId: worker.id,
-              params: omit(body.output, ["model", "prompt"]),
-              input: body.output.prompt,
-              providerExternalId: runResult.id,
-              delayTimeMs: runResult.delayTime,
-              executionTimeMs: runResult.executionTime,
-              error: `Invalid Runpod result status: ${runResult.status}`,
-            })
-            .returning({
-              id: d.llmCompletions.id,
-            })
-        )[0];
-
-        return res.status(500).json({
-          error: "Failed to complete request",
-          completionId: llmCompletion.id,
-        });
-      }
-    } catch (e: any) {
-      console.error(e);
-
-      // Unexpected error (e.g. network error).
-      llmCompletion = (
-        await d.db
-          .insert(d.llmCompletions)
-          .values({
-            sessionId: session.id,
-            workerId: worker.id,
-            params: omit(body.output, ["model", "prompt"]),
-            input: body.output.prompt,
-            error: e.message,
-          })
-          .returning({
-            id: d.llmCompletions.id,
-          })
-      )[0];
 
       return res.status(500).json({
         error: "Failed to complete request",
         completionId: llmCompletion.id,
       });
-    }
+    } else {
+      assert(llmCompletion.output !== null);
+      assert(llmCompletion.completionTokens !== null);
+      assert(llmCompletion.delayTimeMs !== null);
+      assert(llmCompletion.executionTimeMs !== null);
+      assert(llmCompletion.promptTokens !== null);
 
-    return res.status(201).json({
-      sessionId: session.id,
-      completionId: llmCompletion.id,
-      output,
-      usage,
-    } satisfies v.InferInput<typeof ResponseSchema>);
+      return res.status(201).json({
+        sessionId: session.id,
+        completionId: llmCompletion.id,
+        output: llmCompletion.output,
+        usage: {
+          completionTokens: llmCompletion.completionTokens,
+          delayTime: llmCompletion.delayTimeMs,
+          executionTime: llmCompletion.executionTimeMs,
+          promptTokens: llmCompletion.promptTokens,
+          totalTokens:
+            llmCompletion.promptTokens + llmCompletion.completionTokens,
+        },
+      } satisfies v.InferInput<typeof ResponseSchema>);
+    }
   });

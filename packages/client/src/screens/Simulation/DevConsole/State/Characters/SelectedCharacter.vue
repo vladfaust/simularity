@@ -123,6 +123,7 @@ function removeFromStage() {
         :translate-x="outfitPreviewTranform?.x"
         :translate-y="outfitPreviewTranform?.y"
         :scale="outfitPreviewTranform?.scale"
+        :title="outfitId"
         @click="selectOutfitId(outfitId)"
       )
 
@@ -140,6 +141,7 @@ function removeFromStage() {
         :translate-x="expressionPreviewTranform?.x"
         :translate-y="expressionPreviewTranform?.y"
         :scale="expressionPreviewTranform?.scale"
+        :title="expressionId"
         @click="selectExpressionId(expressionId)"
       )
 

@@ -1,3 +1,7 @@
+import {
+  RequestBodySchema,
+  ResponseBodySchema,
+} from "@simularity/api-sdk/v1/tts/create";
 import { toMilliseconds } from "duration-fns";
 import { timeoutSignal } from "../utils";
 import { v } from "../valibot";
@@ -43,13 +47,13 @@ export class Tts {
    * @returns WAV audio data.
    */
   async tts(
-    body: v.InferOutput<typeof TTS_PAYLOAD>,
+    body: v.InferOutput<typeof RequestBodySchema>,
     signal: AbortSignal | undefined = timeoutSignal(
       toMilliseconds({
         minutes: 5,
       }),
     ),
-  ) {
+  ): Promise<ArrayBuffer> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -58,7 +62,7 @@ export class Tts {
       headers["Authorization"] = `Bearer ${this.jwt}`;
     }
 
-    const response = await fetch(`${this.baseUrl}/tts`, {
+    const response = await fetch(`${this.baseUrl}/v1/tts`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -71,7 +75,11 @@ export class Tts {
       );
     }
 
-    return response.arrayBuffer();
+    const json = await response.json();
+    const parsedOutput = v.parse(ResponseBodySchema, json);
+    const wavBase64 = parsedOutput.output.wavBase64;
+
+    return Uint8Array.from(atob(wavBase64), (c) => c.charCodeAt(0)).buffer;
   }
 
   /**
@@ -94,7 +102,7 @@ export class Tts {
       headers["Authorization"] = `Bearer ${this.jwt}`;
     }
 
-    const response = await fetch(`${this.baseUrl}/tts_stream`, {
+    const response = await fetch(`${this.baseUrl}/v1/tts_stream`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),

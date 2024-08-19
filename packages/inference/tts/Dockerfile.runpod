@@ -1,0 +1,63 @@
+FROM nvidia/cuda:12.6.0-cudnn-devel-ubuntu22.04 AS base
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+    sox libsox-fmt-all curl wget git git-lfs libaio-dev libsndfile1 ssh ffmpeg python3 pip && \
+    apt-get clean && apt-get -y autoremove
+
+# Check Python installation.
+RUN python3 --version && pip --version
+
+# Build the Python dependencies image.
+#
+
+FROM base AS python-deps
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+    gcc build-essential && \
+    apt-get clean && apt-get -y autoremove
+
+RUN pip install pipenv
+
+# Install Rust.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustc --version && cargo --version
+
+COPY Pipfile Pipfile.lock .
+RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --categories "packages,runpod"  --deploy
+
+# Build the runtime image.
+#
+
+FROM base AS runtime
+
+# Install python3-dev required for transformers.
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+    python3-dev && \
+    apt-get clean && apt-get -y autoremove
+
+COPY --from=python-deps /.venv /.venv
+ENV PATH="/.venv/bin:$PATH"
+
+WORKDIR /app
+
+# Bake model if specified.
+COPY src/download_model.py src/
+ARG MODEL_NAME=""
+ENV COQUI_TOS_AGREED=1
+RUN if [ -n "$MODEL_NAME" ]; then \
+        python3 -m src.download_model $MODEL_NAME; \
+    fi
+
+COPY src/core.py \
+    src/runpod_handler.py \
+    src/
+
+ENV NVIDIA_DISABLE_REQUIRE=1
+ENV NUM_THREADS=2
+
+CMD ["python3", "-m", "src.runpod_handler"]

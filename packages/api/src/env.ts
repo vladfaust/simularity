@@ -31,6 +31,10 @@ dotenv.config();
 
 const parseResult = v.safeParse(
   v.object({
+    NODE_ENV: v.optional(
+      v.union([v.literal("development"), v.literal("production")]),
+      "development",
+    ),
     DATABASE_URL: v.pipe(v.string(), v.url()),
 
     HOST: v.string(),

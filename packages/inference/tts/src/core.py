@@ -8,25 +8,28 @@ import wave
 import torch
 import numpy as np
 from typing import BinaryIO, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import os
 import psutil
 
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
 
-from . download_model import download_model
+from .download_model import download_model
 
 num_threads = int(os.environ.get("NUM_THREADS", int(os.cpu_count() or 1)))
-print(f"Setting number of threads to {num_threads}")
+num_threads = max(1, num_threads - 1)  # Leave one thread for other tasks.
+print(f"num_threads = {num_threads}")
 torch.set_num_threads(num_threads)
 
-device = "cuda" if torch.cuda.is_available() and os.environ.get(
-    "USE_CPU", "0") == "0" else "cpu"
-if device == "cuda":
-    print("Using GPU")
+if os.environ.get("USE_CPU", "0") == "1":
+    device = "cpu"
+elif torch.cuda.is_available():
+    device = "cuda"
 else:
-    print("Using CPU")
+    device = "cpu"
+
+print(f"device = {device}")
 
 
 class TTSInputs(BaseModel):
@@ -45,6 +48,16 @@ class TTSInputs(BaseModel):
     do_sample: bool = True
     speed: float = 1.0
     enable_text_splitting: bool = False
+
+
+class TTSOutputsUsage(BaseModel):
+    execution_time: int
+
+
+class TTSOutputs(BaseModel):
+    inference_id: str
+    wav: str | bytes
+    usage: TTSOutputsUsage
 
 
 class StreamingInputs(TTSInputs):
@@ -88,7 +101,7 @@ class Core:
         else:
             return wav_buf.read()
 
-    def __init__(self, model_name: str):
+    def __init__(self, instance_id: str, model_name: str):
         model_path = download_model(model_name)
 
         print("Loading TTS model to device...", flush=True)
@@ -117,6 +130,8 @@ class Core:
             now_time - start_time, (now_mem - start_mem) / 1024 / 1024), flush=True)
 
         self.mutex = Lock()
+        self.instance_id = instance_id
+        self.inference_counter = 0
 
     def create_speaker(self, wav_file: BinaryIO):
         """Compute conditioning inputs from reference audio file."""
@@ -160,15 +175,16 @@ class Core:
                 enable_text_splitting=parsed_input.enable_text_splitting,
             )
 
+            self.inference_counter += 1
+
             t0 = time.time()
             # wav_chunks = []
             for i, chunk in enumerate(chunks):
                 if i == 0:
                     print(
-                        f"Latency to first audio chunk: {round((time.time() - t0)*1000)} milliseconds")
+                        f"[@{self.instance_id}][#{self.inference_counter}]         L1C: {round((time.time() - t0)*1000)}ms")
 
                 chunk = Core.postprocess(chunk)
-                print(f"Received chunk {i} of audio length {chunk.shape[-1]}")
 
                 if i == 0 and parsed_input.add_wav_header:
                     yield Core.encode_audio_common(b"", encode_base64=False)
@@ -180,8 +196,8 @@ class Core:
 
             inference_time = time.time() - t0
             print(
-                f"I: Time to generate audio: \
-                    {round(inference_time*1000)} milliseconds"
+                f"[@{self.instance_id}][#{self.inference_counter}] " +
+                f"TTI: {round(inference_time * 1000)}ms"
             )
 
             # FIXME: TypeError: expected Tensor as element 0 in argument 0, but got numpy.ndarray
@@ -213,8 +229,12 @@ class Core:
             )
 
             wav = Core.postprocess(torch.tensor(out["wav"]).unsqueeze(0))
+
+            self.inference_counter += 1
+            execution_time = round((time.time() - t0) * 1000)
+
             print(
-                f"Time to generate audio: {round((time.time() - t0)*1000)} milliseconds")
+                f"[@{self.instance_id}][#{self.inference_counter}] TTI: {execution_time}ms")
 
             # TODO:
             # real_time_factor = (time.time() - t0) / wav.shape[0] * 24000
@@ -222,7 +242,13 @@ class Core:
 
             # torchaudio.save("output.wav", torch.tensor(out["wav"]).unsqueeze(0), 24000)
 
-            return Core.encode_audio_common(wav.tobytes(), encode_base64)
+            wav = Core.encode_audio_common(wav.tobytes(), encode_base64)
+
+            return TTSOutputs(
+                inference_id=f"{self.instance_id}-{self.inference_counter}",
+                wav=wav,
+                usage=TTSOutputsUsage(execution_time=execution_time),
+            )
 
     def get_languages(self):
         return self.config.languages

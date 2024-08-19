@@ -32,6 +32,10 @@
       "import": "./dist/v1/models/index.js",
       "types": "./dist/v1/models/index.d.ts"
     },
+    "./v1/tts/create": {
+      "import": "./dist/v1/tts/create.js",
+      "types": "./dist/v1/tts/create.d.ts"
+    },
     "./v1/users/get": {
       "import": "./dist/v1/users/get.js",
       "types": "./dist/v1/users/get.d.ts"

@@ -233,10 +233,15 @@ async function tts() {
         .then((json) => v.parse(TTS_SPEAKER, json));
       console.log(`Fetched voice embeddings from ${embeddingsUrl}`);
 
-      const ttsInstance = new Tts(import.meta.env.VITE_TTS_BASE_URL);
+      const ttsInstance = new Tts(
+        import.meta.env.VITE_TTS_BASE_URL,
+        import.meta.env.VITE_API_JWT,
+      );
       console.log("Generating new TTS...");
       wav = await ttsInstance.tts({
-        ...embeddings,
+        modelId: "xtts2",
+        gptCondLatent: embeddings.gpt_cond_latent,
+        speakerEmbedding: embeddings.speaker_embedding,
         text: rText.value!,
         language: "en",
       });

@@ -13,6 +13,7 @@ export default defineConfig({
     include: [
       "@simularity/api-sdk/v1/completions/create",
       "@simularity/api-sdk/v1/models/index",
+      "@simularity/api-sdk/v1/tts/create",
       "@simularity/api-sdk/v1/users/get",
     ],
     force: true,

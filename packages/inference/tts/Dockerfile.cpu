@@ -1,4 +1,4 @@
-FROM python:3.11.7
+FROM python:3.10-slim
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
@@ -8,15 +8,29 @@ RUN apt-get update && \
 
 RUN pip install pipenv
 
+# Install Rust.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustc --version && cargo --version
+
 WORKDIR /app
 
 COPY Pipfile Pipfile.lock .
-RUN pipenv install
+RUN pipenv install --categories "packages,fastapi"
 
-RUN mkdir -p /app/tts_models
-COPY index.py Pipfile Pipfile.lock .
+# Bake model if specified.
+COPY src/download_model.py src/
+ARG MODEL_NAME=""
+RUN if [ -n "$MODEL_NAME" ]; then \
+        pipenv run /src/download_model.py $MODEL_NAME; \
+    fi
+
+COPY src/core.py \
+    src/fastapi.py \
+    src/
 
 ENV USE_CPU=1
+ENV COQUI_TOS_AGREED=1
 
 EXPOSE 80
-CMD ["pipenv", "run", "uvicorn", "index:app", "--host", "0.0.0.0", "--port", "80"]
+CMD ["pipenv", "run", "uvicorn", "src.fastapi_server:app", "--host", "0.0.0.0", "--port", "80"]

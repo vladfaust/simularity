@@ -9,21 +9,21 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { ProviderPricingModel } from "./common.js";
-import { llmModels } from "./llmModels.js";
+import { ttsModels } from "./ttsModels.js";
 
-export const llmProviderId = pgEnum("llm_provider", ["runpod"]);
+export const ttsProviderId = pgEnum("tts_provider", ["runpod"]);
 
-export const llmWorkers = pgTable(
-  "llm_workers",
+export const ttsWorkers = pgTable(
+  "tts_workers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     enabled: boolean("enabled").notNull().default(false),
 
     modelId: varchar("model_id")
       .notNull()
-      .references(() => llmModels.id, { onDelete: "restrict" }),
+      .references(() => ttsModels.id, { onDelete: "restrict" }),
 
-    providerId: llmProviderId("provider_id").notNull(),
+    providerId: ttsProviderId("provider_id").notNull(),
 
     /**
      * Worker ID in the provider's system.
@@ -36,12 +36,12 @@ export const llmWorkers = pgTable(
       >(),
   },
   (table) => ({
-    mainIndex: index("llm_workers_main_index").on(
+    mainIndex: index("tts_workers_main_index").on(
       table.modelId,
       table.providerId,
       table.enabled,
     ),
-    externalIdIndex: index("llm_workers_provider_external_id_index").on(
+    externalIdIndex: index("tts_workers_provider_external_id_index").on(
       table.providerId,
       table.providerExternalId,
     ),
