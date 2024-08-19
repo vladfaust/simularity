@@ -1,5 +1,6 @@
 #pragma once
 
+#include <_types/_uint32_t.h>
 #include <llama.h>
 #include <simularity.h>
 #include <spdlog/fmt/fmt.h>
@@ -11,7 +12,10 @@
 #include "common.cpp"
 
 struct ContextOverflowError : public std::runtime_error {
-  ContextOverflowError() : std::runtime_error("Context overflow") {}
+  ContextOverflowError(uint32_t max, uint32_t given) :
+      std::runtime_error(
+          fmt::format("Context overflow (max: {}, given: {})", max, given)
+      ) {}
 };
 
 struct UnknownDecodeError : public std::runtime_error {
@@ -63,7 +67,7 @@ int simularity_gpt_decode(
     // Return the new context size.
     return session->prompt.size();
   } catch (ContextOverflowError &e) {
-    spdlog::error("Context overflow");
+    spdlog::error(e.what());
     return -2;
   } catch (UnknownDecodeError &e) {
     spdlog::error("Unknown decode error: {}", e.code);
@@ -78,7 +82,17 @@ static std::unique_ptr<Batch> simularity_gpt_decode_internal(
     void(progress_callback)(float, void *),
     void *progress_callback_user_data
 ) {
-  auto n_prompt  = prompt.size();
+  auto n_prompt = prompt.size();
+  if (n_prompt > llama_n_batch(session->context)) {
+    spdlog::error(
+        "Prompt is too long ({} tokens, max {})",
+        n_prompt,
+        llama_n_batch(session->context)
+    );
+
+    throw ContextOverflowError(llama_n_batch(session->context), n_prompt);
+  }
+
   auto n_session = session->prompt.size();
   size_t n_match;
 
@@ -154,7 +168,8 @@ static std::unique_ptr<Batch> simularity_gpt_decode_internal(
       progress_callback,
       progress_callback_user_data
   );
-  if (err == 1) throw ContextOverflowError();
+  if (err == 1)
+    throw ContextOverflowError(llama_n_batch(session->context), n_prompt);
   else if (err) throw UnknownDecodeError(err);
 
   // Update the session's prompt.

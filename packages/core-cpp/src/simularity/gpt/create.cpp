@@ -203,7 +203,7 @@ int simularity_gpt_create(
         );
         spdlog::info("Decoded initial prompt");
       } catch (ContextOverflowError &e) {
-        spdlog::error("Context overflow");
+        spdlog::error(e.what());
         return -4;
       } catch (UnknownDecodeError &e) {
         spdlog::error("Unknown decode error: {}", e.code);

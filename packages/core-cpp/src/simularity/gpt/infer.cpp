@@ -136,7 +136,7 @@ int simularity_gpt_infer(
         decode_progress_callback_user_data
     );
   } catch (ContextOverflowError &e) {
-    spdlog::error("Context overflow");
+    spdlog::error(e.what());
     return -2;
   } catch (UnknownDecodeError &e) {
     spdlog::error("Unknown decode error: {}", e.code);
