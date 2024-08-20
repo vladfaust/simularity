@@ -12,7 +12,10 @@ import { safeParseJson } from "../utils";
 import { formatIssues, v } from "../valibot";
 import { StateCommandSchema } from "./state/commands";
 
-const IdSchema = v.pipe(v.string(), v.regex(/^[a-zA-Z_][a-zA-Z0-9_-]*$/));
+export const IdSchema = v.pipe(
+  v.string(),
+  v.regex(/^[a-zA-Z_][a-zA-Z0-9_-]*$/),
+);
 
 const SpriteTransformSchema = v.object({
   /**

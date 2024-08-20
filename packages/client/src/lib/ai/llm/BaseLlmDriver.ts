@@ -10,7 +10,6 @@ export class CompletionAbortError extends Error {
 
 export enum LlmGrammarLang {
   Gnbf,
-  Lark,
   Regex,
 }
 

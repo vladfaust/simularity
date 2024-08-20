@@ -3,6 +3,13 @@ import { appLocalDataDir, BaseDirectory } from "@tauri-apps/api/path";
 export * as gpt from "./tauri/gpt";
 export * as sqlite from "./tauri/sqlite";
 
+export class TauriInvokeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TauriInvokeError";
+  }
+}
+
 export async function resolveBaseDir(baseDir: BaseDirectory) {
   switch (baseDir) {
     case BaseDirectory.AppLocalData:

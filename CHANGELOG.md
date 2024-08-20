@@ -71,6 +71,7 @@
       Crude, but it works. Uses vLLM.
 - [x] feat: store LLM completions locally (Wed 14)
 - [x] feat: cloud TTS w/ Runpod (Sun 18)
+- [x] feat(client): working director agent (Tue 20)
 
 ### July 2024
 

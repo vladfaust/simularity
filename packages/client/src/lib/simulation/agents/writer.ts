@@ -473,8 +473,6 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
         return `root ::= [a-zA-Z0-9: .,!?*"'_-]+ "\n"`;
       case LlmGrammarLang.Regex:
         return /^([a-zA-Z0-9: \.,!?*"'_-]+)\n$/.source;
-      case LlmGrammarLang.Lark:
-        return `start: [a-zA-Z0-9: .,!?*"'_-]+ "\n"`;
       default:
         throw unreachable(lang);
     }
@@ -522,18 +520,6 @@ characterId ::= ${characterIdRule}
           .join("|");
 
         return `<(${characterIdRule})\\[[0-9]{2}:[0-9]{2}\\]> ([a-zA-Z0-9: \\.,!?*"'-]+)`;
-      }
-
-      case LlmGrammarLang.Lark: {
-        const characterIdRule = allowedCharacterIds
-          .map((id) => `"${id}"`)
-          .join(" | ");
-
-        return `
-start: "<" (${characterIdRule}) "[" clock "]> " text
-clock: [0-9]{2} ":" [0-9]{2}
-text: ["A-Za-z*] [a-zA-Z0-9: .,!?*"'-]+ "\n"
-`.trim();
       }
 
       default:

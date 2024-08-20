@@ -2,6 +2,7 @@ import { watchImmediate } from "@vueuse/core";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { toMinutes } from "duration-fns";
+import pRetry from "p-retry";
 import {
   computed,
   markRaw,
@@ -10,16 +11,22 @@ import {
   shallowRef,
   triggerRef,
   type Raw,
+  type ShallowRef,
 } from "vue";
 import {
   CompletionAbortError,
+  type BaseLlmDriver,
   type CompletionOptions,
 } from "./ai/llm/BaseLlmDriver";
 import { RemoteLlmDriver } from "./ai/llm/RemoteLlmDriver";
 import { TauriLlmDriver } from "./ai/llm/TauriLlmDriver";
 import { d, parseSelectResult, sqlite, type Transaction } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
-import { Director } from "./simulation/agents/director";
+import {
+  Director,
+  PredictionError,
+  type SimpleUpdate,
+} from "./simulation/agents/director";
 import {
   Writer,
   type VisualizationOptions,
@@ -27,11 +34,17 @@ import {
 } from "./simulation/agents/writer";
 import { Scenario, ensureReadScenario } from "./simulation/scenario";
 import { type StageRenderer } from "./simulation/stageRenderer";
-import { State, compareStateDeltas, type StateDto } from "./simulation/state";
+import {
+  State,
+  applyCommandsToStateDtoUnsafe,
+  compareStateDeltas,
+  type StateDto,
+} from "./simulation/state";
 import { type StateCommand } from "./simulation/state/commands";
 import { Update } from "./simulation/update";
 import * as storage from "./storage";
-import { assert, assertCallback, unreachable } from "./utils";
+import type { LlmAgentId } from "./storage/llm";
+import { assert, assertCallback, clone, unreachable } from "./utils";
 
 export { Scenario, State };
 
@@ -190,7 +203,7 @@ export class Simulation {
 
   readonly previousStateDelta = computed(() => {
     return this._previousState.value
-      ? this.state.delta(this._previousState.value)
+      ? State.delta(this.state.serialize(), this._previousState.value)
       : null;
   });
 
@@ -388,7 +401,10 @@ export class Simulation {
 
       // Add the new episode update to the recent updates.
       const episodeUpdate = markRaw(
-        new Update(parentUpdateId, shallowRef([incoming])),
+        new Update(
+          parentUpdateId,
+          shallowRef([{ ...incoming, state: this.state.serialize() }]),
+        ),
       );
       this._recentUpdates.value.push(episodeUpdate);
     } finally {
@@ -445,7 +461,7 @@ export class Simulation {
       if (this._futureUpdates.value.length) {
         // Add a new variant to the existing next update.
         const update = this._futureUpdates.value.shift()!;
-        update.variants.value.push(saved);
+        update.variants.value.push({ ...saved, state: this.state.serialize() });
         update.setChosenVariantToLast();
 
         // Shift the future update to the recent updates.
@@ -455,7 +471,12 @@ export class Simulation {
         this._futureUpdates.value = [];
       } else {
         // Create a new update object.
-        const update = markRaw(new Update(parentUpdateId, shallowRef([saved])));
+        const update = markRaw(
+          new Update(
+            parentUpdateId,
+            shallowRef([{ ...saved, state: this.state.serialize() }]),
+          ),
+        );
 
         // Add the new update to the recent updates.
         this._recentUpdates.value.push(update);
@@ -467,9 +488,6 @@ export class Simulation {
 
   /**
    * Predict the next update.
-   *
-   * @param characterId If set, would force the character (or narrator) to speak.
-   *
    * @assert There is no current episode.
    * @assert Can not go forward.
    */
@@ -484,14 +502,6 @@ export class Simulation {
       throw new Error("Simulation is busy");
     }
 
-    if (!this.writer.ready.value) {
-      throw new Error("Writer is not ready");
-    }
-
-    // if (!this.director.value) {
-    //   throw new Error("Director is not initialized");
-    // }
-
     if (this.state.shallAdvanceEpisode.value) {
       throw new Error("Cannot create assistant update during an episode");
     }
@@ -500,6 +510,14 @@ export class Simulation {
       throw new Error(
         "Cannot predict the next update if there are future updates",
       );
+    }
+
+    if (!this.writer.ready.value) {
+      throw new Error("Writer is not ready");
+    }
+
+    if (!this.director.ready.value) {
+      throw new Error("Director is not ready");
     }
 
     try {
@@ -523,12 +541,6 @@ export class Simulation {
       );
       if (inferenceAbortSignal?.aborted) {
         console.warn("Writer inference aborted");
-        return;
-      }
-
-      await this._inferDirectorUpdate(inferenceAbortSignal);
-      if (inferenceAbortSignal?.aborted) {
-        console.warn("Director inference aborted");
         return;
       }
     } finally {
@@ -582,16 +594,6 @@ export class Simulation {
         onInferenceDecodingProgress,
         inferenceAbortSignal,
       );
-      if (inferenceAbortSignal?.aborted) {
-        console.warn("Inference aborted");
-        return;
-      }
-
-      await this._inferDirectorUpdate(inferenceAbortSignal);
-      if (inferenceAbortSignal?.aborted) {
-        console.warn("Director inference aborted");
-        return;
-      }
     } finally {
       this._busy.value = false;
     }
@@ -1174,6 +1176,8 @@ export class Simulation {
     });
 
     update.ensureChosenVariant.directorUpdate = directorUpdate;
+    update.ensureChosenVariant.state = undefined;
+
     triggerRef(update.variants);
   }
 
@@ -1485,10 +1489,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     }
 
     this._initWriter();
-
-    // this._initDirector((event) => {
-    //   console.debug("Director initialization progress", event.progress);
-    // });
+    this._initDirector();
   }
 
   /**
@@ -1652,28 +1653,34 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     console.debug("Initialized state", this.state.serialize());
   }
 
-  /**
-   * Prepare writer LLM for the simulation.
-   */
-  private async _initWriter() {
-    const driverConfig = storage.llm.useDriverConfig("writer");
-    const latestSession = storage.llm.useLatestSession("writer");
+  private async _initLlmAgent(
+    agent: LlmAgentId,
+    driverRef: ShallowRef<BaseLlmDriver | null>,
+    initialPromptBuilder: () => string,
+  ) {
+    const driverConfig = storage.llm.useDriverConfig(agent);
+    const latestSession = storage.llm.useLatestSession(agent);
 
     watchImmediate(
       () => driverConfig.value,
       async (driverConfig) => {
-        console.debug("Writer driver config watch trigger", driverConfig);
+        console.debug("Driver config watch trigger", agent, driverConfig);
 
         if (driverConfig) {
-          if (this._writer.llmDriver.value) {
-            console.debug("Comparing driver configs.", { other: driverConfig });
-            if (!this._writer.llmDriver.value.compareConfig(driverConfig)) {
-              console.log("Driver config is different, destroying the driver.");
-              this._writer.llmDriver.value.destroy();
-              this._writer.llmDriver.value = null;
+          if (driverRef.value) {
+            console.debug("Comparing driver configs.", agent, {
+              other: driverConfig,
+            });
+            if (!driverRef.value.compareConfig(driverConfig)) {
+              console.log(
+                "Driver config is different, destroying the driver.",
+                agent,
+              );
+              driverRef.value.destroy();
+              driverRef.value = null;
               latestSession.value = null;
             } else {
-              console.debug("Driver config is the same.");
+              console.debug("Driver config is the same.", agent);
               return;
             }
           }
@@ -1690,9 +1697,9 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
               }
 
               if (!driver) {
-                console.log("Creating new TauriLlmDriver", { driverConfig });
+                console.log("Creating new TauriLlmDriver", agent, driverConfig);
 
-                const initialPrompt = Writer.buildStaticPrompt(this.scenario);
+                const initialPrompt = initialPromptBuilder();
 
                 driver = TauriLlmDriver.create(
                   driverConfig,
@@ -1707,22 +1714,24 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
                 );
               } else {
                 console.log(`Restored TauriLlmDriver`, {
+                  agent,
                   latestSession: latestSession.value,
                   driverConfig,
                 });
               }
 
-              this._writer.llmDriver.value = driver;
+              driverRef.value = driver;
               break;
             }
 
             case "remote": {
               console.log("Creating new RemoteLlmDriver", {
+                agent,
                 driverConfig,
                 latestSession: latestSession.value,
               });
 
-              this._writer.llmDriver.value = await RemoteLlmDriver.create(
+              driverRef.value = await RemoteLlmDriver.create(
                 driverConfig,
                 latestSession,
                 storage.remoteServerJwt,
@@ -1737,12 +1746,30 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         } else {
           // New driver config is empty.
           // Destroy the driver instance if it exists.
-          if (this._writer.llmDriver.value) {
-            this._writer.llmDriver.value.destroy();
-            this._writer.llmDriver.value = null;
+          if (driverRef.value) {
+            driverRef.value.destroy();
+            driverRef.value = null;
           }
         }
       },
+    );
+  }
+
+  /**
+   * Prepare writer for the simulation.
+   */
+  private async _initWriter() {
+    return this._initLlmAgent("writer", this._writer.llmDriver, () =>
+      Writer.buildStaticPrompt(this.scenario),
+    );
+  }
+
+  /**
+   * Prepare director for the simulation.
+   */
+  private async _initDirector() {
+    return this._initLlmAgent("director", this._director.llmDriver, () =>
+      Director.buildStaticPrompt(this.scenario),
     );
   }
 
@@ -1783,26 +1810,24 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       console.log("Deltas equal?", deltasEqual);
 
       if (!deltasEqual) {
-        if (actualDelta.length === 0) {
-          throw new Error("BUG: Actual delta is empty");
-        }
-
         console.log(
           "Saving actual delta as a new director update",
           actualDelta,
         );
 
-        await d.db
-          .insert(d.directorUpdates)
-          .values({
-            writerUpdateId: update.ensureChosenVariant.writerUpdate.id,
-            code: actualDelta,
-            preference: true, // Because these are manual changes.
-          })
-          .returning()
-          .then((directorUpdates) => {
-            update.ensureChosenVariant.directorUpdate = directorUpdates[0];
-          });
+        const directorUpdate = (
+          await d.db
+            .insert(d.directorUpdates)
+            .values({
+              writerUpdateId: update.ensureChosenVariant.writerUpdate.id,
+              code: actualDelta,
+              preference: true, // Because these are manual changes.
+            })
+            .returning()
+        )[0];
+
+        update.ensureChosenVariant.directorUpdate = directorUpdate;
+        update.ensureChosenVariant.state = this.state.serialize();
       }
     }
   }
@@ -1876,6 +1901,225 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
   }
 
   /**
+   * For a linear list of updates, ensure that all of them have their state set.
+   */
+  private async _ensureUpdateStates(updates: Update[]) {
+    if (!updates.length) {
+      console.warn("No updates to ensure states for");
+      return;
+    }
+
+    console.debug(
+      "Earliest update to ensure state for",
+      updates[0].ensureChosenVariant.writerUpdate,
+    );
+
+    let currentCheckpoint;
+    if (
+      updates[0].ensureChosenVariant.writerUpdate.checkpointId ===
+      this._checkpoint.value!.id
+    ) {
+      console.debug("Using current checkpoint for state ensuring");
+      currentCheckpoint = this._checkpoint.value!;
+    } else {
+      console.debug("Fetching checkpoint for state ensuring", {
+        checkpointId: updates[0].ensureChosenVariant.writerUpdate.checkpointId,
+      });
+
+      currentCheckpoint = await d.db.query.checkpoints.findFirst({
+        where: eq(
+          d.checkpoints.id,
+          updates[0].ensureChosenVariant.writerUpdate.checkpointId,
+        ),
+      });
+
+      if (!currentCheckpoint) {
+        throw new Error(
+          `Checkpoint not found: ${updates[0].ensureChosenVariant.writerUpdate.checkpointId}`,
+        );
+      }
+    }
+
+    console.debug("Current checkpoint for ensuring", currentCheckpoint);
+    let currentState = clone(currentCheckpoint.state);
+    console.debug("Current state for ensuring", JSON.stringify(currentState));
+
+    if (
+      currentCheckpoint.writerUpdateId !==
+      updates[0].ensureChosenVariant.writerUpdate.id
+    ) {
+      console.debug("Fetching earlier updates", {
+        checkpointId: currentCheckpoint.id,
+        currentCheckpointWriterUpdateId: currentCheckpoint.writerUpdateId,
+        untilUpdate: updates[0].ensureChosenVariant.writerUpdate.id,
+      });
+
+      const earlierUpdates = (
+        await Simulation._fetchWriterUpdateAncestors(
+          updates[0].ensureChosenVariant.writerUpdate.id,
+          currentCheckpoint.id,
+        )
+      ).reverse();
+      console.debug("Fetched earlier updates", earlierUpdates.length);
+
+      for (const earlierUpdate of earlierUpdates) {
+        if (
+          earlierUpdate.id === updates[0].ensureChosenVariant.writerUpdate.id
+        ) {
+          console.debug("Skipping the update itself", earlierUpdate.id);
+          continue;
+        }
+
+        const directorUpdate = await Simulation._fetchAppliedDirectorUpdate(
+          earlierUpdate.id,
+        );
+
+        if (directorUpdate) {
+          applyCommandsToStateDtoUnsafe(currentState, directorUpdate.code);
+        }
+
+        console.debug("Current state after applying earlier update", {
+          writerUpdateId: earlierUpdate.id,
+          text: earlierUpdate.text,
+          state: clone(currentState),
+        });
+      }
+    }
+
+    for (const update of updates) {
+      if (update.ensureChosenVariant.state) {
+        console.debug("State already ensured for", {
+          writerUpdateId: update.ensureChosenVariant.writerUpdate.id,
+          text: update.ensureChosenVariant.writerUpdate.text,
+        });
+
+        currentState = clone(update.ensureChosenVariant.state);
+        continue;
+      }
+
+      if (update.ensureChosenVariant.directorUpdate === undefined) {
+        console.debug(
+          "Fetching missing director update for",
+          update.ensureChosenVariant.writerUpdate.id,
+        );
+
+        update.ensureChosenVariant.directorUpdate =
+          await Simulation._fetchAppliedDirectorUpdate(
+            update.ensureChosenVariant.writerUpdate.id,
+          );
+      }
+
+      if (update.ensureChosenVariant.directorUpdate) {
+        applyCommandsToStateDtoUnsafe(
+          currentState,
+          update.ensureChosenVariant.directorUpdate.code,
+        );
+      }
+
+      update.ensureChosenVariant.state = clone(currentState);
+
+      console.debug("Ensured state for", {
+        writerUpdateId: update.ensureChosenVariant.writerUpdate.id,
+        text: update.ensureChosenVariant.writerUpdate.text,
+        state: clone(currentState),
+      });
+    }
+  }
+
+  private async _inferDirectorUpdate(
+    incomingWriterUpdate:
+      | {
+          characterId: string | null;
+          text: string;
+        }
+      | undefined,
+    inferenceAbortSignal?: AbortSignal,
+  ) {
+    // The logic here is to iterate through the updates in reverse order,
+    // putting those having null director update into the incoming updates,
+    // otherwise into the historical updates. Would stop when the limit is reached.
+    // Also, we only enrich incoming updates until we meet the first
+    // historical update (i.e. with a director update set).
+    //
+
+    const incomingUpdates: SimpleUpdate[] = [];
+
+    if (incomingWriterUpdate) {
+      incomingUpdates.push(incomingWriterUpdate);
+    }
+
+    const maxHistoricalUpdates = 10;
+    const historicalUpdates: Update[] = [];
+
+    for (
+      let i = this.updates.value.length - 2;
+      i >= 0 && historicalUpdates.length < maxHistoricalUpdates;
+      i--
+    ) {
+      const variant = this.updates.value[i].ensureChosenVariant;
+
+      if (variant.directorUpdate === undefined) {
+        console.debug(
+          "Fetching missing director update for",
+          variant.writerUpdate.id,
+        );
+
+        variant.directorUpdate = await Simulation._fetchAppliedDirectorUpdate(
+          variant.writerUpdate.id,
+        );
+      }
+
+      if (historicalUpdates.length) {
+        // We already have historical updates, so all the upcoming updates
+        // are forced to be historical as well.
+        historicalUpdates.unshift(this.updates.value[i]);
+      } else if (variant.directorUpdate) {
+        // This one has a director update, therefore
+        // it belongs to the historical updates.
+        historicalUpdates.unshift(this.updates.value[i]);
+      } else {
+        // We've confirmed that this update's director update
+        // is null, so it goes to the incoming updates.
+        incomingUpdates.unshift({
+          characterId: variant.writerUpdate.characterId,
+          text: variant.writerUpdate.text,
+        });
+      }
+    }
+
+    // Finally, ensure that all historical updates have their states set,
+    // so that the director can serialize those states.
+    await this._ensureUpdateStates(historicalUpdates);
+
+    return this.director.inferUpdate(
+      historicalUpdates.map((update) => {
+        const variant = update.ensureChosenVariant;
+
+        return {
+          characterId: variant.writerUpdate.characterId,
+          text: variant.writerUpdate.text,
+
+          // That's what all that fuss was about.
+          state: variant.directorUpdate?.code.length
+            ? variant.state
+            : undefined,
+        };
+      }),
+
+      this.state.serialize(),
+      incomingUpdates,
+
+      256,
+      { temp: 0.5 },
+      (e) => {
+        console.log(`Director decoding progress: ${e.progress}`);
+      },
+      undefined,
+      inferenceAbortSignal,
+    );
+  }
+
+  /**
    * Infer a new assistant update variant.
    *
    * @param prompt Inference prompt, sent as-is to writer.
@@ -1889,7 +2133,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     nEval: number,
     predictionOptions?: WriterPredictionOptions,
     inferenceOptions?: CompletionOptions,
-    onDecodeProgress?: (event: { progress: number }) => void,
+    onWriterDecodeProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
   ): Promise<{
     characterId: string | null;
@@ -1914,16 +2158,44 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         nEval,
         predictionOptions,
         inferenceOptions,
-        onDecodeProgress,
+        onWriterDecodeProgress,
         (e) => {
           update.inProgressVariant.value!.text += e.content;
         },
         inferenceAbortSignal,
       );
 
-      console.log("Predicted update", writerResponse);
+      console.log("Predicted writer update", writerResponse);
+      // TODO: Check if abort signal was triggered.
 
-      const { writerUpdate } = await this._saveUpdatesToDb({
+      const directorResponse = await pRetry(
+        async () => {
+          const directorResponse = await this._inferDirectorUpdate(
+            writerResponse,
+            inferenceAbortSignal,
+          );
+
+          console.log("Predicted director update", directorResponse);
+
+          if ("error" in directorResponse) {
+            throw directorResponse.error;
+          }
+
+          return directorResponse;
+        },
+        {
+          retries: 2,
+          onFailedAttempt: (error) => {
+            if (error instanceof PredictionError) {
+              console.warn("Failed to infer director update", error);
+            } else {
+              throw error;
+            }
+          },
+        },
+      );
+
+      const { writerUpdate, directorUpdate } = await this._saveUpdatesToDb({
         writerUpdate: {
           parentUpdateId: update.parentId,
           checkpointId: this._checkpoint.value!.id,
@@ -1932,14 +2204,25 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
           text: writerResponse.text,
           llmCompletionId: writerResponse.completion.id,
         },
+
+        directorUpdate: {
+          code: directorResponse.delta,
+          llmCompletionId: directorResponse.completion?.id,
+        },
       });
+
+      if (directorUpdate?.code.length) {
+        console.log("Applying stage code", directorUpdate.code);
+        this.state.apply(directorUpdate.code);
+      }
 
       update.variants.value.push({
         writerUpdate: {
           ...writerUpdate,
           completion: writerResponse.completion,
         },
-        directorUpdate: null,
+        directorUpdate: directorUpdate,
+        state: this.state.serialize(),
       });
 
       update.setChosenVariantToLast();
@@ -1947,24 +2230,6 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     } finally {
       update.inProgressVariant.value = undefined;
     }
-  }
-
-  private async _inferDirectorUpdate(inferenceAbortSignal?: AbortSignal) {
-    return;
-    // const result = await this.director.value!.inferUpdate(
-    //   this._checkpoint.value!.state,
-    //   this.state.serialize(),
-    //   this._recentUpdates.value,
-    //   256,
-    //   { temp: 0.5 },
-    //   (e) => {
-    //     console.log(`Director decoding progress: ${e.progress}`);
-    //   },
-    //   undefined,
-    //   inferenceAbortSignal,
-    // );
-
-    // console.log(result);
   }
 
   //

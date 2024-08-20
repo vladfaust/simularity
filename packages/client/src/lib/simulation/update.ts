@@ -1,5 +1,6 @@
 import { d } from "@/lib/drizzle";
 import { ref, shallowRef, type ShallowRef } from "vue";
+import type { StateDto } from "./state";
 
 export class Update {
   readonly chosenVariantIndex = ref(0);
@@ -38,10 +39,21 @@ export class Update {
             "inputLength" | "outputLength"
           > | null;
         };
+
+        /**
+         * The director update, if any.
+         * Null means there is no director update for this writer update.
+         * Undefined means the director update is not fetched yet.
+         */
         directorUpdate?: Pick<
           typeof d.directorUpdates.$inferSelect,
           "id" | "code" | "preference" | "createdAt"
         > | null;
+
+        /**
+         * The state of the simulation at the time of the update, if known.
+         */
+        state?: StateDto;
       }[]
     > = shallowRef([]),
     chosenVariantIndex = 0,

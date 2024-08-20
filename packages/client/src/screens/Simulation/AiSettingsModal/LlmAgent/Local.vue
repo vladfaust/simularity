@@ -18,6 +18,7 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
 );
 const customModels = storage.llm.useCustomModels(props.agentId);
 const cachedModels = shallowRef<storage.llm.CachedModel[]>([]);
+const uncachedModels = ref<string[]>([]);
 const selectedModelPath = ref<string | null>(
   driverConfig.value?.type === "local" ? driverConfig.value.modelPath : null,
 );
@@ -90,13 +91,21 @@ async function openLocalModelSelectionDialog() {
   });
 
   if (typeof modelPath === "string") {
+    uncachedModels.value.push(modelPath);
+
     try {
       const cachedModel = await cacheModel(modelPath);
       cachedModels.value.push(cachedModel);
       setDriverConfig(cachedModels.value.length - 1);
       customModels.value.push(modelPath);
+      triggerRef(cachedModels);
+      if (!selectedModelPath.value) {
+        selectedModelPath.value = modelPath;
+      }
     } catch (e: any) {
       console.error(`Failed to cache model ${modelPath}`, e);
+    } finally {
+      uncachedModels.value.pop();
     }
   }
 }
@@ -115,14 +124,24 @@ onMounted(async () => {
     dir: fs.BaseDirectory.AppLocalData,
   });
 
-  entries.push(
-    ...(await Promise.all(
-      customModels.value.map(async (modelPath) => ({
-        path: modelPath,
-        name: await path.basename(modelPath),
-      })),
-    )),
-  );
+  // Remove custom models that no longer exist.
+  const customModelEntries = (
+    await Promise.all(
+      customModels.value.map(async (modelPath) => {
+        if (await fs.exists(modelPath)) {
+          return {
+            path: modelPath,
+            name: await path.basename(modelPath),
+          };
+        }
+
+        console.warn(`Custom model ${modelPath} not found, removing`);
+        return null;
+      }),
+    )
+  ).filter((modelPath) => modelPath !== null);
+
+  entries.push(...customModelEntries);
 
   for (const entry of entries) {
     if (!entry.name) {
@@ -146,11 +165,15 @@ onMounted(async () => {
     }
 
     if (!cachedModel) {
+      uncachedModels.value.push(entry.path);
+
       try {
         cachedModel = await cacheModel(entry.path, metadata);
       } catch (e: any) {
         console.error(`Failed to cache model ${entry.path}`, e);
         continue;
+      } finally {
+        uncachedModels.value.pop();
       }
     }
 
@@ -194,5 +217,11 @@ onMounted(async () => {
       :model="cachedModel"
       :selected="selectedModelPath === cachedModel.path"
       @select="selectModel(index)"
+    )
+    Model.rounded-lg.border(
+      v-for="modelPath in uncachedModels"
+      :key="modelPath"
+      :model="{ path: modelPath }"
+      :selected="false"
     )
 </template>

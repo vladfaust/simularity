@@ -48,10 +48,12 @@ watch(
 
 onMounted(async () => {
   // OPTIMIZE: Memoize the API call.
-  remoteModels.value = await api.v1.models.index(
-    import.meta.env.VITE_DEFAULT_API_BASE_URL,
-    remoteServerJwt.value ?? undefined,
-  );
+  remoteModels.value = (
+    await api.v1.models.index(
+      import.meta.env.VITE_DEFAULT_API_BASE_URL,
+      remoteServerJwt.value ?? undefined,
+    )
+  ).filter((model) => model.task === props.agentId);
 
   if (driverConfig.value?.type !== "remote") {
     if (latestRemoteModelConfig.value) {

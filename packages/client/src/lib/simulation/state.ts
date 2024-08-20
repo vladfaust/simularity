@@ -38,6 +38,8 @@ export type Stage = {
 
 /**
  * A Data Transfer Object (DTO) for a simulation state.
+ * NOTE: Be careful when using this object, as it is mutable.
+ * Use `clone` to create a deep copy.
  */
 export type StateDto = {
   stage: Stage;
@@ -122,24 +124,24 @@ export class State {
   }
 
   /**
-   * Return a delta of this state compared to another state DTO.
-   * For example, if current state has a character that the other state
-   * does not, the delta will include an `"add_character"` call.
+   * Return a delta of state `a` compared to state `b`. For example,
+   * if `a` has character that `b` does not, the delta will include
+   * an `"add_character"` call.
    */
-  delta(otherState?: Readonly<StateDto>): StateCommand[] {
+  static delta(a: Readonly<StateDto>, b?: Readonly<StateDto>): StateCommand[] {
     const delta: StateCommand[] = [];
 
-    if (this._stage.value.sceneId !== otherState?.stage.sceneId) {
+    if (a.stage.sceneId !== b?.stage.sceneId) {
       delta.push({
         name: "setScene",
         args: {
-          sceneId: this._stage.value.sceneId,
+          sceneId: a.stage.sceneId,
         },
       });
     }
 
-    for (const character of this._stage.value.characters) {
-      const otherCharacter = otherState?.stage.characters.find(
+    for (const character of a.stage.characters) {
+      const otherCharacter = b?.stage.characters.find(
         (c) => c.id === character.id,
       );
 
@@ -175,9 +177,9 @@ export class State {
       }
     }
 
-    if (otherState?.stage.characters) {
-      for (const character of otherState.stage.characters) {
-        if (!this._stage.value.characters.find((c) => c.id === character.id)) {
+    if (b?.stage.characters) {
+      for (const character of b.stage.characters) {
+        if (!a.stage.characters.find((c) => c.id === character.id)) {
           delta.push({
             name: "removeCharacter",
             args: {
@@ -481,14 +483,20 @@ export class State {
   }
 }
 
+export function emptyState(): StateDto {
+  return {
+    stage: { sceneId: "", characters: [] },
+  };
+}
+
 /**
  * Apply commands to a state DTO without any checks, used to compare results.
  */
-function applyCommandsToStateDtoUnsafe(
+export function applyCommandsToStateDtoUnsafe(
   state: StateDto | null,
   commands: Readonly<StateCommand[]>,
 ): StateDto {
-  state = state || { stage: { sceneId: "", characters: [] } };
+  state = state || emptyState();
 
   for (const cmd of commands) {
     switch (cmd.name) {

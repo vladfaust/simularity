@@ -38,7 +38,7 @@ const writerConfig = storage.llm.useDriverConfig("writer");
 const tempWriterConfig = ref(tap(writerConfig.value, clone) ?? null);
 
 const directorConfig = storage.llm.useDriverConfig("director");
-const tempDirectorConfig = ref(tap(directorConfig, clone) ?? null);
+const tempDirectorConfig = ref(tap(directorConfig.value, clone) ?? null);
 
 function onClose() {
   writerConfig.value = tempWriterConfig.value;
@@ -103,17 +103,20 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
           //- Writer agent.
           LlmAgent(
             agent-id="writer"
+            key="writer"
             name="Writer"
             :driver-instance="simulation.writer.llmDriver.value ?? undefined"
             v-model:driver-config="tempWriterConfig"
           )
 
-          //- //- Director agent.
-          //- LlmAgent(
-          //-   :agent-id="'director'"
-          //-   :gpt="simulation.director.value?.gpt"
-          //-   name="Director"
-          //- )
+          //- Director agent.
+          LlmAgent(
+            agent-id="director"
+            key="director"
+            name="Director"
+            :driver-instance="simulation.director.llmDriver.value ?? undefined"
+            v-model:driver-config="tempDirectorConfig"
+          )
 </template>
 
 <style lang="scss" scoped>

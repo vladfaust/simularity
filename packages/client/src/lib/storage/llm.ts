@@ -58,9 +58,9 @@ const directorCustomModels = _useCustomModels("director");
 
 export function useCustomModels(agent: LlmAgentId): Ref<string[]> {
   switch (agent) {
-    case "director":
-      return writerCustomModels;
     case "writer":
+      return writerCustomModels;
+    case "director":
       return directorCustomModels;
   }
 }
@@ -89,9 +89,9 @@ const latestDirectorSession = _useLatestSession("director");
  */
 export function useLatestSession(agent: LlmAgentId): Ref<LatestSession | null> {
   switch (agent) {
-    case "director":
-      return latestWriterSession;
     case "writer":
+      return latestWriterSession;
+    case "director":
       return latestDirectorSession;
   }
 }
@@ -112,9 +112,9 @@ export function useDriverConfig(
   agent: LlmAgentId,
 ): Ref<LlmDriverConfig | null> {
   switch (agent) {
-    case "director":
-      return writerDriverConfig;
     case "writer":
+      return writerDriverConfig;
+    case "director":
       return directorDriverConfig;
   }
 }
@@ -141,9 +141,9 @@ export function useLatestLocalModelConfig(
   agent: LlmAgentId,
 ): Ref<LocalModelConfig | null> {
   switch (agent) {
-    case "director":
-      return latestWriterLocalModelConfig;
     case "writer":
+      return latestWriterLocalModelConfig;
+    case "director":
       return latestDirectorLocalModelConfig;
   }
 }
@@ -170,9 +170,9 @@ export function useLatestRemoteModelConfig(
   agent: LlmAgentId,
 ): Ref<RemoteModelConfig | null> {
   switch (agent) {
-    case "director":
-      return latestWriterRemoteModelConfig;
     case "writer":
+      return latestWriterRemoteModelConfig;
+    case "director":
       return latestDirectorRemoteModelConfig;
   }
 }

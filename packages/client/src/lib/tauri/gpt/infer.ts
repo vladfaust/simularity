@@ -1,4 +1,5 @@
 import { type CompletionOptions } from "@/lib/ai/llm/BaseLlmDriver";
+import { TauriInvokeError } from "@/lib/tauri";
 import { invoke } from "@tauri-apps/api";
 import { emit, listen } from "@tauri-apps/api/event";
 
@@ -64,20 +65,22 @@ export async function infer(
     });
   }
 
-  const result = (await invoke(COMMAND_NAME, {
-    sessionId,
+  try {
+    return (await invoke(COMMAND_NAME, {
+      sessionId,
 
-    // NOTE: Only send the prompt if it is truthy.
-    prompt: prompt ? prompt : undefined,
+      // NOTE: Only send the prompt if it is truthy.
+      prompt: prompt ? prompt : undefined,
 
-    nEval: numEval,
-    options: inferOptions,
-    decodeCallbackEventName,
-    inferenceCallbackEventName,
-  })) as Response;
-
-  unlistenDecode?.();
-  unlistenInference?.();
-
-  return result;
+      nEval: numEval,
+      options: inferOptions,
+      decodeCallbackEventName,
+      inferenceCallbackEventName,
+    })) as Response;
+  } catch (e: any) {
+    throw new TauriInvokeError(e);
+  } finally {
+    unlistenDecode?.();
+    unlistenInference?.();
+  }
 }
