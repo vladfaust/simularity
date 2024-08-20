@@ -7,6 +7,7 @@ import { toMilliseconds } from "duration-fns";
 import { ref, type Ref } from "vue";
 import {
   LlmGrammarLang,
+  LlmStatus,
   type BaseLlmDriver,
   type CompletionOptions,
   type CompletionProgressEventPayload,
@@ -22,6 +23,7 @@ export type RemoteLlmDriverConfig = {
 
 export class RemoteLlmDriver implements BaseLlmDriver {
   readonly busy = ref(false);
+  readonly status = ref<LlmStatus | undefined>();
 
   /**
    * Create a new RemoteLlmDriver instance.
@@ -126,6 +128,7 @@ export class RemoteLlmDriver implements BaseLlmDriver {
     const startedAt = Date.now();
     try {
       this.busy.value = true;
+      this.status.value = LlmStatus.Inferring;
 
       const fetchTimeout = timeoutSignal(toMilliseconds({ minutes: 10 }));
       let signal;
@@ -223,6 +226,7 @@ export class RemoteLlmDriver implements BaseLlmDriver {
 
       throw e;
     } finally {
+      this.status.value = undefined;
       this.busy.value = false;
     }
   }

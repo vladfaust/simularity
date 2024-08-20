@@ -26,6 +26,7 @@ import AiStatus from "./AiStatus.vue";
 import VisualizeModal from "./GameConsole/VisualizeModal.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
+import ProgressBar from "./GameConsole/ProgressBar.vue";
 
 enum SendButtonState {
   Inferring,
@@ -413,13 +414,27 @@ function enableOnlyCharacter(characterId: string) {
 
     //- User input.
     .flex.h-12.w-full.gap-2.rounded
-      input.h-full.w-full.rounded-lg.px-3.shadow-lg(
-        v-model="userInput"
-        placeholder="User input"
-        :disabled="!userInputEnabled"
-        class="disabled:opacity-50"
-        @keydown.enter.exact="userInput ? sendMessage() : advance()"
-      )
+      .relative.w-full.overflow-hidden.rounded-lg.shadow-lg
+        //- Progress bar when simulation is busy.
+        TransitionRoot.absolute.z-10.h-full.w-full(
+          :show="simulation.busy.value"
+          enter="duration-100 ease-out"
+          enter-from="translate-y-full opacity-0"
+          enter-to="translate-y-0 opacity-100"
+          leave="duration-100 ease-in"
+          leave-from="translate-y-0 opacity-100"
+          leave-to="translate-y-full opacity-0"
+        )
+          ProgressBar.h-full.w-full(:simulation)
+
+        //- User input otherwise.
+        input.h-full.w-full.px-3(
+          v-model="userInput"
+          placeholder="User input"
+          :disabled="!userInputEnabled"
+          class="disabled:opacity-50"
+          @keydown.enter.exact="userInput ? sendMessage() : advance()"
+        )
 
       button._button.relative.aspect-square.h-full(
         @click="onSendButtonClick"

@@ -64,6 +64,12 @@ export type CompletionResult = {
   aborted: boolean;
 };
 
+export enum LlmStatus {
+  Queued,
+  Decoding,
+  Inferring,
+}
+
 export interface BaseLlmDriver {
   grammarLang: LlmGrammarLang;
   contextSize: number;
@@ -79,6 +85,11 @@ export interface BaseLlmDriver {
    * Note: it can be busy even when ready.
    */
   busy: Ref<boolean>;
+
+  /**
+   * Current status of the driver.
+   */
+  status: Ref<LlmStatus | undefined>;
 
   /**
    * Current progress of the driver, if any.

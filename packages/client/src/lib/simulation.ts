@@ -79,6 +79,9 @@ export class Simulation {
 
   private _writer: Writer;
   private _director: Director;
+
+  private _writerDone = ref<boolean | undefined>();
+  private _directorDone = ref<boolean | undefined>();
   //#endregion
 
   readonly state: State;
@@ -188,11 +191,21 @@ export class Simulation {
   }
 
   /**
+   * Whether the writer agent is done for the current job.
+   */
+  readonly writerDone = readonly(this._writerDone);
+
+  /**
    * The director instance.
    */
   get director() {
     return this._director;
   }
+
+  /**
+   * Whether the director agent is done for the current job.
+   */
+  readonly directorDone = readonly(this._directorDone);
 
   /**
    * Whether the simulation is busy.
@@ -520,6 +533,7 @@ export class Simulation {
       throw new Error("Director is not ready");
     }
 
+    this._busy.value = true;
     try {
       await this._commitCurrentState();
       this._dumpCurrentState();
@@ -2150,6 +2164,9 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     };
 
     try {
+      this._writerDone.value = false;
+      this._directorDone.value = false;
+
       const writerResponse = await this.writer.inferUpdate(
         this._checkpoint.value!,
         this._historicalUpdates.value,
@@ -2166,6 +2183,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       );
 
       console.log("Predicted writer update", writerResponse);
+      this._writerDone.value = true;
       // TODO: Check if abort signal was triggered.
 
       const directorResponse = await pRetry(
@@ -2194,6 +2212,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
           },
         },
       );
+      this._directorDone.value = true;
 
       const { writerUpdate, directorUpdate } = await this._saveUpdatesToDb({
         writerUpdate: {
@@ -2229,6 +2248,8 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       return writerResponse;
     } finally {
       update.inProgressVariant.value = undefined;
+      this._writerDone.value = undefined;
+      this._directorDone.value = undefined;
     }
   }
 

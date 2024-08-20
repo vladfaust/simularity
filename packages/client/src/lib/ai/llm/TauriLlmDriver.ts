@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { computed, ref } from "vue";
 import {
   LlmGrammarLang,
+  LlmStatus,
   type BaseLlmDriver,
   type CompletionOptions,
   type CompletionProgressEventPayload,
@@ -149,8 +150,10 @@ export class TauriLlmDriver implements BaseLlmDriver {
   }
 
   private async _init(initialPrompt: string, dumpSession: boolean) {
-    this.busy.value = true;
     try {
+      this.busy.value = true;
+      this.status.value = LlmStatus.Decoding;
+
       const { modelId, nCtxTrain } = await tauri.gpt.loadModel(
         this.config.modelPath,
       );
@@ -186,6 +189,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
       )[0].id;
       this.initialized.value = true;
     } finally {
+      this.status.value = undefined;
       this.progress.value = undefined;
       this.busy.value = false;
     }
@@ -195,6 +199,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
   readonly needsWarmup = true;
   readonly initialized = ref(false);
   readonly busy = ref(false);
+  readonly status = ref<LlmStatus | undefined>();
   readonly ready = computed(() => this.initialized.value && !this.busy.value);
   readonly progress = ref<number | undefined>();
 
@@ -234,9 +239,11 @@ export class TauriLlmDriver implements BaseLlmDriver {
       throw new Error("TauriLlmDriver not initialized");
     }
 
-    this.busy.value = true;
     const startedAt = Date.now();
     try {
+      this.busy.value = true;
+      this.status.value = LlmStatus.Decoding;
+
       let decoded = false;
 
       const response = await tauri.gpt.infer(
@@ -253,6 +260,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
             this.progress.value = undefined;
             decodeCallback?.({ progress: 1 });
             decoded = true;
+            this.status.value = LlmStatus.Inferring;
           }
 
           completionCallback?.(e);
@@ -291,6 +299,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
 
       throw e;
     } finally {
+      this.status.value = undefined;
       this.progress.value = undefined;
       this.busy.value = false;
     }
