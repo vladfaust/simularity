@@ -12,17 +12,17 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   Loader2Icon,
-  MenuIcon,
   RedoDotIcon,
   SendHorizontalIcon,
+  SettingsIcon,
   SkipForwardIcon,
   SquareIcon,
+  SquarePowerIcon,
   SquareSigmaIcon,
   UndoDotIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import SettingsModal from "@/components/SettingsModal.vue";
-import AiStatus from "./AiStatus.vue";
 import VisualizeModal from "./GameConsole/VisualizeModal.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
@@ -427,6 +427,7 @@ function enableOnlyCharacter(characterId: string) {
         //- Progress bar when simulation is busy.
         TransitionRoot.absolute.z-10.h-full.w-full(
           :show="simulation.busy.value"
+          :unmount="true"
           enter="duration-100 ease-out"
           enter-from="translate-y-full opacity-0"
           enter-to="translate-y-0 opacity-100"
@@ -437,11 +438,11 @@ function enableOnlyCharacter(characterId: string) {
           ProgressBar.h-full.w-full(:simulation)
 
         //- User input otherwise.
-        input.h-full.w-full.px-3(
+        input.h-full.w-full.px-3.opacity-90.transition-opacity(
           v-model="userInput"
           placeholder="User input"
           :disabled="!userInputEnabled"
-          class="disabled:opacity-50"
+          class="!disabled:opacity-50 hover:opacity-100 focus:opacity-100"
           @keydown.enter.exact="userInput ? sendMessage() : advance()"
         )
 
@@ -496,21 +497,27 @@ function enableOnlyCharacter(characterId: string) {
     //- Status.
     .flex.w-full.justify-between
       .flex.w-full.items-center.gap-2
-        .flex.gap-2
-          button._status-button(@click="emit('mainMenu')")
-            MenuIcon(:size="20")
-
-        AiStatus.cursor-pointer.rounded.bg-white.bg-opacity-50.px-2.py-1.transition-transform.pressable(
-          :simulation
-          @click="showSettingsModal = true"
+        //- Quit to main menu button.
+        button._status-button.group(
+          @click="emit('mainMenu')"
+          title="Quit to main menu"
+          class="hover:text-red-500"
         )
+          SquarePowerIcon.transition(:size="20" class="group-hover:animate-pulse")
+
+        //- Show setting button.
+        button._status-button.group(
+          @click="showSettingsModal = true"
+          title="Settings"
+        )
+          SettingsIcon(:size="20" class="group-hover:animate-spin")
 
         //- Context gauge.
         .flex.w-full.items-center.gap-2
           .relative.flex.w-full.items-center.justify-center.shadow-lg(
             :class="{ 'animate-pulse': simulation.consolidationInProgress.value }"
           )
-            progress._ctx-progress.h-5.w-full(
+            progress._ctx-progress.h-6.w-full(
               :value="simulation.contextLength.value"
               :max="simulation.writer.contextSize.value"
               title="Context length"
@@ -519,7 +526,9 @@ function enableOnlyCharacter(characterId: string) {
               :style="`--value: ${contextGaugeCssVar}`"
             )
               | {{ simulation.contextLength.value ?? "?" }}/{{ simulation.writer.contextSize.value }}
-          button._status-button(
+
+          //- Summarize button.
+          button._status-button.group(
             @click="simulation.consolidate()"
             class="disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="!simulation.canConsolidate.value"
@@ -529,7 +538,11 @@ function enableOnlyCharacter(characterId: string) {
               v-if="simulation.consolidationInProgress.value"
               :size="20"
             )
-            SquareSigmaIcon(v-else :size="20")
+            SquareSigmaIcon(
+              v-else
+              :size="20"
+              class="group-hover:text-ai-500 group-hover:animate-pulse"
+            )
 
   SettingsModal(
     v-if="simulation"
@@ -548,17 +561,19 @@ function enableOnlyCharacter(characterId: string) {
 
 <style lang="scss" scoped>
 ._button {
-  @apply grid place-items-center rounded-lg bg-white shadow transition pressable;
-  @apply disabled:opacity-50;
+  @apply btn-shadow grid place-items-center rounded-lg bg-white shadow transition pressable;
+  @apply disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 ._status-button {
-  @apply aspect-square rounded bg-white p-1 shadow transition-transform pressable;
+  @apply btn-shadow aspect-square rounded bg-white p-1 shadow transition pressable;
 }
 
 ._ctx-progress {
+  @apply opacity-90 transition-opacity hover:opacity-100 focus:opacity-100;
+
   &::-webkit-progress-value {
-    @apply bg-gradient-to-t from-secondary-600 to-secondary-500;
+    @apply from-ai-600 to-ai-500 bg-gradient-to-t;
   }
 
   &::-webkit-progress-bar {

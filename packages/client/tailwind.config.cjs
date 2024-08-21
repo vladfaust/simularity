@@ -27,6 +27,8 @@ module.exports = {
         ["error-base"]: colors.white,
         success: colors.green,
         ["success-base"]: colors.white,
+        ai: colors.violet,
+        ["ai-base"]: colors.white,
       },
       fontFamily: {
         sans: ["Golos Text", ...defaultTheme.fontFamily.sans],

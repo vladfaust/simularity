@@ -48,10 +48,10 @@ function onCharacterClick(event: MouseEvent, characterId: string) {
 
 <style lang="scss" scoped>
 ._inference-settings-character {
-  @apply aspect-square h-12 cursor-pointer rounded-lg bg-white transition-transform pressable;
+  @apply aspect-square h-12 cursor-pointer rounded-lg bg-white shadow-lg transition pressable;
 
   &:not(._enabled) {
-    @apply border-2 opacity-80 grayscale;
+    @apply border-2 opacity-90 grayscale;
 
     &:hover {
       @apply opacity-100 filter-none;
@@ -59,7 +59,7 @@ function onCharacterClick(event: MouseEvent, characterId: string) {
   }
 
   &._enabled {
-    @apply border-2 border-secondary-500;
+    @apply border-ai-500 border-2;
   }
 }
 </style>

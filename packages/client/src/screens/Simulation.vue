@@ -17,7 +17,6 @@ import prettyBytes from "pretty-bytes";
 import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import DevConsole from "./Simulation/DevConsole.vue";
 import GameConsole from "./Simulation/GameConsole.vue";
-import Menu from "./Simulation/Menu.vue";
 
 const { simulationId } = defineProps<{ simulationId: string }>();
 
@@ -30,7 +29,6 @@ const fullFade = ref(true);
 const loadProgress = ref(0);
 
 const showDevModal = ref(false);
-const showMenu = ref(false);
 
 function consoleEventListener(event: KeyboardEvent) {
   // Detect tilda key press on different keyboard layouts.
@@ -175,7 +173,7 @@ onUnmounted(() => {
         :simulation
         :fade-canvas
         :screenshot
-        @main-menu="showMenu = true"
+        @main-menu="toMainMenu"
         @screenshot="screenshot"
       )
 
@@ -185,6 +183,4 @@ onUnmounted(() => {
     :simulation
     @close="showDevModal = false"
   )
-
-  Menu(:open="showMenu" @close="showMenu = false" @to-main-menu="toMainMenu")
 </template>
