@@ -21,7 +21,7 @@ import {
   UndoDotIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
-import AiSettingsModal from "./AiSettingsModal.vue";
+import SettingsModal from "@/components/SettingsModal.vue";
 import AiStatus from "./AiStatus.vue";
 import VisualizeModal from "./GameConsole/VisualizeModal.vue";
 import UpdateVue from "./Update.vue";
@@ -101,7 +101,7 @@ const sendButtonState = computed<SendButtonState>(() => {
   }
 });
 
-const showAiSettingsModal = ref(false);
+const showSettingsModal = ref(false);
 const enabledCharacterIds = useLocalStorage(
   `simulation:${simulation.id}:enabledCharacterIds`,
   [...Object.keys(simulation.scenario.characters), NARRATOR],
@@ -502,7 +502,7 @@ function enableOnlyCharacter(characterId: string) {
 
         AiStatus.cursor-pointer.rounded.bg-white.bg-opacity-50.px-2.py-1.transition-transform.pressable(
           :simulation
-          @click="showAiSettingsModal = true"
+          @click="showSettingsModal = true"
         )
 
         //- Context gauge.
@@ -531,11 +531,11 @@ function enableOnlyCharacter(characterId: string) {
             )
             SquareSigmaIcon(v-else :size="20")
 
-  AiSettingsModal(
+  SettingsModal(
     v-if="simulation"
-    :open="showAiSettingsModal"
+    :open="showSettingsModal"
     :simulation
-    @close="showAiSettingsModal = false"
+    @close="showSettingsModal = false"
   )
 
   VisualizeModal(

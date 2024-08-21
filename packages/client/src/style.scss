@@ -42,11 +42,11 @@
   }
 
   .btn-sm {
-    @apply gap-1 px-2 py-1 font-medium;
+    @apply gap-1 px-2 py-1 text-sm font-semibold;
   }
 
   .btn-neutral {
-    @apply bg-neutral-100 text-neutral-800;
+    @apply border-b-2 bg-neutral-100 text-neutral-800;
   }
 
   .btn-primary {

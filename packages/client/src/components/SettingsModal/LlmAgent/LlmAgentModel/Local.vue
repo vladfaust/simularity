@@ -211,15 +211,16 @@ onMounted(async () => {
 </script>
 
 <template lang="pug">
-.flex.flex-col.gap-2
-  .flex
-    button.btn-pressable.btn-neutral.btn.btn-md.rounded(
+.flex.flex-col.divide-y
+  .flex.p-2
+    button.btn-pressable.btn-neutral.btn.btn-sm.rounded(
       @click="openLocalModelSelectionDialog"
     )
-      FolderOpenIcon(:size="20")
-      | Add from file...
-  .grid.grid-cols-2.gap-2
-    Model.rounded-lg.border(
+      FolderOpenIcon(:size="18")
+      span Add from file...
+
+  .grid.grid-cols-2.gap-2.bg-gray-50.p-2.shadow-inner
+    Model.rounded-lg.border.bg-white(
       v-for="(cachedModel, index) in cachedModels"
       :class="{ 'border-primary-500': selectedModelPath === cachedModel.path }"
       :key="cachedModel.path"
@@ -227,20 +228,20 @@ onMounted(async () => {
       :selected="selectedModelPath === cachedModel.path"
       @select="selectModel(index)"
     )
-    Model.rounded-lg.border(
+    Model.rounded-lg.border.bg-white(
       v-for="modelPath in uncachedModels"
       :key="modelPath"
       :model="{ path: modelPath }"
       :selected="false"
     )
 
-  .flex.flex-col(v-if="driverConfig?.type === 'local' && selectedModel")
-    .flex.items-center.justify-between.gap-2
+  .flex.flex-col.p-2(v-if="driverConfig?.type === 'local' && selectedModel")
+    .flex.items-center.justify-between
       .flex.shrink-0.items-center.gap-1
         ProportionsIcon(:size="18" :stroke-width="2.5")
         span.font-medium Context size
-      .w-full.border-b
-      input.input.input-md.shrink-0.rounded.border.px-2(
+      .ml-2.w-full.border-b
+      input.input.input-md.shrink-0.rounded.border.px-2.py-1.text-sm(
         type="number"
         v-model="driverConfig.contextSize"
         :max="selectedModel.contextSize"

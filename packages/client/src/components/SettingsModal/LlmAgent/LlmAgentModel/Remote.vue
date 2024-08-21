@@ -68,14 +68,13 @@ onMounted(async () => {
 </script>
 
 <template lang="pug">
-.flex.w-full.flex-col.gap-2
-  .grid.grid-cols-2.gap-2
-    Model.rounded-lg.border(
-      v-for="model in remoteModels"
-      :key="model.id"
-      :class="{ 'border-primary-500': selectedModelId === model.id }"
-      :model
-      :selected="selectedModelId === model.id"
-      @select="selectedModelId = model.id"
-    )
+.grid.grid-cols-2.gap-2.overflow-y-scroll.bg-neutral-50.p-2.shadow-inner
+  Model.rounded-lg.border.bg-white(
+    v-for="model in remoteModels"
+    :key="model.id"
+    :class="{ 'border-primary-500': selectedModelId === model.id }"
+    :model
+    :selected="selectedModelId === model.id"
+    @select="selectedModelId = model.id"
+  )
 </template>

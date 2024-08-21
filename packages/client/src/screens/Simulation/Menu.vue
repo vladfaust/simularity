@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import Settings from "@/components/Settings.vue";
 import {
   Dialog,
   DialogPanel,
@@ -64,8 +63,6 @@ TransitionRoot(:show="open" as="template")
             button._btn.w-full(@click="state = State.Settings")
               SettingsIcon(:size="20")
               span Settings
-
-          Settings(v-else-if="state === State.Settings")
 </template>
 
 <style lang="scss" scoped>

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import Settings from "@/components/Settings.vue";
 import { routeLocation } from "@/lib/router";
 import { ArrowLeft } from "lucide-vue-next";
 </script>
@@ -12,5 +11,4 @@ import { ArrowLeft } from "lucide-vue-next";
     )
       ArrowLeft(:size="20")
       span Back to main menu
-  Settings
 </template>
