@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import CharacterPfp from "@/components/CharacterPfp.vue";
 import { Simulation } from "@/lib/simulation";
-import { NARRATOR } from "@/lib/simulation/agents/writer";
 import * as storage from "@/lib/storage";
 import { clone, tap } from "@/lib/utils";
 import {
@@ -10,29 +8,18 @@ import {
   TransitionChild,
   TransitionRoot,
 } from "@headlessui/vue";
-import { BrainCircuitIcon, FeatherIcon, XIcon } from "lucide-vue-next";
+import { BrainCircuitIcon, XIcon } from "lucide-vue-next";
 import { ref } from "vue";
 import LlmAgent from "./AiSettingsModal/LlmAgent.vue";
 
 defineProps<{
   open: boolean;
   simulation: Simulation;
-  enabledCharacterIds: string[];
 }>();
 
 const emit = defineEmits<{
   (event: "close"): void;
-  (event: "switchEnabledCharacter", characterId: string): void;
-  (event: "enableOnlyCharacter", characterId: string): void;
 }>();
-
-function onCharacterClick(event: MouseEvent, characterId: string) {
-  if (event.metaKey) {
-    emit("enableOnlyCharacter", characterId);
-  } else {
-    emit("switchEnabledCharacter", characterId);
-  }
-}
 
 const writerConfig = storage.llm.useDriverConfig("writer");
 const tempWriterConfig = ref(tap(writerConfig.value, clone) ?? null);
@@ -77,29 +64,6 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
             XIcon(:size="20")
 
         .flex.h-full.flex-col.gap-2.overflow-y-auto.p-3
-          //- Enabled characters.
-          .flex.items-center.gap-2
-            h2.shrink-0.font-semibold.leading-tight.tracking-wide Enabled characters
-            .h-0.w-full.border-t
-            span.shrink-0 {{ enabledCharacterIds.length }}/{{ Object.keys(simulation.scenario.characters).length + 1 }}
-
-          .grid.gap-1(class="max-xs:grid-cols-4 xs:grid-cols-8")
-            ._inference-settings-character.grid.h-full.place-items-center(
-              :class="{ grayscale: !enabledCharacterIds.includes(NARRATOR), 'border-primary-500': enabledCharacterIds.includes(NARRATOR) }"
-              title="Narrator"
-              @click="onCharacterClick($event, NARRATOR)"
-            )
-              FeatherIcon.text-primary-500(:size="28" :stroke-width="1.5")
-            CharacterPfp._inference-settings-character(
-              v-for="[characterId, character] in Object.entries(simulation.scenario.characters)"
-              :key="characterId"
-              :scenario="simulation.scenario"
-              :character
-              :class="{ grayscale: !enabledCharacterIds.includes(characterId), 'border-primary-500': enabledCharacterIds.includes(characterId) }"
-              :title="character.name"
-              @click="onCharacterClick($event, characterId)"
-            )
-
           //- Writer agent.
           LlmAgent(
             agent-id="writer"
@@ -118,9 +82,3 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
             v-model:driver-config="tempDirectorConfig"
           )
 </template>
-
-<style lang="scss" scoped>
-._inference-settings-character {
-  @apply aspect-square cursor-pointer rounded-lg border transition-transform pressable;
-}
-</style>

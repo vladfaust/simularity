@@ -27,6 +27,7 @@ import VisualizeModal from "./GameConsole/VisualizeModal.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
 import ProgressBar from "./GameConsole/ProgressBar.vue";
+import PredictionOptionsPanel from "./GameConsole/PredictionOptionsPanel.vue";
 
 enum SendButtonState {
   Inferring,
@@ -329,10 +330,18 @@ function enableOnlyCharacter(characterId: string) {
 </script>
 
 <template lang="pug">
-.flex.max-h-full.w-full.max-w-xl.flex-col.overflow-hidden.rounded-lg.shadow-lg(
-  class="bg-black/10"
-)
-  .flex.h-full.flex-col.gap-2.overflow-hidden.p-2
+.flex.h-full.w-full.flex-col.items-center.justify-between.gap-2.overflow-hidden
+  //- Enable or disable characters.
+  PredictionOptionsPanel.max-w-xl(
+    :simulation
+    :enabled-character-ids
+    @switch-enabled-character="switchEnabledCharacter"
+    @enable-only-character="enableOnlyCharacter"
+  )
+
+  .flex.max-h-full.w-full.max-w-xl.flex-col.gap-2.overflow-hidden.rounded-lg.p-2.shadow-lg(
+    class="bg-black/10"
+  )
     //- Top row.
     .flex.gap-2.overflow-hidden(:class="updatesFullscreen ? 'h-full' : 'h-36'")
       //- History of updates.
@@ -484,51 +493,48 @@ function enableOnlyCharacter(characterId: string) {
         )
           SkipForwardIcon(:size="20")
 
-  //- Status.
-  .flex.w-full.justify-between.p-2(class="bg-black/20")
-    .flex.w-full.items-center.gap-2
-      .flex.gap-2
-        button._status-button(@click="emit('mainMenu')")
-          MenuIcon(:size="20")
-
-      AiStatus.cursor-pointer.rounded.bg-white.bg-opacity-50.px-2.py-1.transition-transform.pressable(
-        :simulation
-        @click="showAiSettingsModal = true"
-      )
-
-      //- Context gauge.
+    //- Status.
+    .flex.w-full.justify-between
       .flex.w-full.items-center.gap-2
-        .relative.flex.w-full.items-center.justify-center.shadow-lg(
-          :class="{ 'animate-pulse': simulation.consolidationInProgress.value }"
+        .flex.gap-2
+          button._status-button(@click="emit('mainMenu')")
+            MenuIcon(:size="20")
+
+        AiStatus.cursor-pointer.rounded.bg-white.bg-opacity-50.px-2.py-1.transition-transform.pressable(
+          :simulation
+          @click="showAiSettingsModal = true"
         )
-          progress._ctx-progress.h-5.w-full(
-            :value="simulation.contextLength.value"
-            :max="simulation.writer.contextSize.value"
-            title="Context length"
+
+        //- Context gauge.
+        .flex.w-full.items-center.gap-2
+          .relative.flex.w-full.items-center.justify-center.shadow-lg(
+            :class="{ 'animate-pulse': simulation.consolidationInProgress.value }"
           )
-          span._ctx-progress-text.pointer-events-none.absolute.w-full.select-none.text-center.text-xs.font-medium(
-            :style="`--value: ${contextGaugeCssVar}`"
+            progress._ctx-progress.h-5.w-full(
+              :value="simulation.contextLength.value"
+              :max="simulation.writer.contextSize.value"
+              title="Context length"
+            )
+            span._ctx-progress-text.pointer-events-none.absolute.w-full.select-none.text-center.text-xs.font-medium(
+              :style="`--value: ${contextGaugeCssVar}`"
+            )
+              | {{ simulation.contextLength.value ?? "?" }}/{{ simulation.writer.contextSize.value }}
+          button._status-button(
+            @click="simulation.consolidate()"
+            class="disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="!simulation.canConsolidate.value"
+            :title="simulation.consolidationPreliminaryError.value?.message ?? 'Consolidate'"
           )
-            | {{ simulation.contextLength.value ?? "?" }}/{{ simulation.writer.contextSize.value }}
-        button._status-button(
-          @click="simulation.consolidate()"
-          class="disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="!simulation.canConsolidate.value"
-          :title="simulation.consolidationPreliminaryError.value?.message ?? 'Consolidate'"
-        )
-          Loader2Icon.animate-spin(
-            v-if="simulation.consolidationInProgress.value"
-            :size="20"
-          )
-          SquareSigmaIcon(v-else :size="20")
+            Loader2Icon.animate-spin(
+              v-if="simulation.consolidationInProgress.value"
+              :size="20"
+            )
+            SquareSigmaIcon(v-else :size="20")
 
   AiSettingsModal(
     v-if="simulation"
     :open="showAiSettingsModal"
     :simulation
-    :enabled-character-ids
-    @switch-enabled-character="switchEnabledCharacter"
-    @enable-only-character="enableOnlyCharacter"
     @close="showAiSettingsModal = false"
   )
 
