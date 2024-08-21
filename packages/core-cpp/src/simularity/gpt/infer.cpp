@@ -104,7 +104,7 @@ int simularity_gpt_infer(
   for (unsigned i = 0; i < options.stop_sequences_len; i++) {
     auto string = std::string(options.stop_sequences[i]);
     auto tokens = llama_tokenize(
-        session->model(), options.stop_sequences[i], false, false
+        session->model(), options.stop_sequences[i], false, true
     );
 
     spdlog::debug(
