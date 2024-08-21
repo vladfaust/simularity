@@ -95,16 +95,6 @@ export class TauriLlmDriver implements BaseLlmDriver {
         return null;
       }
 
-      const { nCtxTrain } = await tauri.gpt.loadModel(dbSession.modelPath);
-      if (nCtxTrain !== dbSession.contextSize) {
-        console.warn(`Trained context size mismatch`, {
-          expected: dbSession.contextSize,
-          actual: nCtxTrain,
-        });
-
-        return null;
-      }
-
       return new TauriLlmDriver(
         config,
         latestSessionDatabaseId,

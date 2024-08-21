@@ -5,9 +5,9 @@ import { omit } from "@/lib/utils";
 import * as dialog from "@tauri-apps/api/dialog";
 import * as fs from "@tauri-apps/api/fs";
 import * as path from "@tauri-apps/api/path";
-import { FolderOpenIcon } from "lucide-vue-next";
+import { FolderOpenIcon, ProportionsIcon } from "lucide-vue-next";
 import * as fsExtra from "tauri-plugin-fs-extra-api";
-import { onMounted, ref, shallowRef, triggerRef } from "vue";
+import { computed, onMounted, ref, shallowRef, triggerRef } from "vue";
 import Model from "./Local/Model.vue";
 
 // TODO: Hashing takes some time, consider displaying a temp model div.
@@ -21,6 +21,13 @@ const cachedModels = shallowRef<storage.llm.CachedModel[]>([]);
 const uncachedModels = ref<string[]>([]);
 const selectedModelPath = ref<string | null>(
   driverConfig.value?.type === "local" ? driverConfig.value.modelPath : null,
+);
+const selectedModel = computed(() =>
+  selectedModelPath.value
+    ? cachedModels.value.find(
+        (cachedModel) => cachedModel.path === selectedModelPath.value,
+      )
+    : undefined,
 );
 const latestLocalModelConfig = storage.llm.useLatestLocalModelConfig(
   props.agentId,
@@ -135,7 +142,9 @@ onMounted(async () => {
           };
         }
 
+        // FIXME: Actually remove the custom model from the list.
         console.warn(`Custom model ${modelPath} not found, removing`);
+
         return null;
       }),
     )
@@ -224,4 +233,16 @@ onMounted(async () => {
       :model="{ path: modelPath }"
       :selected="false"
     )
+
+  .flex.flex-col(v-if="driverConfig?.type === 'local' && selectedModel")
+    .flex.items-center.justify-between.gap-2
+      .flex.shrink-0.items-center.gap-1
+        ProportionsIcon(:size="18" :stroke-width="2.5")
+        span.font-medium Context size
+      .w-full.border-b
+      input.input.input-md.shrink-0.rounded.border.px-2(
+        type="number"
+        v-model="driverConfig.contextSize"
+        :max="selectedModel.contextSize"
+      )
 </template>
