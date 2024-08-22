@@ -10,6 +10,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
+    // NOTE: When changing any of these, the Vite server must be restarted.
     include: [
       "@simularity/api-sdk/v1/completions/create",
       "@simularity/api-sdk/v1/models/index",

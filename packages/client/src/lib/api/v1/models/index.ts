@@ -20,7 +20,7 @@ export async function index(baseUrl: string, jwt?: string) {
 
   if (!parseResult.success) {
     throw new RemoteApiError(
-      `Failed to parse models response: ${v.flatten(parseResult.issues)}`,
+      `Failed to parse models response: ${JSON.stringify(v.flatten(parseResult.issues))}`,
     );
   }
 

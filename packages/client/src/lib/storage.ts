@@ -1,4 +1,5 @@
 import { useLocalStorage } from "@vueuse/core";
+export * as tts from "./storage/tts";
 
 export const remoteServerJwt = useLocalStorage<string | null>(
   "remoteServerJwt",

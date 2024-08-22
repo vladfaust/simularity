@@ -22,5 +22,23 @@ export default Router()
       },
     });
 
-    return res.json(llmModels satisfies v.InferOutput<typeof ResponseSchema>);
+    const ttsModels = await d.db.query.ttsModels.findMany({
+      where: eq(d.ttsModels.enabled, true),
+      columns: {
+        id: true,
+        name: true,
+        description: true,
+      },
+    });
+
+    return res.json([
+      ...llmModels.map((model) => ({
+        type: "llm" as const,
+        ...model,
+      })),
+      ...ttsModels.map((model) => ({
+        type: "tts" as const,
+        ...model,
+      })),
+    ] satisfies v.InferOutput<typeof ResponseSchema>);
   });

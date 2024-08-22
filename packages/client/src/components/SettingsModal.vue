@@ -9,6 +9,7 @@ import {
   TransitionRoot,
 } from "@headlessui/vue";
 import {
+  AudioLinesIcon,
   ClapperboardIcon,
   CornerRightDownIcon,
   FeatherIcon,
@@ -20,11 +21,13 @@ import { ref } from "vue";
 import General from "./SettingsModal/General.vue";
 import Writer from "./SettingsModal/Writer.vue";
 import Director from "./SettingsModal/Director.vue";
+import Voicer from "./SettingsModal/Voicer.vue";
 
 enum Tab {
   General,
   Writer,
   Director,
+  Voicer,
 }
 
 defineProps<{
@@ -44,9 +47,22 @@ const tempWriterConfig = ref(tap(writerConfig.value, clone) ?? null);
 const directorConfig = storage.llm.useDriverConfig("director");
 const tempDirectorConfig = ref(tap(directorConfig.value, clone) ?? null);
 
+const tempTtsConfig = ref(
+  tap(storage.tts.ttsConfig.value, clone) ?? {
+    enabled: false,
+    narrator: true,
+    mainCharacter: false,
+    otherCharacters: true,
+    model: {
+      type: "remote" as const,
+    },
+  },
+);
+
 function onClose() {
   writerConfig.value = tempWriterConfig.value;
   directorConfig.value = tempDirectorConfig.value;
+  storage.tts.ttsConfig.value = tempTtsConfig.value;
 
   emit("close");
 }
@@ -72,7 +88,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
       DialogPanel.flex.max-h-full.w-full.max-w-3xl.flex-col.overflow-y-hidden.rounded-xl.bg-white.shadow-lg
         .flex.items-center.justify-between.gap-2.border-b.p-3
           h1.flex.shrink-0.items-center.gap-1
-            SettingsIcon.inline-block(:size="20")
+            SettingsIcon.inline-block(:size="20" class="hover:animate-spin")
             span.text-lg.font-semibold.leading-tight.tracking-wide Settings
           .h-0.w-full.shrink.border-b
           button.btn-pressable.btn-neutral.btn.aspect-square.rounded.p-1(
@@ -111,6 +127,14 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                 ClapperboardIcon(:size="20")
               span Director
 
+            ._tab(
+              :class="{ _selected: tab === Tab.Voicer }"
+              @click="tab = Tab.Voicer"
+            )
+              ._icon
+                AudioLinesIcon(:size="20")
+              span Voicer
+
           .col-span-3.h-full.overflow-y-scroll
             .h-full(style="min-height: 32rem")
               //- General tab.
@@ -129,6 +153,13 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                 :simulation
                 v-model:driver-config="tempDirectorConfig"
               )
+
+              //- Voicer agent tab.
+              Voicer(
+                v-else-if="tab === Tab.Voicer"
+                :simulation
+                v-model:tts-config="tempTtsConfig"
+              )
 </template>
 
 <style lang="scss" scoped>
@@ -140,11 +171,11 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
   }
 
   &._selected {
-    @apply bg-gray-50 text-primary-500;
+    @apply bg-gray-50 text-primary-500 shadow-inner;
   }
 
   ._icon {
-    @apply grid place-items-center rounded-lg border p-1;
+    @apply grid place-items-center rounded-lg border bg-white p-1;
   }
 }
 </style>

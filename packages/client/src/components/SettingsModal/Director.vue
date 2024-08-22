@@ -17,7 +17,12 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
 .flex.flex-col.gap-2.p-3
   .flex.gap-2.rounded-b-lg.rounded-tr-lg.border.p-2
     InfoIcon.shrink-0(:size="20")
-    p.text-sm.leading-tight Director agent is responsible for generating scene updates as the story advances. It has to be a fine instruction-tuned model with good reasoning—to understand what's going on—, trained for JSON outputs.
+    p.text-sm.leading-tight
+      | Director is a
+      |
+      b required
+      |
+      | agent responsible for generating scene updates as the story advances. It has to be a fine instruction-tuned model with good reasoning—to understand what's going on—, trained for JSON outputs.
 
   LlmAgentModel(
     agent-id="director"

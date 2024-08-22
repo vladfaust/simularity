@@ -53,7 +53,7 @@ onMounted(async () => {
       import.meta.env.VITE_DEFAULT_API_BASE_URL,
       remoteServerJwt.value ?? undefined,
     )
-  ).filter((model) => model.task === props.agentId);
+  ).filter((model) => model.type === "llm" && model.task === props.agentId);
 
   if (driverConfig.value?.type !== "remote") {
     if (latestRemoteModelConfig.value) {

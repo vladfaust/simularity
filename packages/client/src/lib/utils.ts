@@ -23,6 +23,12 @@ export class Deferred<T> {
   }
 }
 
+export class Bug extends Error {
+  constructor(message: string) {
+    super(`BUG: ${message}`);
+  }
+}
+
 /**
  * Zip two arrays into an array of tuples.
  * @example zip([1, 2], ["a", "b"]) => [[1, "a"], [2, "b"]]

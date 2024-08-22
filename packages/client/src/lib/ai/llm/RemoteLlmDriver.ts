@@ -1,7 +1,7 @@
 import * as api from "@/lib/api";
 import { d } from "@/lib/drizzle";
 import { type LatestSession } from "@/lib/storage/llm";
-import { mergeAbortSignals, omit, timeoutSignal } from "@/lib/utils";
+import { Bug, mergeAbortSignals, omit, timeoutSignal } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 import { toMilliseconds } from "duration-fns";
 import { ref, type Ref } from "vue";
@@ -78,10 +78,11 @@ export class RemoteLlmDriver implements BaseLlmDriver {
     }
 
     const models = await api.v1.models.index(config.baseUrl);
-    const model = models.find((model) => model.id === config.modelId);
-    if (!model) {
-      throw new Error(`Model ${config.modelId} not found`);
-    }
+    const model = models.find(
+      (model) => model.type === "llm" && model.id === config.modelId,
+    );
+    if (!model) throw new Error(`Model ${config.modelId} not found`);
+    if (model.type !== "llm") throw new Bug("Model is not LLM");
 
     return new RemoteLlmDriver(
       config,
