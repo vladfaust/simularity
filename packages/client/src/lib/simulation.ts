@@ -20,13 +20,17 @@ import {
 } from "./ai/llm/BaseLlmDriver";
 import { RemoteLlmDriver } from "./ai/llm/RemoteLlmDriver";
 import { TauriLlmDriver } from "./ai/llm/TauriLlmDriver";
+import { RemoteTtsDriver } from "./ai/tts/RemoteTtsDriver";
 import { d, parseSelectResult, sqlite, type Transaction } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
+import * as resources from "./resources";
 import {
   Director,
   PredictionError,
   type SimpleUpdate,
 } from "./simulation/agents/director";
+import { Voicer } from "./simulation/agents/voicer";
+import type { VoicerJob } from "./simulation/agents/voicer/job";
 import {
   Writer,
   type VisualizationOptions,
@@ -79,9 +83,11 @@ export class Simulation {
 
   private _writer: Writer;
   private _director: Director;
+  private _voicer: Voicer;
 
   private _writerDone = ref<boolean | undefined>();
   private _directorDone = ref<boolean | undefined>();
+  private _voicerJob = shallowRef<VoicerJob | null | undefined>();
   //#endregion
 
   readonly state: State;
@@ -206,6 +212,18 @@ export class Simulation {
    * Whether the director agent is done for the current job.
    */
   readonly directorDone = readonly(this._directorDone);
+
+  /**
+   * The voicer instance.
+   */
+  get voicer() {
+    return this._voicer;
+  }
+
+  /**
+   * Whether the voicer agent is done for the current job.
+   */
+  readonly voicerJob = readonly(this._voicerJob);
 
   /**
    * Whether the simulation is busy.
@@ -1489,6 +1507,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     this.state = new State(scenario);
     this._writer = new Writer(null, this.scenario);
     this._director = new Director(null, this.scenario);
+    this._voicer = new Voicer(null, this.scenario);
   }
 
   /**
@@ -1504,6 +1523,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
 
     this._initWriter();
     this._initDirector();
+    this._initVoicer();
   }
 
   /**
@@ -1784,6 +1804,68 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
   private async _initDirector() {
     return this._initLlmAgent("director", this._director.llmDriver, () =>
       Director.buildStaticPrompt(this.scenario),
+    );
+  }
+
+  /**
+   * Prepare voicer for the simulation.
+   */
+  private async _initVoicer() {
+    const driverRef = this._voicer.ttsDriver;
+    const agent = "voicer";
+
+    watchImmediate(
+      () => storage.tts.ttsConfig.value,
+      async (ttsConfig) => {
+        console.debug("Driver config watch trigger", agent, ttsConfig);
+        const driverConfig = ttsConfig?.driver;
+
+        if (ttsConfig?.enabled && driverConfig) {
+          if (driverRef.value) {
+            console.debug("Comparing driver configs.", agent, {
+              other: driverConfig,
+            });
+
+            if (!driverRef.value.compareConfig(driverConfig)) {
+              console.log(
+                "Driver config is different, destroying the driver.",
+                agent,
+              );
+
+              driverRef.value.destroy();
+              driverRef.value = null;
+            } else {
+              console.debug("Driver config is the same.", agent);
+              return;
+            }
+          }
+
+          switch (driverConfig.type) {
+            case "remote": {
+              console.log("Creating new RemoteTtsDriver", {
+                driverConfig,
+              });
+
+              driverRef.value = new RemoteTtsDriver(
+                driverConfig,
+                storage.remoteServerJwt,
+              );
+
+              break;
+            }
+
+            default:
+              throw unreachable(driverConfig.type);
+          }
+        } else {
+          // New driver config is empty, or TTS is disabled.
+          // Destroy the driver instance if it exists.
+          if (driverRef.value) {
+            driverRef.value.destroy();
+            driverRef.value = null;
+          }
+        }
+      },
     );
   }
 
@@ -2186,6 +2268,42 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       this._writerDone.value = true;
       // TODO: Check if abort signal was triggered.
 
+      let doTts = false;
+      if (
+        this._voicer.ttsDriver.value &&
+        storage.tts.ttsConfig.value?.enabled
+      ) {
+        switch (writerResponse.characterId) {
+          // Narrator.
+          case null:
+            if (storage.tts.ttsConfig.value.narrator) doTts = true;
+            break;
+
+          // Main character.
+          case this.scenario.defaultCharacterId:
+            if (storage.tts.ttsConfig.value.mainCharacter) doTts = true;
+            break;
+
+          // Other characters.
+          default:
+            if (storage.tts.ttsConfig.value.otherCharacters) doTts = true;
+            break;
+        }
+      }
+
+      if (doTts) {
+        console.debug("Creating TTS job");
+        this._voicerJob.value = markRaw(
+          this._voicer.createTtsJob(
+            writerResponse.characterId,
+            writerResponse.text,
+          ),
+        );
+      } else {
+        // No TTS, so we're done.
+        this._voicerJob.value = null;
+      }
+
       const directorResponse = await pRetry(
         async () => {
           const directorResponse = await this._inferDirectorUpdate(
@@ -2230,6 +2348,28 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         },
       });
 
+      let ttsAudioElement: HTMLAudioElement | undefined;
+      if (this.voicerJob.value) {
+        console.log("Waiting for TTS job to finish");
+        const result = await this.voicerJob.value.result.promise;
+
+        if (result instanceof Error) {
+          console.error("TTS job failed", result);
+        } else {
+          console.debug("Saving TTS audio");
+          await resources.tts.saveAudio(
+            this.id,
+            writerUpdate.id,
+            result,
+            ".wav",
+          );
+
+          ttsAudioElement = new Audio(
+            URL.createObjectURL(new Blob([result], { type: "audio/wav" })),
+          );
+        }
+      }
+
       if (directorUpdate?.code.length) {
         console.log("Applying stage code", directorUpdate.code);
         this.state.apply(directorUpdate.code);
@@ -2242,11 +2382,29 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         },
         directorUpdate: directorUpdate,
         state: this.state.serialize(),
+        ttsAudioElement,
       });
 
       update.setChosenVariantToLast();
+
+      // ADHOC: Play the TTS audio now.
+      if (ttsAudioElement) {
+        const watchStopHandle = watchImmediate(
+          () => storage.speechVolumeStorage.value,
+          (volume) => {
+            ttsAudioElement.volume = volume / 100;
+          },
+        );
+
+        await ttsAudioElement.play();
+        ttsAudioElement.onended = () => {
+          watchStopHandle();
+        };
+      }
+
       return writerResponse;
     } finally {
+      this._voicerJob.value = undefined;
       update.inProgressVariant.value = undefined;
       this._writerDone.value = undefined;
       this._directorDone.value = undefined;

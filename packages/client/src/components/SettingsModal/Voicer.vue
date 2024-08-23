@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import Toggle from "@/components/Toggle.vue";
-import * as storage from "@/lib/storage";
 import { Simulation } from "@/lib/simulation";
+import * as storage from "@/lib/storage";
+import { unreachable } from "@/lib/utils";
 import {
   BotIcon,
   CircleHelpIcon,
@@ -10,7 +11,7 @@ import {
   InfoIcon,
   PersonStandingIcon,
 } from "lucide-vue-next";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import CharacterPfp from "../CharacterPfp.vue";
 import RemoteModelSettings from "./Voicer/RemoteModelSettings.vue";
 
@@ -23,17 +24,24 @@ const ttsConfig = defineModel<storage.tts.TtsConfig>("ttsConfig", {
 });
 
 const mainCharacterId = computed(() => simulation.scenario.defaultCharacterId);
-const driverType = computed<"remote">({
-  get: () => ttsConfig.value.model.type,
-  set: (type) => {
-    ttsConfig.value.model = { type };
-  },
-});
+const driverType = ref<"remote">(ttsConfig.value.driver?.type ?? "remote");
 
 const selectedModelId = computed<string | undefined>({
-  get: () => ttsConfig.value.model?.modelId,
+  get: () => ttsConfig.value.driver?.modelId,
   set: (modelId: string | undefined) => {
-    ttsConfig.value.model = { type: driverType.value, modelId };
+    if (!modelId) return;
+
+    switch (driverType.value) {
+      case "remote":
+        ttsConfig.value.driver = {
+          type: driverType.value,
+          baseUrl: import.meta.env.VITE_DEFAULT_API_BASE_URL,
+          modelId,
+        };
+        break;
+      default:
+        throw unreachable(driverType.value);
+    }
   },
 });
 </script>

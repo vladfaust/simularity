@@ -54,6 +54,8 @@ export class Update {
          * The state of the simulation at the time of the update, if known.
          */
         state?: StateDto;
+
+        ttsAudioElement?: HTMLAudioElement;
       }[]
     > = shallowRef([]),
     chosenVariantIndex = 0,

@@ -5,6 +5,7 @@ export enum Status {
   Queued,
   Disabled,
   Done,
+  Error,
 }
 </script>
 

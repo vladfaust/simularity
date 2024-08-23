@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
+import type { TtsConfig } from "@/lib/storage/tts";
 import { clone, tap } from "@/lib/utils";
 import {
   Dialog,
@@ -18,10 +19,10 @@ import {
   XIcon,
 } from "lucide-vue-next";
 import { ref } from "vue";
-import General from "./SettingsModal/General.vue";
-import Writer from "./SettingsModal/Writer.vue";
 import Director from "./SettingsModal/Director.vue";
+import General from "./SettingsModal/General.vue";
 import Voicer from "./SettingsModal/Voicer.vue";
+import Writer from "./SettingsModal/Writer.vue";
 
 enum Tab {
   General,
@@ -47,15 +48,12 @@ const tempWriterConfig = ref(tap(writerConfig.value, clone) ?? null);
 const directorConfig = storage.llm.useDriverConfig("director");
 const tempDirectorConfig = ref(tap(directorConfig.value, clone) ?? null);
 
-const tempTtsConfig = ref(
+const tempTtsConfig = ref<TtsConfig>(
   tap(storage.tts.ttsConfig.value, clone) ?? {
     enabled: false,
     narrator: true,
     mainCharacter: false,
     otherCharacters: true,
-    model: {
-      type: "remote" as const,
-    },
   },
 );
 
@@ -92,7 +90,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
             span.text-lg.font-semibold.leading-tight.tracking-wide Settings
           .h-0.w-full.shrink.border-b
           button.btn-pressable.btn-neutral.btn.aspect-square.rounded.p-1(
-            @click="emit('close')"
+            @click="onClose"
           )
             XIcon(:size="20")
 

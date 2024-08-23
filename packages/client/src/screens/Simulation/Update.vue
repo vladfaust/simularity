@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import Placeholder from "@/components/Placeholder.vue";
-import { TTS_SPEAKER, Tts } from "@/lib/ai/tts";
 import * as resources from "@/lib/resources";
 import { Simulation } from "@/lib/simulation";
 import { Update } from "@/lib/simulation/update";
 import { speechVolumeStorage } from "@/lib/storage";
-import { v } from "@/lib/valibot";
 import { asyncComputed, watchImmediate } from "@vueuse/core";
 import {
   CircleCheckIcon,
@@ -198,78 +196,44 @@ async function prefer(preference: boolean) {
 
 const ttsInProgress = ref(false);
 async function tts() {
-  ttsInProgress.value = true;
+  if (!props.update.chosenVariant) {
+    return;
+  }
+
   try {
-    let wav = await resources.tts.loadAudio(
-      props.simulation.id,
-      props.update.ensureChosenVariant.writerUpdate.id,
-      ".wav",
-    );
+    ttsInProgress.value = true;
 
-    if (!wav) {
-      console.log("No cached audio, will generate new TTS");
-
-      if (!characterId.value) {
-        console.warn("No characterId");
-        return;
-      }
-
-      const character = props.simulation.scenario.ensureCharacter(
-        characterId.value,
-      );
-      if (!character.voices?.xttsV2) {
-        console.warn("No voices");
-        return;
-      }
-
-      const embeddingsUrl = await props.simulation.scenario.resourceUrl(
-        character.voices.xttsV2.embeddingPath,
-      );
-
-      // Load embeddings as JSON.
-      console.debug(`Fetching voice embeddings from ${embeddingsUrl}...`);
-      const embeddings = await fetch(embeddingsUrl)
-        .then((res) => res.json())
-        .then((json) => v.parse(TTS_SPEAKER, json));
-      console.log(`Fetched voice embeddings from ${embeddingsUrl}`);
-
-      const ttsInstance = new Tts(
-        import.meta.env.VITE_TTS_BASE_URL,
-        import.meta.env.VITE_API_JWT,
-      );
-      console.log("Generating new TTS...");
-      wav = await ttsInstance.tts({
-        modelId: "xtts2",
-        gptCondLatent: embeddings.gpt_cond_latent,
-        speakerEmbedding: embeddings.speaker_embedding,
-        text: rText.value!,
-        language: "en",
-      });
-
-      await resources.tts.saveAudio(
+    let audio = props.update.chosenVariant.ttsAudioElement;
+    if (audio) {
+      await audio.play();
+    } else {
+      let wav = await resources.tts.loadAudio(
         props.simulation.id,
         props.update.ensureChosenVariant.writerUpdate.id,
-        wav,
         ".wav",
       );
+
+      if (!wav) {
+        // TODO: Trigger simulation to generate TTS.
+        return;
+      }
+
+      audio = props.update.chosenVariant.ttsAudioElement = new Audio(
+        URL.createObjectURL(new Blob([wav], { type: "audio/wav" })),
+      );
+
+      const watchStopHandle = watchImmediate(
+        () => speechVolumeStorage.value,
+        (volume) => {
+          audio!.volume = volume / 100;
+        },
+      );
+
+      await audio.play();
+      audio.onended = () => {
+        watchStopHandle();
+      };
     }
-
-    // Play audio from the generated WAV.
-    const audio = new Audio(
-      URL.createObjectURL(new Blob([wav], { type: "audio/wav" })),
-    );
-
-    const watchStopHandle = watchImmediate(
-      () => speechVolumeStorage.value,
-      (volume) => {
-        audio.volume = volume / 100;
-      },
-    );
-
-    await audio.play();
-    audio.onended = () => {
-      watchStopHandle();
-    };
   } finally {
     ttsInProgress.value = false;
   }

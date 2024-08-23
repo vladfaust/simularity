@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ClapperboardIcon, FeatherIcon, SpeechIcon } from "lucide-vue-next";
-import AgentStatusVue, { Status } from "./ProgressBar/AgentStatus.vue";
-import { Simulation } from "@/lib/simulation";
-import { computed } from "vue";
 import type { BaseLlmDriver } from "@/lib/ai/llm/BaseLlmDriver";
 import { LlmStatus } from "@/lib/ai/llm/BaseLlmDriver";
+import { Simulation } from "@/lib/simulation";
+import { VoicerJobStatus } from "@/lib/simulation/agents/voicer/job";
+import * as storage from "@/lib/storage";
 import type { LlmAgentId } from "@/lib/storage/llm";
 import { unreachable } from "@/lib/utils";
+import { AudioLinesIcon, ClapperboardIcon, FeatherIcon } from "lucide-vue-next";
+import { computed } from "vue";
+import AgentStatusVue, { Status } from "./ProgressBar/AgentStatus.vue";
 
 const AGENT_ICON_SIZE = 20;
 
@@ -77,6 +79,75 @@ const directorStatus = computed<Status>(() =>
 const directorStatusText = computed<string | undefined>(() =>
   llmStatusText(simulation.director.llmDriver.value),
 );
+
+const voicerStatus = computed<Status>(() => {
+  if (
+    !storage.tts.ttsConfig.value?.enabled ||
+    !simulation.voicer.ttsDriver.value
+  ) {
+    // Voicer is disabled.
+    return Status.Disabled;
+  } else if (simulation.voicerJob.value === undefined) {
+    // Waiting for the next job.
+    return Status.Waiting;
+  } else if (simulation.voicerJob.value === null) {
+    // Current job is skipped, i.e. character voiceover is disabled.
+    return Status.Disabled;
+  } else {
+    switch (simulation.voicerJob.value.status.value) {
+      case VoicerJobStatus.FetchingSpeaker:
+      case VoicerJobStatus.Queued:
+        return Status.Queued;
+      case VoicerJobStatus.Inferring:
+        return Status.Busy;
+      case VoicerJobStatus.Error:
+        return Status.Error;
+      case VoicerJobStatus.Succees:
+        return Status.Done;
+      default:
+        throw unreachable(simulation.voicerJob.value.status.value);
+    }
+  }
+});
+
+const voicerStatusText = computed<string | undefined>(() => {
+  if (
+    !storage.tts.ttsConfig.value?.enabled ||
+    !simulation.voicer.ttsDriver.value
+  ) {
+    // Voicer is disabled.
+    return;
+  } else if (simulation.voicerJob.value === undefined) {
+    // Waiting for the next job.
+    return;
+  } else if (simulation.voicerJob.value === null) {
+    // Current job is skipped, i.e. character voiceover is disabled.
+    return;
+  } else
+    switch (simulation.voicerJob.value.status.value) {
+      case VoicerJobStatus.Queued:
+      case VoicerJobStatus.FetchingSpeaker:
+        return "Queued";
+      case VoicerJobStatus.Inferring: {
+        let text = "Inferring";
+
+        if (simulation.voicerJob.value.progress.value !== undefined) {
+          const percentage = Math.round(
+            (simulation.voicerJob.value.progress.value * 100) / 100,
+          );
+          text += ` (${percentage}%)`;
+        }
+
+        return text;
+      }
+      case VoicerJobStatus.Error:
+        return "Error";
+      case VoicerJobStatus.Succees:
+        return;
+      default:
+        throw unreachable(simulation.voicerJob.value.status.value);
+    }
+});
 </script>
 
 <template lang="pug">
@@ -100,7 +171,11 @@ const directorStatusText = computed<string | undefined>(() =>
       ClapperboardIcon(:size="AGENT_ICON_SIZE")
 
   //- TTS status.
-  AgentStatusVue(key="tts" :status="Status.Disabled")
+  AgentStatusVue(
+    key="tts"
+    :status="voicerStatus"
+    :status-text="voicerStatusText"
+  )
     template(#agentIcon)
-      SpeechIcon(:size="AGENT_ICON_SIZE")
+      AudioLinesIcon(:size="AGENT_ICON_SIZE")
 </template>

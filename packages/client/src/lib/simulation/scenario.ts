@@ -96,6 +96,25 @@ const ScenarioSchema = v.object({
   instructions: v.string(),
 
   /**
+   * Voice models and embeddings for the narrator.
+   */
+  narratorVoices: v.optional(
+    v.object({
+      /**
+       * An XTTSv2 voice model.
+       */
+      xttsV2: v.optional(
+        v.object({
+          /**
+           * Voice embedding path.
+           */
+          embeddingPath: v.string(),
+        }),
+      ),
+    }),
+  ),
+
+  /**
    * Characters in the scenario.
    * The first character is the default player character.
    */
@@ -540,6 +559,10 @@ export class Scenario {
 
   get instructions() {
     return this.content.instructions;
+  }
+
+  get narratorVoices() {
+    return this.content.narratorVoices;
   }
 
   get characters() {
