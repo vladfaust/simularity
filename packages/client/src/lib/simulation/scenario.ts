@@ -7,6 +7,7 @@ import {
 } from "@tauri-apps/api/fs";
 import { join, resolve } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
+import { TtsParamsSchema } from "../ai/tts/BaseTtsDriver";
 import { resolveBaseDir } from "../tauri";
 import { safeParseJson } from "../utils";
 import { formatIssues, v } from "../valibot";
@@ -109,6 +110,11 @@ const ScenarioSchema = v.object({
            * Voice embedding path.
            */
           embeddingPath: v.string(),
+
+          /**
+           * XTTSv2 voice model parameters.
+           */
+          params: v.optional(TtsParamsSchema),
         }),
       ),
     }),
@@ -362,6 +368,11 @@ const ScenarioSchema = v.object({
                * Voice embedding path.
                */
               embeddingPath: v.string(),
+
+              /**
+               * XTTSv2 voice model parameters.
+               */
+              params: v.optional(TtsParamsSchema),
             }),
           ),
         }),

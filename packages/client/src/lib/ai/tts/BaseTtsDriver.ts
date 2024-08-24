@@ -1,3 +1,4 @@
+import { v } from "@/lib/valibot";
 import type { Ref } from "vue";
 
 export type TtsDriverConfig = {
@@ -5,6 +6,17 @@ export type TtsDriverConfig = {
   baseUrl: string;
   modelId: string;
 };
+
+export const TtsParamsSchema = v.object({
+  topP: v.optional(v.number()),
+  topK: v.optional(v.number()),
+  temperature: v.optional(v.number()),
+  lengthPenalty: v.optional(v.number()),
+  repetitionPenalty: v.optional(v.number()),
+  speed: v.optional(v.number()),
+});
+
+export type TtsParams = v.InferOutput<typeof TtsParamsSchema>;
 
 export interface BaseTtsDriver {
   /**
@@ -34,6 +46,7 @@ export interface BaseTtsDriver {
     },
     text: string,
     language: string,
+    params?: TtsParams,
     abortSignal?: AbortSignal,
   ): Promise<ArrayBuffer>;
 

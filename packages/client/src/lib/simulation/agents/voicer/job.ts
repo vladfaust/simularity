@@ -1,3 +1,4 @@
+import type { TtsParams } from "@/lib/ai/tts/BaseTtsDriver";
 import { TTS_SPEAKER } from "@/lib/api/v1/tts/create";
 import { Deferred, sleep } from "@/lib/utils";
 import { v } from "@/lib/valibot";
@@ -36,6 +37,7 @@ export class VoicerJob {
   private async run() {
     try {
       let embeddingsUrl: string;
+      let params: TtsParams | undefined;
 
       if (this.characterId) {
         const character = this.scenario.ensureCharacter(this.characterId);
@@ -43,6 +45,7 @@ export class VoicerJob {
           throw new MissingSpeakerError(this.characterId);
         }
 
+        params = character.voices.xttsV2.params;
         embeddingsUrl = await this.scenario.resourceUrl(
           character.voices.xttsV2.embeddingPath,
         );
@@ -51,6 +54,7 @@ export class VoicerJob {
           throw new MissingSpeakerError(null);
         }
 
+        params = this.scenario.narratorVoices.xttsV2.params;
         embeddingsUrl = await this.scenario.resourceUrl(
           this.scenario.narratorVoices.xttsV2.embeddingPath,
         );
@@ -79,6 +83,7 @@ export class VoicerJob {
           },
           this.text,
           this.scenario.language,
+          params,
         ),
       );
       this.status.value = VoicerJobStatus.Succees;

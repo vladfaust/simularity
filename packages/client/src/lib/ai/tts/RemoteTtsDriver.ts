@@ -1,6 +1,10 @@
 import * as api from "@/lib/api";
 import { ref, type Ref } from "vue";
-import type { BaseTtsDriver, TtsDriverConfig } from "./BaseTtsDriver";
+import type {
+  BaseTtsDriver,
+  TtsDriverConfig,
+  TtsParams,
+} from "./BaseTtsDriver";
 
 export class RemoteTtsDriver implements BaseTtsDriver {
   readonly ready = ref(true);
@@ -22,6 +26,7 @@ export class RemoteTtsDriver implements BaseTtsDriver {
     },
     text: string,
     language: string,
+    params?: TtsParams,
     signal?: AbortSignal,
   ): Promise<ArrayBuffer> {
     try {
@@ -35,6 +40,7 @@ export class RemoteTtsDriver implements BaseTtsDriver {
           speakerEmbedding: speaker.speakerEmbedding,
           text,
           language,
+          ...params,
         },
         signal,
       );
