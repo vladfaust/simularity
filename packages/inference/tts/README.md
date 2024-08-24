@@ -18,6 +18,15 @@ curl -X POST \
   http://localhost:9090/v1/speaker
 ```
 
+```sh
+# TTS.
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d "@/path/to/speaker.json" \
+  -o "/path/to/tts.wav" \
+  http://localhost:9090/v1/tts_raw
+```
+
 ### Runpod
 
 ```sh

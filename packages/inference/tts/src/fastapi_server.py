@@ -75,3 +75,14 @@ def create_tts(parsed_input: TTSInputs):
         usage=TtsResponseUsage(executionTime=output.usage.execution_time),
         output=TtsResponseOutput(wavBase64=output.wav),
     )))
+
+
+@app.post("/v1/tts_raw", status_code=201)
+def create_tts_raw(parsed_input: TTSInputs):
+    """Create TTS audio from input."""
+
+    output = core.predict_speech(parsed_input, False)
+    if not isinstance(output.wav, bytes):
+        raise ValueError("Expected output.wav to be bytes")
+
+    return Response(content=output.wav, media_type="audio/wav")
