@@ -822,6 +822,9 @@ export class Simulation {
       console.log("Summarization result", summarizationResult);
 
       await d.db.transaction(async (tx) => {
+        const previousCheckpointId = this._checkpoint.value!.id;
+
+        // Create a new checkpoint.
         this._checkpoint.value = (
           await tx
             .insert(d.checkpoints)
@@ -841,19 +844,59 @@ export class Simulation {
             .returning()
         )[0];
 
+        // Update the writer update.
         await tx
           .update(d.writerUpdates)
           .set({ didConsolidate: true })
           .where(eq(d.writerUpdates.id, writerUpdate.id));
+
+        const futureUpdatesToUpdate = this._futureUpdates.value.filter(
+          (update) => {
+            return (
+              update.ensureChosenVariant.writerUpdate.checkpointId ===
+              previousCheckpointId
+            );
+          },
+        );
+
+        // For all future updates previously set
+        // for the previous checkpoint,
+        // set the new checkpoint ID.
+        if (futureUpdatesToUpdate.length) {
+          console.log(
+            `Updating ${
+              futureUpdatesToUpdate.length
+            } future updates to new checkpoint ID ${
+              this._checkpoint.value!.id
+            }...`,
+          );
+
+          await tx
+            .update(d.writerUpdates)
+            .set({ checkpointId: this._checkpoint.value!.id })
+            .where(
+              and(
+                inArray(
+                  d.writerUpdates.id,
+                  futureUpdatesToUpdate.map(
+                    (u) => u.ensureChosenVariant.writerUpdate.id,
+                  ),
+                ),
+              ),
+            );
+
+          for (const update of this._futureUpdates.value) {
+            // Update the checkpoint ID in the update object.
+            update.ensureChosenVariant.writerUpdate.checkpointId =
+              this._checkpoint.value!.id;
+          }
+        }
       });
 
       // Move all recent updates to historical updates.
       this._historicalUpdates.value.push(
         ...this._recentUpdates.value.splice(0),
       );
-
-      // Clear the future updates.
-      this._futureUpdates.value = [];
     } catch (e: any) {
       if (e instanceof CompletionAbortError) {
         console.warn("Inference aborted");
