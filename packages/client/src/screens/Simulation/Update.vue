@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import Placeholder from "@/components/Placeholder.vue";
+import CharacterPfp from "@/components/CharacterPfp.vue";
 import * as resources from "@/lib/resources";
 import { Simulation } from "@/lib/simulation";
 import { Update } from "@/lib/simulation/update";
 import { speechVolumeStorage } from "@/lib/storage";
-import { asyncComputed, watchImmediate } from "@vueuse/core";
+import { minutesToClock, tap } from "@/lib/utils";
+import { watchImmediate } from "@vueuse/core";
 import {
-  CircleCheckIcon,
+  CheckIcon,
   CircleChevronLeft,
   CircleChevronRight,
-  CircleSlashIcon,
   Edit3Icon,
   Loader2Icon,
   ThumbsDownIcon,
   ThumbsUpIcon,
   Volume2Icon,
+  XIcon,
 } from "lucide-vue-next";
-import { computed, ref } from "vue";
-import Contenteditable from "vue-contenteditable";
+import { computed, ref, watch } from "vue";
 
 // TODO: Scroll text while generating new variant.
 //
@@ -49,14 +49,15 @@ const rootClass = computed(() => ({
 }));
 
 function onClickPreviousVariant() {
-  if (props.update.inProgressVariant.value) {
+  if (
+    props.update.inProgressVariant.value ||
+    !props.update.chosenVariantIndex.value
+  ) {
     return;
   }
 
-  if (props.update.chosenVariantIndex.value) {
-    rText.value = props.update.ensureChosenVariant.writerUpdate.text;
-    emit("chooseVariant", props.update.chosenVariantIndex.value - 1);
-  }
+  tempText.value = props.update.ensureChosenVariant.writerUpdate.text;
+  emit("chooseVariant", props.update.chosenVariantIndex.value - 1);
 }
 
 function onClickNextVariant() {
@@ -68,75 +69,42 @@ function onClickNextVariant() {
     props.update.chosenVariantIndex.value <
     props.update.variants.value.length - 1
   ) {
-    rText.value = props.update.ensureChosenVariant.writerUpdate.text;
+    tempText.value = props.update.ensureChosenVariant.writerUpdate.text;
     emit("chooseVariant", props.update.chosenVariantIndex.value + 1);
   } else {
     emit("regenerate");
   }
 }
 
-const isContenteditable = ref(false);
-const rTextElement = ref<HTMLParagraphElement | null>(null);
-const rText = ref(
-  props.update.inProgressVariant.value
-    ? ""
-    : props.update.chosenVariant?.writerUpdate.text,
-);
+const editInProgress = ref(false);
+const tempText = ref<string | undefined>();
 
-watchImmediate(
-  () => props.update.chosenVariantIndex.value,
-  () => {
-    if (!props.update.inProgressVariant.value) {
-      rText.value = props.update.chosenVariant?.writerUpdate.text;
-    }
-  },
-);
-
-watchImmediate(
-  () => props.update.inProgressVariant.value,
-  (inProgress) => {
-    if (!inProgress) {
-      rText.value = props.update.chosenVariant?.writerUpdate.text;
-    }
-  },
-);
-
-function switchContentEditable() {
-  isContenteditable.value = !isContenteditable.value;
-
-  if (isContenteditable.value) {
-    emit("beginEdit");
-    if (!rTextElement.value) {
-      console.warn("!rTextElement.value");
+watch(
+  () => editInProgress.value,
+  (editInProgress) => {
+    if (editInProgress) {
+      tempText.value = props.update.ensureChosenVariant.writerUpdate.text;
+      emit("beginEdit");
     } else {
-      rTextElement.value.focus({ preventScroll: true });
+      emit("stopEdit");
     }
-  } else {
-    emit("stopEdit");
-  }
-}
+  },
+);
 
 function onEditCommitClick() {
-  if (!rAnyChanges.value) {
-    console.warn("No changes");
+  if (!anyEditChanges.value) {
+    console.log("No changes");
+    editInProgress.value = false;
     return;
   }
 
-  emit("edit", props.update.chosenVariantIndex.value, rText.value!.trim());
-  isContenteditable.value = false;
-  emit("stopEdit");
+  emit("edit", props.update.chosenVariantIndex.value, tempText.value!.trim());
+  editInProgress.value = false;
 }
 
-function onEditCancelClick() {
-  rText.value = props.update.ensureChosenVariant.writerUpdate.text;
-  isContenteditable.value = false;
-  rTextElement.value!.textContent = rText.value;
-  emit("stopEdit");
-}
-
-const rAnyChanges = computed(
+const anyEditChanges = computed(
   () =>
-    rText.value?.trim() !==
+    tempText.value?.trim() !==
     props.update.chosenVariant?.writerUpdate.text.trim(),
 );
 
@@ -156,20 +124,12 @@ const character = computed(() => {
   }
 });
 
-const characterPfpUrl = asyncComputed(() =>
-  characterId.value
-    ? props.simulation.scenario.getCharacterPfpUrl(characterId.value)
-    : undefined,
-);
-
 const clock = computed(() => {
   if (props.update.inProgressVariant.value) {
     return props.update.inProgressVariant.value.clockString;
   } else {
     const minutes = props.update.chosenVariant?.writerUpdate.simulationDayClock;
-    return minutes
-      ? `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`
-      : "";
+    return tap(minutes, minutesToClock);
   }
 });
 
@@ -249,11 +209,10 @@ async function tts() {
   .flex.items-center.justify-between.gap-2
     .flex.items-center.gap-1
       template(v-if="character")
-        img.aspect-square.h-5.rounded.border.object-cover(
-          v-if="characterPfpUrl"
-          :src="characterPfpUrl"
+        CharacterPfp.aspect-square.h-5.rounded.border(
+          :scenario="props.simulation.scenario"
+          :character
         )
-        Placeholder.aspect-square.h-5.rounded.border(v-else)
         span.font-semibold.leading-none(:style="{ color: character.color }") {{ character.name }}
       template(v-else-if="character === null")
         span.font-semibold.leading-none Narrator
@@ -267,11 +226,15 @@ async function tts() {
       span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
 
       //- TTS.
-      button.btn-pressable(@click.stop="tts" :disabled="ttsInProgress")
+      button.btn-pressable(
+        v-if="!editInProgress"
+        @click.stop="tts"
+        :disabled="ttsInProgress"
+      )
         Loader2Icon.animate-spin(:size="20" v-if="ttsInProgress")
         Volume2Icon(:size="20" v-else)
 
-      .flex.items-center.gap-1
+      .flex.items-center.gap-1(v-if="!editInProgress")
         button.btn-pressable(
           :class="{ 'text-success-500': update.chosenVariant?.writerUpdate.preference === true }"
           @click="prefer(true)"
@@ -288,55 +251,54 @@ async function tts() {
 
       //- Variant navigation.
       .flex.items-center.gap-1(
-        v-if="showVariantNavigation && !update.chosenVariant?.writerUpdate.episodeId && !isContenteditable"
+        v-if="!editInProgress && showVariantNavigation && !update.chosenVariant?.writerUpdate.episodeId && !editInProgress"
       )
+        //- Go to previous variant.
+        //- Disabled if in-progress or at the first variant.
         button.transition-transform.pressable(
           @click.stop="onClickPreviousVariant"
+          :disabled="!!update.inProgressVariant.value || update.chosenVariantIndex.value === 0"
         )
           CircleChevronLeft(:size="18")
+
+        //- Variant index.
         span.leading-none(v-if="update.inProgressVariant.value") {{ update.variants.value.length + 1 }} / {{ update.variants.value.length + 1 }}
         span.leading-none(v-else) {{ update.chosenVariantIndex.value + 1 }} / {{ update.variants.value.length }}
-        button.transition-transform.pressable(@click.stop="onClickNextVariant")
+
+        //- Go to next variant.
+        //- If at the latest variant, regenerate.
+        //- Disabled if in-progress.
+        button.transition-transform.pressable(
+          @click.stop="onClickNextVariant"
+          :disabled="!!update.inProgressVariant.value"
+        )
           CircleChevronRight(:size="18")
 
       //- Edit.
       .flex(
         v-if="canEdit && !update.chosenVariant?.writerUpdate.episodeId && !update.inProgressVariant.value"
       )
-        button(@click.stop="switchContentEditable")
+        button(v-if="!editInProgress" @click.stop="editInProgress = true")
           Edit3Icon(:size="20")
 
+        template(v-else)
+          button.btn-pressable(@click.stop="onEditCommitClick")
+            CheckIcon(:size="20")
+
+          button(@click.stop="editInProgress = false")
+            XIcon(:size="20")
+
   //- Text.
-  p.leading-snug(:class="{ 'h-full overflow-y-scroll': isSingle }")
-    template(v-if="update.inProgressVariant.value")
-      p
-        | {{ update.inProgressVariant.value.text }}
-        span.-my-1.inline-block.h-5.w-2.animate-pulse.bg-black(
-          style="animation-duration: 500ms"
-        )
-    template(v-else-if="update.variants.value.length")
-      Contenteditable.leading-snug(
-        tag="p"
-        ref="rTextElement"
-        v-model="rText"
-        :contenteditable="isContenteditable"
-        :no-nl="true"
-        :no-html="true"
-        :class="{ 'font-mono bg-neutral-200 rounded p-2': isContenteditable }"
-        @returned="onEditCommitClick"
+  div(:class="{ 'h-full overflow-y-scroll': isSingle }")
+    p.leading-snug(v-if="update.inProgressVariant.value")
+      span.-my-1.inline-block.h-5.w-2.animate-pulse.bg-black(
+        style="animation-duration: 500ms"
       )
 
-    //- Edit.
-    .mt-2.flex.w-full.justify-center.gap-2(v-if="isContenteditable")
-      button.btn.btn-warn.btn-md.btn-pressable.rounded(
-        @click.stop="onEditCancelClick"
-      )
-        CircleSlashIcon(:size="20")
-        span Cancel edit
-      button.btn.btn-success.btn-md.btn-pressable.rounded(
-        @click.stop="onEditCommitClick"
-        :disabled="!rAnyChanges || !rText?.trim()"
-      )
-        CircleCheckIcon(:size="20")
-        span Commit change
+    textarea.mt-1.h-full.w-full.rounded-lg.bg-neutral-100.px-2.py-1.font-mono.text-sm.leading-snug(
+      v-else-if="editInProgress"
+      v-model="tempText"
+    )
+
+    p(v-else-if="update.chosenVariant?.writerUpdate") {{ update.chosenVariant.writerUpdate.text }}
 </template>

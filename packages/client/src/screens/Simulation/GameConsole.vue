@@ -21,7 +21,7 @@ import {
   SquareSigmaIcon,
   UndoDotIcon,
 } from "lucide-vue-next";
-import { computed, ref } from "vue";
+import { computed, ref, triggerRef } from "vue";
 import SettingsModal from "@/components/SettingsModal.vue";
 import VisualizeModal from "./GameConsole/VisualizeModal.vue";
 import UpdateVue from "./Update.vue";
@@ -260,6 +260,7 @@ async function onUpdateVariantEdit(
 
   try {
     await simulation.editUpdateVariant(variant, newText);
+    triggerRef(update.variants);
   } finally {
     busy.value = false;
   }
@@ -541,7 +542,7 @@ function enableOnlyCharacter(characterId: string) {
             SquareSigmaIcon(
               v-else
               :size="20"
-              class="group-hover:text-ai-500 group-hover:animate-pulse"
+              class="group-hover:animate-pulse group-hover:text-ai-500"
             )
 
   SettingsModal(
@@ -573,7 +574,7 @@ function enableOnlyCharacter(characterId: string) {
   @apply opacity-90 transition-opacity hover:opacity-100 focus:opacity-100;
 
   &::-webkit-progress-value {
-    @apply from-ai-600 to-ai-500 bg-gradient-to-t;
+    @apply bg-gradient-to-t from-ai-600 to-ai-500;
   }
 
   &::-webkit-progress-bar {
