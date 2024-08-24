@@ -56,7 +56,7 @@ function llmStatusText(llmDriver: BaseLlmDriver | null): string | undefined {
     }
 
     if (llmDriver.progress.value) {
-      const percentage = Math.round((llmDriver.progress.value * 100) / 100);
+      const percentage = Math.round(llmDriver.progress.value * 100);
       text += ` (${percentage}%)`;
     }
 
@@ -133,7 +133,7 @@ const voicerStatusText = computed<string | undefined>(() => {
 
         if (simulation.voicerJob.value.progress.value !== undefined) {
           const percentage = Math.round(
-            (simulation.voicerJob.value.progress.value * 100) / 100,
+            simulation.voicerJob.value.progress.value * 100,
           );
           text += ` (${percentage}%)`;
         }
