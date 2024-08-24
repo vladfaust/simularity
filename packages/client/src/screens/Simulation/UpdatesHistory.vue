@@ -8,7 +8,6 @@ import UpdateVue from "./Update.vue";
 
 const { simulation } = defineProps<{
   simulation: Simulation;
-  assetBaseUrl?: URL;
 }>();
 
 const emit = defineEmits<{
@@ -30,55 +29,67 @@ const isEditingMap = ref(new Map<number, boolean>());
 
 // Top infinite scroll (historical updates).
 const topScrollIsLoading = ref(false);
+let topScrollLoadPromise: Promise<void> | undefined;
 useInfiniteScroll(
   scrollContainer,
   async () => {
     if (
       !topScrollIsLoading.value &&
+      !topScrollLoadPromise &&
       simulation.canLoadMoreHistoricalUpdates.value
     ) {
       console.log("Loading more historical updates");
 
       try {
         topScrollIsLoading.value = true;
-        await minDelay(
+        await (topScrollLoadPromise ||= minDelay(
           simulation.loadMoreHistoricalUpdates(INFINITE_LOAD_LIMIT),
           INFINITE_LOAD_DELAY,
-        );
+        ));
       } finally {
+        topScrollLoadPromise = undefined;
         topScrollIsLoading.value = false;
       }
     }
   },
   {
     direction: "top",
+    throttle: 500,
+    interval: 500,
+    canLoadMore: () => simulation.canLoadMoreHistoricalUpdates.value,
   },
 );
 
 // Bottom infinite scroll (future updates).
 const bottomScrollIsLoading = ref(false);
+let bottomScrollLoadPromise: Promise<void> | undefined;
 useInfiniteScroll(
   scrollContainer,
   async () => {
     if (
       !bottomScrollIsLoading.value &&
+      !bottomScrollLoadPromise &&
       simulation.canLoadMoreFutureUpdates.value
     ) {
       console.log("Loading more future updates");
 
       try {
         bottomScrollIsLoading.value = true;
-        await minDelay(
+        await (bottomScrollLoadPromise ||= minDelay(
           simulation.loadMoreFutureUpdates(INFINITE_LOAD_LIMIT),
           INFINITE_LOAD_DELAY,
-        );
+        ));
       } finally {
+        bottomScrollLoadPromise = undefined;
         bottomScrollIsLoading.value = false;
       }
     }
   },
   {
     direction: "bottom",
+    throttle: 500,
+    interval: 500,
+    canLoadMore: () => simulation.canLoadMoreFutureUpdates.value,
   },
 );
 
@@ -125,7 +136,6 @@ onMounted(() => {
     UpdateVue(
       :simulation
       :update
-      :asset-base-url
       :can-regenerate="true"
       :can-edit="true"
       :show-variant-navigation="true"
