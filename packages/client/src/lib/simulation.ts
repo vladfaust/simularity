@@ -2174,28 +2174,29 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       | undefined,
     inferenceAbortSignal?: AbortSignal,
   ) {
-    // The logic here is to iterate through the updates in reverse order,
-    // putting those having null director update into the incoming updates,
-    // otherwise into the historical updates. Would stop when the limit is reached.
-    // Also, we only enrich incoming updates until we meet the first
-    // historical update (i.e. with a director update set).
-    //
-
-    const incomingUpdates: SimpleUpdate[] = [];
+    const directorIncomingUpdates: SimpleUpdate[] = [];
 
     if (incomingWriterUpdate) {
-      incomingUpdates.push(incomingWriterUpdate);
+      directorIncomingUpdates.push(incomingWriterUpdate);
     }
 
-    const maxHistoricalUpdates = 10;
-    const historicalUpdates: Update[] = [];
+    /** In addition to recent updates. */
+    const maxHistoricalUpdates = 5;
 
-    for (
-      let i = this.updates.value.length - 2;
-      i >= 0 && historicalUpdates.length < maxHistoricalUpdates;
-      i--
-    ) {
-      const variant = this.updates.value[i].ensureChosenVariant;
+    // Merge N top latest historical updates with all the recent updates.
+    const candidates = [
+      ...this._historicalUpdates.value.slice(-1, -1 - maxHistoricalUpdates),
+
+      // The last recent update is the current one, do not include it.
+      ...this._recentUpdates.value.slice(0, -1),
+    ];
+
+    const directorHistoricalUpdates: Update[] = [];
+
+    // We're using reverse to add any director-less updates to the incoming
+    // updates until a director-full update is found.
+    for (const candidate of candidates.reverse()) {
+      const variant = candidate.ensureChosenVariant;
 
       if (variant.directorUpdate === undefined) {
         console.debug(
@@ -2208,18 +2209,18 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         );
       }
 
-      if (historicalUpdates.length) {
+      if (directorHistoricalUpdates.length) {
         // We already have historical updates, so all the upcoming updates
         // are forced to be historical as well.
-        historicalUpdates.unshift(this.updates.value[i]);
+        directorHistoricalUpdates.unshift(candidate);
       } else if (variant.directorUpdate) {
         // This one has a director update, therefore
         // it belongs to the historical updates.
-        historicalUpdates.unshift(this.updates.value[i]);
+        directorHistoricalUpdates.unshift(candidate);
       } else {
         // We've confirmed that this update's director update
         // is null, so it goes to the incoming updates.
-        incomingUpdates.unshift({
+        directorIncomingUpdates.unshift({
           characterId: variant.writerUpdate.characterId,
           text: variant.writerUpdate.text,
         });
@@ -2228,10 +2229,10 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
 
     // Finally, ensure that all historical updates have their states set,
     // so that the director can serialize those states.
-    await this._ensureUpdateStates(historicalUpdates);
+    await this._ensureUpdateStates(directorHistoricalUpdates);
 
     return this.director.inferUpdate(
-      historicalUpdates.map((update) => {
+      directorHistoricalUpdates.map((update) => {
         const variant = update.ensureChosenVariant;
 
         return {
@@ -2246,7 +2247,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       }),
 
       this.state.serialize(),
-      incomingUpdates,
+      directorIncomingUpdates,
 
       256,
       { temp: 0.5 },
