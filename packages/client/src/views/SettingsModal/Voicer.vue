@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CharacterPfp from "@/components/CharacterPfp.vue";
 import Toggle from "@/components/Toggle.vue";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
@@ -12,7 +13,6 @@ import {
   PersonStandingIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
-import CharacterPfp from "../CharacterPfp.vue";
 import RemoteModelSettings from "./Voicer/RemoteModelSettings.vue";
 
 const { simulation } = defineProps<{

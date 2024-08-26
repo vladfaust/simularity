@@ -4,19 +4,17 @@ import {
   type RouteLocationNamedRaw,
   type RouteRecordRaw,
 } from "vue-router";
-import ChooseScenario from "../screens/ChooseScenario.vue";
-import LoadSimulations from "../screens/LoadSimulations.vue";
-import MainMenu from "../screens/MainMenuScreen.vue";
-import NewGame from "../screens/NewGame.vue";
-import Settings from "../screens/Settings.vue";
-import Shutdown from "../screens/Shutdown.vue";
-import Simulation from "../screens/Simulation.vue";
+import ChooseScenario from "./views/ChooseScenario.vue";
+import LoadSimulations from "./views/LoadSimulations.vue";
+import MainMenu from "./views/MainMenu.vue";
+import NewGame from "./views/NewGame.vue";
+import Shutdown from "./views/Shutdown.vue";
+import Simulation from "./views/Simulation.vue";
 
 export type RouteName =
   | "MainMenu"
   | "ChooseScenario"
   | "NewGame"
-  | "Settings"
   | "LoadSimulations"
   | "Simulation"
   | "Shutdown";
@@ -26,7 +24,6 @@ export function routeLocation(
     | { name: "MainMenu" }
     | { name: "ChooseScenario" }
     | { name: "NewGame"; params: { scenarioId: string } }
-    | { name: "Settings" }
     | { name: "LoadSimulations" }
     | { name: "Simulation"; params: { simulationId: string } }
     | { name: "Shutdown" },
@@ -50,11 +47,6 @@ const routes: Array<RouteRecordRaw> = [
     name: "NewGame" satisfies RouteName,
     component: NewGame,
     props: true,
-  },
-  {
-    path: "/settings",
-    name: "Settings" satisfies RouteName,
-    component: Settings,
   },
   {
     path: "/simulations/load",

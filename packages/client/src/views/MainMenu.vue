@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { BookMarkedIcon, BookOpenIcon, SettingsIcon } from "lucide-vue-next";
+import { routeLocation } from "@/router";
+import { BookMarkedIcon, BookOpenIcon } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
-import { routeLocation } from "../lib/router";
 </script>
 
 <template lang="pug">
@@ -17,11 +17,6 @@ import { routeLocation } from "../lib/router";
     )
       BookMarkedIcon(:size="20")
       span Load game
-    RouterLink.btn-md.btn.transition-transform.pressable(
-      :to="routeLocation({ name: 'Settings' })"
-    )
-      SettingsIcon(:size="20")
-      span Settings
 </template>
 
 <style lang="scss" scoped>

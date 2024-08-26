@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import router, { routeLocation } from "@/lib/router";
+import router, { routeLocation } from "@/router";
 import { Simulation } from "@/lib/simulation";
 import { DefaultScene } from "@/lib/simulation/phaser/defaultScene";
 import { Game } from "@/lib/simulation/phaser/game";

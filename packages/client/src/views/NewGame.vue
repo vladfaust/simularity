@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Placeholder from "@/components/Placeholder.vue";
-import { routeLocation } from "@/lib/router";
+import { routeLocation } from "@/router";
 import { Simulation } from "@/lib/simulation";
 import { readScenario, Scenario } from "@/lib/simulation/scenario";
 import { asyncComputed } from "@vueuse/core";

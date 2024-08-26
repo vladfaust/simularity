@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { routeLocation } from "@/lib/router";
+import { routeLocation } from "@/router";
 import {
   readScenarios,
   Scenario,

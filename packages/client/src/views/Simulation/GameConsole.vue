@@ -22,7 +22,7 @@ import {
   UndoDotIcon,
 } from "lucide-vue-next";
 import { computed, ref, triggerRef } from "vue";
-import SettingsModal from "@/components/SettingsModal.vue";
+import SettingsModal from "@/views/SettingsModal.vue";
 import VisualizeModal from "./GameConsole/VisualizeModal.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";

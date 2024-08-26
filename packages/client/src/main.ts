@@ -2,7 +2,7 @@ import { getMatches } from "@tauri-apps/api/cli";
 import { createApp } from "vue";
 import App from "./App.vue";
 import { migrate } from "./lib/drizzle";
-import router from "./lib/router";
+import router from "./router";
 import "./style.scss";
 
 getMatches().then((matches) => {

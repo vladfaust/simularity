@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { d } from "@/lib/drizzle";
-import { routeLocation } from "@/lib/router";
+import { routeLocation } from "@/router";
 import { desc } from "drizzle-orm";
 import { onMounted, ref } from "vue";
 import Simulation from "./LoadSimulations/Simulation.vue";
