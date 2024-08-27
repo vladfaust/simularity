@@ -256,7 +256,9 @@ onMounted(async () => {
 
         //- Details section.
         .grid.grid-cols-4.gap-2
-          .col-span-3.flex.w-full.flex-col.gap-2.rounded-lg.bg-white.p-3
+          .col-span-3.flex.w-full.flex-col.gap-2.rounded-lg.bg-white.p-3(
+            class="@container"
+          )
             CustomTitle(title="About")
               template(#icon)
                 ScrollTextIcon(:size="18")
@@ -276,14 +278,12 @@ onMounted(async () => {
                 span {{ Object.keys(scenario.characters).length }}
 
             //- Characters grid.
-            .grid.gap-2(
-              class="max-sm:grid-cols-3 max-2xs:grid-cols-2 max-3xs:grid-cols-1 sm:grid-cols-5"
-            )
+            .grid.gap-2(class="@sm:grid-cols-2")
               Character.overflow-hidden.rounded-lg.border(
                 v-for="[characterId, character] in Object.entries(scenario.characters)"
                 :key="characterId"
                 :scenario
-                :characterId
+                :character-id
                 :character
               )
 

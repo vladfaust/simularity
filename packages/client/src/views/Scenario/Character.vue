@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import Placeholder from "@/components/Placeholder.vue";
+import CharacterPfp from "@/components/CharacterPfp.vue";
 import { Scenario } from "@/lib/simulation/scenario";
-import { asyncComputed } from "@vueuse/core";
+import { CrownIcon } from "lucide-vue-next";
+import { computed } from "vue";
 
 const props = defineProps<{
   scenario: Scenario;
@@ -9,22 +10,22 @@ const props = defineProps<{
   character: Scenario["characters"][string];
 }>();
 
-const characterPfpUrl = asyncComputed(() =>
-  props.scenario.getCharacterPfpUrl(props.characterId),
+const isMainCharacter = computed(
+  () => props.scenario.defaultCharacterId === props.characterId,
 );
 </script>
 
 <template lang="pug">
-.flex.flex-col.divide-y
-  img.aspect-square.w-full.object-cover(
-    v-if="characterPfpUrl"
-    :src="characterPfpUrl"
-  )
-  Placeholder.aspect-square.w-full(v-else)
-  .flex.justify-center.px-2.py-1
-    span.text-center.font-semibold.leading-tight(
-      :style="{ color: character.color }"
-    ) {{ character.name }}
-</template>
+.flex.w-full.divide-x
+  CharacterPfp.h-24(:character :scenario class="hover:brightness-105")
 
-<style lang="scss" scoped></style>
+  .flex.w-full.flex-col.p-2
+    .flex.items-center.gap-1
+      span.font-semibold.leading-tight(:style="{ color: character.color }") {{ character.name }}
+      CrownIcon.fill-primary-500.text-primary-500(
+        v-if="isMainCharacter"
+        :size="16"
+        title="Main character"
+      )
+    p.text-sm.leading-tight {{ character.about }}
+</template>
