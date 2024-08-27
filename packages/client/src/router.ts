@@ -4,27 +4,23 @@ import {
   type RouteLocationNamedRaw,
   type RouteRecordRaw,
 } from "vue-router";
-import ChooseScenario from "./views/ChooseScenario.vue";
-import LoadSimulations from "./views/LoadSimulations.vue";
-import MainMenu from "./views/MainMenu.vue";
-import NewGame from "./views/NewGame.vue";
+import Library from "./views/Library.vue";
+import Scenario from "./views/Scenario.vue";
 import Shutdown from "./views/Shutdown.vue";
 import Simulation from "./views/Simulation.vue";
 
 export type RouteName =
-  | "MainMenu"
-  | "ChooseScenario"
-  | "NewGame"
-  | "LoadSimulations"
+  | "Home"
+  | "Library"
+  | "Scenario"
   | "Simulation"
   | "Shutdown";
 
 export function routeLocation(
   args:
-    | { name: "MainMenu" }
-    | { name: "ChooseScenario" }
-    | { name: "NewGame"; params: { scenarioId: string } }
-    | { name: "LoadSimulations" }
+    | { name: "Home" }
+    | { name: "Library" }
+    | { name: "Scenario"; params: { scenarioId: string } }
     | { name: "Simulation"; params: { simulationId: string } }
     | { name: "Shutdown" },
 ): RouteLocationNamedRaw & { name: RouteName } {
@@ -34,24 +30,25 @@ export function routeLocation(
 const routes: Array<RouteRecordRaw> = [
   {
     path: "/",
-    name: "MainMenu" satisfies RouteName,
-    component: MainMenu,
+    name: "Home" satisfies RouteName,
+    alias: "/home",
+    redirect: "/library",
   },
   {
-    path: "/choose-scenario",
-    name: "ChooseScenario" satisfies RouteName,
-    component: ChooseScenario,
-  },
-  {
-    path: "/new-game/:scenarioId",
-    name: "NewGame" satisfies RouteName,
-    component: NewGame,
-    props: true,
-  },
-  {
-    path: "/simulations/load",
-    name: "LoadSimulations" satisfies RouteName,
-    component: LoadSimulations,
+    path: "/library",
+    children: [
+      {
+        path: "",
+        name: "Library" satisfies RouteName,
+        component: Library,
+      },
+      {
+        path: ":scenarioId",
+        name: "Scenario" satisfies RouteName,
+        component: Scenario,
+        props: true,
+      },
+    ],
   },
   {
     path: "/simulations/:simulationId",

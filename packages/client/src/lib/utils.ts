@@ -1,3 +1,5 @@
+import prettyBytes from "pretty-bytes";
+
 export function throwError(...args: any[]): never {
   throw new Error(args.join(" "));
 }
@@ -265,4 +267,34 @@ export function tap<T, U>(
 export function nonNullable<T>(value: T): NonNullable<T> {
   if (!value) throw new Error("Value is null or undefined");
   return value as NonNullable<T>;
+}
+
+/**
+ * @example prettyTokens(8192) // => "8k"
+ */
+export function prettyTokens(
+  tokens: number,
+  options?: { space: boolean },
+): string {
+  return prettyBytes(tokens, { binary: true, ...options }).slice(0, -2);
+}
+
+/**
+ * Replace all matches of a regular expression with the result of an async function.
+ * @example await replaceAsync("hello world", /world/, async () => "planet") // => "hello planet"
+ */
+export async function replaceAsync(
+  str: string,
+  regex: RegExp,
+  asyncFn: (match: string, ...args: string[]) => Promise<string>,
+) {
+  const promises: Promise<string>[] = [];
+
+  str.replace(regex, (full, ...args) => {
+    promises.push(asyncFn(full, ...args));
+    return full;
+  });
+
+  const data = await Promise.all(promises);
+  return str.replace(regex, () => data.shift()!);
 }

@@ -12,16 +12,10 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
 
 <template lang="pug">
 .flex.flex-col.divide-y
-  img.aspect-square.w-full.select-none.object-cover(
+  img.w-full.select-none.object-cover.transition(
+    class="aspect-[3/4] hover:scale-105 hover:brightness-105"
     v-if="thumbnailUrl"
     :src="thumbnailUrl"
   )
-  Placeholder.aspect-square.w-full(v-else)
-
-  .flex.flex-col.gap-1.p-3
-    span.select-none.font-semibold.leading-tight.tracking-wide {{ scenario.name }}
-    p.select-none.text-sm.leading-tight {{ scenario.about }}
-    span.select-none.font-mono.text-sm.leading-tight.opacity-50 /{{ scenario.id }}
+  Placeholder.w-full(v-else class="aspect-[3/4]")
 </template>
-
-<style lang="scss" scoped></style>

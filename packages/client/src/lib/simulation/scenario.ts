@@ -60,6 +60,18 @@ const ScenarioSchema = v.object({
   coverImagePath: v.optional(v.string()),
 
   /**
+   * Scenario media files for preview.
+   */
+  media: v.optional(
+    v.array(
+      v.object({
+        type: v.literal("image"),
+        path: v.string(),
+      }),
+    ),
+  ),
+
+  /**
    * What language the scenario is defined in.
    * This is useful for language-specific models.
    */
@@ -71,14 +83,19 @@ const ScenarioSchema = v.object({
   contextWindowSize: v.pipe(v.number(), v.integer()),
 
   /**
+   * A very short description of the scenario.
+   */
+  teaser: v.string(),
+
+  /**
    * A short description of the scenario.
    */
   about: v.string(),
 
   /**
-   * A longer description of the scenario.
+   * A longer description of the scenario, Markdown-formatted.
    */
-  description: v.string(),
+  description: v.optional(v.string()),
 
   /**
    * Tell the model what the player is expecting from this scenario.
@@ -544,6 +561,18 @@ export class Scenario {
     return this.resourceUrl(this.content.coverImagePath);
   }
 
+  get media() {
+    return this.content.media ?? [];
+  }
+
+  async getMediaUrls() {
+    return this.content.media
+      ? Promise.all(
+          this.content.media?.map((media) => this.resourceUrl(media.path)),
+        )
+      : [];
+  }
+
   get language() {
     return this.content.language;
   }
@@ -710,18 +739,20 @@ export type ErroredScenario = {
 export async function readScenarios(
   scenariosDir = "scenarios",
   baseDir: BaseDirectory = BaseDirectory.AppLocalData,
-): Promise<(Scenario | ErroredScenario)[]> {
+): Promise<Scenario[]> {
   if (!(await exists(scenariosDir, { dir: baseDir }))) {
     console.log(`Creating scenarios directory at ${scenariosDir}`);
     await createDir(scenariosDir, { dir: baseDir });
   }
 
-  const scenarios: (Scenario | ErroredScenario)[] = [];
+  const scenarios: Scenario[] = [];
 
   const entries = await readDir(scenariosDir, { dir: baseDir });
   for (const entry of entries) {
     if (!entry.name || !entry.children) continue;
-    scenarios.push(await readScenario(entry.name, scenariosDir, baseDir));
+    const scenario = await readScenario(entry.name, scenariosDir, baseDir);
+    if (scenario instanceof Scenario) scenarios.push(scenario);
+    else console.error(scenario.error);
   }
 
   return scenarios;

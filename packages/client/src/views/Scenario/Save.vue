@@ -4,6 +4,7 @@ import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { asyncComputed } from "@vueuse/core";
 import { eq } from "drizzle-orm";
+import { PlayCircleIcon } from "lucide-vue-next";
 import { onMounted, ref } from "vue";
 
 const { simulationId } = defineProps<{
@@ -44,10 +45,23 @@ onMounted(() => {
 </script>
 
 <template lang="pug">
-.flex.flex-col.border
-  img.aspect-video.w-full(v-if="screenshotUrl" :src="screenshotUrl")
-  .aspect-video.w-full.bg-blue-400(v-else)
+.group.flex.flex-col
+  .relative.aspect-video.w-full.overflow-hidden
+    .absolute.z-10.flex.h-full.w-full.items-center.justify-center.transition(
+      class="group-hover:bg-black/30"
+    )
+      PlayCircleIcon.text-white.opacity-0.transition(
+        :size="32"
+        class="group-hover:opacity-100 group-hover:brightness-105"
+      )
+    img.object-cover.transition(
+      v-if="screenshotUrl"
+      :src="screenshotUrl"
+      class="group-hover:scale-105"
+    )
+    .aspect-video.w-full.bg-blue-400(v-else)
+
   .flex.p-2(v-if="simulation")
     //- FIXME: UTC is stored in the table, need to format it to local time.
-    span {{ new Date(simulation.updatedAt).toLocaleString() }}
+    span.text-sm {{ new Date(simulation.updatedAt).toLocaleString() }}
 </template>

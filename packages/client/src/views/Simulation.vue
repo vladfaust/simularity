@@ -85,7 +85,7 @@ async function screenshot(
 }
 
 function toMainMenu() {
-  router.push(routeLocation({ name: "MainMenu" }));
+  router.push(routeLocation({ name: "Home" }));
 }
 
 onMounted(async () => {
