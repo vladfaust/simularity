@@ -27,6 +27,7 @@ import * as resources from "./resources";
 import {
   Director,
   PredictionError,
+  type PredictionOptions as DirectorPredictionOptions,
   type SimpleUpdate,
 } from "./simulation/agents/director";
 import { Voicer } from "./simulation/agents/voicer";
@@ -2173,6 +2174,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         }
       | undefined,
     inferenceAbortSignal?: AbortSignal,
+    predictionOptions?: DirectorPredictionOptions,
   ) {
     const directorIncomingUpdates: SimpleUpdate[] = [];
 
@@ -2251,6 +2253,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
 
       256,
       { temp: 0.5 },
+      predictionOptions,
       (e) => {
         console.log(`Director decoding progress: ${e.progress}`);
       },
@@ -2270,9 +2273,9 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
   private async _inferUpdateVariantImpl(
     update: Update,
     recentUpdates: Update[],
-    nEval: number,
-    predictionOptions?: WriterPredictionOptions,
-    inferenceOptions?: CompletionOptions,
+    writerNEval: number,
+    writerPredictionOptions?: WriterPredictionOptions,
+    writerInferenceOptions?: CompletionOptions,
     onWriterDecodeProgress?: (event: { progress: number }) => void,
     inferenceAbortSignal?: AbortSignal,
   ): Promise<{
@@ -2298,9 +2301,9 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         this._historicalUpdates.value,
         recentUpdates,
         this.state.serialize(),
-        nEval,
-        predictionOptions,
-        inferenceOptions,
+        writerNEval,
+        writerPredictionOptions,
+        writerInferenceOptions,
         onWriterDecodeProgress,
         (e) => {
           update.inProgressVariant.value!.text += e.content;
@@ -2353,6 +2356,10 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
           const directorResponse = await this._inferDirectorUpdate(
             writerResponse,
             inferenceAbortSignal,
+            {
+              charactersAllowedToEnterTheStage:
+                writerPredictionOptions?.allowedCharacterIds,
+            },
           );
 
           console.log("Predicted director update", directorResponse);

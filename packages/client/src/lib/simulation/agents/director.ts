@@ -17,6 +17,13 @@ export type SimpleUpdate = {
   state?: StateDto;
 };
 
+export type PredictionOptions = {
+  /**
+   * If set, only these characters may be added to the stage.
+   */
+  charactersAllowedToEnterTheStage?: string[];
+};
+
 export class PredictionError extends Error {
   constructor(message: string) {
     super(message);
@@ -61,6 +68,7 @@ export class Director {
     incomingUpdates: SimpleUpdate[],
     nEval: number,
     inferenceOptions?: CompletionOptions,
+    predictionOptions?: PredictionOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
     onInferenceProgress?: (event: { content: string }) => void,
     inferenceAbortSignal?: AbortSignal,
@@ -82,11 +90,21 @@ export class Director {
 
     const prompt = `${staticPrompt}${dynamicPrompt}<|end|>\n<|assistant|>`;
 
+    // Combine explicitly allowed characters with the characters
+    // that are already on the stage to get the full set of allowed characters.
+    const allowedCharacterIdsArray =
+      predictionOptions?.charactersAllowedToEnterTheStage || [];
+    allowedCharacterIdsArray.push(
+      ...Object.keys(currentState.stage.characters),
+    );
+    const allowedCharacterIds = new Set(allowedCharacterIdsArray);
+
     const stopSequences = ["<|end|>"];
     const options: CompletionOptions = {
       grammar: Director._buildGrammar(
         this.scenario,
         this.llmDriver.value.grammarLang,
+        Array.from(allowedCharacterIds),
       ),
       stopSequences,
       ...inferenceOptions,
@@ -293,12 +311,13 @@ ${JSON.stringify(setup)}
   private static _buildGrammar(
     scenario: Scenario,
     lang: LlmGrammarLang,
+    allowedCharacterIds: string[],
   ): string {
     switch (lang) {
       case LlmGrammarLang.Gnbf:
-        return Director._buildGrammarGnbf(scenario);
+        return Director._buildGrammarGnbf(scenario, allowedCharacterIds);
       case LlmGrammarLang.Regex:
-        return Director._buildGrammarRegex();
+        return Director._buildGrammarRegex(scenario, allowedCharacterIds);
       default:
         throw unreachable(lang);
     }
@@ -308,7 +327,10 @@ ${JSON.stringify(setup)}
    * Build a GNBF grammar to constrain director output.
    * @see https://github.com/ggerganov/llama.cpp/blob/master/grammars/README.md.
    */
-  private static _buildGrammarGnbf(scenario: Scenario): string {
+  private static _buildGrammarGnbf(
+    scenario: Scenario,
+    allowedCharacterIds: string[],
+  ): string {
     const rules: Record<string, string> = {};
 
     rules["scene-id"] = `${Object.keys(scenario.scenes)
@@ -317,7 +339,7 @@ ${JSON.stringify(setup)}
 
     for (const [characterId, character] of Object.entries(
       scenario.characters,
-    )) {
+    ).filter(([characterId]) => allowedCharacterIds.includes(characterId))) {
       const outfitIds = Object.keys(character.outfits)
         .map((id) => `"\\"${id}\\""`)
         .join("|");
@@ -331,6 +353,7 @@ ${JSON.stringify(setup)}
     }
 
     rules["character"] = Object.keys(scenario.characters)
+      .filter((charactedId) => allowedCharacterIds.includes(charactedId))
       .map((characterId) => `character-${characterId}`)
       .join("|");
 
@@ -346,7 +369,10 @@ ${JSON.stringify(setup)}
    * Build a Regex grammar to constrain director output.
    * @see https://outlines-dev.github.io/outlines/reference/regex.
    */
-  private static _buildGrammarRegex(): string {
+  private static _buildGrammarRegex(
+    scenario: Scenario,
+    allowedCharacterIds: string[],
+  ): string {
     throw new Error("Not implemented");
   }
 }
