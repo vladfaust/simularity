@@ -9,7 +9,7 @@ import { prettyTokens, replaceAsync } from "@/lib/utils";
 import { routeLocation } from "@/router";
 import { VueMarkdownIt } from "@f3ve/vue-markdown-it";
 import { asyncComputed } from "@vueuse/core";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import {
   ArrowLeftIcon,
   BrainCircuitIcon,
@@ -22,12 +22,15 @@ import {
   PlayCircleIcon,
   ProportionsIcon,
   ScrollTextIcon,
+  Trash2Icon,
 } from "lucide-vue-next";
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import Character from "./Scenario/Character.vue";
 import Episode from "./Scenario/Episode.vue";
 import Save from "./Scenario/Save.vue";
+import { shallowRef } from "vue";
+import * as resources from "@/lib/resources";
 
 const router = useRouter();
 
@@ -70,7 +73,7 @@ const thumbnailUrl = asyncComputed(() => scenario.value?.getThumbnailUrl());
 const coverImageUrl = asyncComputed(() => scenario.value?.getCoverImageUrl());
 const currentMediaIndex = ref(0);
 const mediaUrls = asyncComputed(() => scenario.value?.getMediaUrls());
-const saves = ref<Pick<typeof d.simulations.$inferSelect, "id">[]>([]);
+const saves = shallowRef<Pick<typeof d.simulations.$inferSelect, "id">[]>([]);
 const showSaves = ref(false);
 
 async function play(episodeId?: string) {
@@ -82,6 +85,27 @@ async function play(episodeId?: string) {
       params: { simulationId },
     }),
   );
+}
+
+async function deleteSave(simulationId: string) {
+  if (
+    !(await resources.confirm_("Are you sure you want to delete this save?", {
+      title: "Delete save",
+      okLabel: "Delete",
+      type: "info",
+    }))
+  ) {
+    console.log("Cancelled delete save", simulationId);
+    return;
+  }
+
+  console.log("Deleting save", simulationId);
+  await d.db
+    .update(d.simulations)
+    .set({ deletedAt: new Date() })
+    .where(eq(d.simulations.id, simulationId));
+
+  saves.value = saves.value.filter((s) => s.id !== simulationId);
 }
 
 onMounted(async () => {
@@ -97,7 +121,10 @@ onMounted(async () => {
   saves.value = await d.db.query.simulations.findMany({
     columns: { id: true },
     orderBy: desc(d.simulations.updatedAt),
-    where: eq(d.simulations.scenarioId, props.scenarioId),
+    where: and(
+      eq(d.simulations.scenarioId, props.scenarioId),
+      isNull(d.simulations.deletedAt),
+    ),
   });
 });
 </script>
@@ -210,12 +237,21 @@ onMounted(async () => {
             ul.grid.grid-cols-4.gap-2.overflow-y-scroll.rounded-lg.bg-neutral-100.p-3.shadow-inner(
               :class="{ hidden: !showSaves }"
             )
-              li(v-for="simulation of saves")
+              li.relative(v-for="simulation of saves")
+                //- Delete button.
+                .absolute.-right-1.-top-1.z-20
+                  button.btn.rounded.bg-white.p-1.shadow.transition.pressable(
+                    @click.stop="deleteSave(simulation.id)"
+                    class="hover:text-red-500"
+                  )
+                    Trash2Icon(:size="16")
+
                 RouterLink(
                   :to="routeLocation({ name: 'Simulation', params: { simulationId: simulation.id } })"
                 )
                   Save.overflow-hidden.rounded-lg.bg-white.shadow-lg.transition-transform.pressable(
                     :simulation-id="simulation.id"
+                    :key="simulation.id"
                   )
 
         //- Details section.
