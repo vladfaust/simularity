@@ -100,7 +100,7 @@ export class Director {
     const allowedCharacterIdsArray =
       predictionOptions?.charactersAllowedToEnterTheStage || [];
     allowedCharacterIdsArray.push(
-      ...Object.keys(currentState.stage.characters),
+      ...currentState.stage.characters.map((c) => c.id),
     );
     const allowedCharacterIds = new Set(allowedCharacterIdsArray);
 

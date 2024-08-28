@@ -103,7 +103,6 @@ const sendButtonState = computed<SendButtonState>(() => {
 
 const showSettingsModal = ref(false);
 
-// FIXME: Sometimes, it's `"miku" | "semyon" | "0" | "1" | "0" | "1"`.
 const enabledCharacterIds = useLocalStorage<string[]>(
   `simulation:${simulation.id}:enabledCharacterIds`,
   [...Object.keys(simulation.scenario.characters), NARRATOR],
