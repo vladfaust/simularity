@@ -102,7 +102,9 @@ const sendButtonState = computed<SendButtonState>(() => {
 });
 
 const showSettingsModal = ref(false);
-const enabledCharacterIds = useLocalStorage(
+
+// FIXME: Sometimes, it's `"miku" | "semyon" | "0" | "1" | "0" | "1"`.
+const enabledCharacterIds = useLocalStorage<string[]>(
   `simulation:${simulation.id}:enabledCharacterIds`,
   [...Object.keys(simulation.scenario.characters), NARRATOR],
 );
@@ -305,8 +307,10 @@ function switchEnabledCharacter(characterId: string) {
   const index = enabledCharacterIds.value.indexOf(characterId);
 
   if (index === -1) {
+    console.debug("Enabling character", characterId);
     enabledCharacterIds.value.push(characterId);
   } else {
+    console.debug("Disabling character", characterId);
     enabledCharacterIds.value.splice(index, 1);
   }
 }
@@ -317,6 +321,7 @@ function enableOnlyCharacter(characterId: string) {
     enabledCharacterIds.value.length === 1 &&
     enabledCharacterIds.value[0] === characterId
   ) {
+    console.debug("Disabling all characters except", characterId);
     enabledCharacterIds.value = [
       ...Object.keys(simulation.scenario.characters).filter(
         (id) => id !== characterId,
@@ -325,6 +330,7 @@ function enableOnlyCharacter(characterId: string) {
     ];
   } else {
     // Otherwise, enable only the selected character.
+    console.debug("Enabling only character", characterId);
     enabledCharacterIds.value = [characterId];
   }
 }
