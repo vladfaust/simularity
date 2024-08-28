@@ -29,25 +29,25 @@ const isEditingMap = ref(new Map<number, boolean>());
 
 // Top infinite scroll (historical updates).
 const topScrollIsLoading = ref(false);
-let topScrollLoadPromise: Promise<void> | undefined;
 useInfiniteScroll(
   scrollContainer,
   async () => {
     if (
       !topScrollIsLoading.value &&
-      !topScrollLoadPromise &&
       simulation.canLoadMoreHistoricalUpdates.value
     ) {
       console.log("Loading more historical updates");
 
       try {
         topScrollIsLoading.value = true;
-        await (topScrollLoadPromise ||= minDelay(
+        await minDelay(
           simulation.loadMoreHistoricalUpdates(INFINITE_LOAD_LIMIT),
           INFINITE_LOAD_DELAY,
-        ));
+        );
+      } catch (e: any) {
+        console.error("Error loading more historical updates", e);
+        throw e;
       } finally {
-        topScrollLoadPromise = undefined;
         topScrollIsLoading.value = false;
       }
     }
@@ -62,25 +62,22 @@ useInfiniteScroll(
 
 // Bottom infinite scroll (future updates).
 const bottomScrollIsLoading = ref(false);
-let bottomScrollLoadPromise: Promise<void> | undefined;
 useInfiniteScroll(
   scrollContainer,
   async () => {
-    if (
-      !bottomScrollIsLoading.value &&
-      !bottomScrollLoadPromise &&
-      simulation.canLoadMoreFutureUpdates.value
-    ) {
+    if (!bottomScrollIsLoading.value && simulation.nextUpdateId.value) {
       console.log("Loading more future updates");
 
       try {
         bottomScrollIsLoading.value = true;
-        await (bottomScrollLoadPromise ||= minDelay(
+        await minDelay(
           simulation.loadMoreFutureUpdates(INFINITE_LOAD_LIMIT),
           INFINITE_LOAD_DELAY,
-        ));
+        );
+      } catch (e: any) {
+        console.error("Error loading more future updates", e);
+        throw e;
       } finally {
-        bottomScrollLoadPromise = undefined;
         bottomScrollIsLoading.value = false;
       }
     }
@@ -89,7 +86,7 @@ useInfiniteScroll(
     direction: "bottom",
     throttle: 500,
     interval: 500,
-    canLoadMore: () => simulation.canLoadMoreFutureUpdates.value,
+    canLoadMore: () => !!simulation.nextUpdateId.value,
   },
 );
 

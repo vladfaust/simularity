@@ -165,16 +165,19 @@ export class Simulation {
   });
 
   /**
-   * Whether the simulation can load more future updates.
+   * The `nextUpdateId` value of the latest fetched update.
+   * If `null`, the simulation is at the very latest update.
+   * If `undefined`, the `nextUpdateId` is not known.
    */
-  readonly canLoadMoreFutureUpdates = computed(() => {
-    const nextUpdateId = (
-      this._futureUpdates.value.length
-        ? this._futureUpdates.value
-        : this._recentUpdates.value
-    ).at(-1)?.chosenVariant?.writerUpdate.nextUpdateId;
+  readonly nextUpdateId = computed(() => {
+    const latestUpdate = this.updates.value.at(-1);
 
-    return typeof nextUpdateId === "string";
+    if (latestUpdate?.inProgressVariant.value) {
+      // The latest update is in progress, therefore the next update is unknown.
+      return null;
+    } else {
+      return latestUpdate?.chosenVariant?.writerUpdate.nextUpdateId;
+    }
   });
 
   /**
@@ -1156,16 +1159,12 @@ export class Simulation {
    * @throws If {@link canLoadMoreFutureUpdates} is false.
    */
   async loadMoreFutureUpdates(limit: number) {
-    if (!this.canLoadMoreFutureUpdates.value) {
+    if (!this.nextUpdateId.value) {
       throw new Error("Cannot load more future updates");
     }
 
-    const nextUpdateId =
-      this._futureUpdates.value.at(-1)!.ensureChosenVariant.writerUpdate
-        .nextUpdateId!;
-
     const updates = await Simulation._fetchWriterUpdateDescendants(
-      nextUpdateId,
+      this.nextUpdateId.value,
       limit,
     ).then((updates) =>
       Promise.all(updates.map((u) => Simulation._createUpdate(u, true))),
