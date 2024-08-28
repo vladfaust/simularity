@@ -83,7 +83,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
       leave-from="opacity-100"
       leave-to="opacity-0"
     )
-      DialogPanel.flex.max-h-full.w-full.max-w-3xl.flex-col.overflow-y-hidden.rounded-xl.bg-white.shadow-lg
+      DialogPanel.flex.h-full.w-full.max-w-3xl.flex-col.overflow-y-hidden.rounded-xl.bg-white.shadow-lg
         .flex.items-center.justify-between.gap-2.border-b.p-3
           h1.flex.shrink-0.items-center.gap-1
             SettingsIcon.inline-block(:size="20" class="hover:animate-spin")
@@ -134,7 +134,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
               span Voicer
 
           .col-span-3.h-full.overflow-y-scroll
-            .h-full(style="min-height: 32rem")
+            .h-full
               //- General tab.
               General(v-if="tab === Tab.General" :simulation)
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Alert from "@/components/Alert.vue";
 import CharacterPfp from "@/components/CharacterPfp.vue";
 import Toggle from "@/components/Toggle.vue";
 import { Simulation } from "@/lib/simulation";
@@ -9,7 +10,6 @@ import {
   CircleHelpIcon,
   GlobeIcon,
   HardDriveIcon,
-  InfoIcon,
   PersonStandingIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
@@ -48,9 +48,8 @@ const selectedModelId = computed<string | undefined>({
 
 <template lang="pug">
 .flex.flex-col.gap-2.p-3
-  .flex.gap-2.rounded-b-lg.rounded-tr-lg.border.p-2
-    InfoIcon.shrink-0(:size="20")
-    p.text-sm.leading-tight Voicer is an optional TTS (Text-to-Speech) agent which gives voice to the characters. It can be enabled or disabled at any time.
+  Alert(type="info")
+    | Voicer is an optional TTS (Text-to-Speech) agent which gives voice to the characters. It can be enabled or disabled at any time.
 
   //- Enable or disable the voicer agent.
   .flex.items-center.justify-between.gap-2

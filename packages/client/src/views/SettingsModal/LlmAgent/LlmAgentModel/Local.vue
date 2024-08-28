@@ -235,7 +235,9 @@ onMounted(async () => {
       :selected="false"
     )
 
-  .flex.flex-col.p-2(v-if="driverConfig?.type === 'local' && selectedModel")
+  .flex.flex-col.gap-2.p-2(
+    v-if="driverConfig?.type === 'local' && selectedModel"
+  )
     .flex.items-center.justify-between
       .flex.shrink-0.items-center.gap-1
         ProportionsIcon(:size="18" :stroke-width="2.5")
@@ -246,4 +248,9 @@ onMounted(async () => {
         v-model="driverConfig.contextSize"
         :max="selectedModel.contextSize"
       )
+    slot(
+      name="context-size-help"
+      :context-size="driverConfig.contextSize"
+      :max-context-size="selectedModel.contextSize"
+    )
 </template>

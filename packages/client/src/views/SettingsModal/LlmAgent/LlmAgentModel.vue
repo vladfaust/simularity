@@ -56,6 +56,12 @@ const driverType = ref<storage.llm.LlmDriverConfig["type"]>(
         :agent-id
         v-model:driver-config="driverConfig"
       )
+        template(#context-size-help="{ contextSize, maxContextSize }")
+          slot(
+            name="context-size-help"
+            :context-size="contextSize"
+            :max-context-size="maxContextSize"
+          )
 
       //- Remote driver.
       RemoteSettings(
