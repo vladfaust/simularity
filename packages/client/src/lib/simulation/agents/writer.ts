@@ -45,19 +45,31 @@ export type VisualizationOptions = {
 type Checkpoint = Pick<typeof d.checkpoints.$inferSelect, "summary" | "state">;
 
 export class Writer {
-  readonly contextSize = computed(() => this.llmDriver.value?.contextSize);
+  readonly contextSize = computed(() =>
+    this.llmDriver.value?.contextSize
+      ? this.llmDriver.value?.contextSize - this.hiddenContextSizeBuffer
+      : undefined,
+  );
   readonly contextLength = ref<number | undefined>();
   readonly llmDriver: ShallowRef<BaseLlmDriver | null>;
   readonly ready = computed(() => this.llmDriver.value?.ready.value);
   private readonly _driverConfigWatchStopHandle: () => void;
 
-  constructor(private scenario: Scenario) {
+  /**
+   * @param hiddenContextSizeBuffer Additional context size for tasks
+   * (only applicable to local models).
+   */
+  constructor(
+    private scenario: Scenario,
+    private readonly hiddenContextSizeBuffer = 1024,
+  ) {
     this.llmDriver = shallowRef(null);
 
     this._driverConfigWatchStopHandle = hookLlmAgentToDriverRef(
       "writer",
       this.llmDriver,
       () => Writer.buildStaticPrompt(scenario),
+      (contextSize) => contextSize + hiddenContextSizeBuffer,
     );
   }
 

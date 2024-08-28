@@ -3,18 +3,23 @@ import { RemoteLlmDriver } from "@/lib/ai/llm/RemoteLlmDriver";
 import { TauriLlmDriver } from "@/lib/ai/llm/TauriLlmDriver";
 import * as storage from "@/lib/storage";
 import type { LlmAgentId } from "@/lib/storage/llm";
-import { unreachable } from "@/lib/utils";
+import { clone, unreachable } from "@/lib/utils";
 import { watchImmediate } from "@vueuse/core";
 import type { ShallowRef, WatchStopHandle } from "vue";
 
 /**
  * Hooks an LLM agent to a driver reference.
+ *
+ * @param contextSizeModifier A function to modify the context size
+ * (only for local drivers).
+ *
  * @returns A watch stop handle.
  */
 export function hookLlmAgentToDriverRef(
   agent: LlmAgentId,
   driverRef: ShallowRef<BaseLlmDriver | null>,
   initialPromptBuilder: () => string,
+  contextSizeModifier?: (contextSize: number) => number,
 ): WatchStopHandle {
   const driverConfig = storage.llm.useDriverConfig(agent);
   const latestSession = storage.llm.useLatestSession(agent);
@@ -23,6 +28,15 @@ export function hookLlmAgentToDriverRef(
     () => driverConfig.value,
     async (driverConfig) => {
       console.debug("Driver config watch trigger", agent, driverConfig);
+
+      if (contextSizeModifier && driverConfig?.type === "local") {
+        // Clone the driver config to prevent reactivity issues.
+        driverConfig = clone(driverConfig);
+
+        driverConfig.contextSize = contextSizeModifier(
+          driverConfig.contextSize,
+        );
+      }
 
       if (driverConfig) {
         if (driverRef.value) {
