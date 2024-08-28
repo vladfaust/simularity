@@ -21,7 +21,9 @@ import {
 import { ref } from "vue";
 import Director from "./SettingsModal/Director.vue";
 import General from "./SettingsModal/General.vue";
+import LlmStatusIcon from "./SettingsModal/LlmAgent/StatusIcon.vue";
 import Voicer from "./SettingsModal/Voicer.vue";
+import VoicerStatusIcon from "./SettingsModal/Voicer/StatusIcon.vue";
 import Writer from "./SettingsModal/Writer.vue";
 
 enum Tab {
@@ -60,7 +62,7 @@ const tempTtsConfig = ref<TtsConfig>(
 function onClose() {
   writerConfig.value = tempWriterConfig.value;
   directorConfig.value = tempDirectorConfig.value;
-  storage.tts.ttsConfig.value = tempTtsConfig.value;
+  storage.tts.ttsConfig.value = clone(tempTtsConfig.value);
 
   emit("close");
 }
@@ -101,9 +103,10 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
               :class="{ _selected: tab === Tab.General }"
               @click="tab = Tab.General"
             )
-              ._icon
-                JoystickIcon(:size="20")
-              span General
+              .name
+                ._icon
+                  JoystickIcon(:size="20")
+                span Writer
 
             .flex.items-center.justify-between.gap-1.border-b.p-2.pl-4.text-gray-500
               span.text-sm AI Agents
@@ -113,25 +116,31 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
               :class="{ _selected: tab === Tab.Writer }"
               @click="tab = Tab.Writer"
             )
-              ._icon
-                FeatherIcon(:size="20")
-              span Writer
+              .name
+                ._icon
+                  FeatherIcon(:size="20")
+                span Writer
+              LlmStatusIcon(:driver="simulation.writer.llmDriver.value")
 
             ._tab(
               :class="{ _selected: tab === Tab.Director }"
               @click="tab = Tab.Director"
             )
-              ._icon
-                ClapperboardIcon(:size="20")
-              span Director
+              .name
+                ._icon
+                  ClapperboardIcon(:size="20")
+                span Director
+              LlmStatusIcon(:driver="simulation.director.llmDriver.value")
 
             ._tab(
               :class="{ _selected: tab === Tab.Voicer }"
               @click="tab = Tab.Voicer"
             )
-              ._icon
-                AudioLinesIcon(:size="20")
-              span Voicer
+              .name
+                ._icon
+                  AudioLinesIcon(:size="20")
+                span Voicer
+              VoicerStatusIcon(:driver="simulation.voicer.ttsDriver.value")
 
           .col-span-3.h-full.overflow-y-scroll
             .h-full
@@ -162,18 +171,22 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
 
 <style lang="scss" scoped>
 ._tab {
-  @apply flex cursor-pointer items-center gap-2 border-b p-3;
-
-  span {
-    @apply font-medium tracking-wide;
-  }
+  @apply flex cursor-pointer items-center justify-between gap-2 border-b p-3;
 
   &._selected {
     @apply bg-gray-50 text-primary-500 shadow-inner;
   }
 
-  ._icon {
-    @apply grid place-items-center rounded-lg border bg-white p-1;
+  .name {
+    @apply flex items-center gap-2;
+
+    ._icon {
+      @apply grid place-items-center rounded-lg border bg-white p-1;
+    }
+
+    span {
+      @apply font-medium tracking-wide;
+    }
   }
 }
 </style>

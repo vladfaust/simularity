@@ -2,6 +2,7 @@
 import { type BaseLlmDriver } from "@/lib/ai/llm/BaseLlmDriver";
 import { clamp } from "@/lib/utils";
 import { computed } from "vue";
+import StatusIcon from "./StatusIcon.vue";
 
 enum Status {
   Ready,
@@ -40,9 +41,7 @@ const statusText = computed<string | undefined>(() => {
 
 <template lang="pug">
 .flex.items-center.gap-1
-  .h-2.w-2.rounded-full(
-    :class="{ 'bg-green-500': status === Status.Ready, 'bg-yellow-500': status === Status.Busy, 'animate-pulse': status === Status.Busy }"
-  )
+  StatusIcon(:driver)
   span.text-sm.leading-none(
     :class="{ 'animate-pulse': status === Status.Busy }"
   ) {{ statusText }}

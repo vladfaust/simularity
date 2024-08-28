@@ -64,10 +64,19 @@ export class Voicer {
           // New driver config is empty, or TTS is disabled.
           // Destroy the driver instance if it exists.
           if (this.ttsDriver.value) {
+            console.log(
+              "New driver config is empty, or TTS is disabled, destroying the driver",
+              agent,
+              ttsConfig,
+            );
+
             this.ttsDriver.value.destroy();
             this.ttsDriver.value = null;
           }
         }
+      },
+      {
+        deep: true,
       },
     );
   }
@@ -80,6 +89,8 @@ export class Voicer {
   }
 
   destroy() {
+    console.debug("Destroying Voicer");
+
     this._driverConfigWatchStopHandle();
 
     if (this.ttsDriver.value) {

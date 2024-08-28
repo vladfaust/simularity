@@ -252,6 +252,9 @@ export function mergeAbortSignals(...signals: AbortSignal[]): AbortSignal {
   return controller.signal;
 }
 
+/**
+ * Call a function with a value if it is not null or undefined.
+ */
 export function tap<T, U>(
   value: T,
   callable: (value: NonNullable<T>) => U,
