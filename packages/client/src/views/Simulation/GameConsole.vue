@@ -7,7 +7,7 @@ import {
 } from "@/lib/simulation/agents/writer";
 import SettingsModal from "@/views/SettingsModal.vue";
 import { TransitionRoot } from "@headlessui/vue";
-import { useLocalStorage } from "@vueuse/core";
+import { StorageSerializers, useLocalStorage } from "@vueuse/core";
 import {
   CameraIcon,
   ChevronDownIcon,
@@ -88,7 +88,7 @@ const inferenceDecodingProgress = ref<number | undefined>();
 const updatesFullscreen = ref(false);
 
 const predictionOptions = computed<PredictionOptions>(() => ({
-  allowedCharacterIds: enabledCharacterIds.value,
+  allowedCharacterIds: Array.from(enabledCharacterIds.value),
 }));
 
 const willConsolidate = ref(false);
@@ -104,9 +104,12 @@ const sendButtonState = computed<SendButtonState>(() => {
 
 const showSettingsModal = ref(false);
 
-const enabledCharacterIds = useLocalStorage<string[]>(
+const enabledCharacterIds = useLocalStorage<Set<string>>(
   `simulation:${simulation.id}:enabledCharacterIds`,
-  [...Object.keys(simulation.scenario.characters), NARRATOR],
+  new Set([...Object.keys(simulation.scenario.characters), NARRATOR]),
+  {
+    serializer: StorageSerializers.set,
+  },
 );
 
 const showVisualizeModal = ref(false);
@@ -304,34 +307,32 @@ function switchUpdatesFullscreen() {
 }
 
 function switchEnabledCharacter(characterId: string) {
-  const index = enabledCharacterIds.value.indexOf(characterId);
-
-  if (index === -1) {
-    console.debug("Enabling character", characterId);
-    enabledCharacterIds.value.push(characterId);
-  } else {
+  if (enabledCharacterIds.value.has(characterId)) {
     console.debug("Disabling character", characterId);
-    enabledCharacterIds.value.splice(index, 1);
+    enabledCharacterIds.value.delete(characterId);
+  } else {
+    console.debug("Enabling character", characterId);
+    enabledCharacterIds.value.add(characterId);
   }
 }
 
 function enableOnlyCharacter(characterId: string) {
   // If the character is already the only one enabled, select all except them.
   if (
-    enabledCharacterIds.value.length === 1 &&
-    enabledCharacterIds.value[0] === characterId
+    enabledCharacterIds.value.size === 1 &&
+    enabledCharacterIds.value.has(characterId)
   ) {
     console.debug("Disabling all characters except", characterId);
-    enabledCharacterIds.value = [
+    enabledCharacterIds.value = new Set([
       ...Object.keys(simulation.scenario.characters).filter(
         (id) => id !== characterId,
       ),
       NARRATOR,
-    ];
+    ]);
   } else {
     // Otherwise, enable only the selected character.
     console.debug("Enabling only character", characterId);
-    enabledCharacterIds.value = [characterId];
+    enabledCharacterIds.value = new Set([characterId]);
   }
 }
 </script>
@@ -341,7 +342,7 @@ function enableOnlyCharacter(characterId: string) {
   //- Enable or disable characters.
   PredictionOptionsPanel.max-w-xl(
     :simulation
-    :enabled-character-ids
+    :enabled-character-ids="Array.from(enabledCharacterIds)"
     @switch-enabled-character="switchEnabledCharacter"
     @enable-only-character="enableOnlyCharacter"
   )
