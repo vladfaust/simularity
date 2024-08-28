@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { type BaseLlmDriver } from "@/lib/ai/llm/BaseLlmDriver";
 import * as storage from "@/lib/storage";
-import {
-  ActivityIcon,
-  GlobeIcon,
-  HardDriveIcon,
-  LogsIcon,
-} from "lucide-vue-next";
+import { ActivityIcon, CloudIcon, CpuIcon, LogsIcon } from "lucide-vue-next";
 import { ref } from "vue";
 import LocalSettings from "./LlmAgentModel/Local.vue";
 import RemoteSettings from "./LlmAgentModel/Remote.vue";
@@ -39,14 +34,14 @@ const driverType = ref<storage.llm.LlmDriverConfig["type"]>(
           :class="{ 'btn-primary': driverType === 'local', 'btn-neutral': driverType !== 'local' }"
           @click="driverType = 'local'"
         )
-          HardDriveIcon(:size="20")
+          CpuIcon(:size="18")
           span Local
         button.btn.btn-sm.rounded.transition-transform.pressable(
           :class="{ 'btn-primary': driverType === 'remote', 'btn-neutral': driverType !== 'remote' }"
           @click="driverType = 'remote'"
         )
-          GlobeIcon(:size="20")
-          span Remote
+          CloudIcon(:size="18")
+          span Cloud
 
     //- Driver content.
     .flex.w-full.flex-col.gap-2.overflow-hidden.rounded-b-lg.rounded-l-lg.border

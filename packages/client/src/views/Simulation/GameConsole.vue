@@ -5,6 +5,7 @@ import {
   NARRATOR,
   type PredictionOptions,
 } from "@/lib/simulation/agents/writer";
+import SettingsModal from "@/views/SettingsModal.vue";
 import { TransitionRoot } from "@headlessui/vue";
 import { useLocalStorage } from "@vueuse/core";
 import {
@@ -22,12 +23,12 @@ import {
   UndoDotIcon,
 } from "lucide-vue-next";
 import { computed, ref, triggerRef } from "vue";
-import SettingsModal from "@/views/SettingsModal.vue";
+import PredictionOptionsPanel from "./GameConsole/PredictionOptionsPanel.vue";
+import ProgressBar from "./GameConsole/ProgressBar.vue";
 import VisualizeModal from "./GameConsole/VisualizeModal.vue";
+import GpuStatus from "./GpuStatus.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
-import ProgressBar from "./GameConsole/ProgressBar.vue";
-import PredictionOptionsPanel from "./GameConsole/PredictionOptionsPanel.vue";
 
 enum SendButtonState {
   Inferring,
@@ -517,6 +518,8 @@ function enableOnlyCharacter(characterId: string) {
           title="Settings"
         )
           SettingsIcon(:size="20" class="group-hover:animate-spin")
+
+        GpuStatus.rounded.bg-white.px-1.py-1(:simulation title="GPU status")
 
         //- Context gauge.
         .flex.w-full.items-center.gap-2
