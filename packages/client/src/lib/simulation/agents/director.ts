@@ -4,12 +4,14 @@ import {
   type CompletionOptions,
 } from "@/lib/ai/llm/BaseLlmDriver";
 import type { d } from "@/lib/drizzle";
+import * as storage from "@/lib/storage";
 import { safeParseJson, trimEndAny, unreachable } from "@/lib/utils";
 import { formatIssues, v } from "@/lib/valibot";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
 import { IdSchema, Scenario } from "../scenario";
 import { State, type StateDto } from "../state";
 import { type StateCommand } from "../state/commands";
+import { hookLlmAgentToDriverRef } from "./llm";
 
 export type SimpleUpdate = {
   characterId: string | null;
@@ -44,12 +46,15 @@ export class Director {
   readonly contextLength = ref<number | undefined>();
   readonly llmDriver: ShallowRef<BaseLlmDriver | null>;
   readonly ready = computed(() => this.llmDriver.value?.ready.value);
+  private readonly _driverConfigWatchStopHandle: () => void;
 
-  constructor(
-    llmDriver: BaseLlmDriver | null,
-    private scenario: Scenario,
-  ) {
-    this.llmDriver = shallowRef(llmDriver);
+  constructor(private scenario: Scenario) {
+    this.llmDriver = shallowRef(null);
+    this._driverConfigWatchStopHandle = hookLlmAgentToDriverRef(
+      "director",
+      this.llmDriver,
+      () => Director.buildStaticPrompt(scenario),
+    );
   }
 
   /**
@@ -184,6 +189,16 @@ export class Director {
       completion: inferenceResult.completion,
       delta: delta,
     };
+  }
+
+  destroy() {
+    this._driverConfigWatchStopHandle();
+
+    if (this.llmDriver.value) {
+      this.llmDriver.value.destroy();
+      this.llmDriver.value = null;
+      storage.llm.useLatestSession("director").value = null;
+    }
   }
 
   /**

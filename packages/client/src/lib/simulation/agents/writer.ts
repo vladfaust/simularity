@@ -5,6 +5,7 @@ import {
   type CompletionOptions,
 } from "@/lib/ai/llm/BaseLlmDriver";
 import { d } from "@/lib/drizzle";
+import * as storage from "@/lib/storage";
 import {
   clockToMinutes,
   minutesToClock,
@@ -15,6 +16,7 @@ import { computed, ref, shallowRef, type ShallowRef } from "vue";
 import { Scenario } from "../scenario";
 import type { StateDto } from "../state";
 import { Update } from "../update";
+import { hookLlmAgentToDriverRef } from "./llm";
 
 export const NARRATOR = "narrator";
 const SYSTEM = "system";
@@ -47,12 +49,16 @@ export class Writer {
   readonly contextLength = ref<number | undefined>();
   readonly llmDriver: ShallowRef<BaseLlmDriver | null>;
   readonly ready = computed(() => this.llmDriver.value?.ready.value);
+  private readonly _driverConfigWatchStopHandle: () => void;
 
-  constructor(
-    llmDriver: BaseLlmDriver | null,
-    private scenario: Scenario,
-  ) {
-    this.llmDriver = shallowRef(llmDriver);
+  constructor(private scenario: Scenario) {
+    this.llmDriver = shallowRef(null);
+
+    this._driverConfigWatchStopHandle = hookLlmAgentToDriverRef(
+      "writer",
+      this.llmDriver,
+      () => Writer.buildStaticPrompt(scenario),
+    );
   }
 
   async summarize(
@@ -264,6 +270,16 @@ Stable diffusion prompt: `;
     }
 
     return result;
+  }
+
+  destroy() {
+    this._driverConfigWatchStopHandle();
+
+    if (this.llmDriver.value) {
+      this.llmDriver.value.destroy();
+      this.llmDriver.value = null;
+      storage.llm.useLatestSession("writer").value = null;
+    }
   }
 
   /**

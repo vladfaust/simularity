@@ -1,6 +1,6 @@
 import { d } from "@/lib/drizzle";
 import * as tauri from "@/lib/tauri";
-import { sleep } from "@/lib/utils";
+import { Bug, sleep } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 import { computed, ref } from "vue";
 import {
@@ -12,6 +12,14 @@ import {
   type CompletionResult,
   type DecodeProgressEventPayload,
 } from "./BaseLlmDriver";
+
+type InitializationCallback = ({
+  internalSessionId,
+  databaseSessionId,
+}: {
+  internalSessionId: string;
+  databaseSessionId: number;
+}) => void;
 
 export type TauriLlmDriverConfig = {
   type: "local";
@@ -95,12 +103,10 @@ export class TauriLlmDriver implements BaseLlmDriver {
         return null;
       }
 
-      return new TauriLlmDriver(
-        config,
-        latestSessionDatabaseId,
-        dbSession.internalId,
-        true,
-      );
+      return new TauriLlmDriver(config, {
+        internalSessionId: dbSession.internalId,
+        databaseSessionId: latestSessionDatabaseId,
+      });
     } else {
       console.log(`Session not found in Tauri`, {
         dbSessionId: latestSessionDatabaseId,
@@ -113,33 +119,33 @@ export class TauriLlmDriver implements BaseLlmDriver {
 
   /**
    * Create a new TauriLlmDriver (GPT instance) from a configuration.
-   * Will initialize in the background.
-   *
-   * @param initialPrompt Initial prompt to seed the model.
-   * May take time to initialize, unless the session was dumped before.
-   * @param dumpSession Whether to dump the session to disk.
-   * @param initCallback Callback to receive the session ID.
+   * Initialization may be postponed until the first completion request,
+   * yet initialization params are required to be passed now.
    */
   static create(
     config: TauriLlmDriverConfig,
-    initialPrompt: string,
-    dumpSession: boolean,
-    initCallback: ({
-      databaseSessionId,
-    }: {
-      databaseSessionId: number;
-    }) => void,
+    initializationParams: {
+      initialPrompt: string;
+      dumpSession: boolean;
+      callback: InitializationCallback;
+    },
+    initializeNow: boolean,
   ): TauriLlmDriver {
-    const driver = new TauriLlmDriver(config);
-
-    driver._init(initialPrompt, dumpSession).then(() => {
-      initCallback({ databaseSessionId: driver._databaseSessionId! });
-    });
-
+    const driver = new TauriLlmDriver(config, initializationParams);
+    if (initializeNow) driver._init();
     return driver;
   }
 
-  private async _init(initialPrompt: string, dumpSession: boolean) {
+  private async _init() {
+    if ("internalSessionId" in this._initializationParams) {
+      throw new Error(`Already initialized`);
+    }
+
+    console.log("Initializing TauriLlmDriver...", {
+      modelPath: this.config.modelPath,
+      contextSize: this.config.contextSize,
+    });
+
     try {
       this.busy.value = true;
       this.status.value = LlmStatus.Decoding;
@@ -160,13 +166,14 @@ export class TauriLlmDriver implements BaseLlmDriver {
       const result = await tauri.gpt.create(
         modelId,
         this.config.contextSize,
-        initialPrompt,
+        this._initializationParams.initialPrompt,
         (e) => (this.progress.value = e.progress),
-        dumpSession,
+        this._initializationParams.dumpSession,
       );
+      this.progress.value = 1;
 
-      this._internalSessionId = result.sessionId;
-      this._databaseSessionId = (
+      const internalSessionId = result.sessionId;
+      const databaseSessionId = (
         await d.db
           .insert(d.llmLocalSessions)
           .values({
@@ -177,7 +184,16 @@ export class TauriLlmDriver implements BaseLlmDriver {
           })
           .returning({ id: d.llmLocalSessions.id })
       )[0].id;
-      this.initialized.value = true;
+
+      this._initializationParams.callback({
+        internalSessionId,
+        databaseSessionId,
+      });
+
+      this._initializationParams = {
+        internalSessionId,
+        databaseSessionId,
+      };
     } finally {
       this.status.value = undefined;
       this.progress.value = undefined;
@@ -187,11 +203,14 @@ export class TauriLlmDriver implements BaseLlmDriver {
 
   readonly grammarLang = LlmGrammarLang.Gnbf;
   readonly needsWarmup = true;
-  readonly initialized = ref(false);
+  readonly initialized = computed(
+    () => "internalSessionId" in this._initializationParams,
+  );
   readonly busy = ref(false);
   readonly status = ref<LlmStatus | undefined>();
-  readonly ready = computed(() => this.initialized.value && !this.busy.value);
+  readonly ready = computed(() => !this.busy.value);
   readonly progress = ref<number | undefined>();
+  private _destroyed = false;
 
   get contextSize() {
     return this.config.contextSize;
@@ -199,12 +218,17 @@ export class TauriLlmDriver implements BaseLlmDriver {
 
   private constructor(
     readonly config: TauriLlmDriverConfig,
-    private _databaseSessionId?: number,
-    private _internalSessionId?: string,
-    initialized: boolean = false,
-  ) {
-    this.initialized.value = initialized;
-  }
+    private _initializationParams:
+      | {
+          initialPrompt: string;
+          dumpSession: boolean;
+          callback: InitializationCallback;
+        }
+      | {
+          internalSessionId: string;
+          databaseSessionId: number;
+        },
+  ) {}
 
   compareConfig(other: TauriLlmDriverConfig): boolean {
     return (
@@ -221,12 +245,25 @@ export class TauriLlmDriver implements BaseLlmDriver {
     completionCallback?: (event: CompletionProgressEventPayload) => void,
     abortSignal?: AbortSignal,
   ): Promise<CompletionResult> {
-    if (
-      !this.initialized ||
-      !this._internalSessionId ||
-      !this._databaseSessionId
-    ) {
-      throw new Error("TauriLlmDriver not initialized");
+    // Only one job at a time.
+    while (this.busy.value) {
+      await sleep(100);
+    }
+
+    if (this._destroyed) {
+      // TODO: Handle this case gracefully.
+      // E.g. there is a completion job queued, but the driver is destroyed.
+      throw new Error(`Driver is already destroyed`);
+    }
+
+    // Postponed initialization.
+    if (!this.initialized.value) {
+      await this._init();
+    }
+
+    // Sanity check.
+    if (!("internalSessionId" in this._initializationParams)) {
+      throw new Bug("Not initialized (`internalSessionId` is missing)");
     }
 
     const startedAt = Date.now();
@@ -237,7 +274,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
       let decoded = false;
 
       const response = await tauri.gpt.infer(
-        this._internalSessionId,
+        this._initializationParams.internalSessionId,
         prompt,
         nEval,
         inferenceOptions,
@@ -262,7 +299,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
         await d.db
           .insert(d.llmCompletions)
           .values({
-            localSessionId: this._databaseSessionId,
+            localSessionId: this._initializationParams.databaseSessionId,
             options: inferenceOptions,
             input: prompt,
             inputLength: response.inputContextLength,
@@ -280,7 +317,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
       };
     } catch (e: any) {
       await d.db.insert(d.llmCompletions).values({
-        localSessionId: this._databaseSessionId,
+        localSessionId: this._initializationParams.databaseSessionId,
         options: inferenceOptions,
         input: prompt,
         error: e.message,
@@ -296,16 +333,22 @@ export class TauriLlmDriver implements BaseLlmDriver {
   }
 
   async destroy() {
+    if (this._destroyed) {
+      throw new Error(`Driver is already destroyed`);
+    }
+
+    this._destroyed = true;
+
     while (this.busy.value) {
       await sleep(100);
     }
 
-    if (this._internalSessionId) {
+    if ("internalSessionId" in this._initializationParams) {
       console.log("Destroying TauriLlmDriver session", {
-        sessionId: this._internalSessionId,
+        sessionId: this._initializationParams.internalSessionId,
       });
 
-      await tauri.gpt.destroy(this._internalSessionId);
+      await tauri.gpt.destroy(this._initializationParams.internalSessionId);
     }
   }
 }

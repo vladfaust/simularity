@@ -11,16 +11,11 @@ import {
   shallowRef,
   triggerRef,
   type Raw,
-  type ShallowRef,
 } from "vue";
 import {
   CompletionAbortError,
-  type BaseLlmDriver,
   type CompletionOptions,
 } from "./ai/llm/BaseLlmDriver";
-import { RemoteLlmDriver } from "./ai/llm/RemoteLlmDriver";
-import { TauriLlmDriver } from "./ai/llm/TauriLlmDriver";
-import { RemoteTtsDriver } from "./ai/tts/RemoteTtsDriver";
 import { d, parseSelectResult, sqlite, type Transaction } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
 import * as resources from "./resources";
@@ -48,8 +43,7 @@ import {
 import { type StateCommand } from "./simulation/state/commands";
 import { Update } from "./simulation/update";
 import * as storage from "./storage";
-import type { LlmAgentId } from "./storage/llm";
-import { assert, assertCallback, clone, unreachable } from "./utils";
+import { assert, assertCallback, clone } from "./utils";
 
 export { Scenario, State };
 
@@ -1279,11 +1273,9 @@ export class Simulation {
   }
 
   destroy() {
-    this._writer.llmDriver.value?.destroy();
-    storage.llm.useLatestSession("writer").value = null;
-
-    this._director.llmDriver.value?.destroy();
-    storage.llm.useLatestSession("director").value = null;
+    this.writer.destroy();
+    this.director.destroy();
+    this.voicer.destroy();
   }
 
   //#region Private methods
@@ -1549,9 +1541,9 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     this.scenarioId = scenarioId;
     this.scenario = scenario;
     this.state = new State(scenario);
-    this._writer = new Writer(null, this.scenario);
-    this._director = new Director(null, this.scenario);
-    this._voicer = new Voicer(null, this.scenario);
+    this._writer = new Writer(this.scenario);
+    this._director = new Director(this.scenario);
+    this._voicer = new Voicer(this.scenario);
   }
 
   /**
@@ -1564,10 +1556,6 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     if (currentWriterUpdateId) {
       await this._jumpToId(currentWriterUpdateId);
     }
-
-    this._initWriter();
-    this._initDirector();
-    this._initVoicer();
   }
 
   /**
@@ -1729,188 +1717,6 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     }
 
     console.debug("Initialized state", this.state.serialize());
-  }
-
-  private async _initLlmAgent(
-    agent: LlmAgentId,
-    driverRef: ShallowRef<BaseLlmDriver | null>,
-    initialPromptBuilder: () => string,
-  ) {
-    const driverConfig = storage.llm.useDriverConfig(agent);
-    const latestSession = storage.llm.useLatestSession(agent);
-
-    watchImmediate(
-      () => driverConfig.value,
-      async (driverConfig) => {
-        console.debug("Driver config watch trigger", agent, driverConfig);
-
-        if (driverConfig) {
-          if (driverRef.value) {
-            console.debug("Comparing driver configs.", agent, {
-              other: driverConfig,
-            });
-            if (!driverRef.value.compareConfig(driverConfig)) {
-              console.log(
-                "Driver config is different, destroying the driver.",
-                agent,
-              );
-              driverRef.value.destroy();
-              driverRef.value = null;
-              latestSession.value = null;
-            } else {
-              console.debug("Driver config is the same.", agent);
-              return;
-            }
-          }
-
-          switch (driverConfig.type) {
-            case "local": {
-              let driver: TauriLlmDriver | null = null;
-
-              if (latestSession.value?.driver === "local") {
-                driver = await TauriLlmDriver.find(
-                  latestSession.value.id,
-                  driverConfig,
-                );
-              }
-
-              if (!driver) {
-                console.log("Creating new TauriLlmDriver", agent, driverConfig);
-
-                const initialPrompt = initialPromptBuilder();
-
-                driver = TauriLlmDriver.create(
-                  driverConfig,
-                  initialPrompt,
-                  true,
-                  ({ databaseSessionId }) => {
-                    latestSession.value = {
-                      driver: "local",
-                      id: databaseSessionId,
-                    };
-                  },
-                );
-              } else {
-                console.log(`Restored TauriLlmDriver`, {
-                  agent,
-                  latestSession: latestSession.value,
-                  driverConfig,
-                });
-              }
-
-              driverRef.value = driver;
-              break;
-            }
-
-            case "remote": {
-              console.log("Creating new RemoteLlmDriver", {
-                agent,
-                driverConfig,
-                latestSession: latestSession.value,
-              });
-
-              driverRef.value = await RemoteLlmDriver.create(
-                driverConfig,
-                latestSession,
-                storage.remoteServerJwt,
-              );
-
-              break;
-            }
-
-            default:
-              throw unreachable(driverConfig);
-          }
-        } else {
-          // New driver config is empty.
-          // Destroy the driver instance if it exists.
-          if (driverRef.value) {
-            driverRef.value.destroy();
-            driverRef.value = null;
-          }
-        }
-      },
-    );
-  }
-
-  /**
-   * Prepare writer for the simulation.
-   */
-  private async _initWriter() {
-    return this._initLlmAgent("writer", this._writer.llmDriver, () =>
-      Writer.buildStaticPrompt(this.scenario),
-    );
-  }
-
-  /**
-   * Prepare director for the simulation.
-   */
-  private async _initDirector() {
-    return this._initLlmAgent("director", this._director.llmDriver, () =>
-      Director.buildStaticPrompt(this.scenario),
-    );
-  }
-
-  /**
-   * Prepare voicer for the simulation.
-   */
-  private async _initVoicer() {
-    const driverRef = this._voicer.ttsDriver;
-    const agent = "voicer";
-
-    watchImmediate(
-      () => storage.tts.ttsConfig.value,
-      async (ttsConfig) => {
-        console.debug("Driver config watch trigger", agent, ttsConfig);
-        const driverConfig = ttsConfig?.driver;
-
-        if (ttsConfig?.enabled && driverConfig) {
-          if (driverRef.value) {
-            console.debug("Comparing driver configs.", agent, {
-              other: driverConfig,
-            });
-
-            if (!driverRef.value.compareConfig(driverConfig)) {
-              console.log(
-                "Driver config is different, destroying the driver.",
-                agent,
-              );
-
-              driverRef.value.destroy();
-              driverRef.value = null;
-            } else {
-              console.debug("Driver config is the same.", agent);
-              return;
-            }
-          }
-
-          switch (driverConfig.type) {
-            case "remote": {
-              console.log("Creating new RemoteTtsDriver", {
-                driverConfig,
-              });
-
-              driverRef.value = new RemoteTtsDriver(
-                driverConfig,
-                storage.remoteServerJwt,
-              );
-
-              break;
-            }
-
-            default:
-              throw unreachable(driverConfig.type);
-          }
-        } else {
-          // New driver config is empty, or TTS is disabled.
-          // Destroy the driver instance if it exists.
-          if (driverRef.value) {
-            driverRef.value.destroy();
-            driverRef.value = null;
-          }
-        }
-      },
-    );
   }
 
   /**
