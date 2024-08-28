@@ -18,6 +18,7 @@ import {
   XIcon,
 } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
+import RichText from "./Update/RichText.vue";
 
 // TODO: Scroll text while generating new variant.
 //
@@ -300,5 +301,9 @@ async function tts() {
       v-model="tempText"
     )
 
-    p(v-else-if="update.chosenVariant?.writerUpdate") {{ update.chosenVariant.writerUpdate.text }}
+    RichText(
+      v-else-if="update.chosenVariant?.writerUpdate"
+      :text="update.chosenVariant.writerUpdate.text"
+      as="p"
+    )
 </template>
