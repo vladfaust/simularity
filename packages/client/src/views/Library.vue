@@ -1,15 +1,26 @@
 <script setup lang="ts">
-import { readScenarios, Scenario } from "@/lib/simulation/scenario";
-import { routeLocation } from "@/router";
-import { onMounted, shallowRef } from "vue";
-import ScenarioVue from "./Library/Scenario.vue";
 import Header from "@/components/Browser/Header.vue";
-import { FolderIcon } from "lucide-vue-next";
-import { computed } from "vue";
-import { ref } from "vue";
+import CustomTitle from "@/components/CustomTitle.vue";
+import { d } from "@/lib/drizzle";
+import * as resources from "@/lib/resources";
+import { readScenarios, Scenario } from "@/lib/simulation/scenario";
+import { showLibrarySaves } from "@/lib/storage";
+import { routeLocation } from "@/router";
+import { desc, eq, isNull } from "drizzle-orm";
+import {
+  ChevronDownIcon,
+  FolderIcon,
+  HistoryIcon,
+  ScrollTextIcon,
+  Trash2Icon,
+} from "lucide-vue-next";
+import { computed, onMounted, ref, shallowRef } from "vue";
+import ScenarioVue from "./Library/Scenario.vue";
+import Save from "./Scenario/Save.vue";
 
 const scenarios = shallowRef<Scenario[]>([]);
 const search = ref("");
+const saves = shallowRef<Pick<typeof d.simulations.$inferSelect, "id">[]>([]);
 
 const filteredScenarios = computed(() =>
   scenarios.value.filter((scenario) =>
@@ -21,8 +32,37 @@ function openScenarioDir() {
   console.log("openScenarioDir");
 }
 
+async function deleteSave(simulationId: string) {
+  if (
+    !(await resources.confirm_("Are you sure you want to delete this save?", {
+      title: "Delete save",
+      okLabel: "Delete",
+      type: "info",
+    }))
+  ) {
+    console.log("Cancelled delete save", simulationId);
+    return;
+  }
+
+  console.log("Deleting save", simulationId);
+  await d.db
+    .update(d.simulations)
+    .set({ deletedAt: new Date() })
+    .where(eq(d.simulations.id, simulationId));
+
+  saves.value = saves.value.filter((s) => s.id !== simulationId);
+}
+
 onMounted(async () => {
-  scenarios.value = await readScenarios();
+  readScenarios().then((value) => (scenarios.value = value));
+
+  d.db.query.simulations
+    .findMany({
+      columns: { id: true },
+      orderBy: desc(d.simulations.updatedAt),
+      where: isNull(d.simulations.deletedAt),
+    })
+    .then((value) => (saves.value = value));
 });
 </script>
 
@@ -44,19 +84,63 @@ onMounted(async () => {
         FolderIcon(:size="18")
         span Open folder
 
-  .flex.h-full.w-full.flex-col.items-center.overflow-y-auto.shadow-inner
-    ul.grid.w-full.w-full.max-w-4xl.gap-2.p-3(class="2xs:grid-cols-2 xs:grid-cols-3")
-      li.cursor-pointer.overflow-hidden.rounded-lg.border.bg-white.shadow-lg.transition-transform.pressable(
-        v-for="scenario in filteredScenarios"
-        :key="scenario.id"
-        :title="scenario.name"
-        class="active:shadow-sm"
+  .flex.h-full.w-full.flex-col.items-center.gap-3.overflow-y-auto.py-3.shadow-inner
+    //- Recent plays.
+    .flex.w-full.max-w-4xl.flex-col.gap-2.px-3(v-if="!search")
+      CustomTitle.cursor-pointer(
+        title="Continue playing"
+        @click="showLibrarySaves = !showLibrarySaves"
       )
-        RouterLink(
-          :to="routeLocation({ name: 'Scenario', params: { scenarioId: scenario.id } })"
+        template(#icon)
+          HistoryIcon(:size="18")
+        template(#extra)
+          .flex.items-center.gap-1
+            span {{ saves.length }}
+            .rounded.border.bg-white.transition-transform.pressable
+              ChevronDownIcon.transition(
+                :size="18"
+                :class="{ '-rotate-180': showLibrarySaves }"
+              )
+
+      ul.-mx-1.-my-4.flex.w-full.gap-2.overflow-x-scroll.px-1.py-4(
+        :class="{ hidden: !showLibrarySaves }"
+        class="@container"
+      )
+        li.relative.w-full.shrink-0(
+          v-for="simulation of saves"
+          class="@lg:w-[calc(100%/3-0.4rem)] @3xl:w-[calc(100%/4-0.4rem)] @sm:w-[calc(100%/2-0.3rem)]"
         )
-          ScenarioVue(:scenario)
-        //- .flex.flex-col.p-2(v-else)
-        //-   span.break-all.font-semibold.tracking-wide.text-error-500 Error at {{ scenario.basePath }}
-        //-   code.max-h-48.overflow-scroll.text-xs {{ scenario.error }}
+          //- Delete button.
+          .absolute.-right-1.-top-1.z-20
+            button.btn.rounded.bg-white.p-1.shadow.transition.pressable(
+              @click.stop="deleteSave(simulation.id)"
+              class="hover:text-red-500"
+            )
+              Trash2Icon(:size="16")
+
+          RouterLink(
+            :to="routeLocation({ name: 'Simulation', params: { simulationId: simulation.id } })"
+          )
+            Save.overflow-hidden.rounded-lg.bg-white.shadow-lg.transition-transform.pressable(
+              :simulation-id="simulation.id"
+              :key="simulation.id"
+            )
+
+    .flex.w-full.max-w-4xl.flex-col.gap-2.px-3
+      CustomTitle.w-full(title="Scenarios")
+        template(#icon)
+          ScrollTextIcon(:size="18")
+        template(#extra) {{ filteredScenarios.length }}
+
+      ul.grid.w-full.w-full.max-w-4xl.gap-2(class="2xs:grid-cols-2 xs:grid-cols-3")
+        li.cursor-pointer.overflow-hidden.rounded-lg.border.bg-white.shadow-lg.transition-transform.pressable(
+          v-for="scenario in filteredScenarios"
+          :key="scenario.id"
+          :title="scenario.name"
+          class="active:shadow-sm"
+        )
+          RouterLink(
+            :to="routeLocation({ name: 'Scenario', params: { scenarioId: scenario.id } })"
+          )
+            ScenarioVue(:scenario)
 </template>

@@ -22,3 +22,11 @@ export const ambientVolumeStorage = useLocalStorage<number>(
  * Speech volume storage, from 0 to 100.
  */
 export const speechVolumeStorage = useLocalStorage<number>("speechVolume", 50);
+
+/**
+ * Whether to show the saves on the library page.
+ */
+export const showLibrarySaves = useLocalStorage<boolean>(
+  "showLibrarySaves",
+  true,
+);
