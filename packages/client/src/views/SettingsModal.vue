@@ -9,7 +9,9 @@ import {
   TransitionChild,
   TransitionRoot,
 } from "@headlessui/vue";
+import { deepEqual } from "fast-equals";
 import {
+  AsteriskIcon,
   AudioLinesIcon,
   ClapperboardIcon,
   CornerRightDownIcon,
@@ -18,7 +20,7 @@ import {
   SettingsIcon,
   XIcon,
 } from "lucide-vue-next";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import Director from "./SettingsModal/Director.vue";
 import General from "./SettingsModal/General.vue";
 import LlmStatusIcon from "./SettingsModal/LlmAgent/StatusIcon.vue";
@@ -59,6 +61,14 @@ const tempTtsConfig = ref<TtsConfig>(
   },
 );
 
+const anyChanges = computed(() => {
+  return !(
+    deepEqual(writerConfig.value, tempWriterConfig.value) &&
+    deepEqual(directorConfig.value, tempDirectorConfig.value) &&
+    deepEqual(storage.tts.ttsConfig.value, tempTtsConfig.value)
+  );
+});
+
 function onClose() {
   writerConfig.value = tempWriterConfig.value;
   directorConfig.value = tempDirectorConfig.value;
@@ -90,6 +100,11 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
           h1.flex.shrink-0.items-center.gap-1
             SettingsIcon.inline-block(:size="20" class="hover:animate-spin")
             span.text-lg.font-semibold.leading-tight.tracking-wide Settings
+            AsteriskIcon.text-primary-500(
+              v-if="anyChanges"
+              title="Changes will be applied when you close settings."
+              :size="18"
+            )
           .h-0.w-full.shrink.border-b
           button.btn-pressable.btn-neutral.btn.aspect-square.rounded.p-1(
             @click="onClose"
