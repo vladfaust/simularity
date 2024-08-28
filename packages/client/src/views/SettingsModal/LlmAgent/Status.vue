@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type BaseLlmDriver } from "@/lib/ai/llm/BaseLlmDriver";
+import { clamp } from "@/lib/utils";
 import { computed } from "vue";
 
 enum Status {
@@ -30,7 +31,7 @@ const statusText = computed<string | undefined>(() => {
   }
 
   if (props.driver?.progress.value !== undefined) {
-    text += ` (${Math.round(props.driver.progress.value * 100)}%)`;
+    text += ` (${Math.round(clamp(props.driver.progress.value, 0, 1) * 100)}%)`;
   }
 
   return text;

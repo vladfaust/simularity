@@ -298,3 +298,11 @@ export async function replaceAsync(
   const data = await Promise.all(promises);
   return str.replace(regex, () => data.shift()!);
 }
+
+/**
+ * Clamp a value between a minimum and maximum.
+ * @example clamp(5, 10, 20) // => 10
+ */
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}

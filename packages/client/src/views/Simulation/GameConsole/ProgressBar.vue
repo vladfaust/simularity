@@ -5,7 +5,7 @@ import { Simulation } from "@/lib/simulation";
 import { VoicerJobStatus } from "@/lib/simulation/agents/voicer/job";
 import * as storage from "@/lib/storage";
 import type { LlmAgentId } from "@/lib/storage/llm";
-import { unreachable } from "@/lib/utils";
+import { clamp, unreachable } from "@/lib/utils";
 import { AudioLinesIcon, ClapperboardIcon, FeatherIcon } from "lucide-vue-next";
 import { computed } from "vue";
 import AgentStatusVue, { Status } from "./ProgressBar/AgentStatus.vue";
@@ -56,7 +56,9 @@ function llmStatusText(llmDriver: BaseLlmDriver | null): string | undefined {
     }
 
     if (llmDriver.progress.value) {
-      const percentage = Math.round(llmDriver.progress.value * 100);
+      const percentage = Math.round(
+        clamp(llmDriver.progress.value, 0, 1) * 100,
+      );
       text += ` (${percentage}%)`;
     }
 
@@ -133,7 +135,7 @@ const voicerStatusText = computed<string | undefined>(() => {
 
         if (simulation.voicerJob.value.progress.value !== undefined) {
           const percentage = Math.round(
-            simulation.voicerJob.value.progress.value * 100,
+            clamp(simulation.voicerJob.value.progress.value, 0, 1) * 100,
           );
           text += ` (${percentage}%)`;
         }
