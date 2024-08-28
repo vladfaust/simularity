@@ -16,7 +16,7 @@ import {
   RedoDotIcon,
   SendHorizontalIcon,
   SettingsIcon,
-  SkipForwardIcon,
+  SparklesIcon,
   SquareIcon,
   SquarePowerIcon,
   SquareSigmaIcon,
@@ -31,9 +31,10 @@ import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
 
 enum SendButtonState {
-  Inferring,
+  Busy,
   WillSendMessage,
-  WillSkipTurn,
+  WillGoForward,
+  WillPredict,
 }
 
 const N_EVAL = 128;
@@ -95,10 +96,18 @@ const willConsolidate = ref(false);
 
 const sendButtonState = computed<SendButtonState>(() => {
   if (inferenceAbortController.value) {
-    return SendButtonState.Inferring;
+    return SendButtonState.Busy;
   } else {
-    if (userInput.value) return SendButtonState.WillSendMessage;
-    return SendButtonState.WillSkipTurn;
+    if (userInput.value) {
+      return SendButtonState.WillSendMessage;
+    } else if (
+      simulation.state.shallAdvanceEpisode.value ||
+      simulation.canGoForward.value
+    ) {
+      return SendButtonState.WillGoForward;
+    } else {
+      return SendButtonState.WillPredict;
+    }
   }
 });
 
@@ -120,6 +129,10 @@ const contextGaugeCssVar = computed(() => {
   if (!contextLength || !contextSize) return 0;
   return (contextLength / contextSize) * 100 + "%";
 });
+
+const inputPlaceholder = computed(
+  () => `Speak as ${simulation.scenario.defaultCharacter.name}`,
+);
 
 function onSendButtonClick() {
   if (inferenceAbortController.value) {
@@ -196,13 +209,6 @@ async function advance() {
     } else {
       if (!willConsolidate.value && simulation.canGoForward.value) {
         await simulation.goForward();
-        await simulation.createCurrentUpdateVariant(
-          N_EVAL,
-          predictionOptions.value,
-          modelSettings.value,
-          (e) => (inferenceDecodingProgress.value = e.progress),
-          inferenceAbortController.value?.signal,
-        );
       } else {
         inferenceAbortController.value = new AbortController();
 
@@ -448,19 +454,19 @@ function enableOnlyCharacter(characterId: string) {
         //- User input otherwise.
         input.h-full.w-full.px-3.opacity-90.transition-opacity(
           v-model="userInput"
-          placeholder="User input"
+          :placeholder="inputPlaceholder"
           :disabled="!userInputEnabled"
           class="!disabled:opacity-50 hover:opacity-100 focus:opacity-100"
           @keydown.enter.exact="userInput ? sendMessage() : advance()"
         )
 
-      button._button.relative.aspect-square.h-full(
+      button._button.group.relative.aspect-square.h-full(
         @click="onSendButtonClick"
         :disabled="(!simulation.ready.value && !simulation.state.shallAdvanceEpisode.value) || (busy && !inferenceAbortController)"
       )
         //- REFACTOR: Make a component for such multi-state animations.
         TransitionRoot.absolute(
-          :show="sendButtonState === SendButtonState.Inferring"
+          :show="sendButtonState === SendButtonState.Busy"
           enter="duration-100 ease-out"
           enter-from="scale-0 opacity-0"
           enter-to="scale-100 opacity-100"
@@ -472,7 +478,7 @@ function enableOnlyCharacter(characterId: string) {
             Loader2Icon.absolute.animate-spin(:size="30")
             SquareIcon.absolute.fill-inherit(:size="10")
         TransitionRoot.absolute(
-          :show="busy && sendButtonState !== SendButtonState.Inferring"
+          :show="busy && sendButtonState !== SendButtonState.Busy"
           enter="duration-100 ease-out"
           enter-from="scale-0 opacity-0"
           enter-to="scale-100 opacity-100"
@@ -482,6 +488,16 @@ function enableOnlyCharacter(characterId: string) {
         )
           Loader2Icon.animate-spin(:size="20")
         TransitionRoot.absolute(
+          :show="!busy && sendButtonState === SendButtonState.WillGoForward"
+          enter="duration-100 ease-out"
+          enter-from="scale-0 opacity-0"
+          enter-to="scale-100 opacity-100"
+          leave="duration-100 ease-in"
+          leave-from="scale-100 opacity-100"
+          leave-to="scale-0 opacity-0"
+        )
+          RedoDotIcon(:size="20")
+        TransitionRoot.absolute(
           :show="!busy && sendButtonState === SendButtonState.WillSendMessage"
           enter="duration-100 ease-out"
           enter-from="scale-0 opacity-0"
@@ -490,9 +506,12 @@ function enableOnlyCharacter(characterId: string) {
           leave-from="scale-100 opacity-100"
           leave-to="scale-0 opacity-0"
         )
-          SendHorizontalIcon(:size="20")
+          SendHorizontalIcon(
+            :size="20"
+            class="group-hover:animate-pulse group-hover:text-ai-500"
+          )
         TransitionRoot.absolute(
-          :show="!busy && sendButtonState === SendButtonState.WillSkipTurn"
+          :show="!busy && sendButtonState === SendButtonState.WillPredict"
           enter="duration-100 ease-out"
           enter-from="scale-0 opacity-0"
           enter-to="scale-100 opacity-100"
@@ -500,7 +519,10 @@ function enableOnlyCharacter(characterId: string) {
           leave-from="scale-100 opacity-100"
           leave-to="scale-0 opacity-0"
         )
-          SkipForwardIcon(:size="20")
+          SparklesIcon(
+            :size="20"
+            class="group-hover:animate-pulse group-hover:text-ai-500"
+          )
 
     //- Status.
     .flex.w-full.justify-between
