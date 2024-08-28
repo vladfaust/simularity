@@ -2,7 +2,7 @@ import { d } from "@/lib/drizzle";
 import * as tauri from "@/lib/tauri";
 import { Bug, sleep } from "@/lib/utils";
 import { eq } from "drizzle-orm";
-import { computed, ref } from "vue";
+import { computed, ref, shallowRef, type ShallowRef } from "vue";
 import {
   LlmGrammarLang,
   LlmStatus,
@@ -20,6 +20,17 @@ type InitializationCallback = ({
   internalSessionId: string;
   databaseSessionId: number;
 }) => void;
+
+type InitializationParams =
+  | {
+      initialPrompt: string;
+      dumpSession: boolean;
+      callback: InitializationCallback;
+    }
+  | {
+      internalSessionId: string;
+      databaseSessionId: number;
+    };
 
 export type TauriLlmDriverConfig = {
   type: "local";
@@ -137,7 +148,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
   }
 
   private async _init() {
-    if ("internalSessionId" in this._initializationParams) {
+    if ("internalSessionId" in this._initializationParams.value) {
       throw new Error(`Already initialized`);
     }
 
@@ -166,9 +177,9 @@ export class TauriLlmDriver implements BaseLlmDriver {
       const result = await tauri.gpt.create(
         modelId,
         this.config.contextSize,
-        this._initializationParams.initialPrompt,
+        this._initializationParams.value.initialPrompt,
         (e) => (this.progress.value = e.progress),
-        this._initializationParams.dumpSession,
+        this._initializationParams.value.dumpSession,
       );
       this.progress.value = 1;
 
@@ -185,12 +196,12 @@ export class TauriLlmDriver implements BaseLlmDriver {
           .returning({ id: d.llmLocalSessions.id })
       )[0].id;
 
-      this._initializationParams.callback({
+      this._initializationParams.value.callback({
         internalSessionId,
         databaseSessionId,
       });
 
-      this._initializationParams = {
+      this._initializationParams.value = {
         internalSessionId,
         databaseSessionId,
       };
@@ -203,8 +214,9 @@ export class TauriLlmDriver implements BaseLlmDriver {
 
   readonly grammarLang = LlmGrammarLang.Gnbf;
   readonly needsWarmup = true;
+  private readonly _initializationParams: ShallowRef<InitializationParams>;
   readonly initialized = computed(
-    () => "internalSessionId" in this._initializationParams,
+    () => "internalSessionId" in this._initializationParams.value,
   );
   readonly busy = ref(false);
   readonly status = ref<LlmStatus | undefined>();
@@ -218,7 +230,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
 
   private constructor(
     readonly config: TauriLlmDriverConfig,
-    private _initializationParams:
+    _initializationParams:
       | {
           initialPrompt: string;
           dumpSession: boolean;
@@ -228,7 +240,9 @@ export class TauriLlmDriver implements BaseLlmDriver {
           internalSessionId: string;
           databaseSessionId: number;
         },
-  ) {}
+  ) {
+    this._initializationParams = shallowRef(_initializationParams);
+  }
 
   compareConfig(other: TauriLlmDriverConfig): boolean {
     return (
@@ -262,7 +276,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
     }
 
     // Sanity check.
-    if (!("internalSessionId" in this._initializationParams)) {
+    if (!("internalSessionId" in this._initializationParams.value)) {
       throw new Bug("Not initialized (`internalSessionId` is missing)");
     }
 
@@ -274,7 +288,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
       let decoded = false;
 
       const response = await tauri.gpt.infer(
-        this._initializationParams.internalSessionId,
+        this._initializationParams.value.internalSessionId,
         prompt,
         nEval,
         inferenceOptions,
@@ -299,7 +313,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
         await d.db
           .insert(d.llmCompletions)
           .values({
-            localSessionId: this._initializationParams.databaseSessionId,
+            localSessionId: this._initializationParams.value.databaseSessionId,
             options: inferenceOptions,
             input: prompt,
             inputLength: response.inputContextLength,
@@ -317,7 +331,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
       };
     } catch (e: any) {
       await d.db.insert(d.llmCompletions).values({
-        localSessionId: this._initializationParams.databaseSessionId,
+        localSessionId: this._initializationParams.value.databaseSessionId,
         options: inferenceOptions,
         input: prompt,
         error: e.message,
@@ -343,12 +357,14 @@ export class TauriLlmDriver implements BaseLlmDriver {
       await sleep(100);
     }
 
-    if ("internalSessionId" in this._initializationParams) {
+    if ("internalSessionId" in this._initializationParams.value) {
       console.log("Destroying TauriLlmDriver session", {
-        sessionId: this._initializationParams.internalSessionId,
+        sessionId: this._initializationParams.value.internalSessionId,
       });
 
-      await tauri.gpt.destroy(this._initializationParams.internalSessionId);
+      await tauri.gpt.destroy(
+        this._initializationParams.value.internalSessionId,
+      );
     }
   }
 }
