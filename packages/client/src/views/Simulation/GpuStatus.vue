@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { TauriLlmDriver } from "@/lib/ai/llm/TauriLlmDriver";
 import { Simulation } from "@/lib/simulation";
-import { CpuIcon } from "lucide-vue-next";
 import { computed } from "vue";
 
 enum Status {
@@ -14,13 +12,9 @@ const { simulation } = defineProps<{
 }>();
 
 const status = computed<Status>(() => {
-  const writerBusy =
-    simulation.writer.llmDriver.value instanceof TauriLlmDriver &&
-    simulation.writer.llmDriver.value.busy.value;
+  const writerBusy = simulation.writer.llmDriver.value?.busy.value;
 
-  const directorBusy =
-    simulation.director.llmDriver.value instanceof TauriLlmDriver &&
-    simulation.director.llmDriver.value.busy.value;
+  const directorBusy = simulation.director.llmDriver.value?.busy.value;
 
   if (writerBusy || directorBusy) {
     return Status.Busy;
@@ -40,11 +34,10 @@ const statusText = computed<string | undefined>(() => {
 </script>
 
 <template lang="pug">
-.flex.items-center.gap-1
-  CpuIcon(
-    :size="16"
-    :stroke-width="2.5"
-    :class="{ 'text-green-500': status === Status.Idle, 'text-yellow-500': status === Status.Busy, 'text-neutral-500': status === undefined, 'animate-pulse': status === Status.Busy }"
-  )
-  span.font-mono.text-xs.font-semibold.leading-none {{ statusText }}
+.h-2.w-2.rounded-full(
+  :size="16"
+  :stroke-width="2.5"
+  :class="{ 'bg-green-500': status === Status.Idle, 'bg-yellow-500': status === Status.Busy, 'bg-neutral-500': status === undefined, 'animate-pulse': status === Status.Busy }"
+  :title="statusText"
+)
 </template>

@@ -536,13 +536,12 @@ function enableOnlyCharacter(characterId: string) {
           SquarePowerIcon.transition(:size="20" class="group-hover:animate-pulse")
 
         //- Show setting button.
-        button._status-button.group(
+        button.btn-shadow.group.flex.items-center.gap-1.rounded.bg-white.p-1.pr-2.shadow.transition.pressable(
           @click="showSettingsModal = true"
           title="Settings"
         )
           SettingsIcon(:size="20" class="group-hover:animate-spin")
-
-        GpuStatus.rounded.bg-white.px-1.py-1(:simulation title="GPU status")
+          GpuStatus(:simulation="simulation")
 
         //- Context gauge.
         .flex.w-full.items-center.gap-2
