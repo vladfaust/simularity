@@ -3,10 +3,19 @@ import Header from "@/components/Browser/Header.vue";
 import { remoteServerJwt } from "@/lib/storage";
 import router, { routeLocation } from "@/router";
 import { LogOutIcon } from "lucide-vue-next";
+import { toast } from "vue3-toastify";
 
 function logout() {
   remoteServerJwt.value = null;
-  router.push(routeLocation({ name: "Home" }));
+
+  router.push(routeLocation({ name: "Home" })).then(() => {
+    toast("Logged out", {
+      theme: "auto",
+      type: "default",
+      position: "bottom-right",
+      pauseOnHover: false,
+    });
+  });
 }
 </script>
 

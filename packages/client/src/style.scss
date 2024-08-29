@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url("vue3-toastify/dist/index.css");
+
 @layer base {
   // Disable overscroll, thanks to
   // https://github.com/tauri-apps/tauri/issues/4309.

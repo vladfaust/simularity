@@ -8,6 +8,7 @@ import { toMilliseconds } from "duration-fns";
 import { LibraryBigIcon, Loader2Icon, UserCircle2Icon } from "lucide-vue-next";
 import { nanoid } from "nanoid";
 import { ref } from "vue";
+import { toast } from "vue3-toastify";
 
 const LOGIN_TIMEOUT = toMilliseconds({ minutes: 5 });
 const loginInProgress = ref(false);
@@ -30,7 +31,15 @@ async function login() {
 
         storage.remoteServerJwt.value = response.jwt;
         console.log("Logged in", response.jwt);
-        await router.push(routeLocation({ name: "User" }));
+
+        router.push(routeLocation({ name: "User" })).then(() => {
+          toast("Successfully logged in", {
+            theme: "auto",
+            type: "success",
+            position: "bottom-right",
+            pauseOnHover: false,
+          });
+        });
 
         break;
       } catch (e: any) {
