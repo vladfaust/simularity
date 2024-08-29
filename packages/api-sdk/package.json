@@ -24,6 +24,10 @@
       "import": "./dist/common.js",
       "types": "./dist/common.d.ts"
     },
+    "./v1/auth/get": {
+      "import": "./dist/v1/auth/get.js",
+      "types": "./dist/v1/auth/get.d.ts"
+    },
     "./v1/completions/create": {
       "import": "./dist/v1/completions/create.js",
       "types": "./dist/v1/completions/create.d.ts"

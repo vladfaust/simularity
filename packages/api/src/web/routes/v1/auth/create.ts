@@ -1,17 +1,26 @@
 import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
+import { redis } from "@/lib/redis.js";
 import { v } from "@/lib/valibot.js";
 import bcrypt from "bcrypt";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { eq } from "drizzle-orm";
+import { toSeconds } from "duration-fns";
 import { Router } from "express";
 import { createJwt } from "./common.js";
+
+export const NONCE_TTL = toSeconds({ minutes: 5 });
 
 const RequestBodySchema = v.object({
   username: v.string(),
   password: v.string(),
+  nonce: v.optional(v.string()),
 });
+
+export function nonceRedisKey(nonce: string) {
+  return `auth:${nonce}`;
+}
 
 /**
  * Create a new auth, i.e. login.
@@ -50,7 +59,11 @@ export default Router()
       });
     }
 
-    return res.status(201).json({
-      jwt: await createJwt(user.id),
-    });
+    const jwt = await createJwt(user.id);
+
+    if (body.output.nonce) {
+      redis.set(nonceRedisKey(body.output.nonce), jwt, "EX", NONCE_TTL);
+    }
+
+    return res.status(201).json({ jwt });
   });

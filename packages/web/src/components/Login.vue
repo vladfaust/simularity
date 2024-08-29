@@ -1,22 +1,25 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { createAuth } from "@/lib/api";
+import { authorizeNonce, createAuth } from "@/lib/api";
+import { routeLocation } from "@/router";
 import { jwt } from "@/store";
-import { useRouter } from "vue-router";
+import { onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 const router = useRouter();
+const route = useRoute();
 
 const username = ref("");
 const password = ref("");
 
 const error = ref<string | null>(null);
+const nonce = route.query.nonce as string | undefined;
 
 const loginInProgress = ref(false);
 async function login() {
   try {
     loginInProgress.value = true;
     error.value = null;
-    const response = await createAuth(username.value, password.value);
+    const response = await createAuth(username.value, password.value, nonce);
     jwt.value = response.jwt;
     router.push({ name: "Home" });
   } catch (e: any) {
@@ -25,6 +28,19 @@ async function login() {
     loginInProgress.value = false;
   }
 }
+
+onMounted(async () => {
+  if (jwt.value) {
+    console.log("Already logged in");
+
+    if (nonce) {
+      console.log("Authorizing a nonce", nonce);
+      await authorizeNonce(nonce);
+    }
+
+    await router.push(routeLocation({ name: "Home" }));
+  }
+});
 </script>
 
 <template lang="pug">

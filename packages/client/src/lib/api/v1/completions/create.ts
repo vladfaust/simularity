@@ -27,6 +27,7 @@ export async function create(
 
   if (!response.ok) {
     throw new RemoteApiError(
+      response,
       `Failed to create completion: ${response.status} ${await response.text()}`,
     );
   }
@@ -38,6 +39,7 @@ export async function create(
 
   if (!parseResult.success) {
     throw new RemoteApiError(
+      response,
       `Failed to parse completion response: ${v.flatten(parseResult.issues)}`,
     );
   }

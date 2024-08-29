@@ -31,7 +31,11 @@ export async function createUser(username: string, password: string) {
   return (await response.json()) as { jwt: string };
 }
 
-export async function createAuth(username: string, password: string) {
+export async function createAuth(
+  username: string,
+  password: string,
+  nonce?: string,
+) {
   const response = await fetch(import.meta.env.VITE_API_BASE_URL + "/v1/auth", {
     method: "POST",
     headers: {
@@ -40,6 +44,7 @@ export async function createAuth(username: string, password: string) {
     body: JSON.stringify({
       username,
       password,
+      nonce,
     }),
   });
 
@@ -48,6 +53,27 @@ export async function createAuth(username: string, password: string) {
   }
 
   return (await response.json()) as { jwt: string };
+}
+
+/**
+ * Authorize a nonce, so it can be queried for a JWT.
+ */
+export async function authorizeNonce(nonce: string): Promise<void> {
+  const response = await fetch(
+    import.meta.env.VITE_API_BASE_URL + "/v1/auth/" + nonce,
+    {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + jwt.value,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+
+  return;
 }
 
 export async function getUser() {

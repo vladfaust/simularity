@@ -21,7 +21,7 @@ onMounted(async () => {
   // OPTIMIZE: Memoize the API call.
   remoteModels.value = (
     await api.v1.models.index(
-      import.meta.env.VITE_DEFAULT_API_BASE_URL,
+      import.meta.env.VITE_API_BASE_URL,
       storage.remoteServerJwt.value ?? undefined,
     )
   ).filter((model) => model.type === "tts");

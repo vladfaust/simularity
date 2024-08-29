@@ -35,7 +35,7 @@ const selectedModelId = computed<string | undefined>({
       case "remote":
         ttsConfig.value.driver = {
           type: driverType.value,
-          baseUrl: import.meta.env.VITE_DEFAULT_API_BASE_URL,
+          baseUrl: import.meta.env.VITE_API_JWT,
           modelId,
         };
         break;

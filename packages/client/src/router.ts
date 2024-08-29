@@ -8,12 +8,14 @@ import Library from "./views/Library.vue";
 import Scenario from "./views/Scenario.vue";
 import Shutdown from "./views/Shutdown.vue";
 import Simulation from "./views/Simulation.vue";
+import User from "./views/User.vue";
 
 export type RouteName =
   | "Home"
   | "Library"
   | "Scenario"
   | "Simulation"
+  | "User"
   | "Shutdown";
 
 export function routeLocation(
@@ -22,6 +24,7 @@ export function routeLocation(
     | { name: "Library" }
     | { name: "Scenario"; params: { scenarioId: string } }
     | { name: "Simulation"; params: { simulationId: string } }
+    | { name: "User" }
     | { name: "Shutdown" },
 ): RouteLocationNamedRaw & { name: RouteName } {
   return args;
@@ -55,6 +58,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "Simulation" satisfies RouteName,
     component: Simulation,
     props: true,
+  },
+  {
+    path: "/user",
+    name: "User" satisfies RouteName,
+    component: User,
   },
   {
     path: "/quit",

@@ -9,6 +9,7 @@ export async function index(baseUrl: string, jwt?: string) {
 
   if (!response.ok) {
     throw new RemoteApiError(
+      response,
       `Failed to fetch models: ${response.status} ${await response.text()}`,
     );
   }
@@ -20,6 +21,7 @@ export async function index(baseUrl: string, jwt?: string) {
 
   if (!parseResult.success) {
     throw new RemoteApiError(
+      response,
       `Failed to parse models response: ${JSON.stringify(v.flatten(parseResult.issues))}`,
     );
   }

@@ -29,7 +29,7 @@ function setDriverConfig(modelId: string) {
   driverConfig.value = {
     type: "remote",
     modelId,
-    baseUrl: import.meta.env.VITE_DEFAULT_API_BASE_URL,
+    baseUrl: import.meta.env.VITE_API_BASE_URL,
   };
 
   console.log("Temp driver config set", props.agentId);
@@ -50,7 +50,7 @@ onMounted(async () => {
   // OPTIMIZE: Memoize the API call.
   remoteModels.value = (
     await api.v1.models.index(
-      import.meta.env.VITE_DEFAULT_API_BASE_URL,
+      import.meta.env.VITE_API_BASE_URL,
       remoteServerJwt.value ?? undefined,
     )
   ).filter((model) => model.type === "llm" && model.task === props.agentId);

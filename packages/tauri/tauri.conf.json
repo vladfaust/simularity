@@ -47,6 +47,9 @@
           "$APPLOCALDATA/simulations/**/*"
         ]
       },
+      "shell": {
+        "open": true
+      },
       "window": {
         "close": true
       }

@@ -14,10 +14,10 @@ interface ImportMetaEnv {
   readonly VITE_DATABASE_PATH: string;
 
   /** Default API server base URL. */
-  readonly VITE_DEFAULT_API_BASE_URL: string;
+  readonly VITE_API_BASE_URL: string;
 
-  /** ADHOC: API server JWT. */
-  readonly VITE_API_JWT: string;
+  /** Default web server base URL. */
+  readonly VITE_WEB_BASE_URL: string;
 }
 
 interface ImportMeta {

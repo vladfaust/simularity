@@ -28,7 +28,6 @@ const routes: Array<RouteRecordRaw> = [
     path: "/login",
     name: "Login" satisfies RouteName,
     component: Login,
-    meta: { redirectIfAuthed: true },
   },
   {
     path: "/register",

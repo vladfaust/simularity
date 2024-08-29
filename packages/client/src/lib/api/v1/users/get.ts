@@ -11,6 +11,7 @@ export async function get(baseUrl: string, jwt: string) {
 
   if (!response.ok) {
     throw new RemoteApiError(
+      response,
       `/v1/users: ${response.status} ${await response.text()}`,
     );
   }
@@ -22,6 +23,7 @@ export async function get(baseUrl: string, jwt: string) {
 
   if (!parseResult.success) {
     throw new RemoteApiError(
+      response,
       `Failed to parse /v1/users response: ${v.flatten(parseResult.issues)}`,
     );
   }
