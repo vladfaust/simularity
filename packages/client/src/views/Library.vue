@@ -5,11 +5,12 @@ import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
 import { readScenarios, Scenario } from "@/lib/simulation/scenario";
 import { showLibrarySaves } from "@/lib/storage";
+import * as tauri from "@/lib/tauri";
 import { routeLocation } from "@/router";
 import { desc, eq, isNull } from "drizzle-orm";
 import {
   ChevronDownIcon,
-  FolderIcon,
+  FolderOpenIcon,
   HistoryIcon,
   ScrollTextIcon,
   Trash2Icon,
@@ -28,8 +29,8 @@ const filteredScenarios = computed(() =>
   ),
 );
 
-function openScenarioDir() {
-  console.log("openScenarioDir");
+async function openScenariosDir() {
+  await tauri.utils.fileManagerOpen(await resources.scenariosDir());
 }
 
 async function deleteSave(simulationId: string) {
@@ -78,10 +79,10 @@ onMounted(async () => {
         placeholder="Search..."
       )
       button.btn.btn-sm.shrink-0.rounded-lg.border.transition-transform.pressable(
-        @click="openScenarioDir"
-        disabled
+        @click="openScenariosDir"
+        title="Open scenarios directory"
       )
-        FolderIcon(:size="18")
+        FolderOpenIcon(:size="18")
         span Open folder
 
   .flex.h-full.w-full.flex-col.items-center.gap-3.overflow-y-auto.py-3.shadow-inner
