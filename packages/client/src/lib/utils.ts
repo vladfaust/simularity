@@ -273,9 +273,9 @@ export function nonNullable<T>(value: T): NonNullable<T> {
 }
 
 /**
- * @example prettyTokens(8192) // => "8k"
+ * @example prettyNumber(8192) // => "8K"
  */
-export function prettyTokens(
+export function prettyNumber(
   tokens: number,
   options?: { space: boolean },
 ): string {

@@ -51,6 +51,7 @@ fn main() {
             commands::sqlite::sqlite_execute_batch,
             commands::sqlite::sqlite_query,
             commands::sqlite::sqlite_close,
+            commands::utils::file_manager_open,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

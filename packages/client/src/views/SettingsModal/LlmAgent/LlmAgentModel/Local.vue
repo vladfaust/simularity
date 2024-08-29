@@ -5,18 +5,22 @@ import { omit } from "@/lib/utils";
 import * as dialog from "@tauri-apps/api/dialog";
 import * as fs from "@tauri-apps/api/fs";
 import * as path from "@tauri-apps/api/path";
-import { FolderOpenIcon, ProportionsIcon } from "lucide-vue-next";
+import { asyncComputed } from "@vueuse/core";
+import {
+  CloudDownloadIcon,
+  FileIcon,
+  FolderOpenIcon,
+  ProportionsIcon,
+} from "lucide-vue-next";
 import * as fsExtra from "tauri-plugin-fs-extra-api";
 import { computed, onMounted, ref, shallowRef, triggerRef } from "vue";
 import Model from "./Local/Model.vue";
-
-// TODO: Hashing takes some time, consider displaying a temp model div.
 
 const props = defineProps<{ agentId: storage.llm.LlmAgentId }>();
 const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
   "driverConfig",
 );
-const customModels = storage.llm.useCustomModels(props.agentId);
+const customModelsStorage = storage.llm.useCustomModels(props.agentId);
 const cachedModels = shallowRef<storage.llm.CachedModel[]>([]);
 const uncachedModels = ref<string[]>([]);
 const selectedModelPath = ref<string | null>(
@@ -98,16 +102,28 @@ async function openLocalModelSelectionDialog() {
   });
 
   if (typeof modelPath === "string") {
+    // Check if the model is already added.
+    if (
+      customModelsStorage.value.includes(modelPath) ||
+      cachedModels.value.some(
+        (cachedModel) => cachedModel.path === modelPath,
+      ) ||
+      uncachedModels.value.includes(modelPath)
+    ) {
+      console.log(`Model ${modelPath} is already in the storage`);
+      return;
+    }
+
     uncachedModels.value.push(modelPath);
 
     try {
       const cachedModel = await cacheModel(modelPath);
       cachedModels.value.push(cachedModel);
-      setDriverConfig(cachedModels.value.length - 1);
-      customModels.value.push(modelPath);
+      customModelsStorage.value.push(modelPath);
       triggerRef(cachedModels);
       if (!selectedModelPath.value) {
         selectedModelPath.value = modelPath;
+        selectModel(cachedModels.value.length - 1);
       }
     } catch (e: any) {
       console.error(`Failed to cache model ${modelPath}`, e);
@@ -117,10 +133,44 @@ async function openLocalModelSelectionDialog() {
   }
 }
 
-onMounted(async () => {
+async function modelsDirectory() {
   const baseDir = await tauri.resolveBaseDir(fs.BaseDirectory.AppLocalData);
-  const modelsDir = await path.join("models", props.agentId);
-  console.log(`Checking for models in ${await path.join(baseDir, modelsDir)}`);
+  return await path.join(baseDir, "models", props.agentId);
+}
+
+const modelsDirectoryRef = asyncComputed(modelsDirectory);
+
+async function openModelsDirectory() {
+  await tauri.utils.fileManagerOpen(await modelsDirectory());
+}
+
+/**
+ * If model is in the models directory, its file is deleted.
+ * Otherwise, the model entry is removed from the storage.
+ */
+async function removeModel(modelPath: string) {
+  if (modelPath.startsWith(modelsDirectoryRef.value)) {
+    console.log(`Deleting model file ${modelPath}`);
+    await fs.removeFile(modelPath);
+    cachedModels.value = cachedModels.value.filter(
+      (cachedModel) => cachedModel.path !== modelPath,
+    );
+  } else {
+    console.log(`Removing model entry ${modelPath} from storage`);
+
+    customModelsStorage.value = customModelsStorage.value.filter(
+      (customModel) => customModel !== modelPath,
+    );
+
+    cachedModels.value = cachedModels.value.filter(
+      (cachedModel) => cachedModel.path !== modelPath,
+    );
+  }
+}
+
+onMounted(async () => {
+  const modelsDir = await modelsDirectory();
+  console.log(`Checking for models in ${modelsDir}`);
 
   await fs.createDir(modelsDir, {
     dir: fs.BaseDirectory.AppLocalData,
@@ -132,25 +182,30 @@ onMounted(async () => {
   });
 
   // Remove custom models that no longer exist.
-  const customModelEntries = (
-    await Promise.all(
-      customModels.value.map(async (modelPath) => {
-        if (await fs.exists(modelPath)) {
-          return {
-            path: modelPath,
-            name: await path.basename(modelPath),
-          };
-        }
+  const customModelEntries = await Promise.all(
+    customModelsStorage.value.map(async (modelPath) => {
+      if (await fs.exists(modelPath)) {
+        return {
+          path: modelPath,
+          name: await path.basename(modelPath),
+        };
+      }
 
-        // FIXME: Actually remove the custom model from the list.
-        console.warn(`Custom model ${modelPath} not found, removing`);
+      console.warn(`Custom model ${modelPath} not found, removing`);
 
-        return null;
-      }),
-    )
-  ).filter((modelPath) => modelPath !== null);
+      return null;
+    }),
+  );
 
-  entries.push(...customModelEntries);
+  // Remove the missing custom models from the storage.
+  for (let i = customModelEntries.length - 1; i >= 0; i--) {
+    if (!customModelEntries[i]) {
+      customModelsStorage.value.splice(i, 1);
+    }
+  }
+
+  // Add existing custom models to the entries list.
+  entries.push(...customModelEntries.filter((entry) => entry !== null));
 
   for (const entry of entries) {
     if (!entry.name) {
@@ -212,27 +267,47 @@ onMounted(async () => {
 
 <template lang="pug">
 .flex.flex-col.divide-y
-  .flex.p-2
+  .flex.justify-between.gap-1.p-2
+    .flex.items-center.gap-1
+      button.btn-pressable.btn-neutral.btn.btn-sm.rounded(
+        disabled
+        title="Download models from the cloud"
+      )
+        CloudDownloadIcon(:size="18")
+        span Download...
+
+      button.btn-pressable.btn-neutral.btn.btn-sm.rounded(
+        @click="openLocalModelSelectionDialog"
+        title="Add a local model from file"
+      )
+        FileIcon(:size="18")
+        span Add from file
+
     button.btn-pressable.btn-neutral.btn.btn-sm.rounded(
-      @click="openLocalModelSelectionDialog"
+      @click="openModelsDirectory"
+      title="Open the models directory"
     )
       FolderOpenIcon(:size="18")
-      span Add from file...
+      span Open directory
 
-  .grid.grid-cols-2.gap-2.bg-gray-50.p-2.shadow-inner
+  .grid.gap-2.bg-gray-50.p-2.shadow-inner
     Model.rounded-lg.border.bg-white(
       v-for="(cachedModel, index) in cachedModels"
       :class="{ 'border-primary-500': selectedModelPath === cachedModel.path }"
       :key="cachedModel.path"
       :model="cachedModel"
       :selected="selectedModelPath === cachedModel.path"
+      :remove-deletes-file="cachedModel.path.startsWith(modelsDirectoryRef)"
       @select="selectModel(index)"
+      @remove="removeModel(cachedModel.path)"
     )
     Model.rounded-lg.border.bg-white(
       v-for="modelPath in uncachedModels"
       :key="modelPath"
       :model="{ path: modelPath }"
       :selected="false"
+      :remove-deletes-file="modelPath.startsWith(modelsDirectoryRef)"
+      @remove="removeModel(modelPath)"
     )
 
   .flex.flex-col.gap-2.p-2(

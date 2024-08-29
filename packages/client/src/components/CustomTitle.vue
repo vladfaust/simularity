@@ -6,12 +6,11 @@ defineProps<{
 
 <template lang="pug">
 .flex.items-center.justify-between.gap-2
-  .flex.shrink-0.items-center.gap-1
+  .flex.items-center.gap-1.overflow-x-hidden
     slot(name="icon")
-    .shrink-0
-      slot(name="default")
-        span.font-semibold.leading-snug.tracking-wide {{ title }}
-  .w-full.border-b
+    slot(name="default")
+      span.font-semibold.leading-snug.tracking-wide {{ title }}
+  .min-w-4.grow.border-b
   .shrink-0(v-if="$slots.extra")
     slot(name="extra")
 </template>

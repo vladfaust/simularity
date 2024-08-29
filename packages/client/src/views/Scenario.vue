@@ -5,7 +5,7 @@ import Placeholder from "@/components/Placeholder.vue";
 import { d } from "@/lib/drizzle";
 import { Simulation } from "@/lib/simulation";
 import { readScenario, Scenario } from "@/lib/simulation/scenario";
-import { prettyTokens, replaceAsync } from "@/lib/utils";
+import { prettyNumber, replaceAsync } from "@/lib/utils";
 import { routeLocation } from "@/router";
 import { VueMarkdownIt } from "@f3ve/vue-markdown-it";
 import { asyncComputed } from "@vueuse/core";
@@ -321,7 +321,7 @@ onMounted(async () => {
                 )
                   ProportionsIcon(:size="16")
                   span.shrink-0.font-semibold Context
-                .font-mono {{ prettyTokens(scenario.contextWindowSize, { space: false }) }}
+                .font-mono {{ prettyNumber(scenario.contextWindowSize, { space: false }) }}
 
                 .flex.items-center.gap-1
                   DramaIcon(:size="16")

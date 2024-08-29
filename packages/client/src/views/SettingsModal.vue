@@ -121,7 +121,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
               .name
                 ._icon
                   JoystickIcon(:size="20")
-                span Writer
+                span General
 
             .flex.items-center.justify-between.gap-1.border-b.p-2.pl-4.text-gray-500
               span.text-sm AI Agents
