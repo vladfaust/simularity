@@ -6,6 +6,7 @@ import { watchImmediate } from "@vueuse/core";
 import { computed, shallowRef, type ShallowRef } from "vue";
 import type { Scenario } from "../scenario";
 import { VoicerJob } from "./voicer/job";
+export { VoicerJob };
 
 export class Voicer {
   readonly ttsDriver: ShallowRef<BaseTtsDriver | null>;

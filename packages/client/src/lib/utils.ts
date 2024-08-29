@@ -1,4 +1,5 @@
 import prettyBytes from "pretty-bytes";
+import type { readonly, Ref } from "vue";
 
 export function throwError(...args: any[]): never {
   throw new Error(args.join(" "));
@@ -309,3 +310,5 @@ export async function replaceAsync(
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
+
+export type ReadonlyRef<T> = ReturnType<typeof readonly<Ref<T>>>;

@@ -79,11 +79,6 @@ const busy = ref(false);
 const inferenceAbortController = ref<AbortController | null>(null);
 
 /**
- * Inference decoding progress, from 0 to 1, if inferring.
- */
-const inferenceDecodingProgress = ref<number | undefined>();
-
-/**
  * Whether the updates are displayed in fullscreen.
  */
 const updatesFullscreen = ref(false);
@@ -91,8 +86,6 @@ const updatesFullscreen = ref(false);
 const predictionOptions = computed<PredictionOptions>(() => ({
   allowedCharacterIds: Array.from(enabledCharacterIds.value),
 }));
-
-const willConsolidate = ref(false);
 
 const sendButtonState = computed<SendButtonState>(() => {
   if (inferenceAbortController.value) {
@@ -159,15 +152,8 @@ async function sendMessage() {
 
   busy.value = true;
   inferenceAbortController.value = new AbortController();
-  inferenceDecodingProgress.value = 0;
 
   try {
-    if (willConsolidate.value) {
-      await simulation.consolidate(inferenceAbortController.value!.signal);
-      if (inferenceAbortController.value!.signal.aborted) return;
-      willConsolidate.value = false;
-    }
-
     await simulation.createUpdate(
       simulation.scenario.defaultCharacterId,
       userMessage,
@@ -177,7 +163,6 @@ async function sendMessage() {
       N_EVAL,
       predictionOptions.value,
       modelSettings.value,
-      (e) => (inferenceDecodingProgress.value = e.progress),
       inferenceAbortController.value!.signal,
     );
   } catch (e) {
@@ -187,7 +172,6 @@ async function sendMessage() {
 
     throw e;
   } finally {
-    inferenceDecodingProgress.value = undefined;
     inferenceAbortController.value = null;
     busy.value = false;
   }
@@ -207,22 +191,15 @@ async function advance() {
     if (simulation.state.shallAdvanceEpisode.value) {
       await simulation.advanceCurrentEpisode();
     } else {
-      if (!willConsolidate.value && simulation.canGoForward.value) {
+      if (simulation.canGoForward.value) {
         await simulation.goForward();
       } else {
         inferenceAbortController.value = new AbortController();
-
-        if (willConsolidate.value) {
-          await simulation.consolidate(inferenceAbortController.value!.signal);
-          if (inferenceAbortController.value!.signal.aborted) return;
-          willConsolidate.value = false;
-        }
 
         await simulation.predictUpdate(
           N_EVAL,
           predictionOptions.value,
           modelSettings.value,
-          (e) => (inferenceDecodingProgress.value = e.progress),
           inferenceAbortController.value!.signal,
         );
       }
@@ -231,7 +208,6 @@ async function advance() {
     console.error(e);
     throw e;
   } finally {
-    inferenceDecodingProgress.value = undefined;
     inferenceAbortController.value = null;
     busy.value = false;
   }
@@ -285,7 +261,6 @@ async function regenerateUpdate(updateIndex: number) {
   busy.value = true;
 
   inferenceAbortController.value = new AbortController();
-  inferenceDecodingProgress.value = 0;
 
   try {
     if (updateIndex !== simulation.currentUpdateIndex.value) {
@@ -298,11 +273,9 @@ async function regenerateUpdate(updateIndex: number) {
       N_EVAL,
       predictionOptions.value,
       modelSettings.value,
-      (e) => (inferenceDecodingProgress.value = e.progress),
       inferenceAbortController.value!.signal,
     );
   } finally {
-    inferenceDecodingProgress.value = undefined;
     inferenceAbortController.value = null;
     busy.value = false;
   }
@@ -440,7 +413,7 @@ function enableOnlyCharacter(characterId: string) {
       .relative.w-full.overflow-hidden.rounded-lg.shadow-lg
         //- Progress bar when simulation is busy.
         TransitionRoot.absolute.z-10.h-full.w-full(
-          :show="simulation.busy.value"
+          :show="!!simulation.currentJob.value"
           :unmount="true"
           enter="duration-100 ease-out"
           enter-from="translate-y-full opacity-0"
@@ -449,7 +422,10 @@ function enableOnlyCharacter(characterId: string) {
           leave-from="translate-y-0 opacity-100"
           leave-to="translate-y-full opacity-0"
         )
-          ProgressBar.h-full.w-full(:simulation)
+          ProgressBar.h-full.w-full(
+            v-if="simulation.currentJob.value"
+            :job="simulation.currentJob.value"
+          )
 
         //- User input otherwise.
         input.h-full.w-full.px-3.opacity-90.transition-opacity(

@@ -15,7 +15,7 @@ import {
   HourglassIcon,
   Loader2Icon,
   LoaderIcon,
-  XIcon,
+  MinusIcon,
 } from "lucide-vue-next";
 
 const STATUS_ICON_SIZE = 16;
@@ -49,7 +49,7 @@ defineProps<{
       :stroke-width="STATUS_ICON_STROKE_WIDTH"
     )
   template(v-else-if="status === Status.Disabled")
-    XIcon.opacity-50(
+    MinusIcon.opacity-50(
       :size="STATUS_ICON_SIZE"
       :stroke-width="STATUS_ICON_STROKE_WIDTH"
     )
