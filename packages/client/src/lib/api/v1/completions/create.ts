@@ -1,14 +1,22 @@
 import { RemoteApiError } from "@/lib/api";
 import { v } from "@/lib/valibot";
 import * as createCompletionApi from "@simularity/api-sdk/v1/completions/create";
+import * as tauriHttp from "@tauri-apps/api/http";
+import { toMilliseconds } from "duration-fns";
 
+/**
+ * Create an LLM completion.
+ */
+// ADHOC: Tauri client implementation ignores signals.
 export async function create(
   baseUrl: string,
   jwt: string,
   sessionId: string | undefined,
   body: v.InferOutput<typeof createCompletionApi.RequestBodySchema>,
-  signal?: AbortSignal,
+  _signal?: AbortSignal,
 ) {
+  const url = `${baseUrl}/v1/completions`;
+
   const headers: Record<string, string> = {
     Authorization: `Bearer ${jwt}`,
     "Content-Type": "application/json",
@@ -18,29 +26,31 @@ export async function create(
     headers["x-session-id"] = sessionId;
   }
 
-  const response = await fetch(`${baseUrl}/v1/completions`, {
-    method: "POST",
+  const client = await tauriHttp.getClient({
+    connectTimeout: toMilliseconds({ minutes: 5 }),
+  });
+
+  const response = await client.post(url, tauriHttp.Body.json(body), {
     headers,
-    body: JSON.stringify(body),
-    signal,
+    responseType: tauriHttp.ResponseType.JSON,
   });
 
   if (!response.ok) {
     throw new RemoteApiError(
       response,
-      `Failed to create completion: ${response.status} ${await response.text()}`,
+      `POST ${url} request failed: ${response.status} ${response.data}`,
     );
   }
 
   const parseResult = v.safeParse(
     createCompletionApi.ResponseSchema,
-    await response.json(),
+    response.data,
   );
 
   if (!parseResult.success) {
     throw new RemoteApiError(
       response,
-      `Failed to parse completion response: ${v.flatten(parseResult.issues)}`,
+      `POST ${url} parse failed: ${v.flatten(parseResult.issues)}`,
     );
   }
 

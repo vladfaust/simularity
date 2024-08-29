@@ -4,6 +4,7 @@ import {
   RequestBodySchema,
   ResponseBodySchema,
 } from "@simularity/api-sdk/v1/tts/create";
+import * as tauriHttp from "@tauri-apps/api/http";
 import { toMilliseconds } from "duration-fns";
 
 export class ServerError extends Error {}
@@ -40,16 +41,19 @@ const TTS_STREAM_PAYLOAD = v.object({
  * Generate speech from text.
  * @returns WAV audio data.
  */
+// ADHOC: Tauri client implementation ignores signals.
 export async function create(
   baseUrl: string,
   jwt: string | undefined,
   body: v.InferOutput<typeof RequestBodySchema>,
-  signal: AbortSignal | undefined = timeoutSignal(
+  _signal: AbortSignal | undefined = timeoutSignal(
     toMilliseconds({
       minutes: 5,
     }),
   ),
 ): Promise<ArrayBuffer> {
+  const url = `${baseUrl}/v1/tts`;
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -58,20 +62,22 @@ export async function create(
     headers["Authorization"] = `Bearer ${jwt}`;
   }
 
-  const response = await fetch(`${baseUrl}/v1/tts`, {
-    method: "POST",
+  const client = await tauriHttp.getClient({
+    connectTimeout: toMilliseconds({ minutes: 5 }),
+  });
+
+  const response = await client.post(url, tauriHttp.Body.json(body), {
     headers,
-    body: JSON.stringify(body),
-    signal,
+    responseType: tauriHttp.ResponseType.JSON,
   });
 
   if (!response.ok) {
     throw new ServerError(
-      `Failed to create completion: ${response.status} ${await response.text()}`,
+      `POST ${url} request failed: ${response.status} ${response.data}`,
     );
   }
 
-  const json = await response.json();
+  const json = response.data;
   const parsedOutput = v.parse(ResponseBodySchema, json);
   const wavBase64 = parsedOutput.output.wavBase64;
 
@@ -82,6 +88,7 @@ export async function create(
  * Generate speech from text and stream the audio data.
  * @yields WAV audio data.
  */
+// NOTE: Tauri (likely) does not support streaming responses.
 export async function* createStream(
   baseUrl: string,
   jwt: string | undefined,

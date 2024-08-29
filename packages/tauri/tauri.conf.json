@@ -36,6 +36,12 @@
       "globalShortcut": {
         "all": true
       },
+      "http": {
+        "request": true,
+        "scope": [
+          "http://localhost:3000/*"
+        ]
+      },
       "path": {
         "all": true
       },
