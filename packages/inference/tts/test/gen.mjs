@@ -1,14 +1,20 @@
 // Generate lots of samples with different parameters.
-// Usage: test/gen.js <api-url> <embeddings-path> <language> <text> <output-dir>
+// Usage: test/gen.js <api-url> <embeddings-path> <inputs-path> <output-dir>
 //
 
 import fs from "fs";
 
 const apiUrl = process.argv[2];
 const embeddingsPath = process.argv[3];
-const language = process.argv[4];
-const text = process.argv[5];
-const outputDir = process.argv[6];
+const inputsPath = process.argv[4];
+const outputDir = process.argv[5];
+
+const inputsJson = fs.readFileSync(inputsPath, "utf-8");
+
+/**
+ * @type {[{text: string; language: string; overlapWavLength?: number; temperature?: number; lengthPenalty?: number; repetitionPenalty?: number; topK?: number; topP?: number; speed?: number}]}
+ */
+const inputs = JSON.parse(inputsJson);
 
 // Make sure the output directory exists.
 fs.mkdirSync(outputDir, { recursive: true });
@@ -19,10 +25,10 @@ fs.mkdirSync(outputDir, { recursive: true });
 const embeddings = JSON.parse(fs.readFileSync(embeddingsPath, "utf-8"));
 
 /**
- * @param {{ overlapWavLength?: number; temperature?: number; lengthPenalty?: number; repetitionPenalty?: number; topK?: number; topP?: number; speed?: number; }} params
+ * @param {{ overlapWavLength?: number; temperature?: number; lengthPenalty?: number; repetitionPenalty?: number; topK?: number; topP?: number; speed?: number; }} input
  */
-async function tts(params = {}) {
-  console.log(params);
+async function tts(input) {
+  console.log(input);
 
   const result = await fetch(`${apiUrl}/tts_raw`, {
     method: "POST",
@@ -31,9 +37,7 @@ async function tts(params = {}) {
     },
     body: JSON.stringify({
       ...embeddings,
-      text,
-      language,
-      ...params,
+      ...input,
     }),
   });
 
@@ -43,10 +47,12 @@ async function tts(params = {}) {
 
   const buffer = await result.arrayBuffer();
 
-  const fileName = `${outputDir}/${JSON.stringify(params)}.wav`;
+  const fileName = `${outputDir}/${JSON.stringify(input)}.wav`;
   fs.writeFileSync(fileName, Buffer.from(buffer));
 
   console.log(`Saved to ${fileName}`);
 }
 
-await tts({});
+for (const input of inputs) {
+  await tts(input);
+}

@@ -27,6 +27,15 @@ curl -X POST \
   http://localhost:9090/v1/tts_raw
 ```
 
+```sh
+# Generate multiple TTSs.
+node ./test/gen.mjs \
+  http://localhost:9090/v1 \
+  "/path/to/speaker.json" \
+  ./test_inputs.local.json \
+  "/path/to/output"
+```
+
 ### Runpod
 
 ```sh
