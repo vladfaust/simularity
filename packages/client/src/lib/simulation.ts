@@ -519,6 +519,12 @@ export class Simulation {
     inferenceOptions?: CompletionOptions,
     inferenceAbortSignal?: AbortSignal,
   ) {
+    console.debug("predictUpdate()", {
+      nEval,
+      predictionOptions,
+      inferenceOptions,
+    });
+
     if (this.busy.value) {
       throw new Error("Simulation is busy");
     }

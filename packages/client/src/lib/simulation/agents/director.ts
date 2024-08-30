@@ -5,7 +5,13 @@ import {
 } from "@/lib/ai/llm/BaseLlmDriver";
 import type { d } from "@/lib/drizzle";
 import * as storage from "@/lib/storage";
-import { safeParseJson, trimEndAny, unreachable } from "@/lib/utils";
+import {
+  clone,
+  safeParseJson,
+  tap,
+  trimEndAny,
+  unreachable,
+} from "@/lib/utils";
 import { formatIssues, v } from "@/lib/valibot";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
 import { IdSchema, Scenario } from "../scenario";
@@ -98,7 +104,7 @@ export class Director {
     // Combine explicitly allowed characters with the characters
     // that are already on the stage to get the full set of allowed characters.
     const allowedCharacterIdsArray =
-      predictionOptions?.charactersAllowedToEnterTheStage || [];
+      tap(predictionOptions?.charactersAllowedToEnterTheStage, clone) || [];
     allowedCharacterIdsArray.push(
       ...currentState.stage.characters.map((c) => c.id),
     );

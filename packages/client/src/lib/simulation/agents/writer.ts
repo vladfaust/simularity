@@ -525,9 +525,9 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
   ): string {
     const allowedCharacterIds =
       options?.allowedCharacterIds ||
-      Object.entries(scenario.characters)
-        .filter(([characterId]) => scenario.defaultCharacterId !== characterId)
-        .map(([characterId, _]) => characterId);
+      Object.keys(scenario.characters).filter(
+        (characterId) => scenario.defaultCharacterId !== characterId,
+      );
 
     switch (lang) {
       case LlmGrammarLang.Gnbf: {
@@ -583,9 +583,9 @@ characterId ::= ${characterIdRule}
 
     const allowedCharacterIds =
       options?.allowedCharacterIds ||
-      Object.entries(scenario.characters)
-        .filter(([characterId]) => scenario.defaultCharacterId !== characterId)
-        .map(([characterId, _]) => characterId);
+      Object.keys(scenario.characters).filter(
+        (characterId) => scenario.defaultCharacterId !== characterId,
+      );
 
     if (!allowedCharacterIds.includes(rawCharacterId)) {
       throw new ResponseError(`Unexpected character ID: ${rawCharacterId}`);
