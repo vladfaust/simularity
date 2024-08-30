@@ -108,6 +108,8 @@ export class Voicer {
    * Create a new Text-To-Speech job.
    */
   createTtsJob(characterId: string | null, text: string) {
+    // Remove `*` from the text.
+    text = text.replace(/\*/g, "");
     return new VoicerJob(characterId, text, this, this.scenario);
   }
 
