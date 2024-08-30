@@ -31,6 +31,10 @@ else:
 
 print(f"device = {device}")
 
+use_deepspeed = False
+if os.environ.get("USE_DEEPSPEED", "1") == "1" and device == "cuda":
+    use_deepspeed = True
+
 
 class TTSInputs(BaseModel):
     speaker_embedding: List[float]
@@ -119,7 +123,7 @@ class Core:
             self.config,
             checkpoint_dir=model_path,
             eval=True,
-            use_deepspeed=True if device == "cuda" else False),
+            use_deepspeed=use_deepspeed),
         self.model.to(device)
 
         now_mem = torch.cuda.memory_allocated(
