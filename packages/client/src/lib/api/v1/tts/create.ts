@@ -53,6 +53,7 @@ export async function create(
   ),
 ): Promise<ArrayBuffer> {
   const url = `${baseUrl}/v1/tts`;
+  console.debug(`POST ${url} request...`);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -73,7 +74,7 @@ export async function create(
 
   if (!response.ok) {
     throw new ServerError(
-      `POST ${url} request failed: ${response.status} ${response.data}`,
+      `POST ${url} request failed: ${response.status} ${JSON.stringify(response.data)}`,
     );
   }
 

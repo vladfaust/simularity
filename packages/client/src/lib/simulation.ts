@@ -1,3 +1,4 @@
+import { fs } from "@tauri-apps/api";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { toMinutes } from "duration-fns";
@@ -16,6 +17,7 @@ import {
 } from "./ai/llm/BaseLlmDriver";
 import { d, parseSelectResult, sqlite, type Transaction } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
+import * as resources from "./resources";
 import { Director } from "./simulation/agents/director";
 import { Voicer } from "./simulation/agents/voicer";
 import {
@@ -29,7 +31,8 @@ import { type StageRenderer } from "./simulation/stageRenderer";
 import { State, compareStateDeltas, type StateDto } from "./simulation/state";
 import { type StateCommand } from "./simulation/state/commands";
 import { Update } from "./simulation/update";
-import { assert, assertCallback } from "./utils";
+import * as storage from "./storage";
+import { Deferred, assert, assertCallback } from "./utils";
 
 export { Scenario, State };
 
@@ -406,7 +409,13 @@ export class Simulation {
       const episodeUpdate = markRaw(
         new Update(
           parentUpdateId,
-          shallowRef([{ ...incoming, state: this.state.serialize() }]),
+          shallowRef([
+            {
+              ...incoming,
+              state: this.state.serialize(),
+              ttsPath: ref(null),
+            },
+          ]),
         ),
       );
       this._recentUpdates.value.push(episodeUpdate);
@@ -464,7 +473,11 @@ export class Simulation {
       if (this._futureUpdates.value.length) {
         // Add a new variant to the existing next update.
         const update = this._futureUpdates.value.shift()!;
-        update.variants.value.push({ ...saved, state: this.state.serialize() });
+        update.variants.value.push({
+          ...saved,
+          state: this.state.serialize(),
+          ttsPath: ref(null),
+        });
         update.setChosenVariantToLast();
 
         // Shift the future update to the recent updates.
@@ -477,7 +490,13 @@ export class Simulation {
         const update = markRaw(
           new Update(
             parentUpdateId,
-            shallowRef([{ ...saved, state: this.state.serialize() }]),
+            shallowRef([
+              {
+                ...saved,
+                state: this.state.serialize(),
+                ttsPath: ref(null),
+              },
+            ]),
           ),
         );
 
@@ -648,7 +667,7 @@ export class Simulation {
       ? await Simulation._fetchWriterUpdateDescendants(
           newVariant.writerUpdate.nextUpdateId,
         ).then((updates) =>
-          Promise.all(updates.map((u) => Simulation._createUpdate(u, true))),
+          Promise.all(updates.map((u) => this._createUpdate(u, true))),
         )
       : [];
 
@@ -891,9 +910,7 @@ export class Simulation {
       undefined,
       limit,
     ).then((updates) =>
-      Promise.all(
-        updates.reverse().map((u) => Simulation._createUpdate(u, true)),
-      ),
+      Promise.all(updates.reverse().map((u) => this._createUpdate(u, true))),
     );
 
     this._historicalUpdates.value.unshift(...updates);
@@ -1060,9 +1077,7 @@ export class Simulation {
 
             return writerUpdate;
           })
-          .then((writerUpdate) =>
-            Simulation._createUpdate(writerUpdate, true, true),
-          )
+          .then((writerUpdate) => this._createUpdate(writerUpdate, true, true))
           .then((update) => this._futureUpdates.value.push(update));
       } else {
         console.debug("No more future updates to fetch");
@@ -1133,7 +1148,7 @@ export class Simulation {
       this.nextUpdateId.value,
       limit,
     ).then((updates) =>
-      Promise.all(updates.map((u) => Simulation._createUpdate(u, true))),
+      Promise.all(updates.map((u) => this._createUpdate(u, true))),
     );
 
     this._futureUpdates.value.push(...updates);
@@ -1235,6 +1250,65 @@ export class Simulation {
       completionOptions,
       abortSignal,
     );
+  }
+
+  /**
+   * Infer TTS for an update variant.
+   * @returns The TTS job, or null if the TTS audio already exists.
+   */
+  inferTts(
+    variant: Update["ensureChosenVariant"],
+    force: boolean = false,
+  ): {
+    promise: Promise<string>;
+    cancel: () => void;
+  } | null {
+    if (variant.ttsPath.value && !force) {
+      console.warn("TTS audio element already exists");
+      return null;
+    }
+
+    if (!this.voicer.ttsDriver.value || !storage.tts.ttsConfig.value?.enabled) {
+      throw new Error("TTS is disabled");
+    }
+
+    if (!this.voicer.ttsDriver.value.ready.value) {
+      console.warn("TTS driver is not ready");
+      return null;
+    }
+
+    const job = markRaw(
+      this.voicer.createTtsJob(
+        variant.writerUpdate.characterId,
+        variant.writerUpdate.text,
+      ),
+    );
+
+    const deferred = new Deferred<string>();
+    const returned = {
+      promise: deferred.promise,
+      cancel: () => job.cancel(),
+    };
+
+    job.result.promise.then(async (result) => {
+      if (result instanceof Error) {
+        deferred.reject(result);
+        throw result;
+      }
+
+      console.debug("Saving TTS audio");
+
+      variant.ttsPath.value = await resources.tts.saveAudio(
+        this.id,
+        variant.writerUpdate.id,
+        result,
+        ".wav",
+      );
+
+      deferred.resolve(variant.ttsPath.value);
+    });
+
+    return returned;
   }
 
   destroy() {
@@ -1390,14 +1464,14 @@ export class Simulation {
    * updates are not fetched.
    */
   // FIXME: `isCheckpoint` doesn't feel right.
-  private static async _createUpdate(
+  private async _createUpdate(
     writerUpdate: typeof d.writerUpdates.$inferSelect & {
       completion?: typeof d.llmCompletions.$inferSelect | null;
     },
     fetchSiblings = false,
     fetchAppliedDirectorUpdate = false,
   ): Promise<Update> {
-    const siblings = fetchSiblings
+    const writerUpdates = fetchSiblings
       ? await d.db.query.writerUpdates.findMany({
           where: and(
             eq(d.writerUpdates.simulationId, writerUpdate.simulationId),
@@ -1415,15 +1489,23 @@ export class Simulation {
       ? await Simulation._fetchAppliedDirectorUpdate(writerUpdate.id)
       : undefined;
 
+    const variants = await Promise.all(
+      writerUpdates.map(async (writerUpdate) => {
+        const ttsPath: string = await resources.tts.audioFilePath(
+          this.id,
+          writerUpdate.id,
+          ".wav",
+        );
+
+        return {
+          writerUpdate,
+          ttsPath: ref((await fs.exists(ttsPath)) ? ttsPath : null),
+        };
+      }),
+    );
+
     const update = markRaw(
-      new Update(
-        writerUpdate.parentUpdateId,
-        shallowRef(
-          siblings.map((sibling) => ({
-            writerUpdate: sibling,
-          })),
-        ),
-      ),
+      new Update(writerUpdate.parentUpdateId, shallowRef(variants)),
     );
 
     update.chosenVariantIndex.value = assertCallback(
@@ -1586,7 +1668,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         )
       )
         .reverse()
-        .map((u) => Simulation._createUpdate(u, true, true)),
+        .map((u) => this._createUpdate(u, true, true)),
     );
 
     // Fetch historical updates with siblings.
@@ -1601,7 +1683,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
           )
         )
           .reverse()
-          .map((u) => Simulation._createUpdate(u, true)),
+          .map((u) => this._createUpdate(u, true)),
       );
     } else {
       this._historicalUpdates.value = [];
@@ -1615,7 +1697,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
             currentWriterUpdate.nextUpdateId,
             historicalUpdatesLimit,
           )
-        ).map((u) => Simulation._createUpdate(u, true)),
+        ).map((u) => this._createUpdate(u, true)),
       );
     } else {
       this._futureUpdates.value = [];

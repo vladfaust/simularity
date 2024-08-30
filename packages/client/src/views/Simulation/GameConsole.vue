@@ -220,6 +220,8 @@ async function advance() {
  */
 function chooseUpdateVariant(updateIndex: number, variantIndex: number) {
   fadeCanvas(async () => {
+    simulation.voicer.stopTts();
+
     if (updateIndex !== simulation.currentUpdateIndex.value) {
       await simulation.jumpToIndex(updateIndex);
     }

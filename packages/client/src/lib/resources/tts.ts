@@ -3,6 +3,7 @@ import * as path from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 
 /**
+ * Return a TTS audio file path (the file may or may not exist).
  * @param extension The file extension, e.g. ".wav".
  */
 export async function audioFilePath(
@@ -24,6 +25,9 @@ export async function audioFilePath(
   return path.join(dirPath, fileName);
 }
 
+/**
+ * Load TTS audio by params.
+ */
 export async function loadAudio(
   simulationId: string,
   updateId: string,
@@ -42,6 +46,9 @@ export async function loadAudio(
   }
 }
 
+/**
+ * Save a TTS audio by params.
+ */
 export async function saveAudio(
   simulationId: string,
   updateId: string,

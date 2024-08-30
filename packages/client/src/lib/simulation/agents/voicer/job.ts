@@ -92,4 +92,9 @@ export class VoicerJob {
       this.result.resolve(error);
     }
   }
+
+  cancel() {
+    console.warn(`Proper TTS job cancellation is not implemented yet`);
+    this.result.reject(new Error("Cancelled"));
+  }
 }

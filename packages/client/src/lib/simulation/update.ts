@@ -1,5 +1,5 @@
 import { d } from "@/lib/drizzle";
-import { ref, shallowRef, type ShallowRef } from "vue";
+import { ref, shallowRef, type Ref, type ShallowRef } from "vue";
 import type { StateDto } from "./state";
 
 export class Update {
@@ -55,7 +55,12 @@ export class Update {
          */
         state?: StateDto;
 
-        ttsAudioElement?: HTMLAudioElement;
+        /**
+         * TTS file path.
+         * Null means TTS is missing.
+         * Undefined means TTS is not fetched yet.
+         */
+        ttsPath: Ref<string | null | undefined>;
       }[]
     > = shallowRef([]),
     chosenVariantIndex = 0,

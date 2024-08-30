@@ -4,7 +4,6 @@ import * as resources from "@/lib/resources";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { clone } from "@/lib/utils";
-import { watchImmediate } from "@vueuse/core";
 import { eq } from "drizzle-orm";
 import pRetry from "p-retry";
 import { markRaw, readonly, ref } from "vue";
@@ -169,24 +168,22 @@ export class PredictUpdateVariantJob {
           },
         });
 
-      let ttsAudioElement: HTMLAudioElement | undefined;
+      let ttsPath: string | null = null;
       if (this._voicerJob.value) {
         console.log("Waiting for TTS job to finish");
         const result = await this._voicerJob.value.result.promise;
+        console.log("TTS job finished", result);
 
         if (result instanceof Error) {
           console.error("TTS job failed", result);
         } else {
           console.debug("Saving TTS audio");
-          await resources.tts.saveAudio(
+
+          ttsPath = await resources.tts.saveAudio(
             this.simulationId,
             writerUpdate.id,
             result,
             ".wav",
-          );
-
-          ttsAudioElement = new Audio(
-            URL.createObjectURL(new Blob([result], { type: "audio/wav" })),
           );
         }
       }
@@ -203,25 +200,11 @@ export class PredictUpdateVariantJob {
         },
         directorUpdate: directorUpdate,
         state: this.state.serialize(),
-        ttsAudioElement,
+        ttsPath: ref(ttsPath),
       });
 
       this.update.setChosenVariantToLast();
-
-      // ADHOC: Play the TTS audio now.
-      if (ttsAudioElement) {
-        const watchStopHandle = watchImmediate(
-          () => storage.speechVolumeStorage.value,
-          (volume) => {
-            ttsAudioElement.volume = volume / 100;
-          },
-        );
-
-        await ttsAudioElement.play();
-        ttsAudioElement.onended = () => {
-          watchStopHandle();
-        };
-      }
+      if (ttsPath) this.agents.voicer.playTts(ttsPath);
 
       return writerResponse;
     } finally {
