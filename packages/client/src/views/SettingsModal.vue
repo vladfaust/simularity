@@ -118,7 +118,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
               :class="{ _selected: tab === Tab.General }"
               @click="tab = Tab.General"
             )
-              .name
+              ._name
                 ._icon
                   JoystickIcon(:size="20")
                 span General
@@ -131,17 +131,18 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
               :class="{ _selected: tab === Tab.Writer }"
               @click="tab = Tab.Writer"
             )
-              .name
+              ._name
                 ._icon
                   FeatherIcon(:size="20")
                 span Writer
-              LlmStatusIcon(:driver="simulation.writer.llmDriver.value")
+              .flex.items-center
+                LlmStatusIcon(:driver="simulation.writer.llmDriver.value")
 
             ._tab(
               :class="{ _selected: tab === Tab.Director }"
               @click="tab = Tab.Director"
             )
-              .name
+              ._name
                 ._icon
                   ClapperboardIcon(:size="20")
                 span Director
@@ -151,7 +152,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
               :class="{ _selected: tab === Tab.Voicer }"
               @click="tab = Tab.Voicer"
             )
-              .name
+              ._name
                 ._icon
                   AudioLinesIcon(:size="20")
                 span Voicer
@@ -192,7 +193,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
     @apply bg-gray-50 text-primary-500 shadow-inner;
   }
 
-  .name {
+  ._name {
     @apply flex items-center gap-2;
 
     ._icon {
