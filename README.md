@@ -63,3 +63,4 @@ Paper: https://github.com/mit-han-lab/streaming-llm.
 - https://x.com/rohanpaul_ai/status/1827174171165499769 (Whisper + HQQ (Half-Quadratic Quantization)), https://github.com/huggingface/distil-whisper
 - https://docs.vllm.ai/en/stable/getting_started/examples/tensorize_vllm_model.html
 - https://x.com/reach_vb/status/1828892506320159172, https://github.com/huggingface/huggingface-llama-recipes/blob/main/torch_compile_with_torchao.ipynb (transformers + torchao = 🔥)
+- https://quickaitutorial.com/five-technique-vllm-torch-flash_attention-super-local-llm/ (Flash Attention in vLLM)
