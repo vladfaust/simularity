@@ -16,7 +16,7 @@ defineEmits<{
 .flex.flex-col.gap-2.p-3
   .flex.flex-col.gap-1
     .flex.items-center.justify-between.gap-2
-      span.shrink-0.font-bold.uppercase.leading-tight.tracking-wide {{ model.name }}
+      span.shrink-0.font-bold.leading-tight.tracking-wide {{ model.name }}
       .w-full.border-b
       .flex.shrink-0.gap-1
         Credits(:value="2" :iconSize="18" class="gap-0.5")
