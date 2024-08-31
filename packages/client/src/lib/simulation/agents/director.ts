@@ -388,12 +388,40 @@ ${JSON.stringify(setup)}
 
   /**
    * Build a Regex grammar to constrain director output.
-   * @see https://outlines-dev.github.io/outlines/reference/regex.
+   * @see https://outlines-dev.github.io/outlines/reference/generation/regex/
    */
   private static _buildGrammarRegex(
     scenario: Scenario,
     allowedCharacterIds: string[],
   ): string {
-    throw new Error("Not implemented");
+    let sceneId = Object.keys(scenario.scenes)
+      .map((sceneId) => `"${sceneId}"`)
+      .join("|");
+
+    let characters: string[] = [];
+    for (const [characterId, characterData] of Object.entries(
+      scenario.characters,
+    ).filter(([characterId]) => allowedCharacterIds.includes(characterId))) {
+      let outfit = Object.keys(characterData.outfits)
+        .map((outfitId) => `"${outfitId}"`)
+        .join("|");
+
+      let emotion = characterData.expressions
+        .map((emotionId) => `"${emotionId}"`)
+        .join("|");
+
+      characters.push(
+        `"${characterId}":\\{"outfit":(${outfit}),"emotion":(${emotion})}`,
+      );
+    }
+
+    // OPTIMIZE: Find better way to handle character objects (commas mostly).
+    return `{"scene":(${sceneId}),"characters":\\{${
+      characters.length
+        ? `(${characters[0]}${
+            characters.length > 1 ? `(,${characters.slice(1).join("|")})*` : ""
+          })?}`
+        : ""
+    }}`;
   }
 }

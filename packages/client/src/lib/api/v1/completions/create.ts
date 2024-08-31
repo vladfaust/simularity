@@ -38,7 +38,7 @@ export async function create(
   if (!response.ok) {
     throw new RemoteApiError(
       response,
-      `POST ${url} request failed: ${response.status} ${response.data}`,
+      `POST ${url} request failed: ${response.status} ${JSON.stringify(response.data)}`,
     );
   }
 
@@ -50,7 +50,7 @@ export async function create(
   if (!parseResult.success) {
     throw new RemoteApiError(
       response,
-      `POST ${url} parse failed: ${v.flatten(parseResult.issues)}`,
+      `POST ${url} parse failed: ${JSON.stringify(v.flatten(parseResult.issues))}`,
     );
   }
 
