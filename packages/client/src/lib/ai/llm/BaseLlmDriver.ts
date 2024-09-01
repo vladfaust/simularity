@@ -11,6 +11,7 @@ export class CompletionAbortError extends Error {
 export enum LlmGrammarLang {
   Gnbf,
   Regex,
+  JsonSchema,
 }
 
 export type DecodeProgressEventPayload = {
@@ -54,7 +55,12 @@ export const CompletionOptionsSchema = v.object({
     }),
   ),
   seed: v.optional(v.number()),
-  grammar: v.optional(v.string()),
+  grammar: v.optional(
+    v.object({
+      lang: v.enum(LlmGrammarLang),
+      content: v.string(),
+    }),
+  ),
   stopSequences: v.optional(v.array(v.string())),
 });
 
@@ -71,7 +77,7 @@ export enum LlmStatus {
 }
 
 export interface BaseLlmDriver {
-  grammarLang: LlmGrammarLang;
+  supportedGrammarLangs: Set<LlmGrammarLang>;
   contextSize: number;
   needsWarmup: boolean;
 

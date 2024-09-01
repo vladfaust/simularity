@@ -6,12 +6,7 @@ import {
 } from "@/lib/ai/llm/BaseLlmDriver";
 import { d } from "@/lib/drizzle";
 import * as storage from "@/lib/storage";
-import {
-  clockToMinutes,
-  minutesToClock,
-  trimEndAny,
-  unreachable,
-} from "@/lib/utils";
+import { clockToMinutes, minutesToClock, trimEndAny } from "@/lib/utils";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
 import { Scenario } from "../scenario";
 import type { StateDto } from "../state";
@@ -107,7 +102,7 @@ export class Writer {
         temp: 0.2,
         stopSequences: ["\n"],
         grammar: Writer._buildSummarizationGrammar(
-          this.llmDriver.value.grammarLang,
+          this.llmDriver.value.supportedGrammarLangs,
         ),
       },
       undefined,
@@ -165,7 +160,7 @@ export class Writer {
       grammar: Writer._buildChatGrammar(
         this.scenario,
         predictionOptions,
-        this.llmDriver.value.grammarLang,
+        this.llmDriver.value.supportedGrammarLangs,
       ),
       ...inferenceOptions,
     };
@@ -495,14 +490,24 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
     );
   }
 
-  private static _buildSummarizationGrammar(lang: LlmGrammarLang): string {
-    switch (lang) {
-      case LlmGrammarLang.Gnbf:
-        return `root ::= [a-zA-Z0-9: .,!?*"'_-]+ "\n"`;
-      case LlmGrammarLang.Regex:
-        return /^([a-zA-Z0-9: \.,!?*"'_-]+)\n$/.source;
-      default:
-        throw unreachable(lang);
+  private static _buildSummarizationGrammar(
+    supportedLangs: Set<LlmGrammarLang>,
+  ): {
+    lang: LlmGrammarLang;
+    content: string;
+  } {
+    if (supportedLangs.has(LlmGrammarLang.Gnbf)) {
+      return {
+        lang: LlmGrammarLang.Gnbf,
+        content: `root ::= [a-zA-Z0-9: .,!?*"'_-]+ "\n"`,
+      };
+    } else if (supportedLangs.has(LlmGrammarLang.Regex)) {
+      return {
+        lang: LlmGrammarLang.Regex,
+        content: /([a-zA-Z0-9: \.,!?*"'_-]+)\n/.source,
+      };
+    } else {
+      throw new Error(`Unsupported grammar languages: ${supportedLangs}`);
     }
   }
 
@@ -521,37 +526,41 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
   private static _buildChatGrammar(
     scenario: Scenario,
     options: PredictionOptions | undefined,
-    lang: LlmGrammarLang,
-  ): string {
+    supportedLangs: Set<LlmGrammarLang>,
+  ): {
+    lang: LlmGrammarLang;
+    content: string;
+  } {
     const allowedCharacterIds =
       options?.allowedCharacterIds ||
       Object.keys(scenario.characters).filter(
         (characterId) => scenario.defaultCharacterId !== characterId,
       );
 
-    switch (lang) {
-      case LlmGrammarLang.Gnbf: {
-        const characterIdRule = allowedCharacterIds
-          .map((id) => `"${id}"`)
-          .join(" | ");
+    if (supportedLangs.has(LlmGrammarLang.Gnbf)) {
+      const characterIdRule = allowedCharacterIds
+        .map((id) => `"${id}"`)
+        .join(" | ");
 
-        return `
+      return {
+        lang: LlmGrammarLang.Gnbf,
+        content: `
 root ::= "<" characterId "[" clock "]> " ["A-Za-z*] [a-zA-Z0-9: .,!?*"'-]+ "\n"
 clock ::= [0-9]{2} ":" [0-9]{2}
 characterId ::= ${characterIdRule}
-`.trim();
-      }
+`.trim(),
+      };
+    } else if (supportedLangs.has(LlmGrammarLang.Regex)) {
+      const characterIdRule = allowedCharacterIds
+        .map((id) => `(${id})`)
+        .join("|");
 
-      case LlmGrammarLang.Regex: {
-        const characterIdRule = allowedCharacterIds
-          .map((id) => `(${id})`)
-          .join("|");
-
-        return `<(${characterIdRule})\\[[0-9]{2}:[0-9]{2}\\]> ([a-zA-Z0-9: \\.,!?*"'-]+)`;
-      }
-
-      default:
-        throw unreachable(lang);
+      return {
+        lang: LlmGrammarLang.Regex,
+        content: `<(${characterIdRule})\\[[0-9]{2}:[0-9]{2}\\]> ([a-zA-Z0-9: \\.,!?*"'-]+)`,
+      };
+    } else {
+      throw new Error(`Unsupported grammar languages: ${supportedLangs}`);
     }
   }
 

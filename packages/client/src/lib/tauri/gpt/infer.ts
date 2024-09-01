@@ -1,5 +1,5 @@
-import { type CompletionOptions } from "@/lib/ai/llm/BaseLlmDriver";
 import { TauriInvokeError } from "@/lib/tauri";
+import { v } from "@/lib/valibot";
 import { invoke } from "@tauri-apps/api";
 import { emit, listen } from "@tauri-apps/api/event";
 
@@ -17,6 +17,42 @@ type InferenceEventPayload = {
   content: string;
 };
 
+const CompletionOptionsSchema = v.strictObject({
+  nPrev: v.optional(v.number()),
+  nProbs: v.optional(v.number()),
+  minKeep: v.optional(v.number()),
+  topK: v.optional(v.number()),
+  topP: v.optional(v.number()),
+  minP: v.optional(v.number()),
+  tfsZ: v.optional(v.number()),
+  typicalP: v.optional(v.number()),
+  temp: v.optional(v.number()),
+  dynatemp: v.optional(
+    v.object({
+      range: v.optional(v.number()),
+      exponent: v.optional(v.number()),
+    }),
+  ),
+  penalty: v.optional(
+    v.object({
+      lastN: v.optional(v.number()),
+      repeat: v.optional(v.number()),
+      freq: v.optional(v.number()),
+      present: v.optional(v.number()),
+      penalizeNl: v.optional(v.boolean()),
+    }),
+  ),
+  mirostat: v.optional(
+    v.object({
+      version: v.picklist(["v1", "v2"]),
+      tau: v.optional(v.number()),
+      eta: v.optional(v.number()),
+    }),
+  ),
+  seed: v.optional(v.number()),
+  grammar: v.optional(v.string()),
+});
+
 const COMMAND_NAME = "gpt_infer";
 const INFERENCE_EVENT_NAME = "app://gpt/inference";
 const DECODING_EVENT_NAME = "app://gpt/decoding";
@@ -29,7 +65,7 @@ export async function infer(
   sessionId: string,
   prompt: string | null,
   numEval: number,
-  inferOptions: CompletionOptions = {},
+  inferOptions: v.InferInput<typeof CompletionOptionsSchema> = {},
   decodeCallback?: (event: DecodeProgressEventPayload) => void,
   inferenceCallback?: (event: InferenceEventPayload) => void,
   abortSignal?: AbortSignal,

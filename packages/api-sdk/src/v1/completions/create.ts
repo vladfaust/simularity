@@ -17,6 +17,7 @@ export const LlmCompletionParamsSchema = v.object({
   min_tokens: v.optional(v.number()),
   guided_grammar: v.optional(v.string()),
   guided_regex: v.optional(v.string()),
+  guided_json: v.optional(v.string()),
 });
 
 export const RequestBodySchema = v.object({

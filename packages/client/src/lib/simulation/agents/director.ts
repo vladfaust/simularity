@@ -6,13 +6,7 @@ import {
 import { jsonSchemaToGnbf } from "@/lib/ai/llm/gnbf";
 import type { d } from "@/lib/drizzle";
 import * as storage from "@/lib/storage";
-import {
-  clone,
-  safeParseJson,
-  tap,
-  trimEndAny,
-  unreachable,
-} from "@/lib/utils";
+import { clone, safeParseJson, tap, trimEndAny } from "@/lib/utils";
 import { formatIssues, v } from "@/lib/valibot";
 import { toJSONSchema } from "@gcornut/valibot-json-schema";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
@@ -110,14 +104,17 @@ export class Director {
     const allowedCharacterIds = new Set(allowedCharacterIdsArray);
 
     const stopSequences = ["<|end|>"];
-    const { schema, grammar } = Director._buildGrammar(
+    const { schema, content, lang } = Director._buildGrammar(
       this.scenario,
-      this.llmDriver.value.grammarLang,
+      this.llmDriver.value.supportedGrammarLangs,
       Array.from(allowedCharacterIds),
     );
 
     const options: CompletionOptions = {
-      grammar,
+      grammar: {
+        lang,
+        content,
+      },
       stopSequences,
       ...inferenceOptions,
     };
@@ -334,11 +331,12 @@ ${JSON.stringify(setup)}
 
   private static _buildGrammar(
     scenario: Scenario,
-    lang: LlmGrammarLang,
+    supportedLangs: Set<LlmGrammarLang>,
     allowedCharacterIds: string[],
   ): {
-    grammar: string;
     schema: v.GenericSchema;
+    lang: LlmGrammarLang;
+    content: string;
   } {
     const characterSchemas: Record<string, v.GenericSchema> = {};
 
@@ -360,74 +358,35 @@ ${JSON.stringify(setup)}
         Object.keys(scenario.scenes).map((sceneId) => v.literal(sceneId)),
       ),
       characters: v.strictObject({
-        ...characterSchemas,
+        ...Object.fromEntries(
+          Object.entries(characterSchemas).map(([characterId, schema], i) => {
+            if (i === 0) {
+              // The first character is required.
+              return [characterId, schema];
+            } else {
+              return [characterId, v.optional(schema)];
+            }
+          }),
+        ),
       }),
     });
 
     const jsonSchema = toJSONSchema({ schema });
 
-    switch (lang) {
-      case LlmGrammarLang.Gnbf: {
-        return {
-          schema,
-          grammar: jsonSchemaToGnbf(jsonSchema),
-        };
-      }
-
-      // TODO: Replace regex with JSON schema (vLLM supports it).
-      case LlmGrammarLang.Regex:
-        return {
-          schema,
-          grammar: Director._buildGrammarRegex(scenario, allowedCharacterIds),
-        };
-
-      default:
-        throw unreachable(lang);
+    if (supportedLangs.has(LlmGrammarLang.JsonSchema)) {
+      return {
+        schema,
+        lang: LlmGrammarLang.JsonSchema,
+        content: JSON.stringify(jsonSchema),
+      };
+    } else if (supportedLangs.has(LlmGrammarLang.Gnbf)) {
+      return {
+        schema,
+        lang: LlmGrammarLang.Gnbf,
+        content: jsonSchemaToGnbf(jsonSchema),
+      };
+    } else {
+      throw new Error(`Unsupported grammar languages: ${supportedLangs}`);
     }
-  }
-
-  /**
-   * Build a Regex grammar to constrain director output.
-   * @see https://outlines-dev.github.io/outlines/reference/generation/regex/
-   */
-  private static _buildGrammarRegex(
-    scenario: Scenario,
-    allowedCharacterIds: string[],
-  ): string {
-    let sceneId = Object.keys(scenario.scenes)
-      .map((sceneId) => `"${sceneId}"`)
-      .join("|");
-
-    let characters: string[] = [];
-    for (const [characterId, characterData] of Object.entries(
-      scenario.characters,
-    ).filter(([characterId]) => allowedCharacterIds.includes(characterId))) {
-      let outfit = Object.keys(characterData.outfits)
-        .map((outfitId) => `"${outfitId}"`)
-        .join("|");
-
-      let emotion = characterData.expressions
-        .map((emotionId) => `"${emotionId}"`)
-        .join("|");
-
-      characters.push(
-        `"${characterId}":\\{"outfit":(${outfit}),"emotion":(${emotion})}`,
-      );
-    }
-
-    // OPTIMIZE: Find better way to handle character objects (commas mostly).
-    // ADHOC: Can not remove main character, who is #0.
-    return `{"scene":(${sceneId}),"characters":\\{${
-      characters.length
-        ? `${characters[0]}${
-            characters.length > 1
-              ? characters
-                  .slice(1)
-                  .map((c) => `(,${c})?`)
-                  .join("")
-              : ""
-          }}`
-        : ""
-    }}`;
   }
 }

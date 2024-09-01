@@ -212,7 +212,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
     }
   }
 
-  readonly grammarLang = LlmGrammarLang.Gnbf;
+  readonly supportedGrammarLangs = new Set([LlmGrammarLang.Gnbf]);
   readonly needsWarmup = true;
   private readonly _initializationParams: ShallowRef<InitializationParams>;
   readonly initialized = computed(
@@ -287,11 +287,23 @@ export class TauriLlmDriver implements BaseLlmDriver {
 
       let decoded = false;
 
+      if (inferenceOptions.grammar) {
+        // Sanity check.
+        if (inferenceOptions.grammar.lang !== LlmGrammarLang.Gnbf) {
+          throw new Error(
+            `Unsupported grammar language: ${inferenceOptions.grammar.lang}`,
+          );
+        }
+      }
+
       const response = await tauri.gpt.infer(
         this._initializationParams.value.internalSessionId,
         prompt,
         nEval,
-        inferenceOptions,
+        {
+          ...inferenceOptions,
+          grammar: inferenceOptions.grammar?.content,
+        },
         (e) => {
           this.progress.value = e.progress;
           decodeCallback?.(e);

@@ -93,7 +93,11 @@ export class RemoteLlmDriver implements BaseLlmDriver {
     );
   }
 
-  readonly grammarLang = LlmGrammarLang.Regex;
+  readonly supportedGrammarLangs = new Set([
+    LlmGrammarLang.Regex,
+    LlmGrammarLang.JsonSchema,
+  ]);
+
   readonly needsWarmup = false;
   readonly ready = ref(true);
   readonly progress = ref<number | undefined>();
@@ -147,7 +151,17 @@ export class RemoteLlmDriver implements BaseLlmDriver {
           model: this.config.modelId,
           prompt: prompt,
           temperature: inferenceOptions.temp,
-          guided_regex: inferenceOptions.grammar,
+
+          guided_regex:
+            inferenceOptions.grammar?.lang === LlmGrammarLang.Regex
+              ? inferenceOptions.grammar?.content
+              : undefined,
+
+          guided_json:
+            inferenceOptions.grammar?.lang === LlmGrammarLang.JsonSchema
+              ? inferenceOptions.grammar?.content
+              : undefined,
+
           max_tokens: nEval,
           min_p: inferenceOptions.minP,
           presence_penalty: inferenceOptions.penalty?.present,

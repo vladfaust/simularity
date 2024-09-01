@@ -28,6 +28,7 @@ export const VllmEndpointInputSchema = v.object({
     v.object({
       guided_grammar: v.optional(v.string()),
       guided_regex: v.optional(v.string()),
+      guided_json: v.optional(v.string()),
     }),
   ),
 });
@@ -70,6 +71,7 @@ export class VllmEndpoint {
       ...input.sampling_params,
       guided_grammar: input.guided_options_request?.guided_grammar,
       guided_regex: input.guided_options_request?.guided_regex,
+      guided_json: input.guided_options_request?.guided_json,
     };
 
     try {

@@ -144,6 +144,7 @@ export default Router()
       guided_options_request: pick(body.output, [
         "guided_grammar",
         "guided_regex",
+        "guided_json",
       ]),
     } satisfies v.InferInput<typeof VllmEndpointInputSchema>;
     konsole.debug("vLLM endpoint input", omit(input, ["prompt"]));
