@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@f3ve/vue-markdown-it": "^0.2.2",
+    "@gcornut/valibot-json-schema": "^0.37.0",
     "@headlessui/vue": "^1.7.21",
     "@simularity/api-sdk": "../api-sdk",
     "@tauri-apps/api": "^1.5.4",

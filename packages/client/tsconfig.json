@@ -25,7 +25,13 @@
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "src/lib/ai/llm/gnbf/schemaConverter.mjs",
+    "src/lib/ai/llm/gnbf/schemaConverter.d.ts"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }],
 
   "vueCompilerOptions": {

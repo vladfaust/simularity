@@ -3,6 +3,7 @@ import {
   type BaseLlmDriver,
   type CompletionOptions,
 } from "@/lib/ai/llm/BaseLlmDriver";
+import { jsonSchemaToGnbf } from "@/lib/ai/llm/gnbf";
 import type { d } from "@/lib/drizzle";
 import * as storage from "@/lib/storage";
 import {
@@ -13,8 +14,9 @@ import {
   unreachable,
 } from "@/lib/utils";
 import { formatIssues, v } from "@/lib/valibot";
+import { toJSONSchema } from "@gcornut/valibot-json-schema";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
-import { IdSchema, Scenario } from "../scenario";
+import { Scenario } from "../scenario";
 import { State, type StateDto } from "../state";
 import { type StateCommand } from "../state/commands";
 import { hookLlmAgentToDriverRef } from "./llm";
@@ -39,13 +41,10 @@ export class PredictionError extends Error {
   }
 }
 
-const PredictionSchema = v.object({
-  scene: v.string(),
-  characters: v.record(
-    IdSchema,
-    v.object({ outfit: IdSchema, emotion: IdSchema }),
-  ),
-});
+type PredictionBase = {
+  scene: string;
+  characters: Record<string, { outfit: string; emotion: string }>;
+};
 
 export class Director {
   readonly contextSize = computed(() => this.llmDriver.value?.contextSize);
@@ -111,12 +110,14 @@ export class Director {
     const allowedCharacterIds = new Set(allowedCharacterIdsArray);
 
     const stopSequences = ["<|end|>"];
+    const { schema, grammar } = Director._buildGrammar(
+      this.scenario,
+      this.llmDriver.value.grammarLang,
+      Array.from(allowedCharacterIds),
+    );
+
     const options: CompletionOptions = {
-      grammar: Director._buildGrammar(
-        this.scenario,
-        this.llmDriver.value.grammarLang,
-        Array.from(allowedCharacterIds),
-      ),
+      grammar,
       stopSequences,
       ...inferenceOptions,
     };
@@ -166,7 +167,7 @@ export class Director {
       };
     }
 
-    const prediction = v.safeParse(PredictionSchema, json.output);
+    const prediction = v.safeParse(schema, json.output);
     if (!prediction.success) {
       return {
         completion: inferenceResult.completion,
@@ -176,10 +177,12 @@ export class Director {
       };
     }
 
+    const predictionOutput = prediction.output as PredictionBase;
+
     const predictedState: StateDto = {
       stage: {
-        sceneId: prediction.output.scene,
-        characters: Object.entries(prediction.output.characters).map(
+        sceneId: predictionOutput.scene,
+        characters: Object.entries(predictionOutput.characters).map(
           ([characterId, character]) => ({
             id: characterId,
             expressionId: character.emotion,
@@ -333,57 +336,54 @@ ${JSON.stringify(setup)}
     scenario: Scenario,
     lang: LlmGrammarLang,
     allowedCharacterIds: string[],
-  ): string {
-    switch (lang) {
-      case LlmGrammarLang.Gnbf:
-        return Director._buildGrammarGnbf(scenario, allowedCharacterIds);
-      case LlmGrammarLang.Regex:
-        return Director._buildGrammarRegex(scenario, allowedCharacterIds);
-      default:
-        throw unreachable(lang);
-    }
-  }
-
-  /**
-   * Build a GNBF grammar to constrain director output.
-   * @see https://github.com/ggerganov/llama.cpp/blob/master/grammars/README.md.
-   */
-  private static _buildGrammarGnbf(
-    scenario: Scenario,
-    allowedCharacterIds: string[],
-  ): string {
-    const rules: Record<string, string> = {};
-
-    rules["scene-id"] = `${Object.keys(scenario.scenes)
-      .map((sceneId) => `"\\"${sceneId}\\""`)
-      .join("|")}`;
+  ): {
+    grammar: string;
+    schema: v.GenericSchema;
+  } {
+    const characterSchemas: Record<string, v.GenericSchema> = {};
 
     for (const [characterId, character] of Object.entries(
       scenario.characters,
     ).filter(([characterId]) => allowedCharacterIds.includes(characterId))) {
-      const outfitIds = Object.keys(character.outfits)
-        .map((id) => `"\\"${id}\\""`)
-        .join("|");
-
-      const emotionIds = character.expressions
-        .map((id) => `"\\"${id}\\""`)
-        .join("|");
-
-      rules[`character-${characterId}`] =
-        `"\\"${characterId}\\":{\\"outfit\\":"(${outfitIds})",\\"emotion\\":"(${emotionIds})"}"`;
+      characterSchemas[characterId] = v.strictObject({
+        outfit: v.union(
+          Object.keys(character.outfits).map((outfitId) => v.literal(outfitId)),
+        ),
+        emotion: v.union(
+          character.expressions.map((emotionId) => v.literal(emotionId)),
+        ),
+      });
     }
 
-    rules["character"] = Object.keys(scenario.characters)
-      .filter((charactedId) => allowedCharacterIds.includes(charactedId))
-      .map((characterId) => `character-${characterId}`)
-      .join("|");
+    const schema = v.strictObject({
+      scene: v.union(
+        Object.keys(scenario.scenes).map((sceneId) => v.literal(sceneId)),
+      ),
+      characters: v.strictObject({
+        ...characterSchemas,
+      }),
+    });
 
-    rules["root"] =
-      `"{\\"scene\\":"scene-id",\\"characters\\":{"(character(","character)*)?"}}"`;
+    const jsonSchema = toJSONSchema({ schema });
 
-    return Object.entries(rules)
-      .map(([name, rule]) => `${name}::=${rule}`)
-      .join("\n");
+    switch (lang) {
+      case LlmGrammarLang.Gnbf: {
+        return {
+          schema,
+          grammar: jsonSchemaToGnbf(jsonSchema),
+        };
+      }
+
+      // TODO: Replace regex with JSON schema (vLLM supports it).
+      case LlmGrammarLang.Regex:
+        return {
+          schema,
+          grammar: Director._buildGrammarRegex(scenario, allowedCharacterIds),
+        };
+
+      default:
+        throw unreachable(lang);
+    }
   }
 
   /**
