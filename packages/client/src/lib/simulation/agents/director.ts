@@ -416,11 +416,17 @@ ${JSON.stringify(setup)}
     }
 
     // OPTIMIZE: Find better way to handle character objects (commas mostly).
+    // ADHOC: Can not remove main character, who is #0.
     return `{"scene":(${sceneId}),"characters":\\{${
       characters.length
-        ? `(${characters[0]}${
-            characters.length > 1 ? `(,${characters.slice(1).join("|")})*` : ""
-          })?}`
+        ? `${characters[0]}${
+            characters.length > 1
+              ? characters
+                  .slice(1)
+                  .map((c) => `(,${c})?`)
+                  .join("")
+              : ""
+          }}`
         : ""
     }}`;
   }
