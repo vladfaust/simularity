@@ -3,7 +3,7 @@ import { ResponseSchema } from "@simularity/api-sdk/v1/users/get";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { Router } from "express";
-import { ensureUser } from "../auth/common.js";
+import { ensureUser } from "../auth/_common.js";
 
 /**
  * Get current user.
@@ -17,6 +17,6 @@ export default Router()
 
     return res.json({
       id: user.id,
-      username: user.username,
+      email: user.email,
     } satisfies v.InferOutput<typeof ResponseSchema>);
   });

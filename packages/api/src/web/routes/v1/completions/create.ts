@@ -15,7 +15,7 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import { and, eq } from "drizzle-orm";
 import { Router } from "express";
-import { ensureUser } from "../auth/common.js";
+import { ensureUser } from "../auth/_common.js";
 
 /**
  * Create a new LLM completion.

@@ -1,9 +1,9 @@
 import { RemoteApiError } from "@/lib/api";
 import { v } from "@/lib/valibot";
-import * as apiAuthGet from "@simularity/api-sdk/v1/auth/get";
+import * as apiAuthGet from "@simularity/api-sdk/v1/auth/nonce/get";
 
 export async function get(baseUrl: string, nonce: string) {
-  const url = new URL(`${baseUrl}/v1/auth/${nonce}`);
+  const url = new URL(`${baseUrl}/v1/auth/nonce/${nonce}`);
   const response = await fetch(url);
 
   if (!response.ok) {

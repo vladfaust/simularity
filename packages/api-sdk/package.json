@@ -4,6 +4,7 @@
   "description": "Simularity AI™️ API SDK",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "clean": "rm -r dist",
     "build": "tsc"
   },
   "keywords": [],
@@ -24,9 +25,9 @@
       "import": "./dist/common.js",
       "types": "./dist/common.d.ts"
     },
-    "./v1/auth/get": {
-      "import": "./dist/v1/auth/get.js",
-      "types": "./dist/v1/auth/get.d.ts"
+    "./v1/auth/nonce/get": {
+      "import": "./dist/v1/auth/nonce/get.js",
+      "types": "./dist/v1/auth/nonce/get.d.ts"
     },
     "./v1/completions/create": {
       "import": "./dist/v1/completions/create.js",

@@ -1,11 +1,13 @@
 import { redis } from "@/lib/redis.js";
 import cors from "cors";
 import { Router } from "express";
-import { createJwt, ensureUser } from "./common.js";
-import { NONCE_TTL, nonceRedisKey } from "./create.js";
+import { createJwt, ensureUser } from "../_common.js";
+import { NONCE_TTL, nonceRedisKey } from "./_common.js";
 
 /**
- * Authorize a nonce, so that the user can get the JWT from it.
+ * Create an auth object by a nonce, so that it can be queried to get a JWT.
+ * Nonce lives for {@link NONCE_TTL}.
+ * Requires authentication.
  */
 export default Router()
   .use(cors())

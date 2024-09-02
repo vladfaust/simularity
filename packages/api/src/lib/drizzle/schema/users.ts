@@ -1,19 +1,23 @@
-import { index, pgTable, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import {
+  index,
+  pgTable,
+  timestamp,
+  unique,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 
 export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-
-    username: varchar("username").notNull(),
-    passwordHash: varchar("password_hash").notNull(),
-
+    email: varchar("email").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => ({
-    usernameIndex: index("users_username_index").on(table.username),
+    emailIndex: unique("users_email_index").on(table.email),
     createdAtIndex: index("users_created_at_index").on(table.createdAt),
   }),
 );

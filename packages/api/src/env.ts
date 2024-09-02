@@ -27,6 +27,17 @@ function envBool() {
   );
 }
 
+/**
+ * Parse a port number.
+ */
+function port() {
+  return v.pipe(
+    v.string(),
+    v.transform((x) => parseInt(x, 10)),
+    v.check((x) => x > 0 && x < 65536, "must be between 0 and 65536"),
+  );
+}
+
 dotenv.config();
 
 const parseResult = v.safeParse(
@@ -54,6 +65,19 @@ const parseResult = v.safeParse(
 
     RUNPOD_BASE_URL: v.pipe(v.string(), v.url()),
     RUNPOD_API_KEY: v.string(),
+
+    SMTP_HOST: v.string(),
+    SMTP_PORT: port(),
+    SMTP_FROM: v.pipe(v.string(), v.email()),
+    SMTP_AUTH_PASS: v.optional(v.string()),
+    SMTP_AUTH_USER: v.optional(v.string()),
+    SMTP_HEADERS: v.optional(
+      v.pipe(
+        v.string(),
+        v.transform((x) => JSON.parse(x)),
+        v.record(v.string(), v.string()),
+      ),
+    ),
   }),
   process.env,
 );

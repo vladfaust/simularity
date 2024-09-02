@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { jwt } from "@/store";
+import * as api from "@/lib/api";
 import { routeLocation } from "@/router";
-import { ref } from "vue";
-import { getUser } from "@/lib/api";
+import { jwt } from "@/store";
 import { watchImmediate } from "@vueuse/core";
+import { ref } from "vue";
 
-const user = ref<Awaited<ReturnType<typeof getUser>> | undefined | null>();
+const user = ref<
+  Awaited<ReturnType<typeof api.users.get>> | undefined | null
+>();
 
 watchImmediate(jwt, async (jwt) => {
   if (jwt) {
-    user.value = await getUser();
+    user.value = await api.users.get();
   } else {
     user.value = null;
   }
@@ -24,10 +26,10 @@ function logout() {
 .flex.h-screen.flex-col.items-center.justify-center.p-3
   .flex.w-full.max-w-sm.flex-col.items-center.gap-2.rounded-lg.border.p-2
     template(v-if="jwt")
-      h1 Welcome home, {{ user?.username }}
-      button.btn.btn-md.btn-neutral.rounded(@click="logout") Logout
+      h1 Welcome home, {{ user?.email }}
+      button.dz-btn.dz-btn-md.dz-btn-neutral(@click="logout") Logout
     template(v-else)
-      RouterLink.btn.btn-md.btn-primary.rounded(
+      RouterLink.dz-btn.dz-btn-md.dz-btn-primary(
         :to="routeLocation({ name: 'Login' })"
       ) Login
 </template>
