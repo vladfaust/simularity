@@ -1,5 +1,6 @@
 import { v } from "@/lib/valibot.js";
 import * as dotenv from "dotenv";
+import { OAuthProviderIdSchema, OAuthProviderSchema } from "./lib/oauth.js";
 
 /**
  * `"1"`, `"true"` is true, `"0"`, `"false"` is false, case insensitive.
@@ -77,6 +78,12 @@ const parseResult = v.safeParse(
         v.transform((x) => JSON.parse(x)),
         v.record(v.string(), v.string()),
       ),
+    ),
+
+    OAUTH_PROVIDERS: v.pipe(
+      v.optional(v.string(), "{}"),
+      v.transform((x) => JSON.parse(x)),
+      v.record(OAuthProviderIdSchema, OAuthProviderSchema),
     ),
   }),
   process.env,

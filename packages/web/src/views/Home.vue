@@ -27,9 +27,9 @@ function logout() {
   .flex.w-full.max-w-sm.flex-col.items-center.gap-2.rounded-lg.border.p-2
     template(v-if="jwt")
       h1 Welcome home, {{ user?.email }}
-      button.dz-btn.dz-btn-md.dz-btn-neutral(@click="logout") Logout
+      button.dz-btn.dz-btn-neutral.dz-btn-md(@click="logout") Logout
     template(v-else)
-      RouterLink.dz-btn.dz-btn-md.dz-btn-primary(
+      RouterLink.dz-btn.dz-btn-primary.dz-btn-md(
         :to="routeLocation({ name: 'Login' })"
       ) Login
 </template>

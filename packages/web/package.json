@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@vueuse/core": "^10.11.1",
+    "@vueuse/integrations": "^11.0.3",
     "jose": "^5.8.0",
+    "nprogress": "^0.2.0",
     "valibot": "^0.41.0",
     "vue": "^3.4.35",
     "vue-i18n": "^9.14.0",

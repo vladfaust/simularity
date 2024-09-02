@@ -15,7 +15,7 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import { and, eq } from "drizzle-orm";
 import { Router } from "express";
-import { ensureUser } from "../auth/_common.js";
+import { extractUser } from "../auth/_common.js";
 
 /**
  * Create a new LLM completion.
@@ -26,8 +26,8 @@ export default Router()
   .use(cors())
   .use(bodyParser.json())
   .post("/", async (req, res) => {
-    const user = await ensureUser(req, res);
-    if (!user) return res.sendStatus(401);
+    const user = await extractUser(req);
+    if (!user || user instanceof Error) return res.sendStatus(401);
 
     const body = v.safeParse(RequestBodySchema, req.body);
     if (!body.success) {

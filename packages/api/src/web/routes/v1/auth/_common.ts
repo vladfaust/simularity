@@ -2,7 +2,7 @@ import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
 import { eq } from "drizzle-orm";
-import { Request, Response } from "express";
+import { Request } from "express";
 import * as jose from "jose";
 
 type AuthPayload = jose.JWTPayload & {
@@ -35,22 +35,23 @@ export async function verifyJwt(jwt: string) {
 }
 
 /**
- * Ensure the user is authenticated.
- * Otherwise, sets the response status to 401 and returns.
+ * Extract the authenticated user from the request, if any.
  */
-export async function ensureUser(req: Request, res: Response) {
+export async function extractUser(
+  req: Request,
+): Promise<typeof d.users.$inferSelect | Error | null> {
   // Extract JWT from `Authorization: Bearer {token}` header.
   const jwt = req.headers.authorization?.split(" ")[1];
   if (!jwt) {
-    konsole.log("No JWT in Authorization header");
-    return;
+    konsole.debug("No JWT in Authorization header");
+    return null;
   }
 
   // Verify the JWT.
   const jwtVerifyResult = await verifyJwt(jwt);
   if ("error" in jwtVerifyResult) {
     konsole.log("Invalid JWT", jwtVerifyResult.error);
-    return;
+    return jwtVerifyResult.error;
   }
 
   const user = await d.db.query.users.findFirst({

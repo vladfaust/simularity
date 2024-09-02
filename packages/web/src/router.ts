@@ -4,15 +4,20 @@ import {
   createRouter,
   createWebHistory,
 } from "vue-router";
+import { jwt } from "./store";
+import { ProviderId as OAuthProviderId } from "./lib/api/auth/oauth";
 
 import Home from "./views/Home.vue";
 import Login from "./views/Login.vue";
-import { jwt } from "./store";
+import OAuthCallback from "./views/OAuthCallback.vue";
 
-export type RouteName = "Home" | "Login";
+export type RouteName = "Home" | "Login" | "OAuthCallback";
 
 export function routeLocation(
-  args: { name: "Home" } | { name: "Login" },
+  args:
+    | { name: "Home" }
+    | { name: "Login" }
+    | { name: "OAuthCallback"; params: { providerId: OAuthProviderId } },
 ): RouteLocationNamedRaw & { name: RouteName } {
   return args;
 }
@@ -27,6 +32,12 @@ const routes: Array<RouteRecordRaw> = [
     path: "/login",
     name: "Login" satisfies RouteName,
     component: Login,
+  },
+  {
+    path: "/oauth/:providerId/:reason",
+    name: "OAuthCallback" satisfies RouteName,
+    component: OAuthCallback,
+    props: true,
   },
 ];
 

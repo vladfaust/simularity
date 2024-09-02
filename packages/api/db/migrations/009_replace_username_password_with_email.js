@@ -7,7 +7,7 @@ export function up(sql) {
     DROP COLUMN password_hash;
     -- Add the "email" column to the "users" table.
     ALTER TABLE users
-    ADD COLUMN email VARCHAR(255) UNIQUE NOT NULL;
+    ADD COLUMN email VARCHAR(255) UNIQUE;
   `;
 }
 
