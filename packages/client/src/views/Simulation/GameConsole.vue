@@ -37,7 +37,7 @@ enum SendButtonState {
   WillPredict,
 }
 
-const N_EVAL = 128;
+const N_EVAL = 100;
 
 const { simulation, fadeCanvas, screenshot } = defineProps<{
   simulation: Simulation;
