@@ -365,7 +365,7 @@ export class PredictUpdateVariantJob {
       ...this.historicalUpdates.slice(-1, -1 - maxHistoricalUpdates),
 
       // The last recent update is the current one, do not include it.
-      ...this.recentUpdates.slice(0, -1),
+      ...this.recentUpdates.slice(0, incomingWriterUpdate ? undefined : -1),
     ];
 
     const directorHistoricalUpdates: Update[] = [];
