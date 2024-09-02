@@ -61,7 +61,7 @@ Dialog.relative.z-50(
           //- Director update.
           .flex.flex-col.gap-2.rounded-xl.p-3(
             class="bg-white/20"
-            v-if="simulation.currentUpdate.value"
+            v-if="simulation.currentUpdate.value?.chosenVariant?.directorUpdate"
           )
             DirectorUpdate(
               :simulation
