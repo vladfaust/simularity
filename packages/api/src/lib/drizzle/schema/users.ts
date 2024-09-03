@@ -1,4 +1,5 @@
 import {
+  decimal,
   index,
   pgTable,
   timestamp,
@@ -12,6 +13,14 @@ export const users = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     email: varchar("email"),
+
+    creditBalance: decimal("credit_balance", {
+      precision: 10,
+      scale: 2,
+    })
+      .notNull()
+      .default("0"),
+
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

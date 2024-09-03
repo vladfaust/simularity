@@ -6,6 +6,7 @@ import { v } from "@/lib/valibot.js";
 import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
 import { LlmCompletionParamsSchema } from "@simularity/api-sdk/v1/completions/create";
 import assert from "assert";
+import { eq, sql } from "drizzle-orm";
 import { toMilliseconds } from "duration-fns";
 import runpodSdk from "runpod-sdk";
 
@@ -48,7 +49,12 @@ const VllmEndpointOutputSchema = v.array(
 );
 
 export class VllmEndpoint {
-  static create(worker: typeof d.ttsWorkers.$inferSelect) {
+  static create(
+    userId: string,
+    worker: typeof d.ttsWorkers.$inferSelect & {
+      model: Pick<typeof d.llmModels.$inferSelect, "creditPrice">;
+    },
+  ): VllmEndpoint | null {
     assert(worker.providerId === "runpod");
 
     const runpod = runpodSdk(env.RUNPOD_API_KEY, {
@@ -59,7 +65,7 @@ export class VllmEndpoint {
     if (!endpoint) {
       return null;
     } else {
-      return new VllmEndpoint(worker, endpoint);
+      return new VllmEndpoint(userId, worker, endpoint);
     }
   }
 
@@ -138,6 +144,29 @@ export class VllmEndpoint {
           )[0];
         }
 
+        const creditCost = this.worker.model.creditPrice
+          ? (
+              (parseFloat(this.worker.model.creditPrice) *
+                (parsedOutput.output[0].usage.input +
+                  parsedOutput.output[0].usage.output)) /
+              1024
+            ).toFixed(2)
+          : undefined;
+
+        if (creditCost) {
+          konsole.log("Charging user for LLM", {
+            userId: this.userId,
+            creditCost,
+          });
+
+          await d.db
+            .update(d.users)
+            .set({
+              creditBalance: sql`${d.users.creditBalance} - ${creditCost}`,
+            })
+            .where(eq(d.users.id, this.userId));
+        }
+
         // Success.
         return (
           await d.db
@@ -154,6 +183,7 @@ export class VllmEndpoint {
               promptTokens: parsedOutput.output[0].usage.input,
               completionTokens: parsedOutput.output[0].usage.output,
               estimatedCost,
+              creditCost: creditCost?.toString(),
             })
             .returning()
         )[0];
@@ -201,7 +231,10 @@ export class VllmEndpoint {
   }
 
   private constructor(
-    readonly worker: typeof d.llmWorkers.$inferSelect,
+    readonly userId: string,
+    readonly worker: typeof d.llmWorkers.$inferSelect & {
+      model: Pick<typeof d.llmModels.$inferSelect, "creditPrice">;
+    },
     private readonly endpoint: RunpodEndpoint,
   ) {}
 }

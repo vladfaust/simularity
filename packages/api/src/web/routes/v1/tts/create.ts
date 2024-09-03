@@ -32,12 +32,31 @@ export default Router()
       });
     }
 
+    if (parseFloat(user.creditBalance) <= 0) {
+      konsole.log("Not enough credit balance", {
+        userId: user.id,
+        creditBalance: user.creditBalance,
+      });
+
+      return res.status(402).json({
+        error: "Not enough credit balance",
+        creditBalance: user.creditBalance,
+      });
+    }
+
     const worker = await d.db.query.ttsWorkers.findFirst({
       where: and(
         eq(d.ttsWorkers.providerId, "runpod"),
         eq(d.ttsWorkers.enabled, true),
         eq(d.ttsWorkers.modelId, body.output.modelId),
       ),
+      with: {
+        model: {
+          columns: {
+            creditPrice: true,
+          },
+        },
+      },
     });
 
     if (!worker) {
@@ -51,7 +70,7 @@ export default Router()
       });
     }
 
-    const endpoint = TtsEndpoint.create(worker);
+    const endpoint = TtsEndpoint.create(user.id, worker);
     if (!endpoint) {
       konsole.error("Runpod endpoint unavailable", {
         endpointId: worker.providerExternalId,
@@ -62,7 +81,7 @@ export default Router()
       });
     }
 
-    const { inference, wavBase64 } = await endpoint.run({
+    const result = await endpoint.run({
       speaker_embedding: body.output.speakerEmbedding,
       gpt_cond_latent: body.output.gptCondLatent,
       text: body.output.text,
@@ -78,29 +97,31 @@ export default Router()
       enable_text_splitting: body.output.enableTextSplitting,
     });
 
-    if (inference.error) {
+    if (result.inference.error) {
       konsole.error("Failed to complete request", {
-        inferenceId: inference.id,
-        error: inference.error,
+        inferenceId: result.inference.id,
+        error: result.inference.error,
       });
 
       return res.status(500).json({
-        inferenceId: inference.id,
+        inferenceId: result.inference.id,
         error: "Failed to complete request",
       });
     } else {
-      assert(wavBase64 !== null);
-      assert(inference.delayTimeMs !== null);
-      assert(inference.executionTimeMs !== null);
+      assert("wavBase64" in result);
+      assert(result.inference.delayTimeMs !== null);
+      assert(result.inference.executionTimeMs !== null);
 
       return res.status(201).json({
-        inferenceId: inference.id,
+        inferenceId: result.inference.id,
         usage: {
-          delayTime: inference.delayTimeMs,
-          executionTime: inference.executionTimeMs,
+          delayTime: result.inference.delayTimeMs,
+          executionTime: result.inference.executionTimeMs,
+          creditCost: result.inference.creditCost,
         },
         output: {
-          wavBase64,
+          wavBase64: result.wavBase64,
+          wavDuration: result.wavDuration,
         },
       } satisfies v.InferInput<typeof ResponseBodySchema>);
     }

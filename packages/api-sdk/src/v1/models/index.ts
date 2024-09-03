@@ -8,6 +8,7 @@ export const LlmModel = v.object({
   name: v.string(),
   description: v.nullable(MultiLangTextSchema),
   contextSize: v.number(),
+  creditPrice: v.nullable(v.string()),
 });
 
 export const TtsModel = v.object({
@@ -15,6 +16,7 @@ export const TtsModel = v.object({
   id: v.string(),
   name: v.string(),
   description: v.nullable(MultiLangTextSchema),
+  creditPrice: v.nullable(v.string()),
 });
 
 export const ResponseSchema = v.array(v.variant("type", [LlmModel, TtsModel]));

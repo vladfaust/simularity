@@ -6,6 +6,7 @@ import { omit } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
 import assert from "assert";
+import { eq, sql } from "drizzle-orm";
 import { toMilliseconds } from "duration-fns";
 import runpodSdk from "runpod-sdk";
 import { LocalRunpodEndpoint } from "../localEndpoint.js";
@@ -43,7 +44,12 @@ const TtsEndpointOutputSchema = v.object({
 });
 
 export class TtsEndpoint {
-  static create(worker: typeof d.ttsWorkers.$inferSelect) {
+  static create(
+    userId: string,
+    worker: typeof d.ttsWorkers.$inferSelect & {
+      model: Pick<typeof d.ttsModels.$inferSelect, "creditPrice">;
+    },
+  ): TtsEndpoint | null {
     assert(worker.providerId === "runpod");
 
     if (worker.providerExternalId) {
@@ -55,21 +61,22 @@ export class TtsEndpoint {
       if (!endpoint) {
         return null;
       } else {
-        return new TtsEndpoint(worker, endpoint);
+        return new TtsEndpoint(userId, worker, endpoint);
       }
     } else if (env.NODE_ENV !== "development") {
       throw new Error(`Missing providerExternalId for worker ${worker.id}`);
     } else {
       konsole.log(`Using local Runpod endpoint at ${env.RUNPOD_BASE_URL}`);
       const endpoint = new LocalRunpodEndpoint(env.RUNPOD_BASE_URL);
-      return new TtsEndpoint(worker, endpoint);
+      return new TtsEndpoint(userId, worker, endpoint);
     }
   }
 
-  async run(input: v.InferOutput<typeof TtsEndpointInputSchema>): Promise<{
-    inference: typeof d.ttsInferences.$inferSelect;
-    wavBase64: string | null;
-  }> {
+  async run(input: v.InferOutput<typeof TtsEndpointInputSchema>): Promise<
+    {
+      inference: typeof d.ttsInferences.$inferSelect;
+    } & ({ wavBase64: string; wavDuration: number } | {})
+  > {
     const inferenceParams: v.InferOutput<typeof TtsParamsSchema> = omit(input, [
       "speaker_embedding",
       "gpt_cond_latent",
@@ -132,8 +139,30 @@ export class TtsEndpoint {
                 })
                 .returning()
             )[0],
-            wavBase64: null,
           };
+        }
+
+        const creditCost = this.worker.model.creditPrice
+          ? (
+              (parseFloat(this.worker.model.creditPrice) *
+                parsedOutput.output.wav_duration) /
+              1000 /
+              60
+            ).toFixed(2)
+          : undefined;
+
+        if (creditCost) {
+          konsole.log("Charging user for TTS", {
+            userId: this.userId,
+            creditCost,
+          });
+
+          await d.db
+            .update(d.users)
+            .set({
+              creditBalance: sql`${d.users.creditBalance} - ${creditCost}`,
+            })
+            .where(eq(d.users.id, this.userId));
         }
 
         // Success.
@@ -147,11 +176,14 @@ export class TtsEndpoint {
                 providerExternalId: runResult.id,
                 delayTimeMs: runResult.delayTime,
                 executionTimeMs: runResult.executionTime,
+                durationMs: parsedOutput.output.wav_duration,
                 estimatedCost,
+                creditCost: creditCost?.toString(),
               })
               .returning()
           )[0],
           wavBase64: parsedOutput.output.wav_base64,
+          wavDuration: parsedOutput.output.wav_duration,
         };
       } else {
         // TODO: Handle "IN_QUEUE", possibly by polling.
@@ -175,7 +207,6 @@ export class TtsEndpoint {
               })
               .returning()
           )[0],
-          wavBase64: null,
         };
       }
     } catch (e: any) {
@@ -193,13 +224,15 @@ export class TtsEndpoint {
             })
             .returning()
         )[0],
-        wavBase64: null,
       };
     }
   }
 
   private constructor(
-    readonly worker: typeof d.ttsWorkers.$inferSelect,
+    readonly userId: string,
+    readonly worker: typeof d.ttsWorkers.$inferSelect & {
+      model: Pick<typeof d.ttsModels.$inferSelect, "creditPrice">;
+    },
     private readonly endpoint: RunpodEndpoint | LocalRunpodEndpoint,
   ) {}
 }

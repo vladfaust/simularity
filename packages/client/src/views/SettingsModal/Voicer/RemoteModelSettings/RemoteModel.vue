@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import Credits from "@/components/Credits.vue";
 import * as api from "@/lib/api";
+import { CircleDollarSignIcon } from "lucide-vue-next";
 
 defineProps<{
-  model: Awaited<ReturnType<typeof api.v1.models.index>>[number];
+  model: Extract<
+    Awaited<ReturnType<typeof api.v1.models.index>>[number],
+    { type: "tts" }
+  >;
   selected: boolean;
 }>();
 
@@ -14,14 +17,15 @@ defineEmits<{
 
 <template lang="pug">
 .flex.flex-col.gap-2.p-3
-  .flex.flex-col.gap-1
-    .flex.items-center.justify-between.gap-2
-      span.shrink-0.font-bold.leading-tight.tracking-wide {{ model.name }}
-      .w-full.border-b
-      .flex.shrink-0.gap-1
-        Credits(:value="2" :iconSize="18" class="gap-0.5")
-        span.self-baseline per generation
-    p.text-sm.leading-tight {{ model.description?.en }}
+  .flex.flex-col.items-center.gap-1
+    span.font-bold.leading-tight.tracking-wide {{ model.name }}
+    p.text-center.text-sm.leading-tight {{ model.description?.en }}
+    .flex.gap-1.text-sm
+      CircleDollarSignIcon.self-center(:size="18" :stroke-width="2.5")
+      span.self-baseline
+        span.font-semibold Price:&nbsp;
+        span.font-mono.font-medium.text-secondary-500 {{ model.creditPrice }}¢
+        span.cursor-help(title="Per speech minute") &nbsp;/min.
 
   //- Buttons
   button.btn.btn-sm.w-full.rounded.transition-transform.pressable-sm(

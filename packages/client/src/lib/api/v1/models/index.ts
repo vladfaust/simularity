@@ -2,7 +2,7 @@ import { RemoteApiError } from "@/lib/api";
 import { v } from "@/lib/valibot";
 import * as modelIndexApi from "@simularity/api-sdk/v1/models/index";
 
-export async function index(baseUrl: string, jwt?: string) {
+export async function index(baseUrl: string, jwt?: string | null) {
   const response = await fetch(`${baseUrl}/v1/models`, {
     headers: jwt ? { Authorization: `Bearer ${jwt}` } : {},
   });

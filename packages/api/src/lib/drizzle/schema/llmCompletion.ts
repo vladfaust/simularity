@@ -2,6 +2,7 @@ import { v } from "@/lib/valibot.js";
 import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
 import { LlmCompletionParamsSchema } from "@simularity/api-sdk/v1/completions/create";
 import {
+  decimal,
   index,
   integer,
   json,
@@ -39,10 +40,19 @@ export const llmCompletions = pgTable(
     promptTokens: integer("prompt_tokens"),
     completionTokens: integer("completion_tokens"),
     error: text("error"),
+
+    /**
+     * Estimated cost of the completion for the system, in multiple currencies.
+     */
     estimatedCost:
       json("estimated_cost").$type<
         v.InferOutput<typeof MultiCurrencyCostSchema>
       >(),
+
+    /**
+     * How much the user was charged for this completion, in credits.
+     */
+    creditCost: decimal("credit_cost", { precision: 10, scale: 2 }),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

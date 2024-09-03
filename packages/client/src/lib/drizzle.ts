@@ -52,6 +52,9 @@ const MIGRATIONS: Migration[] = [
   await import("./drizzle/migrations/019_refactor_llm_completions.js"),
   await import("./drizzle/migrations/020_add_real_time_to_llm_completions.js"),
   await import("./drizzle/migrations/021_add_deleted_at_to_simulations.js"),
+  await import(
+    "./drizzle/migrations/022_add_credit_cost_to_llm_completions.js"
+  ),
 ];
 
 const databaseUrl = await join(

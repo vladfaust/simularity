@@ -38,12 +38,31 @@ export default Router()
       });
     }
 
+    if (parseFloat(user.creditBalance) <= 0) {
+      konsole.log("Not enough credit balance", {
+        userId: user.id,
+        creditBalance: user.creditBalance,
+      });
+
+      return res.status(402).json({
+        error: "Not enough credit balance",
+        creditBalance: user.creditBalance,
+      });
+    }
+
     const worker = await d.db.query.llmWorkers.findFirst({
       where: and(
         eq(d.llmWorkers.providerId, "runpod"),
         eq(d.llmWorkers.enabled, true),
         eq(d.llmWorkers.modelId, body.output.model),
       ),
+      with: {
+        model: {
+          columns: {
+            creditPrice: true,
+          },
+        },
+      },
     });
 
     if (!worker) {
@@ -57,7 +76,7 @@ export default Router()
       });
     }
 
-    const endpoint = VllmEndpoint.create(worker);
+    const endpoint = VllmEndpoint.create(user.id, worker);
     if (!endpoint) {
       konsole.error("Runpod endpoint unavailable", {
         endpointId: worker.providerExternalId,
@@ -179,6 +198,7 @@ export default Router()
           promptTokens: llmCompletion.promptTokens,
           totalTokens:
             llmCompletion.promptTokens + llmCompletion.completionTokens,
+          creditCost: llmCompletion.creditCost,
         },
       } satisfies v.InferInput<typeof ResponseSchema>);
     }

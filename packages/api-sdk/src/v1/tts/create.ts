@@ -24,9 +24,22 @@ export const ResponseBodySchema = v.object({
   usage: v.object({
     delayTime: v.optional(v.number()),
     executionTime: v.number(),
+
+    /**
+     * Cost of the inference in credits.
+     */
+    creditCost: v.nullable(v.string()),
   }),
 
   output: v.object({
+    /**
+     * Base64-encoded WAV audio.
+     */
     wavBase64: v.string(),
+
+    /**
+     * Duration of the generated audio in milliseconds.
+     */
+    wavDuration: v.number(),
   }),
 });

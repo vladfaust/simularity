@@ -1,4 +1,5 @@
 import { v } from "@/lib/valibot.js";
+import { relations } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -30,6 +31,9 @@ export const llmWorkers = pgTable(
      */
     providerExternalId: varchar("provider_external_id").notNull(),
 
+    /**
+     * How much the provider charges for this worker.
+     */
     providerPricing:
       json("provider_pricing").$type<
         v.InferOutput<typeof ProviderPricingModel>
@@ -47,3 +51,10 @@ export const llmWorkers = pgTable(
     ),
   }),
 );
+
+export const llmWorkerRelations = relations(llmWorkers, ({ one, many }) => ({
+  model: one(llmModels, {
+    fields: [llmWorkers.modelId],
+    references: [llmModels.id],
+  }),
+}));

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import * as api from "@/lib/api";
 import * as storage from "@/lib/storage";
-import { remoteServerJwt } from "@/lib/storage";
-import { onMounted, ref, shallowRef, watch } from "vue";
+import { useModelsQuery } from "@/queries";
+import { computed, onMounted, ref, watch } from "vue";
 import Model from "./Remote/Model.vue";
 
 const props = defineProps<{
@@ -13,9 +12,12 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
   "driverConfig",
 );
 
-const remoteModels = shallowRef<
-  Awaited<ReturnType<typeof api.v1.models.index>> | undefined
->();
+const modelsQuery = useModelsQuery();
+const remoteModels = computed(() =>
+  modelsQuery.data.value
+    ?.filter((model) => model.type === "llm")
+    .filter((model) => model.task === props.agentId),
+);
 
 const selectedModelId = ref<string | null>(
   driverConfig.value?.type === "remote" ? driverConfig.value.modelId : null,
@@ -47,14 +49,6 @@ watch(
 );
 
 onMounted(async () => {
-  // OPTIMIZE: Memoize the API call.
-  remoteModels.value = (
-    await api.v1.models.index(
-      import.meta.env.VITE_API_BASE_URL,
-      remoteServerJwt.value ?? undefined,
-    )
-  ).filter((model) => model.type === "llm" && model.task === props.agentId);
-
   if (driverConfig.value?.type !== "remote") {
     if (latestRemoteModelConfig.value) {
       setDriverConfig(latestRemoteModelConfig.value.modelId);
@@ -68,7 +62,7 @@ onMounted(async () => {
 </script>
 
 <template lang="pug">
-.grid.grid-cols-2.gap-2.overflow-y-scroll.bg-neutral-50.p-2.shadow-inner
+.grid.gap-2.overflow-y-scroll.bg-neutral-50.p-2.shadow-inner
   Model.rounded-lg.border.bg-white(
     v-for="model in remoteModels"
     :key="model.id"

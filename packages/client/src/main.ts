@@ -1,3 +1,4 @@
+import { VueQueryPlugin } from "@tanstack/vue-query";
 import { getMatches } from "@tauri-apps/api/cli";
 import { createApp } from "vue";
 import App from "./App.vue";
@@ -26,6 +27,7 @@ getMatches().then((matches) => {
 const app = createApp(App);
 
 app.use(router);
+app.use(VueQueryPlugin);
 
 router.isReady().then(() => {
   app.mount("#app");

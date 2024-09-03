@@ -18,5 +18,6 @@ export default Router()
     return res.json({
       id: user.id,
       email: user.email,
+      creditBalance: user.creditBalance,
     } satisfies v.InferOutput<typeof ResponseSchema>);
   });

@@ -53,6 +53,11 @@ export const llmCompletions = sqliteTable(
      */
     realTime: integer("real_time"),
 
+    /**
+     * Credits cost of the completion, in credit cents (1/100th of a credit).
+     */
+    creditCost: integer("credit_cost"),
+
     createdAt: text("created_at")
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

@@ -2,6 +2,7 @@ import { v } from "@/lib/valibot.js";
 import { MultiLangTextSchema } from "@simularity/api-sdk/common";
 import {
   boolean,
+  decimal,
   index,
   integer,
   json,
@@ -25,6 +26,11 @@ export const llmModels = pgTable(
     description:
       json("description").$type<v.InferOutput<typeof MultiLangTextSchema>>(),
     contextSize: integer("context_size").notNull(),
+
+    /**
+     * Model price per 1024 tokens, in credits.
+     */
+    creditPrice: decimal("credit_price", { precision: 10, scale: 2 }),
   },
   (table) => ({
     enabledIndex: index("llm_models_enabled_index").on(table.enabled),

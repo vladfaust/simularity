@@ -19,6 +19,7 @@ export default Router()
         name: true,
         description: true,
         contextSize: true,
+        creditPrice: true,
       },
     });
 
@@ -28,6 +29,7 @@ export default Router()
         id: true,
         name: true,
         description: true,
+        creditPrice: true,
       },
     });
 

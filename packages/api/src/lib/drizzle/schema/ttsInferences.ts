@@ -2,6 +2,7 @@ import { TtsParamsSchema } from "@/lib/runpod/endpoints/tts.js";
 import { v } from "@/lib/valibot.js";
 import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
 import {
+  decimal,
   index,
   integer,
   json,
@@ -13,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { ttsWorkers } from "./ttsWorkers.js";
 
+// TODO: Rename to `ttsCompletions`.
 export const ttsInferences = pgTable(
   "tts_inferences",
   {
@@ -29,11 +31,21 @@ export const ttsInferences = pgTable(
     providerExternalId: varchar("provider_external_id"),
     delayTimeMs: integer("delay_time_ms"),
     executionTimeMs: integer("execution_time_ms"),
+    durationMs: integer("duration_ms"),
     error: text("error"),
+
+    /**
+     * Estimated cost of the completion for the system, in multiple currencies.
+     */
     estimatedCost:
       json("estimated_cost").$type<
         v.InferOutput<typeof MultiCurrencyCostSchema>
       >(),
+
+    /**
+     * How much the user was charged for this completion, in credits.
+     */
+    creditCost: decimal("credit_cost", { precision: 10, scale: 2 }),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

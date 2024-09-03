@@ -5,8 +5,10 @@ import {
   NARRATOR,
   type PredictionOptions,
 } from "@/lib/simulation/agents/writer";
+import { currentUserQueryKey } from "@/queries";
 import SettingsModal from "@/views/SettingsModal.vue";
 import { TransitionRoot } from "@headlessui/vue";
+import { useQueryClient } from "@tanstack/vue-query";
 import { StorageSerializers, useLocalStorage } from "@vueuse/core";
 import {
   CameraIcon,
@@ -127,6 +129,8 @@ const inputPlaceholder = computed(
   () => `Speak as ${simulation.scenario.defaultCharacter.name}`,
 );
 
+const queryClient = useQueryClient();
+
 function onSendButtonClick() {
   if (inferenceAbortController.value) {
     // Abort inference.
@@ -172,6 +176,7 @@ async function sendMessage() {
 
     throw e;
   } finally {
+    queryClient.invalidateQueries({ queryKey: currentUserQueryKey() });
     inferenceAbortController.value = null;
     busy.value = false;
   }
@@ -208,6 +213,7 @@ async function advance() {
     console.error(e);
     throw e;
   } finally {
+    queryClient.invalidateQueries({ queryKey: currentUserQueryKey() });
     inferenceAbortController.value = null;
     busy.value = false;
   }
@@ -278,6 +284,7 @@ async function regenerateUpdate(updateIndex: number) {
       inferenceAbortController.value!.signal,
     );
   } finally {
+    queryClient.invalidateQueries({ queryKey: currentUserQueryKey() });
     inferenceAbortController.value = null;
     busy.value = false;
   }

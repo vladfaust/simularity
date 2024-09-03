@@ -36,5 +36,6 @@ export const ResponseSchema = v.strictObject({
     totalTokens: v.number(),
     delayTime: v.number(),
     executionTime: v.number(),
+    creditCost: v.nullable(v.string()),
   }),
 });

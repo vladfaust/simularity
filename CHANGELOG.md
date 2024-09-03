@@ -1,62 +1,10 @@
 # Simularity Changelog
 
-## WIP 🚧
-
-> Do not commit this section!
-
-## Bugs 🐛
-
-> After squashing, bugs are removed from this list.
-
-- [ ] [SQLite Migrations Are not Applied](./issues/01-sqlite.md)
-
-## MVP 🚀
-
-- [x] feat: inference server
-
-  - [ ] Payments
-
-- [ ] tip: Looks like the AI is struggling to continue the conversation.
-      Try rephrasing your message or add more possible destinations in it.
-
-- [ ] feat: configure inference
-
-  - Choose local files
-
-    - [x] .gguf
-
-  - [x] ~~Choose server~~
-        You can only choose a Simularity Server.
-
-  - Download files
-
-    - [ ] Huggingface
-    - [ ] Simularity CDN
-
-- [ ] feat(client/SandboxConsole): set model parameters
-      Temperature, top-K etc.
-
-- [ ] feat(core): T5
-
-  - [ ] feat: event labeling
-
-    - [ ] feat: episode system
-    - [ ] feat: quests
-
-  - [ ] feat: summarization
-  - [ ] feat: memory consolidation
-
-- feat+dx: more GPT information
-
-  - [ ] KV cache size (returns after decode/inference)
-  - [ ] Memory usage (monitoring)
-
-## Ideas 💡
-
-- [x] feat: instruction-based interactions
-      Simple text generation works fine once you understand the rules.
-
 ## History 📜
+
+### September 2024
+
+- [x] feat: credits (Tue 3)
 
 ### August 2024
 

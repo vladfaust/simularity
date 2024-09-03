@@ -215,6 +215,9 @@ export class RemoteLlmDriver implements BaseLlmDriver {
             delayTime: response.usage.delayTime,
             executionTime: response.usage.executionTime,
             realTime: Date.now() - startedAt,
+            creditCost: response.usage.creditCost
+              ? Math.round(parseFloat(response.usage.creditCost) * 100)
+              : undefined,
           })
           .returning()
       )[0];
