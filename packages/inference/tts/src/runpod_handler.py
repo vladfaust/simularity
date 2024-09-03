@@ -25,6 +25,7 @@ def handler(job):
 
         return {
             "wav_base64": result.wav,
+            "wav_duration": result.wav_duration,
         }
     except ValidationError as e:
         return {"error": e.errors()}

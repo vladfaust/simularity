@@ -31,7 +31,15 @@ export const TtsEndpointInputSchema = v.object({
 });
 
 const TtsEndpointOutputSchema = v.object({
+  /**
+   * Base64-encoded WAV audio.
+   */
   wav_base64: v.string(),
+
+  /**
+   * Duration of the generated audio in milliseconds.
+   */
+  wav_duration: v.number(),
 });
 
 export class TtsEndpoint {

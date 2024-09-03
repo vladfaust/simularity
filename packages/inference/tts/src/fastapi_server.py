@@ -54,6 +54,7 @@ class TtsResponseUsage(BaseModel):
 
 class TtsResponseOutput(BaseModel):
     wavBase64: str
+    wavDuration: int
 
 
 class TtsResponse(BaseModel):
@@ -73,7 +74,9 @@ def create_tts(parsed_input: TTSInputs):
     return JSONResponse(content=jsonable_encoder(TtsResponse(
         inferenceId=output.inference_id,
         usage=TtsResponseUsage(executionTime=output.usage.execution_time),
-        output=TtsResponseOutput(wavBase64=output.wav),
+        output=TtsResponseOutput(
+            wavBase64=output.wav,
+            wavDuration=output.wav_duration),
     )))
 
 

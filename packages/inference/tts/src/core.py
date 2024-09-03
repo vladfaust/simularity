@@ -61,6 +61,7 @@ class TTSOutputsUsage(BaseModel):
 class TTSOutputs(BaseModel):
     inference_id: str
     wav: str | bytes
+    wav_duration: int
     usage: TTSOutputsUsage
 
 
@@ -246,11 +247,13 @@ class Core:
 
             # torchaudio.save("output.wav", torch.tensor(out["wav"]).unsqueeze(0), 24000)
 
+            wav_duration = int(wav.shape[2] / 24000 * 1000)
             wav = Core.encode_audio_common(wav.tobytes(), encode_base64)
 
             return TTSOutputs(
                 inference_id=f"{self.instance_id}-{self.inference_counter}",
                 wav=wav,
+                wav_duration=wav_duration,
                 usage=TTSOutputsUsage(execution_time=execution_time),
             )
 
