@@ -7,7 +7,7 @@ import { toMilliseconds } from "duration-fns";
 /**
  * Create an LLM completion.
  */
-// ADHOC: Tauri client implementation ignores signals.
+// ADHOC: Tauri fetch client implementation ignores signals.
 export async function create(
   baseUrl: string,
   jwt: string,
