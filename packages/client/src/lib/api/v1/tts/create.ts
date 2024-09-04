@@ -1,3 +1,4 @@
+import { PaymentRequiredError } from "@/lib/api";
 import { timeoutSignal } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 import {
@@ -73,9 +74,13 @@ export async function create(
   });
 
   if (!response.ok) {
-    throw new ServerError(
-      `POST ${url} request failed: ${response.status} ${JSON.stringify(response.data)}`,
-    );
+    if (response.status === 402) {
+      throw new PaymentRequiredError();
+    } else {
+      throw new ServerError(
+        `POST ${url} request failed: ${response.status} ${JSON.stringify(response.data)}`,
+      );
+    }
   }
 
   const json = response.data;

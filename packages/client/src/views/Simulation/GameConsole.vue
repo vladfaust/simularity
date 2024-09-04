@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type CompletionOptions } from "@/lib/ai/llm/BaseLlmDriver";
+import * as api from "@/lib/api";
 import { Simulation } from "@/lib/simulation";
 import {
   NARRATOR,
@@ -25,6 +26,7 @@ import {
   UndoDotIcon,
 } from "lucide-vue-next";
 import { computed, ref, triggerRef } from "vue";
+import { toast } from "vue3-toastify";
 import PredictionOptionsPanel from "./GameConsole/PredictionOptionsPanel.vue";
 import ProgressBar from "./GameConsole/ProgressBar.vue";
 import VisualizeModal from "./GameConsole/VisualizeModal.vue";
@@ -174,7 +176,12 @@ async function sendMessage() {
       userInput.value = userMessage;
     }
 
-    throw e;
+    if (e instanceof api.PaymentRequiredError) {
+      console.warn(e);
+      toast.error("Not enough credits.");
+    } else {
+      throw e;
+    }
   } finally {
     queryClient.invalidateQueries({ queryKey: currentUserQueryKey() });
     inferenceAbortController.value = null;
@@ -210,8 +217,12 @@ async function advance() {
       }
     }
   } catch (e: any) {
-    console.error(e);
-    throw e;
+    if (e instanceof api.PaymentRequiredError) {
+      console.warn(e);
+      toast.error("Not enough credits.");
+    } else {
+      throw e;
+    }
   } finally {
     queryClient.invalidateQueries({ queryKey: currentUserQueryKey() });
     inferenceAbortController.value = null;
@@ -277,12 +288,19 @@ async function regenerateUpdate(updateIndex: number) {
       });
     }
 
-    await simulation.createCurrentUpdateVariant(
+    await simulation.predictCurrentUpdateVariant(
       N_EVAL,
       predictionOptions.value,
       modelSettings.value,
       inferenceAbortController.value!.signal,
     );
+  } catch (e) {
+    if (e instanceof api.PaymentRequiredError) {
+      console.warn(e);
+      toast.error("Not enough credits.");
+    } else {
+      throw e;
+    }
   } finally {
     queryClient.invalidateQueries({ queryKey: currentUserQueryKey() });
     inferenceAbortController.value = null;

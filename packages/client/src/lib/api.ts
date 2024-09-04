@@ -10,3 +10,10 @@ export class RemoteApiError extends Error {
     this.name = "RemoteApiError";
   }
 }
+
+export class PaymentRequiredError extends Error {
+  constructor() {
+    super();
+    this.name = "PaymentRequiredError";
+  }
+}

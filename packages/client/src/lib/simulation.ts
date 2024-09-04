@@ -568,6 +568,10 @@ export class Simulation {
         console.warn("Writer inference aborted");
         return;
       }
+    } catch (e) {
+      console.log("Removing the recent update due to error");
+      this._recentUpdates.value.pop();
+      throw e;
     } finally {
       this._busy.value = false;
     }
@@ -580,7 +584,7 @@ export class Simulation {
    *
    * @assert The simulation is not busy.
    */
-  async createCurrentUpdateVariant(
+  async predictCurrentUpdateVariant(
     nEval: number,
     predictionOptions?: WriterPredictionOptions,
     inferenceOptions?: CompletionOptions,
