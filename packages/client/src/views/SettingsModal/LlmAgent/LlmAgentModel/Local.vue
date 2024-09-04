@@ -16,7 +16,10 @@ import * as fsExtra from "tauri-plugin-fs-extra-api";
 import { computed, onMounted, ref, shallowRef, triggerRef } from "vue";
 import Model from "./Local/Model.vue";
 
-const props = defineProps<{ agentId: storage.llm.LlmAgentId }>();
+const props = defineProps<{
+  agentId: storage.llm.LlmAgentId;
+  recommendedContextSize?: number;
+}>();
 const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
   "driverConfig",
 );
@@ -70,10 +73,15 @@ function setDriverConfig(cachedModelIndex: number) {
     throw new Error(`Cached model not found at index ${cachedModelIndex}`);
   }
 
+  const contextSize = Math.min(
+    cachedModel.contextSize,
+    props.recommendedContextSize ?? cachedModel.contextSize,
+  );
+
   driverConfig.value = {
     type: "local",
     modelPath: cachedModel.path,
-    contextSize: cachedModel.contextSize,
+    contextSize,
   };
 
   console.log("Temp driver config set", props.agentId, {

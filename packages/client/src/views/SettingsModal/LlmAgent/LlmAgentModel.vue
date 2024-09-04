@@ -10,6 +10,7 @@ import GptStatus from "./Status.vue";
 defineProps<{
   agentId: storage.llm.LlmAgentId;
   driverInstance: BaseLlmDriver | undefined;
+  recommendedContextSize?: number;
 }>();
 
 const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
@@ -49,6 +50,7 @@ const driverType = ref<storage.llm.LlmDriverConfig["type"]>(
       LocalSettings(
         v-if="driverType === 'local'"
         :agent-id
+        :recommended-context-size
         v-model:driver-config="driverConfig"
       )
         template(#context-size-help="{ contextSize, maxContextSize }")

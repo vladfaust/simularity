@@ -36,6 +36,7 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
     agent-id="writer"
     :driver-instance="simulation.writer.llmDriver.value ?? undefined"
     v-model:driver-config="driverConfig"
+    :recommended-context-size="simulation.scenario.contextWindowSize"
   )
     template(#context-size-help="{ contextSize, maxContextSize }")
       Alert(type="warn" v-if="contextSize > maxContextSize")
