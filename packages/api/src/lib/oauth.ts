@@ -1,4 +1,5 @@
 import { ResponseOkError } from "./errors.js";
+import { konsole } from "./konsole.js";
 import * as patreon from "./patreon.js";
 import { unreachable } from "./utils.js";
 import { v } from "./valibot.js";
@@ -57,7 +58,7 @@ export async function fetchToken(
     body.append(pair[0], pair[1].toString());
   }
 
-  console.debug(provider.baseUrl + "/token", body);
+  konsole.debug(provider.baseUrl + "/token", body);
   const response = await fetch(provider.baseUrl + "/token", {
     method: "POST",
     headers: {
@@ -71,7 +72,7 @@ export async function fetchToken(
   }
 
   return response.json().then((json) => {
-    console.debug(json);
+    konsole.debug(json);
 
     switch (providerId) {
       case "patreon": {

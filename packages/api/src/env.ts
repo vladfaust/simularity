@@ -85,6 +85,12 @@ const parseResult = v.safeParse(
       v.transform((x) => JSON.parse(x)),
       v.record(OAuthProviderIdSchema, OAuthProviderSchema),
     ),
+
+    /**
+     * The secret used to sign Patreon webhook payloads.
+     * The endpoint is disabled if this is not set.
+     */
+    PATREON_WEBHOOK_SECRET: v.optional(v.string()),
   }),
   process.env,
 );

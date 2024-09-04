@@ -9,7 +9,7 @@ import { v } from "@/lib/valibot.js";
 import assert from "assert";
 import bodyParser from "body-parser";
 import cors from "cors";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { Router } from "express";
 import { createJwt, extractUser } from "../_common.js";
 import { OAuthRedisObject, oauthStateRedisKey } from "./_common.js";
@@ -139,17 +139,28 @@ export default Router()
 
           assert(loggedInUser);
 
-          await tx.insert(d.oauthAccounts).values({
-            providerId: redisObject.providerId,
-            externalId: tokenResponse.user.id,
-            userId: loggedInUser.id,
-            tokenType: tokenResponse.tokenType,
-            accessToken: tokenResponse.accessToken,
-            accessTokenExpiresAt: tokenResponse.accessTokenExpiresAt,
-            refreshToken: tokenResponse.refreshToken,
-            refreshTokenExpiresAt: tokenResponse.refreshTokenExpiresAt,
-            scope: tokenResponse.scope || provider.scope,
-          });
+          const newAccount = (
+            await tx
+              .insert(d.oauthAccounts)
+              .values({
+                providerId: redisObject.providerId,
+                externalId: tokenResponse.user.id,
+                userId: loggedInUser.id,
+                tokenType: tokenResponse.tokenType,
+                accessToken: tokenResponse.accessToken,
+                accessTokenExpiresAt: tokenResponse.accessTokenExpiresAt,
+                refreshToken: tokenResponse.refreshToken,
+                refreshTokenExpiresAt: tokenResponse.refreshTokenExpiresAt,
+                scope: tokenResponse.scope || provider.scope,
+              })
+              .returning({
+                providerId: d.oauthAccounts.providerId,
+                externalId: d.oauthAccounts.externalId,
+                userId: d.oauthAccounts.userId,
+              })
+          )[0];
+
+          await onAccountLink(tx, newAccount);
 
           return {
             user: {
@@ -201,17 +212,28 @@ export default Router()
                 .returning({ id: d.users.id, email: d.users.email })
             )[0];
 
-            await tx.insert(d.oauthAccounts).values({
-              providerId: redisObject.providerId,
-              externalId: tokenResponse.user.id,
-              userId: user.id,
-              tokenType: tokenResponse.tokenType,
-              accessToken: tokenResponse.accessToken,
-              accessTokenExpiresAt: tokenResponse.accessTokenExpiresAt,
-              refreshToken: tokenResponse.refreshToken,
-              refreshTokenExpiresAt: tokenResponse.refreshTokenExpiresAt,
-              scope: tokenResponse.scope || provider.scope,
-            });
+            const newAccount = (
+              await tx
+                .insert(d.oauthAccounts)
+                .values({
+                  providerId: redisObject.providerId,
+                  externalId: tokenResponse.user.id,
+                  userId: user.id,
+                  tokenType: tokenResponse.tokenType,
+                  accessToken: tokenResponse.accessToken,
+                  accessTokenExpiresAt: tokenResponse.accessTokenExpiresAt,
+                  refreshToken: tokenResponse.refreshToken,
+                  refreshTokenExpiresAt: tokenResponse.refreshTokenExpiresAt,
+                  scope: tokenResponse.scope || provider.scope,
+                })
+                .returning({
+                  providerId: d.oauthAccounts.providerId,
+                  externalId: d.oauthAccounts.externalId,
+                  userId: d.oauthAccounts.userId,
+                })
+            )[0];
+
+            await onAccountLink(tx, newAccount);
 
             return {
               user: {
@@ -269,4 +291,48 @@ async function sendWelcomeEmail(email: string) {
     subject: "Welcome",
     text: "Welcome!",
   });
+}
+
+async function onAccountLink(
+  tx: typeof d.db,
+  account: Pick<
+    typeof d.oauthAccounts.$inferSelect,
+    "providerId" | "externalId" | "userId"
+  >,
+) {
+  if (account.providerId === "patreon") {
+    const orphanPatreonPledges = await tx.query.patreonPledges.findMany({
+      where: and(
+        eq(d.patreonPledges.patronId, account.externalId),
+        isNull(d.patreonPledges.userId),
+      ),
+      columns: {
+        creditsAmount: true,
+      },
+    });
+
+    if (orphanPatreonPledges.length) {
+      const totalCredits = orphanPatreonPledges.reduce(
+        (acc, x) => acc + parseFloat(x.creditsAmount),
+        0,
+      );
+
+      konsole.log(
+        `Found ${orphanPatreonPledges.length} orphan Patreon pledge(s) with total credits of ${totalCredits}`,
+      );
+
+      await tx.update(d.patreonPledges).set({
+        userId: account.userId,
+      });
+
+      await tx
+        .update(d.users)
+        .set({
+          creditBalance: sql` ${d.users.creditBalance} + ${totalCredits} `,
+        })
+        .where(eq(d.users.id, account.userId));
+
+      konsole.log(`Granted ${totalCredits} credits to user: ${account.userId}`);
+    }
+  }
 }
