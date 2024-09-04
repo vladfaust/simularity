@@ -299,24 +299,31 @@ onMounted(async () => {
       span Open directory
 
   .grid.gap-2.bg-gray-50.p-2.shadow-inner
-    Model.rounded-lg.border.bg-white(
-      v-for="(cachedModel, index) in cachedModels"
-      :class="{ 'border-primary-500': selectedModelPath === cachedModel.path }"
-      :key="cachedModel.path"
-      :model="cachedModel"
-      :selected="selectedModelPath === cachedModel.path"
-      :remove-deletes-file="cachedModel.path.startsWith(modelsDirectoryRef)"
-      @select="selectModel(index)"
-      @remove="removeModel(cachedModel.path)"
-    )
-    Model.rounded-lg.border.bg-white(
-      v-for="modelPath in uncachedModels"
-      :key="modelPath"
-      :model="{ path: modelPath }"
-      :selected="false"
-      :remove-deletes-file="modelPath.startsWith(modelsDirectoryRef)"
-      @remove="removeModel(modelPath)"
-    )
+    template(v-if="cachedModels.length || uncachedModels.length")
+      Model.rounded-lg.border.bg-white(
+        v-for="(cachedModel, index) in cachedModels"
+        :class="{ 'border-primary-500': selectedModelPath === cachedModel.path }"
+        :key="cachedModel.path"
+        :model="cachedModel"
+        :selected="selectedModelPath === cachedModel.path"
+        :remove-deletes-file="cachedModel.path.startsWith(modelsDirectoryRef)"
+        @select="selectModel(index)"
+        @remove="removeModel(cachedModel.path)"
+      )
+      Model.rounded-lg.border.bg-white(
+        v-for="modelPath in uncachedModels"
+        :key="modelPath"
+        :model="{ path: modelPath }"
+        :selected="false"
+        :remove-deletes-file="modelPath.startsWith(modelsDirectoryRef)"
+        @remove="removeModel(modelPath)"
+      )
+    p.col-span-full.flex.justify-center.p-1.text-sm.italic.opacity-50(v-else)
+      | No models found. Add
+      |
+      span.font-mono .gguf
+      |
+      | &nbsp;models manually.
 
   .flex.flex-col.gap-2.p-2(
     v-if="driverConfig?.type === 'local' && selectedModel"
