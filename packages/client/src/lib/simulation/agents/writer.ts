@@ -4,6 +4,7 @@ import {
   type BaseLlmDriver,
   type CompletionOptions,
 } from "@/lib/ai/llm/BaseLlmDriver";
+import { TauriLlmDriver } from "@/lib/ai/llm/TauriLlmDriver";
 import { d } from "@/lib/drizzle";
 import * as storage from "@/lib/storage";
 import { clockToMinutes, minutesToClock, trimEndAny } from "@/lib/utils";
@@ -42,7 +43,10 @@ type Checkpoint = Pick<typeof d.checkpoints.$inferSelect, "summary" | "state">;
 export class Writer {
   readonly contextSize = computed(() =>
     this.llmDriver.value?.contextSize
-      ? this.llmDriver.value?.contextSize - this.hiddenContextSizeBuffer
+      ? this.llmDriver.value?.contextSize -
+        (this.llmDriver.value instanceof TauriLlmDriver
+          ? this.hiddenContextSizeBuffer
+          : 0)
       : undefined,
   );
   readonly contextLength = ref<number | undefined>();

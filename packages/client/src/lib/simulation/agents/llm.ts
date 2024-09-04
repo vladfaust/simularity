@@ -30,7 +30,7 @@ export function hookLlmAgentToDriverRef(
       console.debug("Driver config watch trigger", agent, driverConfig);
 
       if (contextSizeModifier && driverConfig?.type === "local") {
-        // Clone the driver config to prevent reactivity issues.
+        // Clone the driver config to a local variable.
         driverConfig = clone(driverConfig);
 
         driverConfig.contextSize = contextSizeModifier(
