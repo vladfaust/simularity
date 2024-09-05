@@ -20,7 +20,6 @@ import {
   SendHorizontalIcon,
   SettingsIcon,
   SparklesIcon,
-  SquareIcon,
   SquarePowerIcon,
   SquareSigmaIcon,
   UndoDotIcon,
@@ -465,9 +464,10 @@ function enableOnlyCharacter(characterId: string) {
 
       button._button.group.relative.aspect-square.h-full(
         @click="onSendButtonClick"
-        :disabled="(!simulation.ready.value && !simulation.state.shallAdvanceEpisode.value) || (busy && !inferenceAbortController)"
+        :disabled="busy"
       )
         //- REFACTOR: Make a component for such multi-state animations.
+        //- TODO: Abort button.
         TransitionRoot.absolute(
           :show="sendButtonState === SendButtonState.Busy"
           enter="duration-100 ease-out"
@@ -477,9 +477,7 @@ function enableOnlyCharacter(characterId: string) {
           leave-from="scale-100 opacity-100"
           leave-to="scale-0 opacity-0"
         )
-          .relative.grid.h-full.w-full.place-items-center
-            Loader2Icon.absolute.animate-spin(:size="30")
-            SquareIcon.absolute.fill-inherit(:size="10")
+          Loader2Icon.animate-spin(:size="20")
         TransitionRoot.absolute(
           :show="busy && sendButtonState !== SendButtonState.Busy"
           enter="duration-100 ease-out"
