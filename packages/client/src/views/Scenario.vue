@@ -273,7 +273,7 @@ onMounted(async () => {
               template(#icon)
                 ScrollTextIcon(:size="18")
 
-            article.prose.prose-sm.prose-tight.w-full.max-w-none
+            article.prose-tight.prose.prose-sm.w-full.max-w-none
               VueMarkdownIt(
                 v-if="processedScenarioDescription"
                 :source="processedScenarioDescription"
