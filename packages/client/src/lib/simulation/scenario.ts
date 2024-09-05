@@ -48,6 +48,11 @@ const ScenarioSchema = v.object({
   name: v.string(),
 
   /**
+   * Whether the scenario is not safe for work.
+   */
+  nsfw: v.optional(v.boolean()),
+
+  /**
    * Scenario thumbnail image path.
    * Recommended aspect ratio: 1:1.
    */
@@ -549,6 +554,10 @@ export class Scenario {
 
   get name() {
     return this.content.name;
+  }
+
+  get nsfw() {
+    return this.content.nsfw ?? false;
   }
 
   async getThumbnailUrl() {

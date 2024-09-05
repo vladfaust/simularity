@@ -14,6 +14,7 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
 .flex.flex-col.divide-y
   img.w-full.select-none.object-cover.transition(
     class="aspect-[3/4] hover:scale-105 hover:brightness-105"
+    :class="{ 'blur scale-105': scenario.nsfw }"
     v-if="thumbnailUrl"
     :src="thumbnailUrl"
   )
