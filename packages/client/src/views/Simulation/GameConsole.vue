@@ -12,7 +12,7 @@ import { TransitionRoot } from "@headlessui/vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { StorageSerializers, useLocalStorage } from "@vueuse/core";
 import {
-  CameraIcon,
+  // CameraIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   Loader2Icon,
@@ -413,12 +413,12 @@ function enableOnlyCharacter(characterId: string) {
             ChevronUpIcon(:size="20")
 
         .flex.flex-col.gap-1
-          //- Visualization button.
-          button._button.aspect-square.w-full(
-            title="Go back"
-            @click="showVisualizeModal = true"
-          )
-            CameraIcon(:size="20")
+          //- //- Visualization button.
+          //- button._button.aspect-square.w-full(
+          //-   title="Go back"
+          //-   @click="showVisualizeModal = true"
+          //- )
+          //-   CameraIcon(:size="20")
 
           button._button.aspect-square.w-full(
             title="Go back"
