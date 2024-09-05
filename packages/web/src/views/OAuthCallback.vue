@@ -43,19 +43,14 @@ onMounted(async () => {
       case "login": {
         jwt.value = result.jwt;
 
-        if (result.returnUrl) {
-          window.location.href = result.returnUrl;
-        } else {
-          router.push("/");
-        }
-
         break;
       }
+    }
 
-      case "link": {
-        window.close();
-        break;
-      }
+    if (result.returnUrl) {
+      window.location.href = result.returnUrl;
+    } else {
+      router.push("/");
     }
   } catch (e: any) {
     errorRef.value = e;

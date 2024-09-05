@@ -18,6 +18,10 @@ interface ImportMetaEnv {
 
   /** Default web server base URL. */
   readonly VITE_WEB_BASE_URL: string;
+
+  /** Patreon campaign URL. */
+  // TODO: Replace with a system API call to get the campaign URL.
+  readonly VITE_PATREON_CAMPAIGN_URL: string;
 }
 
 interface ImportMeta {

@@ -27,5 +27,5 @@ onMounted(async () => {
 
 <template lang="pug">
 .flex.h-screen.flex-col.items-center.justify-center.p-3
-  Login.w-full.max-w-sm.gap-2.rounded-lg.border.p-2
+  Login.w-full.max-w-sm.gap-2.rounded-lg
 </template>

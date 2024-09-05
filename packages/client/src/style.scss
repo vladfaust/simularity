@@ -104,4 +104,8 @@
   .btn-error {
     @apply btn-shadow border-b-2 border-error-600 bg-error-500 text-error-base;
   }
+
+  .link {
+    @apply text-primary-500 underline;
+  }
 }

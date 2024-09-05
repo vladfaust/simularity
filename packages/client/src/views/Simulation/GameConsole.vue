@@ -6,7 +6,7 @@ import {
   NARRATOR,
   type PredictionOptions,
 } from "@/lib/simulation/agents/writer";
-import { currentUserQueryKey } from "@/queries";
+import { accountBalanceQueryKey } from "@/queries";
 import SettingsModal from "@/views/SettingsModal.vue";
 import { TransitionRoot } from "@headlessui/vue";
 import { useQueryClient } from "@tanstack/vue-query";
@@ -183,7 +183,7 @@ async function sendMessage() {
       throw e;
     }
   } finally {
-    queryClient.invalidateQueries({ queryKey: currentUserQueryKey() });
+    queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
     inferenceAbortController.value = null;
     busy.value = false;
   }
@@ -224,7 +224,7 @@ async function advance() {
       throw e;
     }
   } finally {
-    queryClient.invalidateQueries({ queryKey: currentUserQueryKey() });
+    queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
     inferenceAbortController.value = null;
     busy.value = false;
   }
@@ -302,7 +302,7 @@ async function regenerateUpdate(updateIndex: number) {
       throw e;
     }
   } finally {
-    queryClient.invalidateQueries({ queryKey: currentUserQueryKey() });
+    queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
     inferenceAbortController.value = null;
     busy.value = false;
   }

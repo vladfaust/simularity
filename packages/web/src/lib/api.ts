@@ -1,5 +1,5 @@
 export * as auth from "./api/auth";
-export * as users from "./api/users";
+export * as account from "./api/account";
 
 export class ApiError extends Error {
   constructor(

@@ -91,6 +91,21 @@ const parseResult = v.safeParse(
      * The endpoint is disabled if this is not set.
      */
     PATREON_WEBHOOK_SECRET: v.optional(v.string()),
+
+    /**
+     * Patreon tiers, ordered from less to more important.
+     * The most important tier takes precedence over the less important ones.
+     */
+    PATREON_TIERS: v.pipe(
+      v.optional(v.string(), "[]"),
+      v.transform((x) => JSON.parse(x)),
+      v.array(
+        v.object({
+          id: v.string(),
+          name: v.string(),
+        }),
+      ),
+    ),
   }),
   process.env,
 );

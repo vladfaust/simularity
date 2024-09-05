@@ -2,7 +2,7 @@
 import * as storage from "@/lib/storage";
 import { tap } from "@/lib/utils";
 import { onLoginButtonClick } from "@/logic/loginButton";
-import { useCurrentUserQuery } from "@/queries";
+import { useAccountBalanceQuery } from "@/queries";
 import { routeLocation } from "@/router";
 import {
   LibraryBigIcon,
@@ -13,7 +13,7 @@ import {
 import { ref } from "vue";
 
 const loginInProgress = ref(false);
-const userQuery = useCurrentUserQuery();
+const accountBalanceQuery = useAccountBalanceQuery();
 
 async function login() {
   onLoginButtonClick(loginInProgress, true, true);
@@ -32,7 +32,7 @@ async function login() {
       span Library
 
   .flex.items-center.gap-2
-    span.font-mono(v-if="userQuery.data.value") {{ tap(userQuery.data.value.creditBalance, parseFloat) ?? 0 }}¢
+    span.font-mono(v-if="accountBalanceQuery.data.value") {{ tap(accountBalanceQuery.data.value.credit, parseFloat) ?? 0 }}¢
     RouterLink._header-link(
       v-if="storage.remoteServerJwt.value"
       :to="routeLocation({ name: 'User' })"

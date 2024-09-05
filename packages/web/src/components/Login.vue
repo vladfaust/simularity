@@ -21,7 +21,7 @@ function onLogin() {
 const { t } = useI18n({
   messages: {
     en: {
-      login: "Log in",
+      login: "Log into",
     },
   },
 });
@@ -29,7 +29,9 @@ const { t } = useI18n({
 
 <template lang="pug">
 .flex.flex-col.items-center
-  h1.text-lg.font-medium {{ t("login") }}
+  .flex.gap-2
+    h1.mb-2.block.self-end.text-lg.font-semibold.tracking-wide {{ t("login") }}
+    img.h-10.self-baseline(src="/img/logo.svg" alt="Logo")
   .flex.w-full.flex-col.gap-2.rounded-lg.border.bg-base-100.p-3
     Email.gap-2(
       @send-code="emailCodeSent = true"

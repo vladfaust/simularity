@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api";
+import { jwt } from "@/store";
 
 export type ProviderId = "patreon";
 
@@ -37,6 +38,7 @@ export async function callback(
   const response = await fetch(url, {
     method: "POST",
     headers: {
+      Authorization: jwt.value ? `Bearer ${jwt.value}` : "",
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ code, state, reason }),

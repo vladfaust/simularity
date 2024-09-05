@@ -25,6 +25,14 @@
       "import": "./dist/common.js",
       "types": "./dist/common.d.ts"
     },
+    "./v1/account": {
+      "import": "./dist/v1/account/get.js",
+      "types": "./dist/v1/account/get.d.ts"
+    },
+    "./v1/account/balance": {
+      "import": "./dist/v1/account/balance.js",
+      "types": "./dist/v1/account/balance.d.ts"
+    },
     "./v1/auth/nonce/get": {
       "import": "./dist/v1/auth/nonce/get.js",
       "types": "./dist/v1/auth/nonce/get.d.ts"
@@ -40,10 +48,6 @@
     "./v1/tts/create": {
       "import": "./dist/v1/tts/create.js",
       "types": "./dist/v1/tts/create.d.ts"
-    },
-    "./v1/users/get": {
-      "import": "./dist/v1/users/get.js",
-      "types": "./dist/v1/users/get.d.ts"
     }
   }
 }

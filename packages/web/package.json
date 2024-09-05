@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@simularity/api-sdk": "../api-sdk",
+    "@tanstack/vue-query": "^5.54.1",
     "@vueuse/core": "^10.11.1",
     "@vueuse/integrations": "^11.0.3",
     "jose": "^5.8.0",

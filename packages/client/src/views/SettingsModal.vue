@@ -4,7 +4,11 @@ import * as storage from "@/lib/storage";
 import type { TtsConfig } from "@/lib/storage/tts";
 import { clone, tap } from "@/lib/utils";
 import { onLoginButtonClick } from "@/logic/loginButton";
-import { currentUserQueryKey, useCurrentUserQuery } from "@/queries";
+import {
+  accountBalanceQueryKey,
+  accountQueryKey,
+  useAccountBalanceQuery,
+} from "@/queries";
 import {
   Dialog,
   DialogPanel,
@@ -77,7 +81,7 @@ const anyChanges = computed(() => {
   );
 });
 
-const userQuery = useCurrentUserQuery();
+const accountBalanceQuery = useAccountBalanceQuery();
 const loginInProgress = ref(false);
 const queryClient = useQueryClient();
 
@@ -91,7 +95,8 @@ function onClose() {
 
 async function login() {
   await onLoginButtonClick(loginInProgress, false, true);
-  await queryClient.invalidateQueries({ queryKey: currentUserQueryKey() });
+  await queryClient.invalidateQueries({ queryKey: accountQueryKey() });
+  await queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
   tab.value = Tab.Account;
 }
 </script>
@@ -144,7 +149,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                 span Account
               span.rounded.border.border-primary-600.bg-primary-500.px-2.py-1.font-mono.text-xs.font-medium.text-primary-base(
                 title="Credit balance"
-              ) {{ userQuery.data.value?.creditBalance ?? 0 }}¢
+              ) {{ accountBalanceQuery.data.value?.credit ?? 0 }}¢
             .border-b.p-3(v-else)
               button.btn.btn-md.btn-primary.btn-pressable.w-full.rounded-lg(
                 @click="login"

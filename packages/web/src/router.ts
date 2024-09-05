@@ -4,17 +4,19 @@ import {
   createRouter,
   createWebHistory,
 } from "vue-router";
-import { jwt } from "./store";
 import { ProviderId as OAuthProviderId } from "./lib/api/auth/oauth";
+import { jwt } from "./store";
 
+import Account from "./views/Account.vue";
 import Home from "./views/Home.vue";
 import Login from "./views/Login.vue";
 import OAuthCallback from "./views/OAuthCallback.vue";
 
-export type RouteName = "Home" | "Login" | "OAuthCallback";
+export type RouteName = "Account" | "Home" | "Login" | "OAuthCallback";
 
 export function routeLocation(
   args:
+    | { name: "Account" }
     | { name: "Home" }
     | { name: "Login" }
     | { name: "OAuthCallback"; params: { providerId: OAuthProviderId } },
@@ -27,6 +29,14 @@ const routes: Array<RouteRecordRaw> = [
     path: "/",
     name: "Home" satisfies RouteName,
     component: Home,
+  },
+  {
+    path: "/account",
+    name: "Account" satisfies RouteName,
+    component: Account,
+    meta: {
+      requiresAuth: true,
+    },
   },
   {
     path: "/login",
@@ -50,6 +60,8 @@ const router = createRouter({
 router.beforeEach((to) => {
   if (to.meta.redirectIfAuthed && jwt.value) {
     return routeLocation({ name: "Home" });
+  } else if (to.meta.requiresAuth && !jwt.value) {
+    return routeLocation({ name: "Login" });
   }
 });
 
