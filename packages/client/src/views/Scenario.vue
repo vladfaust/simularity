@@ -31,6 +31,7 @@ import Episode from "./Scenario/Episode.vue";
 import Save from "./Scenario/Save.vue";
 import { shallowRef } from "vue";
 import * as resources from "@/lib/resources";
+import * as tauri from "@/lib/tauri";
 
 const router = useRouter();
 
@@ -108,6 +109,15 @@ async function deleteSave(simulationId: string) {
   saves.value = saves.value.filter((s) => s.id !== simulationId);
 }
 
+async function showInFileManager() {
+  if (!scenario.value) {
+    console.warn("No scenario to show in file manager");
+    return;
+  }
+
+  await tauri.utils.fileManagerOpen(scenario.value.basePath);
+}
+
 onMounted(async () => {
   console.log("props.scenarioId", props.scenarioId);
   const read = await readScenario(props.scenarioId);
@@ -151,7 +161,7 @@ onMounted(async () => {
 
       //- Right side.
       button.btn.btn-sm.shrink-0.rounded-lg.border.transition-transform.pressable(
-        disabled
+        @click="showInFileManager"
       )
         FolderIcon(:size="18")
         span Reveal in finder
