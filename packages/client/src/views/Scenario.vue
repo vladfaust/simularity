@@ -297,25 +297,26 @@ onMounted(async () => {
                 :character
               )
 
-            //- Memories.
-            CustomTitle(title="Memories")
-              template(#icon)
-                BrainCircuitIcon(:size="18")
-              template(#extra)
-                span {{ Object.keys(scenario.episodes).length }}
+            template(v-if="Object.keys(scenario.episodes).length > 1")
+              //- Memories.
+              CustomTitle(title="Memories")
+                template(#icon)
+                  BrainCircuitIcon(:size="18")
+                template(#extra)
+                  span {{ Object.keys(scenario.episodes).length }}
 
-            //- Memories grid.
-            .grid.w-full.max-w-lg.gap-2(
-              class="max-2xs:grid-cols-2 max-3xs:grid-cols-1 2xs:grid-cols-3"
-            )
-              Episode.cursor-pointer.overflow-hidden.rounded-lg.border.transition-transform.pressable(
-                v-for="[episodeId, episode] in Object.entries(scenario.episodes)"
-                :key="episodeId"
-                :scenario
-                :episodeId
-                :episode
-                @click="play(episodeId)"
+              //- Memories grid.
+              .grid.w-full.max-w-lg.gap-2(
+                class="max-2xs:grid-cols-2 max-3xs:grid-cols-1 2xs:grid-cols-3"
               )
+                Episode.cursor-pointer.overflow-hidden.rounded-lg.border.transition-transform.pressable(
+                  v-for="[episodeId, episode] in Object.entries(scenario.episodes)"
+                  :key="episodeId"
+                  :scenario
+                  :episodeId
+                  :episode
+                  @click="play(episodeId)"
+                )
 
           //- Attributes.
           .flex.flex-col.gap-2
