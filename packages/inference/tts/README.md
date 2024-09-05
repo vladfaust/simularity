@@ -30,10 +30,18 @@ curl -X POST \
 ```sh
 # Generate multiple TTSs.
 node ./test/gen.mjs \
-  http://localhost:9090/v1 \
+  http://127.0.0.1:9090/v1 \
   "/path/to/speaker.json" \
-  ./test_inputs.local.json \
+  ./test/test_inputs.local.json \
   "/path/to/output"
+```
+
+```sh
+# Clone and generate TTSs, in one command.
+node ./test/gen2.mjs \
+  http://127.0.0.1:9090/v1 \
+  "/path/to/voice.mp3" \
+  ./test/test_inputs.local.json
 ```
 
 ### Runpod
