@@ -4,7 +4,7 @@
     windows_subsystem = "windows"
 )]
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fs::create_dir_all, sync::Arc};
 use tauri::async_runtime::Mutex;
 
 mod commands;
@@ -33,7 +33,14 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_fs_extra::init())
-        .setup(|_| {
+        .setup(move |app| {
+            let path = app
+                .path_resolver()
+                .app_data_dir()
+                .expect("This should never be None");
+
+            create_dir_all(&path)?;
+
             simularity_core::init(None, None);
             Ok(())
         })
