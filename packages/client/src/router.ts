@@ -23,7 +23,7 @@ export function routeLocation(
     | { name: "Home" }
     | { name: "Library" }
     | { name: "Scenario"; params: { scenarioId: string } }
-    | { name: "Simulation"; params: { simulationId: string } }
+    | { name: "Simulation"; params: { simulationId: number } }
     | { name: "User" }
     | { name: "Shutdown" },
 ): RouteLocationNamedRaw & { name: RouteName } {

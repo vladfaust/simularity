@@ -17,6 +17,7 @@ import {
 } from "./ai/llm/BaseLlmDriver";
 import { d, parseSelectResult, sqlite, type Transaction } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
+import { SQL_NOW } from "./drizzle/schema/_common";
 import * as resources from "./resources";
 import { Director } from "./simulation/agents/director";
 import { Voicer } from "./simulation/agents/voicer";
@@ -77,7 +78,7 @@ export class Simulation {
   /**
    * The simulation ID.
    */
-  readonly id: string;
+  readonly id: number;
 
   /**
    * The scenario ID.
@@ -334,7 +335,7 @@ export class Simulation {
   /**
    * Load a new simulation instance from the database and initialize it.
    */
-  static async load(simulationId: string): Promise<Simulation> {
+  static async load(simulationId: number): Promise<Simulation> {
     const simulation = await d.db.query.simulations.findFirst({
       where: eq(d.simulations.id, simulationId),
     });
@@ -1341,7 +1342,7 @@ export class Simulation {
    * @param limit If set, would limit the depth of the fetched updates.
    */
   static async _fetchWriterUpdateAncestors(
-    descendantUpdateId: string,
+    descendantUpdateId: number,
     checkpointId?: number | null,
     limit?: number,
     includeCompletions = true,
@@ -1409,7 +1410,7 @@ export class Simulation {
    * @param limit If set, would limit the number of fetched updates.
    */
   private static async _fetchWriterUpdateDescendants(
-    nextUpdateId: string,
+    nextUpdateId: number,
     limit?: number,
     includeCompletions = true,
   ) {
@@ -1455,7 +1456,7 @@ export class Simulation {
    * @private
    * Fetch the applied (i.e. latest) director update for a writer update.
    */
-  static async _fetchAppliedDirectorUpdate(writerUpdateId: string) {
+  static async _fetchAppliedDirectorUpdate(writerUpdateId: number) {
     return (
       (await d.db.query.directorUpdates.findFirst({
         where: eq(d.directorUpdates.writerUpdateId, writerUpdateId),
@@ -1536,14 +1537,14 @@ export class Simulation {
    */
   private static async _updateSimulationHead(
     tx: Transaction | typeof d.db = d.db,
-    simulationId: string,
-    writerUpdateId: string,
+    simulationId: number,
+    writerUpdateId: number,
   ) {
     return tx
       .update(d.simulations)
       .set({
         currentUpdateId: writerUpdateId,
-        updatedAt: sql`CURRENT_TIMESTAMP`,
+        updatedAt: SQL_NOW,
       })
       .where(eq(d.simulations.id, simulationId));
   }
@@ -1596,7 +1597,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     return writerUpdates;
   }
 
-  private constructor(id: string, scenarioId: string, scenario: Scenario) {
+  private constructor(id: number, scenarioId: string, scenario: Scenario) {
     this.id = id;
     this.scenarioId = scenarioId;
     this.scenario = scenario;
@@ -1610,7 +1611,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
    * Wait until the simulation is initialized.
    * Triggers writer initialization in the background.
    */
-  private async _init(currentWriterUpdateId: string | null) {
+  private async _init(currentWriterUpdateId: number | null) {
     await this.state.initCodeEngine();
 
     if (currentWriterUpdateId) {
@@ -1627,7 +1628,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
    */
   // OPTIMIZE: Reuse updates whenever possible.
   private async _jumpToId(
-    writerUpdateId: string,
+    writerUpdateId: number,
     newStateIncludesCurrentUpdate = true,
     historicalUpdatesLimit = 10,
   ) {
@@ -1843,10 +1844,10 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
    * Save updates to the database.
    */
   static async _saveUpdatesToDb(
-    simulationId: string,
+    simulationId: number,
     updates: {
       writerUpdate: {
-        parentUpdateId: string | undefined | null;
+        parentUpdateId: number | undefined | null;
         checkpointId: number;
         didConsolidate?: boolean;
         characterId?: string | null;

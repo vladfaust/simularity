@@ -1,6 +1,7 @@
 import { sortByKey } from "@/lib/utils";
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { timestamp } from "./_common";
 import { llmCompletions } from "./llmCompletions";
 
 export const llmLocalSessions = sqliteTable(
@@ -16,9 +17,7 @@ export const llmLocalSessions = sqliteTable(
     modelHash: blob("model_hash").notNull(),
 
     contextSize: integer("context_size").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp" })
-      .notNull()
-      .default(sql`strftime('%s', 'now')`),
+    createdAt: timestamp("created_at", { notNull: true, defaultNow: true }),
   }),
 );
 

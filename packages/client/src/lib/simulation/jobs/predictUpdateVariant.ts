@@ -28,7 +28,7 @@ export class PredictUpdateVariantJob {
   readonly voicerJob = readonly(this._voicerJob);
 
   constructor(
-    readonly simulationId: string,
+    readonly simulationId: number,
     readonly scenario: Scenario,
     readonly agents: {
       writer: writer.Writer;

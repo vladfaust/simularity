@@ -16,45 +16,27 @@ const MIGRATIONS_TABLE = "meta";
 const MIGRATIONS_KEY = "current_migration_index";
 
 const MIGRATIONS: Migration[] = [
-  await import("./drizzle/migrations/000_create_simulations.js"),
-  await import("./drizzle/migrations/001_create_llama_inferences.js"),
-  await import("./drizzle/migrations/002_create_story_updates.js"),
-  await import("./drizzle/migrations/003_create_code_updates.js"),
-  await import(
-    "./drizzle/migrations/004_add_created_by_player_to_story_updates.js"
-  ),
-  await import("./drizzle/migrations/005_add_simulation_head_tracking.js"),
-  await import("./drizzle/migrations/006_drop_screenshot_column.js"),
-  await import("./drizzle/migrations/007_rename_updates.js"),
-  await import("./drizzle/migrations/008_rename_update_columns.js"),
-  await import(
-    "./drizzle/migrations/009_add_character_id_to_writer_updates.js"
-  ),
-  await import("./drizzle/migrations/010_create_checkpoints.js"),
-  await import(
-    "./drizzle/migrations/011_add_next_update_id_to_writer_updates.js"
-  ),
-  await import(
-    "./drizzle/migrations/012_rename_head_writer_update_to_current_writer_update_in_simulations.js"
-  ),
-  await import("./drizzle/migrations/013_add_simulation_id_to_checkpoints.js"),
-  await import(
-    "./drizzle/migrations/014_add_did_consolidate_to_writer_updates.js"
-  ),
-  await import(
-    "./drizzle/migrations/015_add_starter_episode_id_to_simulations.js"
-  ),
-  await import("./drizzle/migrations/016_add_preference_to_updates.js"),
-  await import(
-    "./drizzle/migrations/017_add_simulation_day_clock_to_writer_updates.js"
-  ),
-  await import("./drizzle/migrations/018_create_llm_sessions.js"),
-  await import("./drizzle/migrations/019_refactor_llm_completions.js"),
-  await import("./drizzle/migrations/020_add_real_time_to_llm_completions.js"),
-  await import("./drizzle/migrations/021_add_deleted_at_to_simulations.js"),
-  await import(
-    "./drizzle/migrations/022_add_credit_cost_to_llm_completions.js"
-  ),
+  new (
+    await import("./drizzle/migrations/000_create_simulations.js")
+  ).default(),
+  new (
+    await import("./drizzle/migrations/001_create_llm_local_sessions.js")
+  ).default(),
+  new (
+    await import("./drizzle/migrations/002_create_llm_remote_sessions.js")
+  ).default(),
+  new (
+    await import("./drizzle/migrations/003_create_llm_completions.js")
+  ).default(),
+  new (
+    await import("./drizzle/migrations/004_create_checkpoints.js")
+  ).default(),
+  new (
+    await import("./drizzle/migrations/005_create_writer_updates.js")
+  ).default(),
+  new (
+    await import("./drizzle/migrations/006_create_director_updates.js")
+  ).default(),
 ];
 
 const databaseUrl = await join(

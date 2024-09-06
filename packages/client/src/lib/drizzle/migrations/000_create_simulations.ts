@@ -1,22 +1,29 @@
-import { sql } from "@/lib/utils";
+import type { Transaction } from "@/lib/drizzle";
+import { sql } from "drizzle-orm";
+import type { Migration } from "../scripts/migrate";
 
-export const name = "000_create_simulations";
+export default class implements Migration {
+  name = "000_create_simulations";
 
-export function up() {
-  return sql`
-    CREATE TABLE simulations (
-      id TEXT PRIMARY KEY NOT NULL,
-      scenario_id TEXT NOT NULL,
-      screenshot TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    --
-    CREATE INDEX simulations_scenario_id_index ON simulations (scenario_id);
-    CREATE INDEX simulations_updated_at_index ON simulations (updated_at);
-  `;
-}
+  async up(tx: Transaction) {
+    await tx.run(sql`
+      CREATE TABLE simulations (
+        id INTEGER PRIMARY KEY,
+        scenario_id TEXT NOT NULL,
+        starter_episode_id TEXT,
+        current_writer_update_id INTEGER,
+        deleted_at INTEGER,
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+      );
+      --
+      CREATE INDEX simulations_scenario_id_index ON simulations (scenario_id);
+      CREATE INDEX simulations_deleted_at_index ON simulations (deleted_at);
+      CREATE INDEX simulations_updated_at_index ON simulations (updated_at);
+    `);
+  }
 
-export function down() {
-  return sql`DROP TABLE simulations; `;
+  async down(tx: Transaction) {
+    await tx.run(sql` DROP TABLE simulations; `);
+  }
 }

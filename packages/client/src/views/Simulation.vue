@@ -18,7 +18,7 @@ import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import DevConsole from "./Simulation/DevConsole.vue";
 import GameConsole from "./Simulation/GameConsole.vue";
 
-const { simulationId } = defineProps<{ simulationId: string }>();
+const { simulationId } = defineProps<{ simulationId: number }>();
 
 let simulation = shallowRef<Simulation | undefined>();
 let gameInstance: Game;

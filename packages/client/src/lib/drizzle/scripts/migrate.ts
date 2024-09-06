@@ -1,17 +1,12 @@
-import { sqlite } from "@/lib/drizzle.js";
-import { assert, sql } from "@/lib/utils.js";
+import { d, type Transaction } from "@/lib/drizzle.js";
+import { assert } from "@/lib/utils.js";
+import { sql } from "drizzle-orm";
 
-// ADHOC: `upClient` and `downClient` methods.
-export type Migration = {
+export interface Migration {
   name: string;
-} & (
-  | { up: () => string }
-  | { upClient: (client: typeof sqlite) => Promise<void> }
-) &
-  (
-    | { down: () => string }
-    | { downClient: (client: typeof sqlite) => Promise<void> }
-  );
+  up: (tx: Transaction) => Promise<void>;
+  down: (tx: Transaction) => Promise<void>;
+}
 
 /**
  * Run migrations.
@@ -30,7 +25,6 @@ export type Migration = {
  * // migrate(-1) // Error! If you want to drop all tables,
  *                // delete the database file instead.
  */
-// REFACTOR: `Migration` class w/ `up(tx: d.Transaction): Promise<void>` method.
 export async function migrate(
   migrations: Migration[],
   kvTable: string,
@@ -43,33 +37,37 @@ export async function migrate(
   assert(toIndex >= 0, "toIndex must be >= 0");
   assert(toIndex < migrations.length, `toIndex must be < ${migrations.length}`);
 
-  await sqlite.execute("BEGIN");
   let migrationsRun = 0;
-
-  try {
+  await d.db.transaction(async (tx) => {
     const to = migrations.at(toIndex);
     if (!to) throw new Error(`Migration not found at index ${toIndex}`);
 
     console.debug("Create KV table if it doesn't exist yet...");
-    await sqlite.execute(sql`
-      CREATE TABLE IF NOT EXISTS "${kvTable}" ("key" VARCHAR(255) PRIMARY KEY, "value" TEXT);
-    `);
+    await tx.run(
+      sql.raw(`
+        CREATE TABLE IF NOT EXISTS "${kvTable}" (
+          "key" VARCHAR(255) PRIMARY KEY,
+          "value" TEXT
+        );
+    `),
+    );
 
     console.debug("Get current migration index...");
-    const queryResult = await sqlite.query(sql`
-      SELECT
-        cast("value" AS INTEGER) AS "index"
-      FROM
-        "${kvTable}"
-      WHERE
-        "key" = '${currentMigrationKey}'
-    `);
-    let fromIndex = (queryResult.rows as number[][]).at(0)?.[0];
+    const queryResult = await tx.get<number[] | undefined>(
+      sql.raw(`
+        SELECT
+          cast("value" AS INTEGER) AS "index"
+        FROM
+          "${kvTable}"
+        WHERE
+          "key" = '${currentMigrationKey}'
+    `),
+    );
+    let fromIndex = queryResult?.at(0);
 
     if (fromIndex === toIndex) {
       console.log(`Already at index ${toIndex}, nothing to do.`);
-      await sqlite.execute("ROLLBACK");
-      return 0;
+      return;
     }
 
     fromIndex = fromIndex ?? -1;
@@ -85,40 +83,30 @@ export async function migrate(
       console.debug(`Migrate ${isUp ? "up" : "down"} ${migration.name}...`);
 
       if (isUp) {
-        if ("upClient" in migration) {
-          await migration.upClient(sqlite);
-        } else {
-          await sqlite.executeBatch(migration.up());
-        }
+        await migration.up(tx);
       } else {
-        if ("downClient" in migration) {
-          await migration.downClient(sqlite);
-        } else {
-          await sqlite.executeBatch(migration.down());
-        }
+        await migration.down(tx);
       }
 
       migrationsRun++;
     }
 
-    await sqlite.execute(sql`
-      INSERT INTO
-        "${kvTable}" ("key", "value")
-      VALUES
-        (
-          '${currentMigrationKey}',
-          cast(${toIndex} AS TEXT)
-        )
-      ON CONFLICT ("key") DO
-      UPDATE
-      SET
-        "value" = cast(${toIndex} AS TEXT)
-    `);
-  } catch (e) {
-    await sqlite.execute("ROLLBACK");
-    throw e;
-  }
+    await tx.run(
+      sql.raw(`
+        INSERT INTO
+          "${kvTable}" ("key", "value")
+        VALUES
+          (
+            '${currentMigrationKey}',
+            cast(${toIndex} AS TEXT)
+          )
+        ON CONFLICT ("key") DO
+        UPDATE
+        SET
+          "value" = cast(${toIndex} AS TEXT)
+    `),
+    );
+  });
 
-  await sqlite.execute("COMMIT");
   return migrationsRun;
 }

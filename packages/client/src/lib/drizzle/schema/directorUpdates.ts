@@ -1,20 +1,17 @@
 import { type StateCommand } from "@/lib/simulation/state/commands";
 import { sortByKey } from "@/lib/utils";
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { nanoid } from "nanoid";
+import { timestamp } from "./_common";
 import { llmCompletions } from "./llmCompletions";
 import { writerUpdates } from "./writerUpdates";
 
 export const directorUpdates = sqliteTable(
   "director_updates",
   sortByKey({
-    id: text("id")
-      .primaryKey()
-      .notNull()
-      .$defaultFn(() => nanoid()),
+    id: integer("id").primaryKey(),
 
-    writerUpdateId: text("writer_update_id")
+    writerUpdateId: integer("writer_update_id")
       .references(() => writerUpdates.id, { onDelete: "cascade" })
       .notNull(),
 
@@ -31,9 +28,7 @@ export const directorUpdates = sqliteTable(
      */
     preference: integer("preference", { mode: "boolean" }),
 
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    createdAt: timestamp("created_at", { notNull: true, defaultNow: true }),
   }),
 );
 

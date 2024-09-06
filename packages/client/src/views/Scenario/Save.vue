@@ -8,7 +8,7 @@ import { PlayCircleIcon } from "lucide-vue-next";
 import { onMounted, ref } from "vue";
 
 const { simulationId } = defineProps<{
-  simulationId: string;
+  simulationId: number;
 }>();
 
 const simulation = ref<
@@ -61,7 +61,6 @@ onMounted(() => {
     )
     .aspect-video.w-full.bg-blue-400(v-else)
 
-  .flex.p-2(v-if="simulation")
-    //- FIXME: UTC is stored in the table, need to format it to local time.
-    span.text-sm {{ new Date(simulation.updatedAt).toLocaleString() }}
+  .flex.p-2(v-if="simulation?.updatedAt")
+    span.text-sm {{ simulation.updatedAt.toLocaleString() }}
 </template>

@@ -7,8 +7,8 @@ import { convertFileSrc } from "@tauri-apps/api/tauri";
  * @param extension The file extension, e.g. ".wav".
  */
 export async function audioFilePath(
-  simulationId: string,
-  updateId: string,
+  simulationId: number,
+  updateId: number,
   extension: string,
 ): Promise<string> {
   const appDataDirPath = await path.appLocalDataDir();
@@ -16,7 +16,7 @@ export async function audioFilePath(
   const dirPath = await path.join(
     appDataDirPath,
     "simulations",
-    simulationId,
+    simulationId.toString(),
     "tts",
   );
   await fs.createDir(dirPath, { recursive: true });
@@ -29,8 +29,8 @@ export async function audioFilePath(
  * Load TTS audio by params.
  */
 export async function loadAudio(
-  simulationId: string,
-  updateId: string,
+  simulationId: number,
+  updateId: number,
   extension: string,
 ): Promise<ArrayBuffer | null> {
   const filePath = await audioFilePath(simulationId, updateId, extension);
@@ -50,8 +50,8 @@ export async function loadAudio(
  * Save a TTS audio by params.
  */
 export async function saveAudio(
-  simulationId: string,
-  updateId: string,
+  simulationId: number,
+  updateId: number,
   content: fs.BinaryFileContents,
   extension: string,
 ): Promise<string> {

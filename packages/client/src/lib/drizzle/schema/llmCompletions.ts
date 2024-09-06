@@ -1,7 +1,8 @@
 import { type CompletionOptions } from "@/lib/ai/llm/BaseLlmDriver";
 import { sortByKey } from "@/lib/utils";
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { timestamp } from "./_common";
 import { directorUpdates } from "./directorUpdates";
 import { llmLocalSessions } from "./llmLocalSessions";
 import { llmRemoteSessions } from "./llmRemoteSessions";
@@ -51,16 +52,14 @@ export const llmCompletions = sqliteTable(
     /**
      * The real time it took to complete the request, in milliseconds.
      */
-    realTime: integer("real_time"),
+    realTime: integer("real_time_ms"),
 
     /**
      * Credits cost of the completion, in credit cents (1/100th of a credit).
      */
     creditCost: integer("credit_cost"),
 
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    createdAt: timestamp("created_at", { notNull: true, defaultNow: true }),
   }),
 );
 

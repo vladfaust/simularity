@@ -88,7 +88,7 @@ async function play(episodeId?: string) {
   );
 }
 
-async function deleteSave(simulationId: string) {
+async function deleteSave(simulationId: number) {
   if (
     !(await resources.confirm_("Are you sure you want to delete this save?", {
       title: "Delete save",

@@ -15,7 +15,7 @@ export class Update {
   >();
 
   constructor(
-    readonly parentId: string | null | undefined,
+    readonly parentId: number | null | undefined,
     public variants: ShallowRef<
       {
         writerUpdate: Pick<

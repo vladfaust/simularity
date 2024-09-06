@@ -1,12 +1,13 @@
 import { type StateDto } from "@/lib/simulation/state";
 import { sortByKey } from "@/lib/utils";
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import {
   integer,
   sqliteTable,
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { timestamp } from "./_common";
 import { simulations } from "./simulations";
 import { writerUpdates } from "./writerUpdates";
 
@@ -19,14 +20,14 @@ export const checkpoints = sqliteTable(
     /**
      * ID of the simulation this checkpoint is created from.
      */
-    simulationId: text("simulation_id")
+    simulationId: integer("simulation_id")
       .references(() => simulations.id, { onDelete: "cascade" })
       .notNull(),
 
     /**
      * ID of the writer update this checkpoint is created upon, `null` for root.
      */
-    writerUpdateId: text("writer_update_id").references(
+    writerUpdateId: integer("writer_update_id").references(
       () => writerUpdates.id,
       { onDelete: "cascade" },
     ),
@@ -34,9 +35,7 @@ export const checkpoints = sqliteTable(
     summary: text("summary"),
     state: text("state", { mode: "json" }).$type<StateDto>().notNull(),
 
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    createdAt: timestamp("created_at", { notNull: true, defaultNow: true }),
   }),
   (table) => ({
     unique: uniqueIndex("checkpoints_unique_idx").on(

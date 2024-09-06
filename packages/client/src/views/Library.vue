@@ -33,7 +33,7 @@ async function openScenariosDir() {
   await tauri.utils.fileManagerOpen(await resources.scenariosDir());
 }
 
-async function deleteSave(simulationId: string) {
+async function deleteSave(simulationId: number) {
   if (
     !(await resources.confirm_("Are you sure you want to delete this save?", {
       title: "Delete save",
@@ -109,7 +109,7 @@ onMounted(async () => {
       )
         li.relative.w-full.shrink-0(
           v-for="simulation of saves"
-          class="@lg:w-[calc(100%/3-0.4rem)] @3xl:w-[calc(100%/4-0.4rem)] @sm:w-[calc(100%/2-0.3rem)]"
+          class="@sm:w-[calc(100%/2-0.3rem)] @lg:w-[calc(100%/3-0.4rem)] @3xl:w-[calc(100%/4-0.4rem)]"
         )
           //- Delete button.
           .absolute.-right-1.-top-1.z-20

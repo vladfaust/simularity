@@ -1,7 +1,7 @@
 import { sortByKey } from "@/lib/utils";
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { nanoid } from "nanoid";
+import { timestamp } from "./_common";
 import { checkpoints } from "./checkpoints";
 import { directorUpdates } from "./directorUpdates";
 import { llmCompletions } from "./llmCompletions";
@@ -13,17 +13,14 @@ export const writerUpdatesTableName = "writer_updates";
 export const writerUpdates = sqliteTable(
   writerUpdatesTableName,
   sortByKey({
-    id: text("id")
-      .primaryKey()
-      .notNull()
-      .$defaultFn(() => nanoid()),
+    id: integer("id").primaryKey(),
 
-    simulationId: text("simulation_id")
+    simulationId: integer("simulation_id")
       .references(() => simulations.id, { onDelete: "cascade" })
       .notNull(),
 
-    parentUpdateId: text("parent_update_id"),
-    nextUpdateId: text("next_update_id"),
+    parentUpdateId: integer("parent_update_id"),
+    nextUpdateId: integer("next_update_id"),
 
     /**
      * The checkpoint this update is based on.
@@ -70,9 +67,7 @@ export const writerUpdates = sqliteTable(
      */
     preference: integer("preference", { mode: "boolean" }),
 
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    createdAt: timestamp("created_at", { notNull: true, defaultNow: true }),
   }),
 );
 

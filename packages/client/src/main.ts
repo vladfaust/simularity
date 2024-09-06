@@ -3,9 +3,11 @@ import { getMatches } from "@tauri-apps/api/cli";
 import { createApp } from "vue";
 import App from "./App.vue";
 import { migrate } from "./lib/drizzle";
+import { Deferred } from "./lib/utils";
 import router from "./router";
 import "./style.scss";
 
+const migrated = new Deferred<void>();
 getMatches().then((matches) => {
   let toIndex: number | undefined;
   if ("migrate" in matches.args && matches.args.migrate.occurrences) {
@@ -20,6 +22,7 @@ getMatches().then((matches) => {
   (toIndex === undefined ? migrate() : migrate(toIndex)).then(
     (migrationsRun) => {
       console.log(`Applied ${migrationsRun} migrations.`);
+      migrated.resolve();
     },
   );
 });
@@ -29,6 +32,7 @@ const app = createApp(App);
 app.use(router);
 app.use(VueQueryPlugin);
 
-router.isReady().then(() => {
+router.isReady().then(async () => {
+  await migrated.promise;
   app.mount("#app");
 });
