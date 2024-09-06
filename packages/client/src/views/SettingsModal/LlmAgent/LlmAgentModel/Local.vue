@@ -173,6 +173,11 @@ async function removeModel(modelPath: string) {
       (cachedModel) => cachedModel.path !== modelPath,
     );
   }
+
+  if (selectedModelPath.value === modelPath) {
+    selectedModelPath.value = null;
+    driverConfig.value = null;
+  }
 }
 
 onMounted(async () => {
