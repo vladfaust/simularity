@@ -11,6 +11,8 @@ dokku apps:create simularity-web
 
 # Need to repeat this step for all the build-time variables:
 dokku docker-options:add simularity-web build '--build-arg VITE_API_BASE_URL=https://api.simularity.ai'
+
+dokku docker-options:add simularity-web build '--target web'
 ```
 
 When added a build-time variable:
