@@ -5,7 +5,8 @@ export function up(sql) {
       id VARCHAR PRIMARY KEY,
       enabled BOOLEAN NOT NULL DEFAULT FALSE,
       name VARCHAR(255) NOT NULL,
-      description json NOT NULL
+      description json NOT NULL,
+      credit_price DECIMAL(10, 2)
     );
     -- Add an index on the "enabled" column.
     CREATE INDEX tts_models_enabled_index ON tts_models (enabled);

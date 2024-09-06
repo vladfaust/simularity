@@ -15,6 +15,7 @@ export function up(sql) {
       completion_tokens INTEGER,
       error TEXT,
       estimated_cost json,
+      credit_cost DECIMAL(10, 2),
       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
     );
     -- Add an index on the "session_id" column.

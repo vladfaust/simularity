@@ -8,8 +8,10 @@ export function up(sql) {
       provider_external_id VARCHAR(255),
       delay_time_ms INTEGER,
       execution_time_ms INTEGER,
+      duration_ms INTEGER,
       error TEXT,
       estimated_cost json,
+      credit_cost DECIMAL(10, 2),
       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
     );
     -- Add an index on the "worker_id" column.

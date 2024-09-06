@@ -9,7 +9,8 @@ export function up(sql) {
       task llm_model_task NOT NULL,
       name VARCHAR(255) NOT NULL,
       description json NOT NULL,
-      context_size INTEGER NOT NULL
+      context_size INTEGER NOT NULL,
+      credit_price DECIMAL(10, 2)
     );
     -- Add an index on the "enabled" column.
     CREATE INDEX llm_models_enabled_index ON llm_models (enabled);
