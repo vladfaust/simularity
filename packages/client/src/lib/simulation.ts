@@ -1612,8 +1612,6 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
    * Triggers writer initialization in the background.
    */
   private async _init(currentWriterUpdateId: number | null) {
-    await this.state.initCodeEngine();
-
     if (currentWriterUpdateId) {
       await this._jumpToId(currentWriterUpdateId);
     }

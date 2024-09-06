@@ -1,6 +1,5 @@
 import { deepEqual } from "fast-equals";
 import { computed, readonly, ref, type Ref } from "vue";
-import { LuaEngine, LuaFactory } from "wasmoon";
 import { clone, unreachable } from "../utils";
 import { Scenario } from "./scenario";
 import { type StageRenderer } from "./stageRenderer";
@@ -83,9 +82,7 @@ export class State {
       : undefined;
   });
 
-  private _lua?: LuaEngine;
   private _connectedRenderer?: StageRenderer;
-  private _recentCalls: StateCommand[] = [];
 
   constructor(
     readonly scenario: Scenario,
@@ -193,108 +190,11 @@ export class State {
     return delta;
   }
 
-  static async createLuaEngine(ctx: {
-    setScene: (sceneId: string) => void;
-    addCharacter: (
-      characterId: string,
-      outfitId: string,
-      expressionId: string,
-    ) => void;
-    removeCharacter: (characterId: string) => void;
-    setOutfit: (characterId: string, outfitId: string) => void;
-    setExpression: (characterId: string, expressionId: string) => void;
-  }): Promise<LuaEngine> {
-    return new LuaFactory().createEngine().then((lua) => {
-      // Set the current scene.
-      lua.global.set("setScene", (sceneId: string) => {
-        ctx.setScene(sceneId);
-      });
-
-      // Add a character to the stage.
-      lua.global.set(
-        "addCharacter",
-        (characterId: string, outfitId: string, expressionId: string) => {
-          ctx.addCharacter(characterId, outfitId, expressionId);
-        },
-      );
-
-      // Set the outfit of a character.
-      lua.global.set("setOutfit", (characterId: string, outfitId: string) => {
-        ctx.setOutfit(characterId, outfitId);
-      });
-
-      // Set expression of a character.
-      lua.global.set(
-        "setExpression",
-        (characterId: string, expressionId: string) => {
-          ctx.setExpression(characterId, expressionId);
-        },
-      );
-
-      // Remove a character from the stage.
-      lua.global.set("removeCharacter", (characterId: string) => {
-        ctx.removeCharacter(characterId);
-      });
-
-      return lua;
-    });
-  }
-
-  async initCodeEngine() {
-    this._lua = await State.createLuaEngine({
-      setScene: (sceneId) => {
-        this.setScene(sceneId);
-        this._recentCalls.push({
-          name: "setScene",
-          args: { sceneId },
-        });
-      },
-      addCharacter: (characterId, outfitId, expressionId) => {
-        this.addCharacter(characterId, outfitId, expressionId);
-        this._recentCalls.push({
-          name: "addCharacter",
-          args: { characterId, outfitId, expressionId },
-        });
-      },
-      setOutfit: (characterId, outfitId) => {
-        this.setOutfit(characterId, outfitId);
-        this._recentCalls.push({
-          name: "setOutfit",
-          args: { characterId, outfitId },
-        });
-      },
-      setExpression: (characterId, expressionId) => {
-        this.setExpression(characterId, expressionId);
-        this._recentCalls.push({
-          name: "setExpression",
-          args: { characterId, expressionId },
-        });
-      },
-      removeCharacter: (characterId) => {
-        this.removeCharacter(characterId);
-        this._recentCalls.push({
-          name: "removeCharacter",
-          args: { characterId },
-        });
-      },
-    });
-  }
-
   /**
    * Connect a stage renderer to the state.
    */
   connectStageRenderer(scene: StageRenderer) {
     this._connectedRenderer = scene;
-  }
-
-  /**
-   * Evaluate Lua code, returning the list of state commands executed.
-   */
-  async eval(code: string): Promise<StateCommand[]> {
-    if (!this._lua) throw new Error("Code engine not initialized");
-    this._recentCalls.length = 0;
-    await this._lua.doString(code);
-    return this._recentCalls;
   }
 
   /**
