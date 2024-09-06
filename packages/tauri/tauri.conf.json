@@ -1,13 +1,15 @@
 {
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/tauri-v1.1.0/tooling/cli/schema.json",
   "build": {
     "beforeBuildCommand": "",
     "beforeDevCommand": "",
     "devPath": "http://localhost:5173",
-    "distDir": "../client/dist"
+    "distDir": "../client/dist",
+    "withGlobalTauri": true
   },
   "package": {
-    "productName": "Simularity",
-    "version": "0.1.0"
+    "productName": "Simularity AI",
+    "version": "0.0.1"
   },
   "tauri": {
     "allowlist": {
@@ -39,7 +41,8 @@
       "http": {
         "request": true,
         "scope": [
-          "http://localhost:3000/*"
+          "http://localhost:3000/*",
+          "https://api.simularity.ai/*"
         ]
       },
       "path": {
@@ -62,8 +65,8 @@
     },
     "bundle": {
       "active": true,
-      "category": "DeveloperTool",
-      "copyright": "",
+      "category": "RolePlayingGame",
+      "copyright": "Simularity AI",
       "deb": {
         "depends": []
       },
@@ -75,7 +78,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "com.tauri.dev",
+      "identifier": "ai.simularity.dev",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
@@ -105,7 +108,7 @@
       ]
     },
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost"
+      "csp": "default-src 'self'; img-src 'self' data: asset: https://asset.localhost blob:; media-src blob:; connect-src https://api.simularity.ai ipc: http://ipc.localhost asset: https://asset.localhost"
     },
     "updater": {
       "active": false
