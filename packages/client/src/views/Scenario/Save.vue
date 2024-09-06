@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { d } from "@/lib/drizzle";
+import { ensureScenario } from "@/lib/simulation/scenario";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { asyncComputed } from "@vueuse/core";
@@ -12,8 +13,14 @@ const { simulationId } = defineProps<{
 }>();
 
 const simulation = ref<
-  Pick<typeof d.simulations.$inferSelect, "id" | "updatedAt"> | null | undefined
+  | Pick<typeof d.simulations.$inferSelect, "id" | "updatedAt" | "scenarioId">
+  | null
+  | undefined
 >();
+
+const scenario = asyncComputed(() =>
+  simulation.value ? ensureScenario(simulation.value.scenarioId) : undefined,
+);
 
 const screenshotUrl = asyncComputed(async () => {
   if (simulation.value) {
@@ -36,6 +43,7 @@ onMounted(() => {
       columns: {
         id: true,
         updatedAt: true,
+        scenarioId: true,
       },
     })
     .then((s) => {
@@ -61,6 +69,7 @@ onMounted(() => {
     )
     .aspect-video.w-full.bg-blue-400(v-else)
 
-  .flex.p-2(v-if="simulation?.updatedAt")
-    span.text-sm {{ simulation.updatedAt.toLocaleString() }}
+  .flex.flex-col.p-2(v-if="simulation?.updatedAt")
+    span.text-sm.font-semibold {{ scenario?.name }}
+    span.text-xs {{ simulation.updatedAt.toLocaleString() }}
 </template>
