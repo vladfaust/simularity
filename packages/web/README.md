@@ -1,5 +1,28 @@
-# Vue 3 + TypeScript + Vite
+# Simularity Web Client
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+This is considered a temporal landing page until the main web client is developed.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## Deployment
+
+Initial setup:
+
+```sh
+dokku apps:create simularity-web
+
+# Need to repeat this step for all the build-time variables:
+dokku docker-options:add simularity-web build '--build-arg VITE_API_BASE_URL=https://api.simularity.ai'
+```
+
+When added a build-time variable:
+
+1. Update the `Dockerfile` (`ARG VAR`);
+2. Set `dokku docker-options:add simularity-web build '--build-arg VAR=<VALUE>'`.
+3. Rebuild the app: `dokku ps:rebuild simularity-web`.
+
+When changed an existing build-time variable, disable cache and rebuild:
+
+```sh
+dokku config:set --no-restart simularity-web DOKKU_DOCKERFILE_CACHE_BUILD=false
+dokku ps:rebuild simularity-web
+dokku config:set --no-restart simularity-web DOKKU_DOCKERFILE_CACHE_BUILD=true
+```

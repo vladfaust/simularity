@@ -12,6 +12,12 @@ This project implements a base for future interactive simulation applications, p
 
 Ideally, a typical application workflow includes development of the assets only (such as scenarios, characters, images, UI elements etc.), so that all the foundation is re-used.
 
+## Deployment
+
+### Dokku
+
+See [packages/api/README.md](./packages/api/README.md) and [packages/web/README.md](./packages/web/README.md) for deployment instructions.
+
 ## Marketing 📈
 
 - https://youtu.be/Kbk9BiPhm7o?si=8xfqeHy6H59Cyf7X&t=780 (on how digital compute works to satisfy the limbic system).

@@ -1,0 +1,13 @@
+{
+  "name": "simularity",
+  "version": "0.0.1",
+  "description": "The Simularity project",
+  "author": "<simularity.ai>",
+  "license": "UNLICENSED",
+  "private": true,
+  "workspaces": [
+    "packages/api-sdk",
+    "packages/api",
+    "packages/web"
+  ]
+}
