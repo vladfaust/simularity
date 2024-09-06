@@ -7,6 +7,7 @@ import { readScenarios, Scenario } from "@/lib/simulation/scenario";
 import { showLibrarySaves } from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { routeLocation } from "@/router";
+import { BaseDirectory } from "@tauri-apps/api/fs";
 import { desc, eq, isNull } from "drizzle-orm";
 import {
   ChevronDownIcon,
@@ -15,7 +16,7 @@ import {
   ScrollTextIcon,
   Trash2Icon,
 } from "lucide-vue-next";
-import { computed, onMounted, ref, shallowRef } from "vue";
+import { computed, onMounted, ref, shallowRef, triggerRef } from "vue";
 import ScenarioVue from "./Library/Scenario.vue";
 import Save from "./Scenario/Save.vue";
 
@@ -55,7 +56,9 @@ async function deleteSave(simulationId: number) {
 }
 
 onMounted(async () => {
-  readScenarios().then((value) => (scenarios.value = value));
+  scenarios.value.push(...(await readScenarios(BaseDirectory.Resource)));
+  scenarios.value.push(...(await readScenarios(BaseDirectory.AppLocalData)));
+  triggerRef(scenarios);
 
   d.db.query.simulations
     .findMany({

@@ -3,8 +3,10 @@ import Header from "@/components/Browser/Header.vue";
 import CustomTitle from "@/components/CustomTitle.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import { d } from "@/lib/drizzle";
+import * as resources from "@/lib/resources";
 import { Simulation } from "@/lib/simulation";
-import { readScenario, Scenario } from "@/lib/simulation/scenario";
+import { ensureScenario, Scenario } from "@/lib/simulation/scenario";
+import * as tauri from "@/lib/tauri";
 import { prettyNumber, replaceAsync } from "@/lib/utils";
 import { routeLocation } from "@/router";
 import { VueMarkdownIt } from "@f3ve/vue-markdown-it";
@@ -24,14 +26,11 @@ import {
   ScrollTextIcon,
   Trash2Icon,
 } from "lucide-vue-next";
-import { onMounted, ref } from "vue";
+import { onMounted, ref, shallowRef } from "vue";
 import { useRouter } from "vue-router";
 import Character from "./Scenario/Character.vue";
 import Episode from "./Scenario/Episode.vue";
 import Save from "./Scenario/Save.vue";
-import { shallowRef } from "vue";
-import * as resources from "@/lib/resources";
-import * as tauri from "@/lib/tauri";
 
 const router = useRouter();
 
@@ -120,12 +119,12 @@ async function showInFileManager() {
 
 onMounted(async () => {
   console.log("props.scenarioId", props.scenarioId);
-  const read = await readScenario(props.scenarioId);
+  const read = await ensureScenario(props.scenarioId);
 
   if (read instanceof Scenario) {
     scenario.value = read;
   } else {
-    throw new Error(JSON.stringify({ ...read, error: read.error.message }));
+    throw new Error(JSON.stringify(read));
   }
 
   saves.value = await d.db.query.simulations.findMany({

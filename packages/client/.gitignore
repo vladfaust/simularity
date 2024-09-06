@@ -8,6 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+
+# For now, ignore the standard scenarios.
+resources/scenarios
+
 dist
 dist-ssr
 *.local

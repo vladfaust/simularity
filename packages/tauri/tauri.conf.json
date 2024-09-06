@@ -30,7 +30,8 @@
         "renameFile": false,
         "scope": [
           "$APPLOCALDATA/**/*",
-          "$APPCACHE/**/*"
+          "$APPCACHE/**/*",
+          "$RESOURCE/**/*"
         ],
         "writeFile": true,
         "exists": true
@@ -53,7 +54,8 @@
         "assetScope": [
           "$APPLOCALDATA/screenshots/*",
           "$APPLOCALDATA/scenarios/**/*",
-          "$APPLOCALDATA/simulations/**/*"
+          "$APPLOCALDATA/simulations/**/*",
+          "$RESOURCE/**/*"
         ]
       },
       "shell": {
@@ -87,7 +89,9 @@
         "providerShortName": null,
         "signingIdentity": null
       },
-      "resources": [],
+      "resources": [
+        "../client/resources"
+      ],
       "shortDescription": "",
       "targets": "all",
       "windows": {

@@ -5,6 +5,11 @@ export * as gpt from "./tauri/gpt";
 export * as sqlite from "./tauri/sqlite";
 export * as utils from "./tauri/utils";
 
+/**
+ * Shall be used to resolve resources path (synced with `tauri.conf.json`).
+ */
+export const RESOURCES_PATH = "../client/resources";
+
 export class TauriInvokeError extends Error {
   constructor(message: string) {
     super(message);
@@ -16,6 +21,9 @@ export async function resolveBaseDir(baseDir: BaseDirectory) {
   switch (baseDir) {
     case BaseDirectory.AppLocalData:
       return appLocalDataDir();
+    case BaseDirectory.Resource:
+      // NOTE: It's not really useful, shall resolve resources one-by-one.
+      return path.resourceDir();
     default:
       throw new Error(`Unimplemented for base directory: ${baseDir}`);
   }

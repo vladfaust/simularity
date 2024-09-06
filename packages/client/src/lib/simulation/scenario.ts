@@ -5,10 +5,10 @@ import {
   readDir,
   readTextFile,
 } from "@tauri-apps/api/fs";
-import { join, resolve } from "@tauri-apps/api/path";
+import { join, resolve, resolveResource } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { TtsParamsSchema } from "../ai/tts/BaseTtsDriver";
-import { resolveBaseDir } from "../tauri";
+import { resolveBaseDir, RESOURCES_PATH } from "../tauri";
 import { safeParseJson } from "../utils";
 import { formatIssues, v } from "../valibot";
 import { StateCommandSchema } from "./state/commands";
@@ -543,6 +543,7 @@ const ScenarioSchema = v.object({
 
 export class Scenario {
   constructor(
+    readonly builtin: boolean,
     readonly id: string,
     readonly basePath: string,
     private readonly content: v.InferOutput<typeof ScenarioSchema>,
@@ -740,26 +741,39 @@ class ParseError extends Error {
 }
 
 export type ErroredScenario = {
-  id: string;
-  basePath: string;
+  path: string;
   error: Error;
 };
 
 export async function readScenarios(
-  scenariosDir = "scenarios",
-  baseDir: BaseDirectory = BaseDirectory.AppLocalData,
+  baseDir: BaseDirectory,
 ): Promise<Scenario[]> {
-  if (!(await exists(scenariosDir, { dir: baseDir }))) {
-    console.log(`Creating scenarios directory at ${scenariosDir}`);
-    await createDir(scenariosDir, { dir: baseDir });
+  let scenariosDir;
+
+  switch (baseDir) {
+    case BaseDirectory.AppLocalData:
+      if (!(await exists("scenarios", { dir: baseDir }))) {
+        await createDir("scenarios", { dir: baseDir });
+      }
+
+      scenariosDir = await resolve(await resolveBaseDir(baseDir), "scenarios");
+      break;
+
+    case BaseDirectory.Resource:
+      scenariosDir = await resolveResource(`${RESOURCES_PATH}/scenarios`);
+      break;
+
+    default:
+      throw new Error(`Unimplemented for base directory: ${baseDir}`);
   }
 
   const scenarios: Scenario[] = [];
+  console.debug(`Reading scenarios from ${scenariosDir}`);
+  const entries = await readDir(scenariosDir);
 
-  const entries = await readDir(scenariosDir, { dir: baseDir });
   for (const entry of entries) {
     if (!entry.name || !entry.children) continue;
-    const scenario = await readScenario(entry.name, scenariosDir, baseDir);
+    const scenario = await readScenario(baseDir, entry.name);
     if (scenario instanceof Scenario) scenarios.push(scenario);
     else console.error(scenario.error);
   }
@@ -768,25 +782,37 @@ export async function readScenarios(
 }
 
 export async function readScenario(
+  baseDir: BaseDirectory,
   id: string,
-  scenariosDir: string = "scenarios",
-  baseDir: BaseDirectory = BaseDirectory.AppLocalData,
 ): Promise<Scenario | ErroredScenario> {
-  const basePath = await resolve(
-    await resolveBaseDir(baseDir),
-    scenariosDir,
-    id,
-  );
+  let path, indexPath;
 
-  const indexPath = await join(scenariosDir, id, `index.json`);
+  switch (baseDir) {
+    case BaseDirectory.AppLocalData:
+      path = await resolve(await resolveBaseDir(baseDir), "scenarios", id);
+      indexPath = await join(path, `index.json`);
+
+      break;
+    case BaseDirectory.Resource:
+      path = await resolveResource(`${RESOURCES_PATH}/scenarios/${id}`);
+      indexPath = await resolveResource(
+        `${RESOURCES_PATH}/scenarios/${id}/index.json`,
+      );
+
+      break;
+
+    default:
+      throw new Error(`Unimplemented for base directory: ${baseDir}`);
+  }
 
   let indexString;
   try {
-    indexString = await readTextFile(indexPath, { dir: baseDir });
+    console.debug(`Reading scenario from ${indexPath}`);
+    indexString = await readTextFile(indexPath);
   } catch (error) {
     return {
       id,
-      basePath,
+      path,
       error: new Error(`Failed to read ${indexPath}`),
     };
   }
@@ -796,7 +822,7 @@ export async function readScenario(
   if (!indexJsonParseResult.success) {
     return {
       id,
-      basePath,
+      path,
       error: new ParseError(indexJsonParseResult.error),
     };
   }
@@ -807,18 +833,30 @@ export async function readScenario(
   );
   if (!scenarioParseResult.success) {
     const error = new ParseError(formatIssues(scenarioParseResult.issues));
-    return { id, basePath, error };
+    return { id, path, error };
   }
 
-  return new Scenario(id, basePath, scenarioParseResult.output);
+  return new Scenario(
+    baseDir === BaseDirectory.Resource,
+    id,
+    path,
+    scenarioParseResult.output,
+  );
 }
 
-export async function ensureReadScenario(
-  id: string,
-  scenariosDir: string = "scenarios",
-  baseDir: BaseDirectory = BaseDirectory.AppLocalData,
-): Promise<Scenario> {
-  const scenario = await readScenario(id, scenariosDir, baseDir);
+/**
+ * Find a scenario by ID, first looking in the resource directory,
+ * then in the local data directory.
+ *
+ * @throws If the scenario is not found in either directory.
+ */
+export async function ensureScenario(id: string): Promise<Scenario> {
+  // First, try to read the scenario from the resource directory.
+  let scenario = await readScenario(BaseDirectory.Resource, id);
+  if (scenario instanceof Scenario) return scenario;
+
+  // If the scenario is not found in the resource directory, try the local data directory.
+  scenario = await readScenario(BaseDirectory.AppLocalData, id);
   if (scenario instanceof Scenario) return scenario;
 
   throw scenario.error;

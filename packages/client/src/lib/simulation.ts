@@ -27,7 +27,7 @@ import {
   type PredictionOptions as WriterPredictionOptions,
 } from "./simulation/agents/writer";
 import { PredictUpdateVariantJob } from "./simulation/jobs/predictUpdateVariant";
-import { Scenario, ensureReadScenario } from "./simulation/scenario";
+import { Scenario, ensureScenario } from "./simulation/scenario";
 import { type StageRenderer } from "./simulation/stageRenderer";
 import { State, compareStateDeltas, type StateDto } from "./simulation/state";
 import { type StateCommand } from "./simulation/state/commands";
@@ -257,7 +257,7 @@ export class Simulation {
    * Create a new simulation.
    */
   static async create(scenarioId: string, episodeId?: string) {
-    const scenario = await ensureReadScenario(scenarioId);
+    const scenario = await ensureScenario(scenarioId);
     episodeId ||= scenario.defaultEpisodeId;
 
     const startingEpisode = scenario.findEpisode(episodeId);
@@ -348,7 +348,7 @@ export class Simulation {
       console.debug("Found simulation", simulation);
     }
 
-    const scenario = await ensureReadScenario(simulation.scenarioId);
+    const scenario = await ensureScenario(simulation.scenarioId);
 
     const instance = new Simulation(
       simulationId,
