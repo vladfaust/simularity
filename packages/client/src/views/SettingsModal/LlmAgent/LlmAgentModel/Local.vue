@@ -130,7 +130,6 @@ async function openLocalModelSelectionDialog() {
       customModelsStorage.value.push(modelPath);
       triggerRef(cachedModels);
       if (!selectedModelPath.value) {
-        selectedModelPath.value = modelPath;
         selectModel(cachedModels.value.length - 1);
       }
     } catch (e: any) {
