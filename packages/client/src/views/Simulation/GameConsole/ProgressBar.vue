@@ -5,7 +5,7 @@ import { VoicerJobStatus } from "@/lib/simulation/agents/voicer/job";
 import { PredictUpdateVariantJob } from "@/lib/simulation/jobs/predictUpdateVariant";
 import * as storage from "@/lib/storage";
 import type { LlmAgentId } from "@/lib/storage/llm";
-import { clamp, unreachable, type ReadonlyRef } from "@/lib/utils";
+import { clamp, unreachable } from "@/lib/utils";
 import { AudioLinesIcon, ClapperboardIcon, FeatherIcon } from "lucide-vue-next";
 import { computed } from "vue";
 import AgentStatusVue, { Status } from "./ProgressBar/AgentStatus.vue";
@@ -13,7 +13,7 @@ import AgentStatusVue, { Status } from "./ProgressBar/AgentStatus.vue";
 const AGENT_ICON_SIZE = 20;
 
 const { job } = defineProps<{
-  job: ReadonlyRef<PredictUpdateVariantJob>["value"];
+  job: PredictUpdateVariantJob;
 }>();
 
 function llmDriverDone(agent: LlmAgentId): boolean | undefined {

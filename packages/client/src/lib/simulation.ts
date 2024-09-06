@@ -199,7 +199,7 @@ export class Simulation {
   /**
    * The current job, if any.
    */
-  readonly currentJob = readonly(this._currentJob);
+  readonly currentJob = computed(() => this._currentJob.value);
 
   /**
    * Whether the simulation is busy.

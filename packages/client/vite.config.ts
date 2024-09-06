@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "@": "/src",
     },
+    preserveSymlinks: true,
   },
   optimizeDeps: {
     // NOTE: When changing any of these, the Vite server must be restarted.
@@ -24,6 +25,11 @@ export default defineConfig({
   build: {
     commonjsOptions: {
       include: [/@simularity\/api-sdk/, /node_modules/],
+    },
+  },
+  esbuild: {
+    supported: {
+      "top-level-await": true, //browsers can handle top-level-await features
     },
   },
 });

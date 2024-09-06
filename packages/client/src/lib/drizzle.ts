@@ -12,33 +12,6 @@ import { pick } from "./utils";
 
 export type Transaction = Parameters<Parameters<typeof d.db.transaction>[0]>[0];
 
-const MIGRATIONS_TABLE = "meta";
-const MIGRATIONS_KEY = "current_migration_index";
-
-const MIGRATIONS: Migration[] = [
-  new (
-    await import("./drizzle/migrations/000_create_simulations.js")
-  ).default(),
-  new (
-    await import("./drizzle/migrations/001_create_llm_local_sessions.js")
-  ).default(),
-  new (
-    await import("./drizzle/migrations/002_create_llm_remote_sessions.js")
-  ).default(),
-  new (
-    await import("./drizzle/migrations/003_create_llm_completions.js")
-  ).default(),
-  new (
-    await import("./drizzle/migrations/004_create_checkpoints.js")
-  ).default(),
-  new (
-    await import("./drizzle/migrations/005_create_writer_updates.js")
-  ).default(),
-  new (
-    await import("./drizzle/migrations/006_create_director_updates.js")
-  ).default(),
-];
-
 const databaseUrl = await join(
   await appLocalDataDir(),
   import.meta.env.VITE_DATABASE_PATH,
@@ -153,6 +126,39 @@ export function parseSelectResult<
   });
 }
 
-export async function migrate(toIndex = MIGRATIONS.length - 1) {
-  return migrate_(MIGRATIONS, MIGRATIONS_TABLE, MIGRATIONS_KEY, toIndex);
+export async function migrate(
+  toIndex?: number,
+  migrationsTable = "meta",
+  migrationsKey = "current_migration_index",
+) {
+  const migrations: Migration[] = [
+    new (
+      await import("./drizzle/migrations/000_create_simulations.js")
+    ).default(),
+    new (
+      await import("./drizzle/migrations/001_create_llm_local_sessions.js")
+    ).default(),
+    new (
+      await import("./drizzle/migrations/002_create_llm_remote_sessions.js")
+    ).default(),
+    new (
+      await import("./drizzle/migrations/003_create_llm_completions.js")
+    ).default(),
+    new (
+      await import("./drizzle/migrations/004_create_checkpoints.js")
+    ).default(),
+    new (
+      await import("./drizzle/migrations/005_create_writer_updates.js")
+    ).default(),
+    new (
+      await import("./drizzle/migrations/006_create_director_updates.js")
+    ).default(),
+  ];
+
+  return migrate_(
+    migrations,
+    migrationsTable,
+    migrationsKey,
+    toIndex ?? migrations.length - 1,
+  );
 }
