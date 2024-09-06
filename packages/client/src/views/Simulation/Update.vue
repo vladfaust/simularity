@@ -68,7 +68,10 @@ function onClickNextVariant() {
   )
     template(#extra)
       span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
-    template(#variant-navigation)
+    template(
+      #variant-navigation
+      v-if="!update.chosenVariant.writerUpdate.episodeId"
+    )
       VariantNavigation(
         :can-go-previous="update.chosenVariantIndex.value > 0"
         :can-go-next="true"

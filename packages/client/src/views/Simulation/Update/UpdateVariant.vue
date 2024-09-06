@@ -163,7 +163,7 @@ watch(
     slot(name="extra")
 
     //- TTS.
-    template(v-if="!editInProgress")
+    template(v-if="!editInProgress && !variant.writerUpdate.episodeId")
       //- Play TTS.
       //- Press again to stop.
       button.btn-pressable(
@@ -184,7 +184,9 @@ watch(
         AudioLinesIcon(:size="20" v-else)
 
     //- Preference.
-    .flex.items-center.gap-1(v-if="!editInProgress")
+    .flex.items-center.gap-1(
+      v-if="!editInProgress && !variant.writerUpdate.episodeId"
+    )
       button.btn-pressable(
         :class="{ 'text-success-500': variant.writerUpdate.preference === true }"
         @click="prefer(true)"
