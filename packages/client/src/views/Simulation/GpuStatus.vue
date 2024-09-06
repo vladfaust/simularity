@@ -11,15 +11,16 @@ const { simulation } = defineProps<{
   simulation: Simulation;
 }>();
 
-const status = computed<Status>(() => {
+const status = computed<Status | undefined>(() => {
   const writerBusy = simulation.writer.llmDriver.value?.busy.value;
-
   const directorBusy = simulation.director.llmDriver.value?.busy.value;
 
   if (writerBusy || directorBusy) {
     return Status.Busy;
-  } else {
+  } else if (simulation.ready.value) {
     return Status.Idle;
+  } else {
+    return undefined;
   }
 });
 

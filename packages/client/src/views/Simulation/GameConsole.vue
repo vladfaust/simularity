@@ -464,7 +464,7 @@ function enableOnlyCharacter(characterId: string) {
 
       button._button.group.relative.aspect-square.h-full(
         @click="onSendButtonClick"
-        :disabled="busy"
+        :disabled="busy || (!simulation.ready.value && !simulation.state.shallAdvanceEpisode.value)"
       )
         //- REFACTOR: Make a component for such multi-state animations.
         //- TODO: Abort button.

@@ -214,7 +214,9 @@ export class Simulation {
       : null;
   });
 
-  readonly ready = computed(() => this.writer.ready.value);
+  readonly ready = computed(
+    () => this.writer.ready.value && this.director.ready.value,
+  );
 
   /**
    * Context length of the current update, or the most recent update.
