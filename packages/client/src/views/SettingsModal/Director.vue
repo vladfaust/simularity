@@ -18,11 +18,9 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
 <template lang="pug">
 .flex.flex-col.gap-2.p-3
   Alert(type="info")
-    | Director is a
-    |
-    b required
-    |
-    | agent responsible for generating scene updates as the story advances. It has to be a fine instruction-tuned model with good reasoning—to understand what's going on—, trained for JSON outputs.
+    | Director is an agent responsible for generating scene updates as the story advances.
+    | It has to be a fine instruction-tuned model with good reasoning—to understand what's going on—, trained for JSON outputs.
+    | Director is only required in visual novel mode.
 
   LlmAgentModel(
     agent-id="director"

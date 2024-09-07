@@ -13,22 +13,22 @@ import AgentStatusVue, { Status } from "./ProgressBar/AgentStatus.vue";
 const AGENT_ICON_SIZE = 20;
 
 const { job } = defineProps<{
-  job: PredictUpdateVariantJob;
+  job: PredictUpdateVariantJob | null;
 }>();
 
 function llmDriverDone(agent: LlmAgentId): boolean | undefined {
   switch (agent) {
     case "writer":
-      return job.writerDone.value;
+      return job?.writerDone.value;
     case "director":
-      return job.directorDone.value;
+      return job?.directorDone.value;
     default:
       throw unreachable(agent);
   }
 }
 
 function llmStatus(agent: LlmAgentId, llmDriver: BaseLlmDriver | null): Status {
-  if (!llmDriver) {
+  if (!llmDriver || llmDriverDone(agent) === undefined) {
     return Status.Disabled;
   } else if (llmDriver.busy.value) {
     return Status.Busy;
@@ -67,25 +67,25 @@ function llmStatusText(llmDriver: BaseLlmDriver | null): string | undefined {
 }
 
 const writerStatus = computed<Status>(() =>
-  llmStatus("writer", job.agents.writer.llmDriver.value),
+  llmStatus("writer", job?.agents.writer.llmDriver.value ?? null),
 );
 
 const writerStatusText = computed<string | undefined>(() =>
-  llmStatusText(job.agents.writer.llmDriver.value),
+  llmStatusText(job?.agents.writer.llmDriver.value ?? null),
 );
 
 const directorStatus = computed<Status>(() =>
-  llmStatus("director", job.agents.director.llmDriver.value),
+  llmStatus("director", job?.agents.director.llmDriver.value ?? null),
 );
 
 const directorStatusText = computed<string | undefined>(() =>
-  llmStatusText(job.agents.director.llmDriver.value),
+  llmStatusText(job?.agents.director.llmDriver.value ?? null),
 );
 
 const voicerStatus = computed<Status>(() => {
   if (
     !storage.tts.ttsConfig.value?.enabled ||
-    !job.agents.voicer.ttsDriver.value
+    !job?.agents.voicer.ttsDriver.value
   ) {
     // Voicer is disabled.
     return Status.Disabled;
@@ -115,7 +115,7 @@ const voicerStatus = computed<Status>(() => {
 const voicerStatusText = computed<string | undefined>(() => {
   if (
     !storage.tts.ttsConfig.value?.enabled ||
-    !job.agents.voicer.ttsDriver.value
+    !job?.agents.voicer.ttsDriver.value
   ) {
     // Voicer is disabled.
     return;

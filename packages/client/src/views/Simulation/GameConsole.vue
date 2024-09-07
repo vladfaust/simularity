@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { type CompletionOptions } from "@/lib/ai/llm/BaseLlmDriver";
 import * as api from "@/lib/api";
-import { Simulation } from "@/lib/simulation";
+import { Mode, Simulation } from "@/lib/simulation";
 import {
   NARRATOR,
   type PredictionOptions,
@@ -228,7 +228,9 @@ async function advance() {
     busy.value = false;
   }
 
-  screenshot(true);
+  if (simulation.mode === Mode.Immersive) {
+    screenshot(true);
+  }
 }
 
 /**
@@ -448,10 +450,7 @@ function enableOnlyCharacter(characterId: string) {
           leave-from="translate-y-0 opacity-100"
           leave-to="translate-y-full opacity-0"
         )
-          ProgressBar.h-full.w-full(
-            v-if="simulation.currentJob.value"
-            :job="simulation.currentJob.value"
-          )
+          ProgressBar.h-full.w-full(:job="simulation.currentJob.value")
 
         //- User input otherwise.
         input.h-full.w-full.px-3.opacity-90.transition-opacity(
@@ -541,7 +540,11 @@ function enableOnlyCharacter(characterId: string) {
           @click="showSettingsModal = true"
           title="Settings"
         )
-          SettingsIcon(:size="20" class="group-hover:animate-spin")
+          SettingsIcon(
+            :size="20"
+            class="group-hover:animate-spin"
+            :class="{ 'animate-spin': simulation.busy.value }"
+          )
           GpuStatus(:simulation="simulation")
 
         //- Context gauge.

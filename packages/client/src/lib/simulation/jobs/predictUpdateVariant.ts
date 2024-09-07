@@ -1,7 +1,7 @@
 import * as baseLlmDriver from "@/lib/ai/llm/BaseLlmDriver";
 import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
-import { Simulation } from "@/lib/simulation";
+import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { clone } from "@/lib/utils";
 import { eq } from "drizzle-orm";
@@ -18,7 +18,7 @@ export class PredictUpdateVariantJob {
   private readonly _writerDone = ref<boolean>(false);
   readonly writerDone = readonly(this._writerDone);
 
-  private readonly _directorDone = ref<boolean>(false);
+  private readonly _directorDone = ref<boolean | undefined>();
   readonly directorDone = readonly(this._directorDone);
 
   private readonly _voicerJob = ref<voicer.VoicerJob | undefined | null>();
@@ -30,6 +30,7 @@ export class PredictUpdateVariantJob {
   constructor(
     readonly simulationId: number,
     readonly scenario: Scenario,
+    readonly mode: Mode,
     readonly agents: {
       writer: writer.Writer;
       director: director.Director;
@@ -62,13 +63,14 @@ export class PredictUpdateVariantJob {
 
     try {
       this._writerDone.value = false;
-      this._directorDone.value = false;
+      this._directorDone.value =
+        this.mode === Mode.Immersive ? false : undefined;
 
       const writerResponse = await this.agents.writer.inferUpdate(
         this.checkpoint,
         this.historicalUpdates,
         this.recentUpdates,
-        this.state.serialize(),
+        this.mode === Mode.Immersive ? this.state.serialize() : undefined,
         this.writerParams.nEval,
         this.writerParams.predictionOptions,
         this.writerParams.inferenceOptions,
@@ -119,37 +121,40 @@ export class PredictUpdateVariantJob {
         this._voicerJob.value = null;
       }
 
-      const directorResponse = await pRetry(
-        async () => {
-          const directorResponse = await this._inferDirectorUpdate(
-            writerResponse,
-            abortSignal,
-            {
-              charactersAllowedToEnterTheStage:
-                this.writerParams.predictionOptions?.allowedCharacterIds,
-            },
-          );
+      let directorResponse;
+      if (this.mode === Mode.Immersive) {
+        directorResponse = await pRetry(
+          async () => {
+            const directorResponse = await this._inferDirectorUpdate(
+              writerResponse,
+              abortSignal,
+              {
+                charactersAllowedToEnterTheStage:
+                  this.writerParams.predictionOptions?.allowedCharacterIds,
+              },
+            );
 
-          console.log("Predicted director update", directorResponse);
+            console.log("Predicted director update", directorResponse);
 
-          if ("error" in directorResponse) {
-            throw directorResponse.error;
-          }
-
-          return directorResponse;
-        },
-        {
-          retries: 2,
-          onFailedAttempt: (error) => {
-            if (error instanceof director.PredictionError) {
-              console.warn("Failed to infer director update", error);
-            } else {
-              throw error;
+            if ("error" in directorResponse) {
+              throw directorResponse.error;
             }
+
+            return directorResponse;
           },
-        },
-      );
-      this._directorDone.value = true;
+          {
+            retries: 2,
+            onFailedAttempt: (error) => {
+              if (error instanceof director.PredictionError) {
+                console.warn("Failed to infer director update", error);
+              } else {
+                throw error;
+              }
+            },
+          },
+        );
+        this._directorDone.value = true;
+      }
 
       const { writerUpdate, directorUpdate } =
         await Simulation._saveUpdatesToDb(this.simulationId, {
@@ -162,10 +167,12 @@ export class PredictUpdateVariantJob {
             llmCompletionId: writerResponse.completion.id,
           },
 
-          directorUpdate: {
-            code: directorResponse.delta,
-            llmCompletionId: directorResponse.completion?.id,
-          },
+          directorUpdate: directorResponse
+            ? {
+                code: directorResponse.delta,
+                llmCompletionId: directorResponse.completion?.id,
+              }
+            : undefined,
         });
 
       let ttsPath: string | null = null;
@@ -198,7 +205,7 @@ export class PredictUpdateVariantJob {
           ...writerUpdate,
           completion: writerResponse.completion,
         },
-        directorUpdate: directorUpdate,
+        directorUpdate,
         state: this.state.serialize(),
         ttsPath: ref(ttsPath),
       });

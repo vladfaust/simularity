@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { Simulation } from "@/lib/simulation";
+import { Mode, Simulation } from "@/lib/simulation";
 import { Update } from "@/lib/simulation/update";
 import { nonNullable } from "@/lib/utils";
 import { computed } from "vue";
 import InProgressUpdateVariant from "./Update/InProgressUpdateVariant.vue";
 import UpdateVariant from "./Update/UpdateVariant.vue";
 import VariantNavigation from "./Update/VariantNavigation.vue";
+import { TransitionRoot } from "@headlessui/vue";
 
 const props = defineProps<{
   simulation: Simulation;
@@ -50,46 +51,70 @@ function onClickNextVariant() {
 </script>
 
 <template lang="pug">
-.flex.w-full.flex-col.place-self-start.rounded-lg.border-2.bg-white.px-3.py-3.opacity-90.transition-opacity(
+.relative.w-full.rounded-lg.border-2.bg-white.p-3.opacity-90.transition-opacity(
   class="hover:opacity-100"
   :class="rootClass"
 )
-  UpdateVariant(
-    v-if="!update.inProgressVariant.value && update.chosenVariant"
-    :key="update.chosenVariantIndex.value"
-    :variant="update.chosenVariant"
-    :simulation
-    :is-single
-    :can-edit
-    :preference-function="(pref) => simulation.preferWriterUpdate(props.update, pref)"
-    :apply-edit-function="(text) => simulation.editUpdateVariant(nonNullable(update.chosenVariant), text)"
-    @begin-edit="emit('beginEdit')"
-    @stop-edit="emit('stopEdit')"
+  TransitionRoot(
+    :show="!update.inProgressVariant.value && !!update.chosenVariant"
+    enter="duration-200 ease-out"
+    enter-from="opacity-0"
+    enter-to="opacity-100"
+    leave="duration-200 ease-in"
+    leave-from="opacity-100"
+    leave-to="opacity-0"
   )
-    template(#extra)
-      span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
-    template(
-      #variant-navigation
-      v-if="!update.chosenVariant.writerUpdate.episodeId"
+    UpdateVariant.absolute.left-0.top-0.h-full.w-full.p-3(
+      v-if="!update.inProgressVariant.value && update.chosenVariant"
+      :key="update.chosenVariantIndex.value"
+      :variant="update.chosenVariant"
+      :simulation
+      :is-single
+      :can-edit
+      :preference-function="(pref) => simulation.preferWriterUpdate(props.update, pref)"
+      :apply-edit-function="(text) => simulation.editUpdateVariant(nonNullable(update.chosenVariant), text)"
+      @begin-edit="emit('beginEdit')"
+      @stop-edit="emit('stopEdit')"
     )
-      VariantNavigation(
-        :can-go-previous="update.chosenVariantIndex.value > 0"
-        :can-go-next="true"
-        :current-index="update.chosenVariantIndex.value"
-        :total-variants="update.variants.value.length"
-        :next-will-regenerate="update.chosenVariantIndex.value === update.variants.value.length - 1"
-        @previous="onClickPreviousVariant"
-        @next="onClickNextVariant"
+      template(#extra)
+        span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
+      template(
+        #variant-navigation
+        v-if="!update.chosenVariant.writerUpdate.episodeId"
       )
+        VariantNavigation(
+          :can-go-previous="update.chosenVariantIndex.value > 0"
+          :can-go-next="true"
+          :current-index="update.chosenVariantIndex.value"
+          :total-variants="update.variants.value.length"
+          :next-will-regenerate="update.chosenVariantIndex.value === update.variants.value.length - 1"
+          @previous="onClickPreviousVariant"
+          @next="onClickNextVariant"
+        )
 
-  InProgressUpdateVariant(v-else-if="update.inProgressVariant.value")
-    template(#extra)
-      span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
-    template(#variant-navigation)
-      VariantNavigation(
-        :can-go-previous="false"
-        :can-go-next="false"
-        :current-index="update.variants.value.length"
-        :total-variants="update.variants.value.length + 1"
-      )
+  TransitionRoot(
+    :show="!!update.inProgressVariant.value"
+    enter="duration-200 ease-out"
+    enter-from="opacity-0"
+    enter-to="opacity-100"
+    leave="duration-200 ease-in"
+    leave-from="opacity-100"
+    leave-to="opacity-0"
+  )
+    InProgressUpdateVariant.absolute.left-0.top-0.w-full.p-3(
+      :variant="update.inProgressVariant.value"
+      :is-single
+      :live="true"
+      :translucent="simulation.mode === Mode.Immersive"
+      :simulation
+    )
+      template(#extra)
+        span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
+      template(#variant-navigation)
+        VariantNavigation(
+          :can-go-previous="false"
+          :can-go-next="false"
+          :current-index="update.variants.value.length"
+          :total-variants="update.variants.value.length + 1"
+        )
 </template>

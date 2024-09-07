@@ -141,94 +141,95 @@ watch(
 </script>
 
 <template lang="pug">
-//- Top row.
-.flex.items-center.justify-between.gap-2
-  //- Character.
-  .flex.items-center.gap-1
-    template(v-if="character")
-      CharacterPfp.aspect-square.h-5.rounded.border(
-        :scenario="props.simulation.scenario"
-        :character
-      )
-      span.font-semibold.leading-none(:style="{ color: character.color }") {{ character.name }}
-    template(v-else-if="character === null")
-      span.font-semibold.leading-none Narrator
-    span.leading-none {{ clock }}
+.flex.flex-col
+  //- Top row.
+  .flex.items-center.justify-between.gap-2
+    //- Character.
+    .flex.items-center.gap-1
+      template(v-if="character")
+        CharacterPfp.aspect-square.h-5.rounded.border(
+          :scenario="props.simulation.scenario"
+          :character
+        )
+        span.font-semibold.leading-none(:style="{ color: character.color }") {{ character.name }}
+      template(v-else-if="character === null")
+        span.font-semibold.leading-none Narrator
+      span.leading-none {{ clock }}
 
-    //- ADHOC: Consolidation indicator.
-    span.leading-none(v-if="variant.writerUpdate.didConsolidate") [C]
+      //- ADHOC: Consolidation indicator.
+      span.leading-none(v-if="variant.writerUpdate.didConsolidate") [C]
 
-  //- Buttons.
-  .flex.items-center.gap-2
-    slot(name="extra")
+    //- Buttons.
+    .flex.items-center.gap-2
+      slot(name="extra")
 
-    //- TTS.
-    template(v-if="!editInProgress && !variant.writerUpdate.episodeId")
-      //- Play TTS.
-      //- Press again to stop.
-      button.btn-pressable(
-        v-if="variant.ttsPath.value"
-        @click.stop="switchPlayTts"
-      )
-        Volume2Icon(:size="20" :class="{ 'text-primary-500': ttsPlaying }")
-
-      //- Create TTS.
-      button.btn.btn-pressable.transition(
-        v-else
-        @click.stop="createTts"
-        :disabled="ttsCreationInProgress || !simulation.voicer.enabled.value"
-        :class="{ 'hover:text-ai-500 hover:animate-pulse': !ttsCreationInProgress }"
-        :title="simulation.voicer.enabled.value ? 'Create TTS' : 'Voicer is disabled'"
-      )
-        Loader2Icon.animate-spin(:size="20" v-if="ttsCreationInProgress")
-        AudioLinesIcon(:size="20" v-else)
-
-    //- Preference.
-    .flex.items-center.gap-1(
-      v-if="!editInProgress && !variant.writerUpdate.episodeId"
-    )
-      button.btn-pressable(
-        :class="{ 'text-success-500': variant.writerUpdate.preference === true }"
-        @click="prefer(true)"
-        :disabled="applyingPreferenceInProgress"
-      )
-        ThumbsUpIcon(:size="18" style="margin-top: -0.3rem")
-
-      button.btn-pressable(
-        :class="{ 'text-error-500': variant.writerUpdate.preference === false }"
-        @click="prefer(false)"
-        :disabled="applyingPreferenceInProgress"
-      )
-        ThumbsDownIcon(:size="18" style="margin-top: 0.3rem")
-
-    //- Edit.
-    .flex(v-if="canEdit && !variant.writerUpdate.episodeId")
-      button(v-if="!editInProgress" @click.stop="editInProgress = true")
-        Edit3Icon(:size="20")
-
-      template(v-else)
+      //- TTS.
+      template(v-if="!editInProgress && !variant.writerUpdate.episodeId")
+        //- Play TTS.
+        //- Press again to stop.
         button.btn-pressable(
-          @click.stop="onEditCommitClick"
-          :disabled="applyingEditInProgress"
+          v-if="variant.ttsPath.value"
+          @click.stop="switchPlayTts"
         )
-          Loader2Icon.animate-spin(:size="20" v-if="applyingEditInProgress")
-          CheckIcon(v-else :size="20")
+          Volume2Icon(:size="20" :class="{ 'text-primary-500': ttsPlaying }")
 
-        button(
-          @click.stop="editInProgress = false"
-          :disabled="applyingEditInProgress"
+        //- Create TTS.
+        button.btn.btn-pressable.transition(
+          v-else
+          @click.stop="createTts"
+          :disabled="ttsCreationInProgress || !simulation.voicer.enabled.value"
+          :class="{ 'hover:text-ai-500 hover:animate-pulse': !ttsCreationInProgress }"
+          :title="simulation.voicer.enabled.value ? 'Create TTS' : 'Voicer is disabled'"
         )
-          XIcon(:size="20")
+          Loader2Icon.animate-spin(:size="20" v-if="ttsCreationInProgress")
+          AudioLinesIcon(:size="20" v-else)
 
-    //- Variant navigation.
-    slot(v-if="!editInProgress" name="variant-navigation")
+      //- Preference.
+      .flex.items-center.gap-1(
+        v-if="!editInProgress && !variant.writerUpdate.episodeId"
+      )
+        button.btn-pressable(
+          :class="{ 'text-success-500': variant.writerUpdate.preference === true }"
+          @click="prefer(true)"
+          :disabled="applyingPreferenceInProgress"
+        )
+          ThumbsUpIcon(:size="18" style="margin-top: -0.3rem")
 
-//- Text.
-div(:class="{ 'h-full overflow-y-scroll': isSingle }")
-  textarea.mt-1.h-full.w-full.rounded-lg.bg-neutral-100.px-2.py-1.font-mono.text-sm.leading-snug(
-    v-if="editInProgress"
-    v-model="editText"
-  )
+        button.btn-pressable(
+          :class="{ 'text-error-500': variant.writerUpdate.preference === false }"
+          @click="prefer(false)"
+          :disabled="applyingPreferenceInProgress"
+        )
+          ThumbsDownIcon(:size="18" style="margin-top: 0.3rem")
 
-  RichText(v-else :text="variant.writerUpdate.text" as="p")
+      //- Edit.
+      .flex(v-if="canEdit && !variant.writerUpdate.episodeId")
+        button(v-if="!editInProgress" @click.stop="editInProgress = true")
+          Edit3Icon(:size="20")
+
+        template(v-else)
+          button.btn-pressable(
+            @click.stop="onEditCommitClick"
+            :disabled="applyingEditInProgress"
+          )
+            Loader2Icon.animate-spin(:size="20" v-if="applyingEditInProgress")
+            CheckIcon(v-else :size="20")
+
+          button(
+            @click.stop="editInProgress = false"
+            :disabled="applyingEditInProgress"
+          )
+            XIcon(:size="20")
+
+      //- Variant navigation.
+      slot(v-if="!editInProgress" name="variant-navigation")
+
+  //- Text.
+  div(:class="{ 'h-full overflow-y-scroll': isSingle }")
+    textarea.mt-1.h-full.w-full.rounded-lg.bg-neutral-100.px-2.py-1.font-mono.text-sm.leading-snug(
+      v-if="editInProgress"
+      v-model="editText"
+    )
+
+    RichText(v-else :text="variant.writerUpdate.text" as="p")
 </template>

@@ -1,16 +1,108 @@
+<script lang="ts" setup>
+import type { Update } from "@/lib/simulation/update";
+import RichText from "./RichText.vue";
+import { computed } from "vue";
+import type { Simulation } from "@/lib/simulation";
+import CharacterPfp from "@/components/CharacterPfp.vue";
+import { PREDICTION_REGEX, NARRATOR } from "@/lib/simulation/agents/writer";
+import { ref } from "vue";
+import { watch } from "vue";
+import { ThumbsDownIcon } from "lucide-vue-next";
+import { TransitionRoot } from "@headlessui/vue";
+
+const props = defineProps<{
+  variant?: NonNullable<Update["inProgressVariant"]["value"]>;
+  isSingle: boolean;
+  live: boolean;
+  simulation: Simulation;
+  translucent: boolean;
+}>();
+
+const match = computed(() =>
+  props.variant ? PREDICTION_REGEX.exec(props.variant.text) : undefined,
+);
+
+const bufferedCharacterId = ref<string | null>("");
+const bufferedClock = ref<string | null>("");
+const bufferedText = ref<string | null>("");
+
+const extractedCharacterId = computed(() => match.value?.groups?.characterId);
+watch(extractedCharacterId, (characterId) => {
+  if (!characterId) return;
+  bufferedCharacterId.value = characterId;
+});
+
+const extractedClock = computed(() => match.value?.groups?.clock);
+watch(extractedClock, (clock) => {
+  if (!clock) return;
+  bufferedClock.value = clock;
+});
+
+const extractedText = computed(() => match.value?.groups?.text);
+watch(extractedText, (text) => {
+  if (!text) return;
+  bufferedText.value = text;
+});
+
+const character = computed(() => {
+  if (!props.simulation?.scenario) return undefined;
+  if (!bufferedCharacterId.value) return undefined;
+
+  if (bufferedCharacterId.value === NARRATOR) {
+    return null;
+  } else {
+    return props.simulation.scenario.ensureCharacter(bufferedCharacterId.value);
+  }
+});
+</script>
+
 <template lang="pug">
-//- Top row.
-.flex.items-center.justify-between.gap-2
-  div
+.flex.flex-col
+  //- Top row.
+  .flex.items-center.justify-between.gap-2
+    div
+      TransitionRoot(
+        :show="character !== undefined"
+        :unmount="true"
+        enter="duration-200 ease-out"
+        enter-from="-translate-x-full opacity-0"
+        enter-to="translate-x-0 opacity-100"
+        leave="duration-200 ease-in"
+        leave-from="translate-x-0 opacity-100"
+        leave-to="-translate-x-full opacity-0"
+      )
+        .flex.items-center.gap-1
+          template(v-if="character")
+            CharacterPfp.aspect-square.h-5.rounded.border(
+              :scenario="simulation.scenario"
+              :character
+            )
+            span.font-semibold.leading-none(
+              :style="{ color: character.color }"
+            ) {{ character.name }}
+          template(v-else-if="character === null")
+            span.font-semibold.leading-none Narrator
 
-  //- Buttons.
-  .flex.items-center.gap-2
-    slot(name="extra")
-    slot(name="variant-navigation")
+          span.leading-none {{ bufferedClock }}
 
-//- Text.
-p.leading-snug
-  span.-my-1.inline-block.h-5.w-2.animate-pulse.bg-black(
-    style="animation-duration: 500ms"
-  )
+    //- Buttons.
+    .flex.items-center.gap-2
+      //- ADHOC: To even the heights with the Update.
+      ThumbsDownIcon.opacity-0(:size="18" style="margin-top: 0.3rem")
+
+      slot(name="extra")
+      slot(name="variant-navigation")
+
+  //- Text.
+  div(:class="{ 'h-full overflow-y-scroll': isSingle }")
+    p
+      RichText(
+        v-if="live && bufferedText"
+        :text="bufferedText"
+        as="span"
+        :class="{ 'opacity-50': translucent }"
+      )
+      span.-my-1.inline-block.h-5.w-2.animate-pulse.bg-black(
+        style="animation-duration: 500ms"
+      )
 </template>

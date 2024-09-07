@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import router, { routeLocation } from "@/router";
-import { Simulation } from "@/lib/simulation";
+import { Mode, Simulation } from "@/lib/simulation";
 import { DefaultScene } from "@/lib/simulation/phaser/defaultScene";
 import { Game } from "@/lib/simulation/phaser/game";
 import { ambientVolumeStorage } from "@/lib/storage";
@@ -18,7 +18,8 @@ import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import DevConsole from "./Simulation/DevConsole.vue";
 import GameConsole from "./Simulation/GameConsole.vue";
 
-const { simulationId } = defineProps<{ simulationId: number }>();
+const props = defineProps<{ simulationId: string }>();
+const simulationId = Number(props.simulationId);
 
 let simulation = shallowRef<Simulation | undefined>();
 let gameInstance: Game;
@@ -44,7 +45,10 @@ function consoleEventListener(event: KeyboardEvent) {
  */
 async function fadeCanvas(callback: () => Promise<void>): Promise<void> {
   try {
-    canvasFade.value = true;
+    if (simulation.value?.mode === Mode.Immersive) {
+      canvasFade.value = true;
+    }
+
     await callback();
   } finally {
     canvasFade.value = false;
@@ -91,46 +95,53 @@ function toMainMenu() {
 onMounted(async () => {
   simulation.value = await Simulation.load(simulationId);
 
-  // REFACTOR: Scene creation shall be incapsulated.
-  gameInstance = new Game();
-  scene = new DefaultScene(
-    simulation.value.scenario,
-    simulation.value.state.stage.value,
-    (progress) => {
-      loadProgress.value = progress;
-    },
-    () => {
-      fullFade.value = false;
-    },
-  );
-  await gameInstance.createScene(scene, "default");
+  if (simulation.value.mode === Mode.Immersive) {
+    // REFACTOR: Scene creation shall be incapsulated.
+    gameInstance = new Game();
+    scene = new DefaultScene(
+      simulation.value.scenario,
+      simulation.value.state.stage.value,
+      (progress) => {
+        loadProgress.value = progress;
+      },
+      () => {
+        fullFade.value = false;
+      },
+    );
+    await gameInstance.createScene(scene, "default");
 
-  // ADHOC: Hide the default character.
-  scene.hideCharacter(simulation.value.scenario.defaultCharacterId);
+    // ADHOC: Hide the default character.
+    scene.hideCharacter(simulation.value.scenario.defaultCharacterId);
 
-  // Connect the simulation to the scene.
-  simulation.value.setStageRenderer(scene);
+    // Connect the simulation to the scene.
+    simulation.value.setStageRenderer(scene);
 
-  // Register a console event listener.
-  window.addEventListener("keypress", consoleEventListener);
+    // ADHOC: Always create a screenshot upon running a simulation,
+    // because there is currently no easy way to detect
+    // if there have been any real updates.
+    screenshot(false);
 
-  // ADHOC: Always create a screenshot upon running a simulation,
-  // because there is currently no easy way to detect
-  // if there have been any real updates.
-  screenshot(false);
+    watchImmediate(
+      () => ambientVolumeStorage.value,
+      (ambientVolume) => {
+        scene.ambientVolume = ambientVolume / 100;
+      },
+    );
 
-  watchImmediate(
-    () => ambientVolumeStorage.value,
-    (ambientVolume) => {
-      scene.ambientVolume = ambientVolume / 100;
-    },
-  );
+    // Register a console event listener.
+    window.addEventListener("keypress", consoleEventListener);
+  } else {
+    fullFade.value = false;
+  }
 });
 
 onUnmounted(() => {
-  window.removeEventListener("keypress", consoleEventListener);
+  if (simulation.value?.mode === Mode.Immersive) {
+    window.removeEventListener("keypress", consoleEventListener);
+    gameInstance.destroy();
+  }
+
   simulation.value?.destroy();
-  gameInstance.destroy();
 });
 </script>
 

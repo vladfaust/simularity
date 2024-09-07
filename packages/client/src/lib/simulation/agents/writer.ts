@@ -16,6 +16,8 @@ import { hookLlmAgentToDriverRef } from "./llm";
 
 export const NARRATOR = "narrator";
 const SYSTEM = "system";
+export const PREDICTION_REGEX =
+  /^<(?<characterId>[a-zA-Z_0-9-]+)\[(?<clock>\d{2}:\d{2})\]> (?<text>.+)$/;
 
 class ResponseError extends Error {
   constructor(message: string) {
@@ -131,7 +133,7 @@ export class Writer {
     checkpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
-    currentState: StateDto,
+    currentState: StateDto | undefined,
     nEval: number,
     predictionOptions?: PredictionOptions,
     inferenceOptions?: CompletionOptions,
@@ -401,23 +403,26 @@ Simulation setup complete. Have fun!
     checkpoint: Checkpoint,
     historicalUpdate: Update[],
     recentUpdates: Update[],
-    currentState: StateDto,
+    currentState: StateDto | undefined,
     maxHistoricalLines = 3,
   ): string {
-    let stateLine = `<${SYSTEM}> `;
+    let stateLine;
+    if (currentState) {
+      stateLine = `<${SYSTEM}> `;
 
-    const scene = scenario.ensureScene(currentState.stage.sceneId);
-    stateLine += `Rendered stage set to '${scene.name}': '${scene.prompt}'.`;
+      const scene = scenario.ensureScene(currentState.stage.sceneId);
+      stateLine += `Rendered stage set to '${scene.name}': '${scene.prompt}'.`;
 
-    if (currentState.stage.characters.length) {
-      stateLine += ` Characters on stage: ${currentState.stage.characters
-        .map(
-          (character) =>
-            `<${character.id}> (rendered outfit: "${character.outfitId}")`,
-        )
-        .join(", ")}.`;
-    } else {
-      stateLine += " There are no characters on stage.";
+      if (currentState.stage.characters.length) {
+        stateLine += ` Characters on stage: ${currentState.stage.characters
+          .map(
+            (character) =>
+              `<${character.id}> (rendered outfit: "${character.outfitId}")`,
+          )
+          .join(", ")}.`;
+      } else {
+        stateLine += " There are no characters on stage.";
+      }
     }
 
     const historicalLines = historicalUpdate
@@ -434,9 +439,7 @@ Simulation setup complete. Have fun!
 ${checkpoint.summary || "(empty)"}
 
 [Transcription]
-${historicalLines ? historicalLines + "\n" : ""}${recentLines}
-${stateLine}
-`;
+${historicalLines ? historicalLines + "\n" : ""}${recentLines}${stateLine ? "\n" + stateLine : ""}`;
   }
 
   /**
@@ -447,7 +450,7 @@ ${stateLine}
     checkpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
-    currentState: StateDto,
+    currentState: StateDto | undefined,
   ): string {
     return (
       this.buildStaticPrompt(scenario) +
@@ -587,7 +590,7 @@ characterId ::= ${characterIdRule}
     simulationDayClock: number;
     text: string;
   } {
-    const match = response.match(/^<([a-zA-Z_0-9-]+)\[(\d{2}:\d{2})\]> (.+)$/);
+    const match = response.match(PREDICTION_REGEX);
 
     if (!match) {
       throw new ResponseError(`Failed to parse response: ${response}`);

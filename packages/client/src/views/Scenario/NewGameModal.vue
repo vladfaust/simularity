@@ -2,7 +2,7 @@
 import Alert from "@/components/Alert.vue";
 import CustomTitle from "@/components/CustomTitle.vue";
 import Modal from "@/components/Modal.vue";
-import { Simulation, type Scenario } from "@/lib/simulation";
+import { Mode, Simulation, type Scenario } from "@/lib/simulation";
 import router, { routeLocation } from "@/router";
 import { asyncComputed } from "@vueuse/core";
 import {
@@ -15,11 +15,6 @@ import {
 } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import Episode from "./Episode.vue";
-
-enum Mode {
-  Immersive,
-  Chat,
-}
 
 const props = defineProps<{
   open: boolean;
@@ -54,6 +49,7 @@ const mode = ref(Mode.Immersive);
 async function play(episodeId?: string | null) {
   const simulationId = await Simulation.create(
     props.scenario.id,
+    mode.value,
     episodeId ?? undefined,
   );
 
@@ -144,13 +140,13 @@ Modal.max-h-full.w-full.max-w-3xl.rounded-lg(
             button._mode-button(
               @click="mode = Mode.Chat"
               :class="{ _selected: mode === Mode.Chat }"
-              disabled
             )
               MessagesSquareIcon(:size="28" :stroke-width="1.75")
               | Chat mode
 
           Alert(type="info")
-            p(v-if="mode === Mode.Immersive") In visual novel mode you get visual and audio feedback, but it is slower and requires more compute.
+            p(v-if="mode === Mode.Immersive") In visual novel mode you get visual and audio feedback, but it is slower and requires more compute. With the potential for quests and achievements, this is the future of gaming!
+            p(v-else) In chat mode you get text and voice feedback only, but it is faster and requires less compute.
 
   .border-t.p-3
     button.btn.btn-pressable-sm.btn-primary.btn-md.w-full.rounded-lg(

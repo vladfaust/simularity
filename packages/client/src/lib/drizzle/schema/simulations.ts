@@ -11,6 +11,12 @@ export const simulations = sqliteTable(
     id: integer("id").primaryKey(),
 
     scenarioId: text("scenario_id").notNull(),
+
+    /**
+     * {@link import("../../simulation").Mode}
+     */
+    mode: integer("mode", { mode: "number" }).notNull(),
+
     starterEpisodeId: text("starter_episode_id"),
     currentUpdateId: integer("current_writer_update_id"),
 

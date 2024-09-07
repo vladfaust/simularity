@@ -37,6 +37,11 @@ import { Deferred, assert, assertCallback } from "./utils";
 
 export { Scenario, State };
 
+export enum Mode {
+  Immersive = 0,
+  Chat = 1,
+}
+
 export class Simulation {
   //#region Private fields
   /**
@@ -84,6 +89,11 @@ export class Simulation {
    * The scenario ID.
    */
   readonly scenarioId: string;
+
+  /**
+   * The mode of the simulation.
+   */
+  readonly mode: Mode;
 
   /**
    * The scenario.
@@ -215,7 +225,9 @@ export class Simulation {
   });
 
   readonly ready = computed(
-    () => this.writer.ready.value && this.director.ready.value,
+    () =>
+      this.writer.ready.value &&
+      (this.mode === Mode.Immersive ? this.director.ready.value : true),
   );
 
   /**
@@ -256,7 +268,7 @@ export class Simulation {
   /**
    * Create a new simulation.
    */
-  static async create(scenarioId: string, episodeId?: string) {
+  static async create(scenarioId: string, mode: Mode, episodeId?: string) {
     const scenario = await ensureScenario(scenarioId);
     episodeId ||= scenario.defaultEpisodeId;
 
@@ -278,6 +290,7 @@ export class Simulation {
           .insert(d.simulations)
           .values({
             scenarioId,
+            mode,
             starterEpisodeId: episodeId,
           })
           .returning({ id: d.simulations.id })
@@ -314,7 +327,7 @@ export class Simulation {
           })
       )[0];
 
-      if (chunk.directorUpdate) {
+      if (mode === Mode.Immersive && chunk.directorUpdate) {
         await tx.insert(d.directorUpdates).values({
           writerUpdateId: writerUpdate.id,
           code: chunk.directorUpdate,
@@ -353,6 +366,7 @@ export class Simulation {
     const instance = new Simulation(
       simulationId,
       simulation.scenarioId,
+      simulation.mode,
       scenario,
     );
 
@@ -384,9 +398,11 @@ export class Simulation {
     this._busy.value = true;
     try {
       const { episodeId, chunkIndex, writerUpdate, directorUpdate } =
-        await this.state.advanceCurrentEpisode();
+        await this.state.advanceCurrentEpisode(this.mode === Mode.Immersive);
 
-      this._dumpCurrentState();
+      if (this.mode === Mode.Immersive) {
+        this._dumpCurrentState();
+      }
 
       const parentUpdateId =
         this.currentUpdate.value?.chosenVariant?.writerUpdate.id;
@@ -421,6 +437,7 @@ export class Simulation {
           ]),
         ),
       );
+
       this._recentUpdates.value.push(episodeUpdate);
     } finally {
       this._busy.value = false;
@@ -449,8 +466,10 @@ export class Simulation {
 
     this._busy.value = true;
     try {
-      await this._commitCurrentState();
-      this._dumpCurrentState();
+      if (this.mode === Mode.Immersive) {
+        await this._commitCurrentState();
+        this._dumpCurrentState();
+      }
 
       const parentWriterUpdate =
         this.currentUpdate.value?.chosenVariant?.writerUpdate;
@@ -546,14 +565,16 @@ export class Simulation {
       throw new Error("Writer is not ready");
     }
 
-    if (!this.director.ready.value) {
+    if (this.mode === Mode.Immersive && !this.director.ready.value) {
       throw new Error("Director is not ready");
     }
 
     this._busy.value = true;
     try {
-      await this._commitCurrentState();
-      this._dumpCurrentState();
+      if (this.mode === Mode.Immersive) {
+        await this._commitCurrentState();
+        this._dumpCurrentState();
+      }
 
       const update = markRaw(
         new Update(this.currentUpdate.value?.chosenVariant?.writerUpdate.id),
@@ -610,10 +631,12 @@ export class Simulation {
       // Clear the future updates.
       this._futureUpdates.value = [];
 
-      // Reset the state to the previous one.
-      await this._commitCurrentState();
-      this.state.setState(this._previousState.value);
-      console.debug("State after reset", this.state.serialize());
+      if (this.mode === Mode.Immersive) {
+        // Reset the state to the previous one.
+        await this._commitCurrentState();
+        this.state.setState(this._previousState.value);
+        console.debug("State after reset", this.state.serialize());
+      }
 
       // Infer the new variant.
       await this._inferUpdateVariantImpl(
@@ -656,23 +679,30 @@ export class Simulation {
       throw new Error("[BUG] No previous state to reset to");
     }
 
-    await this._commitCurrentState();
+    if (this.mode === Mode.Immersive) {
+      await this._commitCurrentState();
+    }
 
     currentUpdate.chosenVariantIndex.value = variantIndex;
     const newVariant = currentUpdate.ensureChosenVariant;
 
-    // Synchronize the state with the chosen variant.
-    this.state.setState(this._previousState.value);
-    if (newVariant.directorUpdate === undefined) {
-      console.debug("Fetching applied director update for the chosen variant");
-      newVariant.directorUpdate = await Simulation._fetchAppliedDirectorUpdate(
-        newVariant.writerUpdate.id,
-      );
-    }
-    const code = newVariant.directorUpdate?.code;
-    if (code) {
-      console.debug("Applying director update code", code);
-      this.state.apply(code);
+    if (this.mode === Mode.Immersive) {
+      // Synchronize the state with the chosen variant.
+      this.state.setState(this._previousState.value);
+      if (newVariant.directorUpdate === undefined) {
+        console.debug(
+          "Fetching applied director update for the chosen variant",
+        );
+        newVariant.directorUpdate =
+          await Simulation._fetchAppliedDirectorUpdate(
+            newVariant.writerUpdate.id,
+          );
+      }
+      const code = newVariant.directorUpdate?.code;
+      if (code) {
+        console.debug("Applying director update code", code);
+        this.state.apply(code);
+      }
     }
 
     // Fetch new future updates.
@@ -944,9 +974,11 @@ export class Simulation {
       // Simply move one recent update back.
       this._futureUpdates.value.unshift(this._recentUpdates.value.pop()!);
 
-      // NOTE: Would need to set pre-previous state, therefore simple
-      // `this.state.setState(this._previousState.value)` is not enough.
-      this._resetStateToCurrentUpdate(true);
+      if (this.mode === Mode.Immersive) {
+        // NOTE: Would need to set pre-previous state, therefore simple
+        // `this.state.setState(this._previousState.value)` is not enough.
+        this._resetStateToCurrentUpdate(true);
+      }
     } else {
       // We're at the earliest recent update, therefore need to move back
       // to the historical updates. Checkpoint is guaranteed to change,
@@ -1000,7 +1032,9 @@ export class Simulation {
       return;
     }
 
-    await this._commitCurrentState();
+    if (this.mode === Mode.Immersive) {
+      await this._commitCurrentState();
+    }
 
     // Jump to a historical update, which may be of a different checkpoint,
     // thus requiring full refetch.
@@ -1031,9 +1065,11 @@ export class Simulation {
         ),
       );
 
-      // NOTE: Would need to set pre-previous state, therefore simple
-      // `this.state.setState(this._previousState.value)` is not enough.
-      this._resetStateToCurrentUpdate(newStateIncludesCurrentUpdate);
+      if (this.mode === Mode.Immersive) {
+        // NOTE: Would need to set pre-previous state, therefore simple
+        // `this.state.setState(this._previousState.value)` is not enough.
+        this._resetStateToCurrentUpdate(newStateIncludesCurrentUpdate);
+      }
 
       // Set simulation head to the new current update.
       await Simulation._updateSimulationHead(
@@ -1112,32 +1148,39 @@ export class Simulation {
       );
     }
 
-    await this._commitCurrentState();
-    this._dumpCurrentState();
+    if (this.mode === Mode.Immersive) {
+      await this._commitCurrentState();
+      this._dumpCurrentState();
+    }
 
     this._recentUpdates.value.push(nextCurrentUpdate);
 
     const variant = nextCurrentUpdate.chosenVariant;
     if (!variant) throw new Error("BUG: No chosen variant");
 
-    if (variant.directorUpdate === undefined) {
-      console.debug(
-        "Fetching missing director update for",
-        variant.writerUpdate.id,
-      );
+    if (this.mode === Mode.Immersive) {
+      if (variant.directorUpdate === undefined) {
+        console.debug(
+          "Fetching missing director update for",
+          variant.writerUpdate.id,
+        );
 
-      variant.directorUpdate = await Simulation._fetchAppliedDirectorUpdate(
-        variant.writerUpdate.id,
-      );
-    }
+        variant.directorUpdate = await Simulation._fetchAppliedDirectorUpdate(
+          variant.writerUpdate.id,
+        );
+      }
 
-    const directorUpdate = variant.directorUpdate;
-    if (directorUpdate) {
-      console.debug("Applying stage code", directorUpdate.code);
-      this.state.apply(directorUpdate.code);
-      console.debug("State after applying stage code", this.state.serialize());
-    } else {
-      console.debug("No director update to apply");
+      const directorUpdate = variant.directorUpdate;
+      if (directorUpdate) {
+        console.debug("Applying stage code", directorUpdate.code);
+        this.state.apply(directorUpdate.code);
+        console.debug(
+          "State after applying stage code",
+          this.state.serialize(),
+        );
+      } else {
+        console.debug("No director update to apply");
+      }
     }
 
     // Update simulation's current update ID.
@@ -1498,9 +1541,10 @@ export class Simulation {
         })
       : [writerUpdate];
 
-    let directorUpdate = fetchAppliedDirectorUpdate
-      ? await Simulation._fetchAppliedDirectorUpdate(writerUpdate.id)
-      : undefined;
+    let directorUpdate =
+      this.mode === Mode.Immersive && fetchAppliedDirectorUpdate
+        ? await Simulation._fetchAppliedDirectorUpdate(writerUpdate.id)
+        : undefined;
 
     const variants = await Promise.all(
       writerUpdates.map(async (writerUpdate) => {
@@ -1529,7 +1573,9 @@ export class Simulation {
       "BUG: Chosen variant not found in siblings",
     );
 
-    update.ensureChosenVariant.directorUpdate = directorUpdate;
+    if (this.mode === Mode.Immersive) {
+      update.ensureChosenVariant.directorUpdate = directorUpdate;
+    }
 
     return update;
   }
@@ -1599,9 +1645,15 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     return writerUpdates;
   }
 
-  private constructor(id: number, scenarioId: string, scenario: Scenario) {
+  private constructor(
+    id: number,
+    scenarioId: string,
+    mode: Mode,
+    scenario: Scenario,
+  ) {
     this.id = id;
     this.scenarioId = scenarioId;
+    this.mode = mode;
     this.scenario = scenario;
     this.state = new State(scenario);
     this._writer = new Writer(this.scenario);
@@ -1936,6 +1988,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         new PredictUpdateVariantJob(
           this.id,
           this.scenario,
+          this.mode,
           {
             writer: this.writer,
             director: this.director,

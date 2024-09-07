@@ -153,6 +153,9 @@ export async function migrate(
     new (
       await import("./drizzle/migrations/006_create_director_updates.js")
     ).default(),
+    new (
+      await import("./drizzle/migrations/007_add_mode_to_simulations.js")
+    ).default(),
   ];
 
   return migrate_(

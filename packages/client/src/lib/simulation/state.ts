@@ -261,7 +261,7 @@ export class State {
    *
    * @returns The applied chunk data.
    */
-  async advanceCurrentEpisode() {
+  async advanceCurrentEpisode(includeDirectorUpdate: boolean) {
     const currentEpisode = this._currentEpisode.value;
 
     if (!currentEpisode) {
@@ -277,7 +277,7 @@ export class State {
     console.debug("Advancing episode", currentEpisode);
     const { writerUpdate, directorUpdate } = currentEpisode.chunks[chunkIndex];
 
-    if (directorUpdate?.length) {
+    if (includeDirectorUpdate && directorUpdate?.length) {
       console.debug("Applying stage code", directorUpdate);
       this.apply(directorUpdate);
       // TODO: if (scene.busy) await scene.busy;
