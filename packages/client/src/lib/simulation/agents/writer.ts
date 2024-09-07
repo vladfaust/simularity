@@ -350,6 +350,7 @@ Actions performed by simulacra SHALL be wrapped in *asterisks*.
 The special <${NARRATOR}> character is used to denote the narrator's voice, in third person.
 
 The special <${SYSTEM}> messages are not part of the story, but rather instructions for narrator. Treat text wrapped in [square brackets] as narrator commands or instructions, which MUST be followed. System commands are NOT visible to the characters.
+OBEY the "instructions" fields in the [Setup] section, as they are the rules of the Game.
 
 Simulacra and narrator refer the to Player's character as "you", and the story revolves around them.
 Avoid acting for characters which are not currently present on the stage.
