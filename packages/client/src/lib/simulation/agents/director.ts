@@ -96,18 +96,25 @@ export class Director {
 
     // Combine explicitly allowed characters with the characters
     // that are already on the stage to get the full set of allowed characters.
-    const allowedCharacterIdsArray =
+    const allowedCharacterIds =
       tap(predictionOptions?.charactersAllowedToEnterTheStage, clone) || [];
-    allowedCharacterIdsArray.push(
-      ...currentState.stage.characters.map((c) => c.id),
-    );
-    const allowedCharacterIds = new Set(allowedCharacterIdsArray);
+    allowedCharacterIds.push(...currentState.stage.characters.map((c) => c.id));
+
+    const characters = allowedCharacterIds.map((id) => ({
+      id,
+
+      // Require characters that are already on the stage,
+      // or the default (main) character.
+      required:
+        this.scenario.defaultCharacterId === id ||
+        currentState.stage.characters.some((c) => c.id === id),
+    }));
 
     const stopSequences = ["<|end|>"];
     const { schema, content, lang } = Director._buildGrammar(
       this.scenario,
       this.llmDriver.value.supportedGrammarLangs,
-      Array.from(allowedCharacterIds),
+      characters,
     );
 
     const options: CompletionOptions = {
@@ -332,7 +339,7 @@ ${JSON.stringify(setup)}
   private static _buildGrammar(
     scenario: Scenario,
     supportedLangs: Set<LlmGrammarLang>,
-    allowedCharacterIds: string[],
+    characters: { id: string; required: boolean }[],
   ): {
     schema: v.GenericSchema;
     lang: LlmGrammarLang;
@@ -340,35 +347,30 @@ ${JSON.stringify(setup)}
   } {
     const characterSchemas: Record<string, v.GenericSchema> = {};
 
-    for (const [characterId, character] of Object.entries(
-      scenario.characters,
-    ).filter(([characterId]) => allowedCharacterIds.includes(characterId))) {
-      characterSchemas[characterId] = v.strictObject({
+    for (const character of characters) {
+      const schema = v.strictObject({
         outfit: v.union(
-          Object.keys(character.outfits).map((outfitId) => v.literal(outfitId)),
+          Object.keys(scenario.characters[character.id].outfits).map(
+            (outfitId) => v.literal(outfitId),
+          ),
         ),
         emotion: v.union(
-          character.expressions.map((emotionId) => v.literal(emotionId)),
+          scenario.characters[character.id].expressions.map((emotionId) =>
+            v.literal(emotionId),
+          ),
         ),
       });
+
+      characterSchemas[character.id] = character.required
+        ? schema
+        : v.optional(schema);
     }
 
     const schema = v.strictObject({
       scene: v.union(
         Object.keys(scenario.scenes).map((sceneId) => v.literal(sceneId)),
       ),
-      characters: v.strictObject({
-        ...Object.fromEntries(
-          Object.entries(characterSchemas).map(([characterId, schema], i) => {
-            if (i === 0) {
-              // The first character is required.
-              return [characterId, schema];
-            } else {
-              return [characterId, v.optional(schema)];
-            }
-          }),
-        ),
-      }),
+      characters: v.strictObject(characterSchemas),
     });
 
     const jsonSchema = toJSONSchema({ schema });
