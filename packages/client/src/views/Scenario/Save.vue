@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import CustomTitle from "@/components/CustomTitle.vue";
 import { d } from "@/lib/drizzle";
 import { ensureScenario } from "@/lib/simulation/scenario";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { asyncComputed } from "@vueuse/core";
 import { eq } from "drizzle-orm";
-import { PlayCircleIcon } from "lucide-vue-next";
+import { BananaIcon, MonitorIcon, PlayCircleIcon } from "lucide-vue-next";
 import { onMounted, ref } from "vue";
 
 const { simulationId } = defineProps<{
@@ -70,6 +71,17 @@ onMounted(() => {
     .aspect-video.w-full.bg-blue-400(v-else)
 
   .flex.flex-col.p-2(v-if="simulation?.updatedAt")
-    span.text-sm.font-semibold {{ scenario?.name }}
+    CustomTitle(:title="scenario?.name")
+      template(#extra)
+        .flex.gap-1
+          BananaIcon.cursor-help(
+            v-if="scenario?.nsfw"
+            :size="16"
+            v-tooltip="'This scenario is NSFW'"
+          )
+          MonitorIcon.cursor-help(
+            :size="16"
+            v-tooltip="'This simulation runs in visual novel mode'"
+          )
     span.text-xs {{ simulation.updatedAt.toLocaleString() }}
 </template>

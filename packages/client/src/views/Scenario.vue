@@ -4,7 +4,6 @@ import CustomTitle from "@/components/CustomTitle.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
-import { Simulation } from "@/lib/simulation";
 import { ensureScenario, Scenario } from "@/lib/simulation/scenario";
 import * as tauri from "@/lib/tauri";
 import { prettyNumber, replaceAsync } from "@/lib/utils";
@@ -14,25 +13,25 @@ import { asyncComputed } from "@vueuse/core";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import {
   ArrowLeftIcon,
-  BrainCircuitIcon,
+  BananaIcon,
+  BookMarkedIcon,
   ChevronDownIcon,
   DramaIcon,
   FolderIcon,
   Globe2Icon,
   HistoryIcon,
   ImageIcon,
+  MonitorIcon,
   PlayCircleIcon,
   ProportionsIcon,
   ScrollTextIcon,
   Trash2Icon,
 } from "lucide-vue-next";
 import { onMounted, ref, shallowRef } from "vue";
-import { useRouter } from "vue-router";
 import Character from "./Scenario/Character.vue";
 import Episode from "./Scenario/Episode.vue";
+import NewGameModal from "./Scenario/NewGameModal.vue";
 import Save from "./Scenario/Save.vue";
-
-const router = useRouter();
 
 const props = defineProps<{
   scenarioId: string;
@@ -75,17 +74,8 @@ const currentMediaIndex = ref(0);
 const mediaUrls = asyncComputed(() => scenario.value?.getMediaUrls());
 const saves = shallowRef<Pick<typeof d.simulations.$inferSelect, "id">[]>([]);
 const showSaves = ref(false);
-
-async function play(episodeId?: string) {
-  const simulationId = await Simulation.create(props.scenarioId, episodeId);
-
-  router.push(
-    routeLocation({
-      name: "Simulation",
-      params: { simulationId },
-    }),
-  );
-}
+const newGameEpisodeId = ref<string | undefined>();
+const newGameModal = ref(false);
 
 async function deleteSave(simulationId: number) {
   if (
@@ -160,6 +150,7 @@ onMounted(async () => {
 
       //- Right side.
       button.btn.btn-sm.shrink-0.rounded-lg.border.transition-transform.pressable(
+        v-if="!scenario?.builtin"
         @click="showInFileManager"
       )
         FolderIcon(:size="18")
@@ -215,16 +206,28 @@ onMounted(async () => {
 
             .flex.h-full.flex-col.gap-1.p-3
               CustomTitle(:title="scenario.name")
+                template(#extra)
+                  .flex.gap-1
+                    BananaIcon.cursor-help(
+                      v-if="scenario.nsfw"
+                      :size="20"
+                      v-tooltip="'This scenario is NSFW'"
+                    )
+                    MonitorIcon.cursor-help(
+                      v-if="scenario.immersive"
+                      :size="20"
+                      v-tooltip="'This scenario supports visual novel mode'"
+                    )
               p.text-sm.leading-tight {{ scenario.about }}
 
         //- Actions.
         .flex.flex-col.gap-2.rounded-lg.bg-white.p-3
           //- Play button.
           button.btn-primary.btn.btn-md.btn-shadow.rounded-lg.border.transition-transform.pressable(
-            @click="play()"
+            @click="newGameEpisodeId = undefined; newGameModal = true"
           )
             PlayCircleIcon(:size="22" :stroke-width="2")
-            span Play {{ scenario.name }}
+            span New game
 
           //- Recent plays.
           .flex.flex-col.gap-2(v-if="saves.length")
@@ -243,9 +246,7 @@ onMounted(async () => {
                       :class="{ '-rotate-180': showSaves }"
                     )
 
-            ul.grid.grid-cols-4.gap-2.overflow-y-scroll.rounded-lg.bg-neutral-100.p-3.shadow-inner(
-              :class="{ hidden: !showSaves }"
-            )
+            ul.grid.grid-cols-4.gap-2(:class="{ hidden: !showSaves }")
               li.relative(v-for="simulation of saves")
                 //- Delete button.
                 .absolute.-right-1.-top-1.z-20
@@ -297,24 +298,22 @@ onMounted(async () => {
               )
 
             template(v-if="Object.keys(scenario.episodes).length > 1")
-              //- Memories.
-              CustomTitle(title="Memories")
+              //- Episodes.
+              CustomTitle(title="Episodes")
                 template(#icon)
-                  BrainCircuitIcon(:size="18")
+                  BookMarkedIcon(:size="18")
                 template(#extra)
                   span {{ Object.keys(scenario.episodes).length }}
 
-              //- Memories grid.
-              .grid.w-full.max-w-lg.gap-2(
-                class="max-2xs:grid-cols-2 max-3xs:grid-cols-1 2xs:grid-cols-3"
-              )
+              //- Episodes grid.
+              .grid.w-full.grid-cols-3.gap-2
                 Episode.cursor-pointer.overflow-hidden.rounded-lg.border.transition-transform.pressable(
                   v-for="[episodeId, episode] in Object.entries(scenario.episodes)"
                   :key="episodeId"
                   :scenario
                   :episodeId
                   :episode
-                  @click="play(episodeId)"
+                  @click="newGameEpisodeId = episodeId; newGameModal = true"
                 )
 
           //- Attributes.
@@ -342,4 +341,12 @@ onMounted(async () => {
                   ImageIcon(:size="16")
                   span.shrink-0.font-semibold Scenes
                 .font-mono {{ Object.keys(scenario.scenes).length }}
+
+  NewGameModal(
+    v-if="scenario"
+    :open="newGameModal"
+    :scenario
+    :episode-id="newGameEpisodeId"
+    @close="newGameModal = false"
+  )
 </template>

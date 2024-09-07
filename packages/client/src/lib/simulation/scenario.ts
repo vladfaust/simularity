@@ -53,6 +53,12 @@ const ScenarioSchema = v.object({
   nsfw: v.optional(v.boolean()),
 
   /**
+   * Whether the scenario is immersive.
+   * Immersive scenario implies visual and audio content.
+   */
+  immersive: v.optional(v.boolean()),
+
+  /**
    * Scenario thumbnail image path.
    * Recommended aspect ratio: 1:1.
    */
@@ -559,6 +565,10 @@ export class Scenario {
 
   get nsfw() {
     return this.content.nsfw ?? false;
+  }
+
+  get immersive() {
+    return this.content.immersive ?? false;
   }
 
   async getThumbnailUrl() {

@@ -1,5 +1,7 @@
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { getMatches } from "@tauri-apps/api/cli";
+import FloatingVue from "floating-vue";
+import "floating-vue/dist/style.css";
 import { createApp } from "vue";
 import App from "./App.vue";
 import { migrate } from "./lib/drizzle";
@@ -31,6 +33,7 @@ const app = createApp(App);
 
 app.use(router);
 app.use(VueQueryPlugin);
+app.use(FloatingVue);
 
 router.isReady().then(async () => {
   await migrated.promise;

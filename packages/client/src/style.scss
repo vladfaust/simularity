@@ -73,6 +73,10 @@
     @apply transition-transform pressable;
   }
 
+  .btn-pressable-sm {
+    @apply transition-transform pressable-sm;
+  }
+
   .btn-md {
     @apply gap-1 px-4 py-2 font-semibold;
   }
@@ -103,6 +107,16 @@
 
   .btn-error {
     @apply btn-shadow border-b-2 border-error-600 bg-error-500 text-error-base;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-success,
+  .btn-warn,
+  .btn-error {
+    &:not(:disabled):hover {
+      @apply brightness-105 transition;
+    }
   }
 
   .link {

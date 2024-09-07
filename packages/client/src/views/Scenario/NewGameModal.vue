@@ -1,50 +1,171 @@
 <script setup lang="ts">
+import Alert from "@/components/Alert.vue";
+import CustomTitle from "@/components/CustomTitle.vue";
+import Modal from "@/components/Modal.vue";
+import { Simulation, type Scenario } from "@/lib/simulation";
+import router, { routeLocation } from "@/router";
+import { asyncComputed } from "@vueuse/core";
 import {
-  Dialog,
-  DialogPanel,
-  TransitionChild,
-  TransitionRoot,
-} from "@headlessui/vue";
-import { PlayCircleIcon, XIcon } from "lucide-vue-next";
+  BananaIcon,
+  BookMarkedIcon,
+  MessagesSquareIcon,
+  MonitorIcon,
+  PlayCircleIcon,
+  Settings2Icon,
+} from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import Episode from "./Episode.vue";
 
-defineProps<{
+enum Mode {
+  Immersive,
+  Chat,
+}
+
+const props = defineProps<{
   open: boolean;
+  scenario: Scenario;
+  episodeId?: string;
 }>();
 
 const emit = defineEmits<{
   (event: "close"): void;
 }>();
 
-function onClose() {
-  emit("close");
+const scenarioImgUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
+const selectedEpisodeId = ref<string>(
+  props.episodeId ?? props.scenario.defaultEpisodeId,
+);
+watch(
+  () => props.episodeId,
+  (episodeId) => {
+    selectedEpisodeId.value = episodeId ?? props.scenario.defaultEpisodeId;
+  },
+);
+const selectedEpisode = computed(
+  () => props.scenario.episodes[selectedEpisodeId.value],
+);
+const selectedEpisodeImageUrl = asyncComputed(() =>
+  selectedEpisode.value?.imagePath
+    ? props.scenario.resourceUrl(selectedEpisode.value.imagePath)
+    : null,
+);
+const mode = ref(Mode.Immersive);
+
+async function play(episodeId?: string | null) {
+  const simulationId = await Simulation.create(
+    props.scenario.id,
+    episodeId ?? undefined,
+  );
+
+  router.push(
+    routeLocation({
+      name: "Simulation",
+      params: { simulationId },
+    }),
+  );
 }
 </script>
 
 <template lang="pug">
-Dialog.relative.z-50.w-screen.overflow-hidden(
-  :open="open"
-  @close="onClose"
-  :unmount="false"
-  :static="true"
+Modal.max-h-full.w-full.max-w-3xl.rounded-lg(
+  :open
+  @close="emit('close')"
+  title="New game"
 )
-  TransitionRoot(:show="open" as="template")
-    TransitionChild.fixed.inset-0.grid.place-items-center.overflow-hidden.p-4.backdrop-blur(
-      class="bg-black/30"
-      enter="duration-200 ease-out"
-      enter-from="opacity-0"
-      enter-to="opacity-100"
-      leave="duration-200 ease-in"
-      leave-from="opacity-100"
-      leave-to="opacity-0"
-    )
-      DialogPanel.flex.max-h-full.w-full.max-w-3xl.flex-col.overflow-y-hidden.rounded-xl.bg-white.shadow-lg
-        .flex.items-center.justify-between.gap-2.border-b.p-3
-          h1.flex.shrink-0.items-center.gap-1
-            PlayCircleIcon(:size="22")
-            span.text-lg.font-semibold.leading-none.tracking-wide New Game
-          .h-0.w-full.shrink.border-b
-          button.btn-pressable.btn-neutral.btn.aspect-square.rounded.p-1(
-            @click="onClose"
+  template(#icon)
+    PlayCircleIcon(:size="22")
+
+  .flex.h-full.flex-col.divide-y.overflow-y-scroll
+    //- Scenario details.
+    .bg-neutral-100.p-3
+      .flex.gap-2.rounded-lg.bg-white.p-3.shadow-lg
+        img.aspect-square.h-24.rounded-lg.border.object-cover(
+          v-if="scenarioImgUrl"
+          :src="scenarioImgUrl"
+        )
+        .flex.w-full.flex-col
+          CustomTitle(:title="scenario.name")
+            template(#extra)
+              .flex.gap-1
+                BananaIcon.cursor-help(
+                  v-if="scenario.nsfw"
+                  :size="20"
+                  v-tooltip="'This scenario is NSFW'"
+                )
+                MonitorIcon.cursor-help(
+                  v-if="scenario.immersive"
+                  :size="20"
+                  v-tooltip="'This scenario supports visual novel mode'"
+                )
+
+          p.leading-snug {{ scenario.about }}
+
+    .grid.grid-cols-5
+      //- Episodes.
+      .col-span-2.contain-size
+        .flex.h-full.flex-col.gap-3.overflow-y-scroll.p-3
+          CustomTitle.rounded-xl.border.p-2(title="1. Episode selection")
+            template(#extra)
+              BookMarkedIcon(:size="20")
+
+          ul.flex.flex-col.gap-2
+            Episode.h-max.cursor-pointer.rounded-lg.border(
+              v-for="episodeId in Object.keys(scenario.episodes)"
+              :scenario
+              :episode-id
+              :selected="selectedEpisodeId === episodeId"
+              @click.stop="selectedEpisodeId = episodeId"
+              :class="{ 'border-primary-500': selectedEpisodeId === episodeId }"
+            )
+
+      //- Episode details.
+      .col-span-3.flex.h-max.flex-col.gap-3.border-l.p-3
+        CustomTitle.rounded-xl.border.p-2(title="2. Settings")
+          template(#extra)
+            Settings2Icon(:size="20")
+
+        .flex.flex-col.gap-2
+          img.aspect-video.rounded-lg.object-cover(
+            v-if="selectedEpisodeImageUrl"
+            :src="selectedEpisodeImageUrl"
           )
-            XIcon(:size="20")
+
+          .my-1.px-1
+            CustomTitle(:title="'Episode: ' + selectedEpisode.name")
+            p.leading-snug {{ selectedEpisode.about }}
+
+          .grid.grid-cols-2.gap-2
+            button._mode-button(
+              @click="mode = Mode.Immersive"
+              :class="{ _selected: mode === Mode.Immersive }"
+            )
+              MonitorIcon(:size="28" :stroke-width="1.75")
+              | Visual novel mode
+            button._mode-button(
+              @click="mode = Mode.Chat"
+              :class="{ _selected: mode === Mode.Chat }"
+              disabled
+            )
+              MessagesSquareIcon(:size="28" :stroke-width="1.75")
+              | Chat mode
+
+          Alert(type="info")
+            p(v-if="mode === Mode.Immersive") In visual novel mode you get visual and audio feedback, but it is slower and requires more compute.
+
+  .border-t.p-3
+    button.btn.btn-pressable-sm.btn-primary.btn-md.w-full.rounded-lg(
+      :disabled="!selectedEpisodeId"
+      @click="play(selectedEpisodeId)"
+    )
+      | 3. Play!
 </template>
+
+<style lang="scss" scoped>
+._mode-button {
+  @apply btn btn-pressable-sm btn-neutral flex flex-col rounded-lg border p-3 font-semibold leading-tight;
+
+  &._selected {
+    @apply btn-primary;
+  }
+}
+</style>
