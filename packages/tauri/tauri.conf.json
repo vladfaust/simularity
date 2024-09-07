@@ -87,7 +87,7 @@
         "exceptionDomain": "",
         "frameworks": [],
         "providerShortName": null,
-        "signingIdentity": null
+        "signingIdentity": "Developer ID Application: Vladislav Kosarev (J6FGC4GSYA)"
       },
       "resources": [
         "../client/resources"
