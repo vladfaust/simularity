@@ -52,7 +52,7 @@ int simularity_gpt_decode(
   spdlog::info("Decoding prompt for session {}", session_id);
 
   // Tokenize the prompt.
-  auto prompt_tokens = llama_tokenize(session->model(), prompt, false, false);
+  auto prompt_tokens = llama_tokenize(session->model(), prompt, false, true);
 
   // Decode the prompt.
   try {

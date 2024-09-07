@@ -121,7 +121,7 @@ int simularity_gpt_infer(
   spdlog::debug("Tokenizing the prompt");
   auto prompt_tokens =
       prompt == NULL ? std::vector<llama_token>()
-                     : llama_tokenize(session->model(), prompt, false, false);
+                     : llama_tokenize(session->model(), prompt, false, true);
 
   auto n_prompt = prompt_tokens.size();
   auto n_target = n_prompt + n_eval;
