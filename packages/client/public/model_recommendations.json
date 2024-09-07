@@ -1,0 +1,54 @@
+[
+  {
+    "type": "llm",
+    "task": "writer",
+    "name": "Kunoichi",
+    "description": "Model merge based on Silicon Maid with the goal of improved intelligence. Focused on creative, coherent roleplay.",
+    "nParams": 7241732096,
+    "contextSize": 8192,
+    "hfUrl": "https://huggingface.co/TheBloke/Kunoichi-7B-GGUF",
+    "quants": {
+      "q4km": {
+        "name": "Q4_K_M",
+        "hash": {
+          "sha256": "d784928f0796f5c75f4bec5b441868c72a063384f91a28267bde0b29f1d16358"
+        },
+        "ramSize": 4367704064,
+        "urls": {
+          "hf": "https://huggingface.co/TheBloke/Kunoichi-7B-GGUF/resolve/main/kunoichi-7b.Q4_K_M.gguf"
+        }
+      },
+      "q5km": {
+        "name": "Q5_K_M",
+        "hash": {
+          "sha256": "f5289f555767ff7d6365b3b3d337f726972303c6e7f109795454065a52c6a071"
+        },
+        "ramSize": 5130000000,
+        "urls": {
+          "hf": "https://huggingface.co/TheBloke/Kunoichi-7B-GGUF/resolve/main/kunoichi-7b.Q5_K_M.gguf"
+        }
+      }
+    }
+  },
+  {
+    "type": "llm",
+    "task": "director",
+    "name": "Phi-3.5-mini",
+    "description": "Phi-3.5-mini is a lightweight, state-of-the-art open model by Microsoft.",
+    "nParams": 3821082624,
+    "contextSize": 131072,
+    "hfUrl": "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF",
+    "quants": {
+      "q4m": {
+        "name": "Q4_K_M",
+        "hash": {
+          "sha256": "3fb19cc624c455ed4b513ce5d698585e4ccdbaeb151138bdac25eec82b2c20dc"
+        },
+        "ramSize": 2392505856,
+        "urls": {
+          "hf": "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q5_K_M.gguf"
+        }
+      }
+    }
+  }
+]

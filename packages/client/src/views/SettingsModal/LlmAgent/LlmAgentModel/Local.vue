@@ -15,6 +15,7 @@ import {
 import * as fsExtra from "tauri-plugin-fs-extra-api";
 import { computed, onMounted, ref, shallowRef, triggerRef } from "vue";
 import Model from "./Local/Model.vue";
+import DownloadModal from "./Local/DownloadModal.vue";
 
 const props = defineProps<{
   agentId: storage.llm.LlmAgentId;
@@ -39,6 +40,7 @@ const selectedModel = computed(() =>
 const latestLocalModelConfig = storage.llm.useLatestLocalModelConfig(
   props.agentId,
 );
+const downloadModalOpen = ref(false);
 
 async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
   console.log(`Caching model ${modelPath}`);
@@ -282,11 +284,11 @@ onMounted(async () => {
   .flex.justify-between.gap-1.p-2
     .flex.items-center.gap-1
       button.btn-pressable.btn-neutral.btn.btn-sm.rounded(
-        disabled
         title="Download models from the cloud"
+        @click="downloadModalOpen = true"
       )
         CloudDownloadIcon(:size="18")
-        span Download...
+        span Download
 
       button.btn-pressable.btn-neutral.btn.btn-sm.rounded(
         @click="openLocalModelSelectionDialog"
@@ -347,4 +349,10 @@ onMounted(async () => {
       :context-size="driverConfig.contextSize"
       :max-context-size="selectedModel.contextSize"
     )
+
+  DownloadModal(
+    :open="downloadModalOpen"
+    :agent-id
+    @close="downloadModalOpen = false"
+  )
 </template>
