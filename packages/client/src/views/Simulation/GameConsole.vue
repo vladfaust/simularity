@@ -365,10 +365,12 @@ function onKeypress(event: KeyboardEvent) {
     }
   } else if (event.key === "e") {
     if (document.activeElement !== userInputElement.value) {
+      event.preventDefault();
       triggerEditHandler?.();
     }
   } else if (event.key === "h") {
     if (document.activeElement !== userInputElement.value) {
+      event.preventDefault();
       switchUpdatesFullscreen();
     }
   } else if (event.key === " ") {
@@ -383,28 +385,30 @@ function onKeypress(event: KeyboardEvent) {
       userInputElement.value?.blur();
     }
   } else {
-    const int = parseInt(event.key);
+    if (document.activeElement !== userInputElement.value) {
+      const int = parseInt(event.key);
 
-    if (!isNaN(int)) {
-      if (int === 1) {
-        if (event.metaKey) {
-          enableOnlyCharacter(NARRATOR);
-        } else {
-          switchEnabledCharacter(NARRATOR);
-        }
-      } else {
-        const characterId = Object.keys(
-          simulation.scenario.content.characters,
-        ).at(int - 2);
-
-        if (characterId) {
+      if (!isNaN(int)) {
+        if (int === 1) {
           if (event.metaKey) {
-            enableOnlyCharacter(characterId);
+            enableOnlyCharacter(NARRATOR);
           } else {
-            switchEnabledCharacter(characterId);
+            switchEnabledCharacter(NARRATOR);
           }
         } else {
-          console.warn("Character not found at index", int);
+          const characterId = Object.keys(
+            simulation.scenario.content.characters,
+          ).at(int - 2);
+
+          if (characterId) {
+            if (event.metaKey) {
+              enableOnlyCharacter(characterId);
+            } else {
+              switchEnabledCharacter(characterId);
+            }
+          } else {
+            console.warn("Character not found at index", int);
+          }
         }
       }
     }
@@ -412,6 +416,10 @@ function onKeypress(event: KeyboardEvent) {
 }
 
 function onKeydown(event: KeyboardEvent) {
+  if (isEditing.value) {
+    return;
+  }
+
   if (document.activeElement !== userInputElement.value) {
     if (event.key === "ArrowUp") {
       // Go back in history.
