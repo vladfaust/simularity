@@ -382,6 +382,32 @@ function onKeypress(event: KeyboardEvent) {
     if (document.activeElement === userInputElement.value) {
       userInputElement.value?.blur();
     }
+  } else {
+    const int = parseInt(event.key);
+
+    if (!isNaN(int)) {
+      if (int === 1) {
+        if (event.metaKey) {
+          enableOnlyCharacter(NARRATOR);
+        } else {
+          switchEnabledCharacter(NARRATOR);
+        }
+      } else {
+        const characterId = Object.keys(simulation.scenario.characters).at(
+          int - 2,
+        );
+
+        if (characterId) {
+          if (event.metaKey) {
+            enableOnlyCharacter(characterId);
+          } else {
+            switchEnabledCharacter(characterId);
+          }
+        } else {
+          console.warn("Character not found at index", int);
+        }
+      }
+    }
   }
 }
 

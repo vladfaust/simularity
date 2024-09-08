@@ -27,26 +27,41 @@ function onCharacterClick(event: MouseEvent, characterId: string) {
 .flex.justify-center
   .flex.h-full.justify-center.gap-1.rounded-lg.p-2(class="bg-black/10")
     //- Narrator
-    ._inference-settings-character.grid.h-full.place-items-center(
-      :class="{ _enabled: enabledCharacterIds.includes(NARRATOR) }"
-      title="Narrator"
-      @click="onCharacterClick($event, NARRATOR)"
-    )
-      BotIcon.text-secondary-500(:size="28" :stroke-width="1.5")
+    .relative
+      ._index.-bottom-1.-left-1.z-10.h-4.w-4.rounded.shadow-lg
+        span.text-xs 1
+      ._inference-settings-character.grid.h-full.select-none.place-items-center(
+        :class="{ _enabled: enabledCharacterIds.includes(NARRATOR) }"
+        title="Narrator (1) (click to toggle)"
+        @click="onCharacterClick($event, NARRATOR)"
+      )
+        BotIcon.text-secondary-500(:size="28" :stroke-width="1.5")
 
     //- Other characters.
-    CharacterPfp._inference-settings-character(
-      v-for="[characterId, character] in Object.entries(simulation.scenario.characters)"
-      :key="characterId"
-      :scenario="simulation.scenario"
-      :character
-      :class="{ _enabled: enabledCharacterIds.includes(characterId) }"
-      :title="character.name"
-      @click="onCharacterClick($event, characterId)"
+    .relative(
+      v-for="([characterId, character], i) in Object.entries(simulation.scenario.characters)"
     )
+      ._index.-bottom-1.-left-1.z-10.h-4.w-4.rounded.shadow-lg
+        span.text-xs {{ i + 2 }}
+      CharacterPfp._inference-settings-character(
+        :key="characterId"
+        :scenario="simulation.scenario"
+        :character
+        :class="{ _enabled: enabledCharacterIds.includes(characterId) }"
+        :title="character.name"
+        @click="onCharacterClick($event, characterId)"
+      )
 </template>
 
 <style lang="scss" scoped>
+._index {
+  @apply absolute flex items-center justify-center border bg-white;
+
+  span {
+    @apply leading-none text-gray-500;
+  }
+}
+
 ._inference-settings-character {
   @apply aspect-square h-12 cursor-pointer rounded-lg bg-white shadow-lg transition pressable;
 
@@ -59,7 +74,7 @@ function onCharacterClick(event: MouseEvent, characterId: string) {
   }
 
   &._enabled {
-    @apply border-ai-500 border-2;
+    @apply border-2 border-ai-500;
   }
 }
 </style>
