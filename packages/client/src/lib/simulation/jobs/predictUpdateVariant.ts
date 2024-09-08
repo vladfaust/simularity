@@ -3,7 +3,7 @@ import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
 import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
-import { clone } from "@/lib/utils";
+import { Bug, clone } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 import pRetry from "p-retry";
 import { markRaw, readonly, ref } from "vue";
@@ -33,11 +33,11 @@ export class PredictUpdateVariantJob {
     readonly mode: Mode,
     readonly agents: {
       writer: writer.Writer;
-      director: director.Director;
+      director: director.Director | undefined;
       voicer: voicer.Voicer;
     },
     readonly checkpoint: typeof d.checkpoints.$inferSelect,
-    readonly state: state.State,
+    readonly state: state.State | undefined,
     readonly update: Update,
     readonly historicalUpdates: Update[],
     readonly recentUpdates: Update[],
@@ -51,6 +51,14 @@ export class PredictUpdateVariantJob {
       !(agents.voicer.ttsDriver.value && storage.tts.ttsConfig.value?.enabled)
     ) {
       this._voicerJob.value = null;
+    }
+
+    if (mode === Mode.Immersive) {
+      if (!agents.director) {
+        throw new Bug("Director is required in immersive mode");
+      } else if (!state) {
+        throw new Bug("State is required in immersive mode");
+      }
     }
   }
 
@@ -70,7 +78,7 @@ export class PredictUpdateVariantJob {
         this.checkpoint,
         this.historicalUpdates,
         this.recentUpdates,
-        this.mode === Mode.Immersive ? this.state.serialize() : undefined,
+        this.mode === Mode.Immersive ? this.state!.serialize() : undefined,
         this.writerParams.nEval,
         this.writerParams.predictionOptions,
         this.writerParams.inferenceOptions,
@@ -197,7 +205,7 @@ export class PredictUpdateVariantJob {
 
       if (directorUpdate?.code.length) {
         console.log("Applying stage code", directorUpdate.code);
-        this.state.apply(directorUpdate.code);
+        this.state!.apply(directorUpdate.code);
       }
 
       this.update.variants.value.push({
@@ -206,7 +214,7 @@ export class PredictUpdateVariantJob {
           completion: writerResponse.completion,
         },
         directorUpdate,
-        state: this.state.serialize(),
+        state: this.state?.serialize(),
         ttsPath: ref(ttsPath),
       });
 
@@ -260,7 +268,7 @@ export class PredictUpdateVariantJob {
     }
 
     console.debug("Current checkpoint for ensuring", currentCheckpoint);
-    let currentState = clone(currentCheckpoint.state);
+    let currentState: state.StateDto = clone(currentCheckpoint.state!);
     console.debug("Current state for ensuring", JSON.stringify(currentState));
 
     if (
@@ -415,7 +423,7 @@ export class PredictUpdateVariantJob {
     // so that the director can serialize those states.
     await this._ensureUpdateStates(directorHistoricalUpdates);
 
-    return this.agents.director.inferUpdate(
+    return this.agents.director!.inferUpdate(
       directorHistoricalUpdates.map((update) => {
         const variant = update.ensureChosenVariant;
 
@@ -430,7 +438,7 @@ export class PredictUpdateVariantJob {
         };
       }),
 
-      this.state.serialize(),
+      this.state!.serialize(),
       directorIncomingUpdates,
 
       256,

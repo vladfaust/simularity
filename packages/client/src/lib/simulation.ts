@@ -27,20 +27,32 @@ import {
   type PredictionOptions as WriterPredictionOptions,
 } from "./simulation/agents/writer";
 import { PredictUpdateVariantJob } from "./simulation/jobs/predictUpdateVariant";
-import { Scenario, ensureScenario } from "./simulation/scenario";
+import {
+  ImmersiveScenario,
+  ensureScenario,
+  type Scenario,
+} from "./simulation/scenario";
 import { type StageRenderer } from "./simulation/stageRenderer";
-import { State, compareStateDeltas, type StateDto } from "./simulation/state";
+import {
+  State,
+  compareStateDeltas,
+  emptyState,
+  type StateDto,
+} from "./simulation/state";
 import { type StateCommand } from "./simulation/state/commands";
 import { Update } from "./simulation/update";
 import * as storage from "./storage";
-import { Deferred, assert, assertCallback } from "./utils";
+import { Bug, Deferred, assert, assertCallback } from "./utils";
 
-export { Scenario, State };
+export { State, type Scenario };
 
 export enum Mode {
   Immersive = 0,
   Chat = 1,
 }
+
+type ImmersiveScenarioEpisodeChunk =
+  ImmersiveScenario["content"]["episodes"][string]["chunks"][number];
 
 export class Simulation {
   //#region Private fields
@@ -72,13 +84,16 @@ export class Simulation {
   >();
 
   private _writer: Writer;
-  private _director: Director;
+
+  /** undefined if the simulation is not immersive. */
+  private _director: Director | undefined;
+
   private _voicer: Voicer;
 
   private _currentJob = shallowRef<PredictUpdateVariantJob | null>(null);
   //#endregion
 
-  readonly state: State;
+  readonly state: State | undefined;
 
   /**
    * The simulation ID.
@@ -179,10 +194,22 @@ export class Simulation {
   });
 
   /**
+   * Whether the simulation is currently expected to advance an episode.
+   */
+  readonly shallAdvanceEpisode = computed(() => {
+    const writerUpdate = this.currentUpdate.value?.chosenVariant?.writerUpdate;
+    if (!writerUpdate) return false;
+    if (!writerUpdate.episodeId) return false;
+
+    const episode = this.scenario.content.episodes[writerUpdate.episodeId];
+    return writerUpdate.episodeChunkIndex! < episode.chunks.length - 1;
+  });
+
+  /**
    * A condition that allows creating a new user update.
    */
   readonly canCreateUserUpdate = computed(() => {
-    return !this.busy.value && !this.state.shallAdvanceEpisode.value;
+    return !this.busy.value && !this.shallAdvanceEpisode.value;
   });
 
   /**
@@ -219,6 +246,10 @@ export class Simulation {
   readonly previousState = computed(() => this._previousState.value);
 
   readonly previousStateDelta = computed(() => {
+    if (!this.state) {
+      throw new Bug("State is not initialized (previousStateDelta)");
+    }
+
     return this._previousState.value
       ? State.delta(this.state.serialize(), this._previousState.value)
       : null;
@@ -227,7 +258,7 @@ export class Simulation {
   readonly ready = computed(
     () =>
       this.writer.ready.value &&
-      (this.mode === Mode.Immersive ? this.director.ready.value : true),
+      (this.mode === Mode.Immersive ? this.director!.ready.value : true),
   );
 
   /**
@@ -262,6 +293,10 @@ export class Simulation {
    * Set the stage renderer, and sync it to the current stage state.
    */
   setStageRenderer(scene: StageRenderer) {
+    if (!this.state) {
+      throw new Bug("State is not initialized (setStageRenderer)");
+    }
+
     this.state.connectStageRenderer(scene);
   }
 
@@ -302,7 +337,12 @@ export class Simulation {
           .values({
             simulationId: simulation.id,
             summary: startingEpisode.initialCheckpoint.summary,
-            state: startingEpisode.initialCheckpoint.state,
+            state:
+              scenario instanceof ImmersiveScenario
+                ? (
+                    startingEpisode as ImmersiveScenario["content"]["episodes"][string]
+                  ).initialCheckpoint.state
+                : undefined,
           })
           .returning({ id: d.checkpoints.id })
       )[0];
@@ -327,11 +367,16 @@ export class Simulation {
           })
       )[0];
 
-      if (mode === Mode.Immersive && chunk.directorUpdate) {
-        await tx.insert(d.directorUpdates).values({
-          writerUpdateId: writerUpdate.id,
-          code: chunk.directorUpdate,
-        });
+      if (scenario instanceof ImmersiveScenario && mode === Mode.Immersive) {
+        const directorUpdate = (chunk as ImmersiveScenarioEpisodeChunk)
+          .directorUpdate;
+
+        if (directorUpdate) {
+          await tx.insert(d.directorUpdates).values({
+            writerUpdateId: writerUpdate.id,
+            code: directorUpdate,
+          });
+        }
       }
 
       // Set simulation current update ID.
@@ -387,18 +432,19 @@ export class Simulation {
       throw new Error("Simulation is busy");
     }
 
-    if (!this.state.currentEpisode.value) {
-      throw new Error("No episode to advance");
-    }
-
-    if (!this.state.shallAdvanceEpisode.value) {
-      throw new Error("Cannot advance the episode any further");
+    if (!this.shallAdvanceEpisode.value) {
+      throw new Error("Shall not advance episode");
     }
 
     this._busy.value = true;
     try {
-      const { episodeId, chunkIndex, writerUpdate, directorUpdate } =
-        await this.state.advanceCurrentEpisode(this.mode === Mode.Immersive);
+      const currentWriterUpdate =
+        this.currentUpdate.value?.chosenVariant?.writerUpdate!;
+
+      const episode =
+        this.scenario.content.episodes[currentWriterUpdate.episodeId!];
+
+      const chunk = episode.chunks[currentWriterUpdate.episodeChunkIndex! + 1];
 
       if (this.mode === Mode.Immersive) {
         this._dumpCurrentState();
@@ -412,16 +458,23 @@ export class Simulation {
         writerUpdate: {
           parentUpdateId,
           checkpointId: this._checkpoint.value!.id,
-          characterId: writerUpdate.characterId,
+          characterId: chunk.writerUpdate.characterId,
           simulationDayClock: toMinutes({
-            hours: writerUpdate.clock.hours,
-            minutes: writerUpdate.clock.minutes,
+            hours: chunk.writerUpdate.clock.hours,
+            minutes: chunk.writerUpdate.clock.minutes,
           }),
-          text: writerUpdate.text,
-          episodeId,
-          episodeChunkIndex: chunkIndex,
+          text: chunk.writerUpdate.text,
+          episodeId: currentWriterUpdate.episodeId!,
+          episodeChunkIndex: currentWriterUpdate.episodeChunkIndex! + 1,
         },
-        directorUpdate: directorUpdate ? { code: directorUpdate } : undefined,
+        directorUpdate:
+          this.scenario instanceof ImmersiveScenario &&
+          this.mode === Mode.Immersive &&
+          (chunk as ImmersiveScenarioEpisodeChunk).directorUpdate
+            ? {
+                code: (chunk as ImmersiveScenarioEpisodeChunk).directorUpdate!,
+              }
+            : undefined,
       });
 
       // Add the new episode update to the recent updates.
@@ -431,7 +484,7 @@ export class Simulation {
           shallowRef([
             {
               ...incoming,
-              state: this.state.serialize(),
+              state: this.state?.serialize(),
               ttsPath: ref(null),
             },
           ]),
@@ -459,7 +512,7 @@ export class Simulation {
       throw new Error("Simulation is busy");
     }
 
-    if (this.state.shallAdvanceEpisode.value) {
+    if (this.shallAdvanceEpisode.value) {
       /** Call {@link advanceCurrentEpisode} instead. */
       throw new Error("Cannot create an update during an episode");
     }
@@ -497,7 +550,7 @@ export class Simulation {
         const update = this._futureUpdates.value.shift()!;
         update.variants.value.push({
           ...saved,
-          state: this.state.serialize(),
+          state: this.state?.serialize(),
           ttsPath: ref(null),
         });
         update.setChosenVariantToLast();
@@ -515,7 +568,7 @@ export class Simulation {
             shallowRef([
               {
                 ...saved,
-                state: this.state.serialize(),
+                state: this.state?.serialize(),
                 ttsPath: ref(null),
               },
             ]),
@@ -551,7 +604,7 @@ export class Simulation {
       throw new Error("Simulation is busy");
     }
 
-    if (this.state.shallAdvanceEpisode.value) {
+    if (this.shallAdvanceEpisode.value) {
       throw new Error("Cannot create assistant update during an episode");
     }
 
@@ -565,7 +618,7 @@ export class Simulation {
       throw new Error("Writer is not ready");
     }
 
-    if (this.mode === Mode.Immersive && !this.director.ready.value) {
+    if (this.mode === Mode.Immersive && !this.director!.ready.value) {
       throw new Error("Director is not ready");
     }
 
@@ -622,8 +675,12 @@ export class Simulation {
       throw new Error("No current update");
     }
 
-    if (!this._previousState.value) {
-      throw new Error("[BUG] No previous state to reset to");
+    if (this.mode === Mode.Immersive) {
+      if (!this._previousState.value) {
+        throw new Bug(
+          "No previous state to reset to (predictCurrentUpdateVariant)",
+        );
+      }
     }
 
     this._busy.value = true;
@@ -632,10 +689,16 @@ export class Simulation {
       this._futureUpdates.value = [];
 
       if (this.mode === Mode.Immersive) {
+        if (!this.state) {
+          throw new Bug(
+            "State is not initialized (predictCurrentUpdateVariant)",
+          );
+        }
+
         // Reset the state to the previous one.
         await this._commitCurrentState();
-        this.state.setState(this._previousState.value);
-        console.debug("State after reset", this.state.serialize());
+        this.state.setState(this._previousState.value!);
+        console.debug("State after reset", this.state!.serialize());
       }
 
       // Infer the new variant.
@@ -675,11 +738,11 @@ export class Simulation {
       );
     }
 
-    if (!this._previousState.value) {
-      throw new Error("[BUG] No previous state to reset to");
-    }
-
     if (this.mode === Mode.Immersive) {
+      if (!this._previousState.value) {
+        throw new Bug("No previous state to reset to");
+      }
+
       await this._commitCurrentState();
     }
 
@@ -687,8 +750,12 @@ export class Simulation {
     const newVariant = currentUpdate.ensureChosenVariant;
 
     if (this.mode === Mode.Immersive) {
+      if (!this.state) {
+        throw new Bug("State is not initialized (chooseCurrentUpdateVariant)");
+      }
+
       // Synchronize the state with the chosen variant.
-      this.state.setState(this._previousState.value);
+      this.state.setState(this._previousState.value!);
       if (newVariant.directorUpdate === undefined) {
         console.debug(
           "Fetching applied director update for the chosen variant",
@@ -793,7 +860,7 @@ export class Simulation {
       return new Error("Writer is not ready");
     }
 
-    if (this.state.shallAdvanceEpisode.value) {
+    if (this.shallAdvanceEpisode.value) {
       return new Error("Cannot consolidate during an episode");
     }
 
@@ -840,7 +907,7 @@ export class Simulation {
         this._checkpoint.value!,
         this._historicalUpdates.value,
         this._recentUpdates.value,
-        this.state.serialize(),
+        this.state?.serialize(),
         256,
         inferenceAbortSignal,
       );
@@ -858,7 +925,7 @@ export class Simulation {
               simulationId: this.id,
               writerUpdateId: writerUpdate.id,
               summary: summarizationResult.newSummary,
-              state: this.state.serialize(),
+              state: this.state?.serialize(),
             })
             .returning()
         )[0];
@@ -964,7 +1031,9 @@ export class Simulation {
   async goBack() {
     if (!this.canGoBack.value) throw new Error("Cannot go back");
 
-    await this._commitCurrentState();
+    if (this.mode === Mode.Immersive) {
+      await this._commitCurrentState();
+    }
 
     if (this._recentUpdates.value.length > 1) {
       console.debug("Going back to the previous recent update");
@@ -1157,6 +1226,10 @@ export class Simulation {
     if (!variant) throw new Error("BUG: No chosen variant");
 
     if (this.mode === Mode.Immersive) {
+      if (!this.state) {
+        throw new Bug("State is not initialized (goForward)");
+      }
+
       if (variant.directorUpdate === undefined) {
         console.debug(
           "Fetching missing director update for",
@@ -1298,7 +1371,7 @@ export class Simulation {
       this._checkpoint.value!,
       this._historicalUpdates.value,
       this._recentUpdates.value,
-      this.state.serialize(),
+      this.state?.serialize() || emptyState(),
       nEval,
       visualizationOptions,
       completionOptions,
@@ -1367,7 +1440,7 @@ export class Simulation {
 
   destroy() {
     this.writer.destroy();
-    this.director.destroy();
+    this.director?.destroy();
     this.voicer.destroy();
   }
 
@@ -1649,13 +1722,27 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     mode: Mode,
     scenario: Scenario,
   ) {
+    if (mode === Mode.Immersive && !(scenario instanceof ImmersiveScenario)) {
+      throw new Error("Immersive mode requires an immersive scenario");
+    }
+
     this.id = id;
     this.scenarioId = scenarioId;
     this.mode = mode;
     this.scenario = scenario;
-    this.state = new State(scenario);
+
+    this.state =
+      mode === Mode.Immersive
+        ? new State(scenario as ImmersiveScenario)
+        : undefined;
+
     this._writer = new Writer(this.scenario);
-    this._director = new Director(this.scenario);
+
+    this._director =
+      mode === Mode.Immersive
+        ? new Director(this.scenario as ImmersiveScenario)
+        : undefined;
+
     this._voicer = new Voicer(this.scenario);
   }
 
@@ -1764,8 +1851,10 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       this._futureUpdates.value = [];
     }
 
-    // Set the state to the current update.
-    this._resetStateToCurrentUpdate(newStateIncludesCurrentUpdate);
+    if (this.mode === Mode.Immersive) {
+      // Set the state to the current update.
+      this._resetStateToCurrentUpdate(newStateIncludesCurrentUpdate);
+    }
 
     // Set simulation head to the new current update.
     await Simulation._updateSimulationHead(
@@ -1783,8 +1872,12 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
    * Otherwise, the resulting state would be equal to {@link _previousState}.
    */
   private _resetStateToCurrentUpdate(includeCurrentUpdate: boolean) {
+    if (!this.state) {
+      throw new Bug("State is not initialized (_resetStateToCurrentUpdate)");
+    }
+
     // Reset the state to the checkpoint.
-    this.state.setState(this._checkpoint.value!.state);
+    this.state.setState(this._checkpoint.value!.state!);
 
     // Apply existing director updates to the stage, from oldest to newest.
     //
@@ -1817,16 +1910,6 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       i++;
     }
 
-    // Set the current episode if needed.
-    // TODO: Use state-only episode tracking.
-    const currentVariant = this.currentUpdate.value?.chosenVariant;
-    if (currentVariant?.writerUpdate.episodeId) {
-      this.state.setEpisode(
-        currentVariant.writerUpdate.episodeId!,
-        currentVariant.writerUpdate.episodeChunkIndex! + 1,
-      );
-    }
-
     console.debug("Initialized state", this.state.serialize());
   }
 
@@ -1834,6 +1917,10 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
    * Set {@link _previousState} to the current state snapshot.
    */
   private _dumpCurrentState() {
+    if (!this.state) {
+      throw new Bug("State is not initialized (_dumpCurrentState)");
+    }
+
     this._previousState.value = this.state.serialize();
     console.debug("Saved previous state", this._previousState.value);
   }
@@ -1845,6 +1932,10 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
    */
   // TODO: Same applies to a user update, when it has code.
   private async _commitCurrentState() {
+    if (!this.state) {
+      throw new Bug("State is not initialized (_commitCurrentState)");
+    }
+
     const update = this.currentUpdate.value;
 
     if (update) {

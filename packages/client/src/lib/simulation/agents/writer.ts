@@ -9,7 +9,7 @@ import { d } from "@/lib/drizzle";
 import * as storage from "@/lib/storage";
 import { clockToMinutes, minutesToClock, trimEndAny } from "@/lib/utils";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
-import { Scenario } from "../scenario";
+import { ImmersiveScenario, type Scenario } from "../scenario";
 import type { StateDto } from "../state";
 import { Update } from "../update";
 import { hookLlmAgentToDriverRef } from "./llm";
@@ -78,7 +78,7 @@ export class Writer {
     oldCheckpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
-    currentState: StateDto,
+    currentState: StateDto | undefined,
     nEval: number,
     inferenceAbortSignal?: AbortSignal,
   ): Promise<{
@@ -274,8 +274,8 @@ Stable diffusion prompt: `;
           result += `<lora:${scenarioCharacter.visualization.sd.lora.id}:${weight}> `;
         }
         result += `${scenarioCharacter.visualization.sd.prompt}`;
-        const outfit = scenarioCharacter.outfits[character.outfitId];
-        if (outfit.visualization?.sd) {
+        const outfit = scenarioCharacter.outfits?.[character.outfitId];
+        if (outfit?.visualization?.sd) {
           result += `, ${outfit.visualization.sd.prompt}`;
         }
         result += ")";
@@ -300,29 +300,33 @@ Stable diffusion prompt: `;
    */
   static buildStaticPrompt(scenario: Scenario): string {
     const setup = {
-      excerpt: scenario.excerpt,
-      globalScenario: scenario.globalScenario,
-      instructions: scenario.instructions,
+      excerpt: scenario.content.excerpt,
+      globalScenario: scenario.content.globalScenario,
+      instructions: scenario.content.instructions,
       characters: Object.fromEntries(
-        Object.entries(scenario.characters).map(([characterId, character]) => [
-          characterId,
-          {
-            fullName: character.fullName,
-            personality: character.personalityPrompt,
-            traits: character.characterTraits,
-            appearance: character.appearancePrompt,
-            relationships: character.relationships,
-            scenarioPrompt: character.scenarioPrompt,
-            canonicalOutfits: Object.fromEntries(
-              Object.entries(character.outfits).map(([_, outfit]) => [
-                outfit.prompt,
-              ]),
-            ),
-          },
-        ]),
+        Object.entries(scenario.content.characters).map(
+          ([characterId, character]) => [
+            characterId,
+            {
+              fullName: character.fullName,
+              personality: character.personalityPrompt,
+              tropes: character.characterTropes,
+              appearance: character.appearancePrompt,
+              relationships: character.relationships,
+              scenarioPrompt: character.scenarioPrompt,
+              wellKnownOutfits: character.outfits
+                ? Object.fromEntries(
+                    Object.entries(character.outfits).map(([_, outfit]) => [
+                      outfit.prompt,
+                    ]),
+                  )
+                : undefined,
+            },
+          ],
+        ),
       ),
       locations: Object.fromEntries(
-        Object.entries(scenario.locations).map(([_, location]) => [
+        Object.entries(scenario.content.locations).map(([_, location]) => [
           location.name,
           { description: location.prompt },
         ]),
@@ -407,7 +411,7 @@ Simulation setup complete. Have fun!
     maxHistoricalLines = 3,
   ): string {
     let stateLine;
-    if (currentState) {
+    if (currentState && scenario instanceof ImmersiveScenario) {
       stateLine = `<${SYSTEM}> `;
 
       const scene = scenario.ensureScene(currentState.stage.sceneId);
@@ -476,7 +480,7 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}${stateLine ? "\n"
     previousCheckpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
-    currentState: StateDto,
+    currentState: StateDto | undefined,
     tokenLimit: number,
   ): string {
     return (
@@ -543,7 +547,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
   } {
     const allowedCharacterIds =
       options?.allowedCharacterIds ||
-      Object.keys(scenario.characters).filter(
+      Object.keys(scenario.content.characters).filter(
         (characterId) => scenario.defaultCharacterId !== characterId,
       );
 
@@ -602,7 +606,7 @@ characterId ::= ${characterIdRule}
 
     const allowedCharacterIds =
       options?.allowedCharacterIds ||
-      Object.keys(scenario.characters).filter(
+      Object.keys(scenario.content.characters).filter(
         (characterId) => scenario.defaultCharacterId !== characterId,
       );
 

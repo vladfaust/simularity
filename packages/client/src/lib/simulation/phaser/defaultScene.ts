@@ -1,8 +1,8 @@
-import { Scenario } from "@/lib/simulation";
 import { sleep } from "@/lib/utils";
 import pRetry from "p-retry";
 import Phaser from "phaser";
 import { type DeepReadonly } from "vue";
+import { ImmersiveScenario } from "../scenario";
 import { type StageRenderer } from "../stageRenderer";
 import { type Stage } from "../state";
 
@@ -70,7 +70,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
   }
 
   constructor(
-    readonly scenario: Scenario,
+    readonly scenario: ImmersiveScenario,
     private readonly initialState: DeepReadonly<Stage> | null = null,
     private readonly onPreloadProgress?: (progress: number) => void,
     private readonly onCreate?: () => void,
@@ -101,7 +101,9 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
   }
 
   async asyncPreload() {
-    for (const [sceneId, scene] of Object.entries(this.scenario.scenes)) {
+    for (const [sceneId, scene] of Object.entries(
+      this.scenario.content.scenes,
+    )) {
       this.load.image(
         this._sceneTextureKey(sceneId),
         await this.scenario.resourceUrl(scene.bg),
@@ -120,7 +122,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     }
 
     for (const [characterId, character] of Object.entries(
-      this.scenario.characters,
+      this.scenario.content.characters,
     )) {
       let bodyId = 0;
       for (const file of character.layeredSpritesAvatar.bodies) {
@@ -263,9 +265,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     }
 
     const expression =
-      this.scenario.characters[characterId].layeredSpritesAvatar.expressions[
-        expressionId
-      ];
+      this.scenario.content.characters[characterId].layeredSpritesAvatar
+        .expressions[expressionId];
 
     this.stageCharacters.set(characterId, {
       body: {
@@ -356,9 +357,8 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     }
 
     const expression =
-      this.scenario.characters[characterId].layeredSpritesAvatar.expressions[
-        expressionId
-      ];
+      this.scenario.content.characters[characterId].layeredSpritesAvatar
+        .expressions[expressionId];
 
     character.body.index = expression.bodyId;
     character.body.sprite.setTexture(

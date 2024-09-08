@@ -13,6 +13,16 @@ import { safeParseJson } from "../utils";
 import { formatIssues, v } from "../valibot";
 import { StateCommandSchema } from "./state/commands";
 
+export class ScenarioError extends Error {
+  constructor(
+    readonly path: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = `ScenarioError at ${path}`;
+  }
+}
+
 export const IdSchema = v.pipe(
   v.string(),
   v.regex(/^[a-zA-Z_][a-zA-Z0-9_-]*$/),
@@ -35,8 +45,7 @@ const SpriteTransformSchema = v.object({
   scale: v.optional(v.number()),
 });
 
-// TODO: Semantic validation (proper IDs, etc.).
-const ScenarioSchema = v.object({
+const BaseScenarioSchema = v.object({
   /**
    * Scenario protocol version.
    */
@@ -48,15 +57,14 @@ const ScenarioSchema = v.object({
   name: v.string(),
 
   /**
+   * This scenario is not immersive.
+   */
+  immersive: v.literal(false),
+
+  /**
    * Whether the scenario is not safe for work.
    */
   nsfw: v.optional(v.boolean()),
-
-  /**
-   * Whether the scenario is immersive.
-   * Immersive scenario implies visual and audio content.
-   */
-  immersive: v.optional(v.boolean()),
 
   /**
    * Scenario thumbnail image path.
@@ -260,10 +268,9 @@ const ScenarioSchema = v.object({
       ),
 
       /**
-       * A list of traits to describe the character.
+       * A list of trops to describe the character.
        */
-      // TODO: Remove in favor of personalityPrompt.
-      characterTraits: v.array(v.string()),
+      characterTropes: v.optional(v.record(v.string(), v.string())),
 
       /**
        * Appearance traits prompt for the character, e.g. hair color.
@@ -281,30 +288,25 @@ const ScenarioSchema = v.object({
       relationships: v.optional(v.record(IdSchema, v.string())),
 
       /**
-       * List of character expressions.
-       * The first expression is the default one.
+       * Optional list of character outfits.
        */
-      expressions: v.array(IdSchema),
-
-      /**
-       * List of character outfits.
-       * The first outfit is the default one.
-       */
-      outfits: v.record(
-        IdSchema,
-        v.object({
-          name: v.string(),
-          prompt: v.string(),
-          visualization: v.optional(
-            v.object({
-              sd: v.optional(
-                v.object({
-                  prompt: v.string(),
-                }),
-              ),
-            }),
-          ),
-        }),
+      outfits: v.optional(
+        v.record(
+          IdSchema,
+          v.object({
+            name: v.string(),
+            prompt: v.string(),
+            visualization: v.optional(
+              v.object({
+                sd: v.optional(
+                  v.object({
+                    prompt: v.string(),
+                  }),
+                ),
+              }),
+            ),
+          }),
+        ),
       ),
 
       visualization: v.optional(
@@ -322,6 +324,149 @@ const ScenarioSchema = v.object({
           ),
         }),
       ),
+
+      /**
+       * Voice models and embeddings for the character.
+       */
+      voices: v.optional(
+        v.object({
+          /**
+           * An XTTSv2 voice model.
+           */
+          xttsV2: v.optional(
+            v.object({
+              /**
+               * Voice embedding path.
+               */
+              embeddingPath: v.string(),
+
+              /**
+               * XTTSv2 voice model parameters.
+               */
+              params: v.optional(TtsParamsSchema),
+            }),
+          ),
+        }),
+      ),
+    }),
+  ),
+
+  /**
+   * A list of locations in the scenario, included in Writer prompts.
+   * May include different levels, e.g. school and classroom.
+   */
+  locations: v.array(
+    v.object({
+      /**
+       * Location name.
+       */
+      name: v.string(),
+
+      /**
+       * Location description.
+       */
+      prompt: v.string(),
+    }),
+  ),
+
+  /**
+   * List of episode definitions.
+   * The first episode is the default one.
+   */
+  episodes: v.record(
+    IdSchema,
+    v.object({
+      /**
+       * Episode name.
+       */
+      name: v.string(),
+
+      /**
+       * Short episode description.
+       */
+      about: v.string(),
+
+      /**
+       * Episode image path.
+       * Recommended aspect ratio: 16:9.
+       */
+      imagePath: v.optional(v.string()),
+
+      /**
+       * If the scenario begins from this episode,
+       * the initial checkpoint is set here.
+       */
+      initialCheckpoint: v.object({
+        summary: v.nullable(v.string()),
+      }),
+
+      chunks: v.array(
+        v.object({
+          writerUpdate: v.object({
+            /**
+             * Null for the narrator.
+             */
+            characterId: v.nullable(IdSchema),
+
+            /**
+             * Simulation day clock for this chunk,
+             * in 24h format, e.g. "16:20" or "04:20".
+             */
+            clock: v.pipe(
+              v.string(),
+              v.regex(/^\d{2}:\d{2}$/),
+              v.check((input) => {
+                const hours = parseInt(input.slice(0, 2));
+                return hours >= 0 && hours <= 24;
+              }, "Hours must be between 0 and 24"),
+              v.check((input) => {
+                const minutes = parseInt(input.slice(3, 5));
+                return minutes >= 0 && minutes <= 60;
+              }, "Minutes must be between 0 and 60"),
+              v.transform((input) => ({
+                hours: parseInt(input.slice(0, 2)),
+                minutes: parseInt(input.slice(3, 5)),
+              })),
+            ),
+
+            text: v.pipe(v.string(), v.trim(), v.nonEmpty()),
+          }),
+        }),
+      ),
+    }),
+  ),
+});
+
+const ImmersiveScenarioSchema = v.object({
+  ...BaseScenarioSchema.entries,
+
+  /**
+   * Whether the scenario is immersive.
+   * Immersive scenario implies visual and audio content.
+   */
+  immersive: v.literal(true),
+
+  /**
+   * Characters in the scenario.
+   * The first character is the default player character.
+   */
+  characters: v.record(
+    IdSchema,
+    v.object({
+      ...BaseScenarioSchema.entries.characters.value.entries,
+
+      /**
+       * List of character outfits (required).
+       * The first outfit is the default one.
+       */
+      outfits:
+        BaseScenarioSchema.entries.characters.value.entries.outfits.wrapped,
+
+      /**
+       * List of character expressions.
+       * The first expression is the default one.
+       */
+      expressions: v.array(IdSchema),
 
       /**
        * A layered sprites avatar comprises the following components:
@@ -381,48 +526,6 @@ const ScenarioSchema = v.object({
           }),
         ),
       }),
-
-      /**
-       * Voice models and embeddings for the character.
-       */
-      voices: v.optional(
-        v.object({
-          /**
-           * An XTTSv2 voice model.
-           */
-          xttsV2: v.optional(
-            v.object({
-              /**
-               * Voice embedding path.
-               */
-              embeddingPath: v.string(),
-
-              /**
-               * XTTSv2 voice model parameters.
-               */
-              params: v.optional(TtsParamsSchema),
-            }),
-          ),
-        }),
-      ),
-    }),
-  ),
-
-  /**
-   * A list of locations in the scenario, included in Writer prompts.
-   * May include different levels, e.g. school and classroom.
-   */
-  locations: v.array(
-    v.object({
-      /**
-       * Location name.
-       */
-      name: v.string(),
-
-      /**
-       * Location description.
-       */
-      prompt: v.string(),
     }),
   ),
 
@@ -473,28 +576,19 @@ const ScenarioSchema = v.object({
   episodes: v.record(
     IdSchema,
     v.object({
-      /**
-       * Episode name.
-       */
-      name: v.string(),
-
-      /**
-       * Short episode description.
-       */
-      about: v.string(),
-
-      /**
-       * Episode image path.
-       * Recommended aspect ratio: 16:9.
-       */
-      imagePath: v.optional(v.string()),
+      ...BaseScenarioSchema.entries.episodes.value.entries,
 
       /**
        * If the scenario begins from this episode,
        * the initial checkpoint is set here.
        */
       initialCheckpoint: v.object({
-        summary: v.nullable(v.string()),
+        ...BaseScenarioSchema.entries.episodes.value.entries.initialCheckpoint
+          .entries,
+
+        /**
+         * State of the scenario at the beginning of the episode.
+         */
         state: v.object({
           stage: v.object({
             sceneId: IdSchema,
@@ -509,37 +603,17 @@ const ScenarioSchema = v.object({
         }),
       }),
 
+      /**
+       * Episode chunks.
+       */
       chunks: v.array(
         v.object({
-          writerUpdate: v.object({
-            /**
-             * Null for the narrator.
-             */
-            characterId: v.nullable(IdSchema),
+          ...BaseScenarioSchema.entries.episodes.value.entries.chunks.item
+            .entries,
 
-            /**
-             * Simulation day clock for this chunk,
-             * in 24h format, e.g. "16:20" or "04:20".
-             */
-            clock: v.pipe(
-              v.string(),
-              v.regex(/^\d{2}:\d{2}$/),
-              v.check((input) => {
-                const hours = parseInt(input.slice(0, 2));
-                return hours >= 0 && hours <= 24;
-              }, "Hours must be between 0 and 24"),
-              v.check((input) => {
-                const minutes = parseInt(input.slice(3, 5));
-                return minutes >= 0 && minutes <= 60;
-              }, "Minutes must be between 0 and 60"),
-              v.transform((input) => ({
-                hours: parseInt(input.slice(0, 2)),
-                minutes: parseInt(input.slice(3, 5)),
-              })),
-            ),
-
-            text: v.string(),
-          }),
+          /**
+           * Director updates for the chunk.
+           */
           directorUpdate: v.optional(v.array(StateCommandSchema)),
         }),
       ),
@@ -547,28 +621,21 @@ const ScenarioSchema = v.object({
   ),
 });
 
-export class Scenario {
+const ScenarioSchema = v.variant("immersive", [
+  BaseScenarioSchema,
+  ImmersiveScenarioSchema,
+]);
+
+export class BaseScenario {
   constructor(
     readonly builtin: boolean,
     readonly id: string,
     readonly basePath: string,
-    private readonly content: v.InferOutput<typeof ScenarioSchema>,
+    readonly content: v.InferOutput<typeof BaseScenarioSchema>,
   ) {}
 
   async resourceUrl(path: string) {
     return join(this.basePath, path).then(convertFileSrc);
-  }
-
-  get name() {
-    return this.content.name;
-  }
-
-  get nsfw() {
-    return this.content.nsfw ?? false;
-  }
-
-  get immersive() {
-    return this.content.immersive ?? false;
   }
 
   async getThumbnailUrl() {
@@ -581,10 +648,6 @@ export class Scenario {
     return this.resourceUrl(this.content.coverImagePath);
   }
 
-  get media() {
-    return this.content.media ?? [];
-  }
-
   async getMediaUrls() {
     return this.content.media
       ? Promise.all(
@@ -593,40 +656,81 @@ export class Scenario {
       : [];
   }
 
-  get language() {
-    return this.content.language;
+  get defaultCharacterId() {
+    return Object.keys(this.content.characters)[0];
   }
 
-  get contextWindowSize() {
-    return this.content.contextWindowSize;
+  get defaultCharacter() {
+    return this.content.characters[this.defaultCharacterId];
   }
 
-  get about() {
-    return this.content.about;
+  async getCharacterPfpUrl(characterId: string) {
+    const character = this.ensureCharacter(characterId);
+    if (!character.pfpPath) return undefined;
+    return this.resourceUrl(character.pfpPath);
   }
 
-  get description() {
-    return this.content.description;
+  findCharacter(characterId: string) {
+    const scene = this.content.characters[characterId];
+    if (!scene) return undefined;
+    return scene;
   }
 
-  get excerpt() {
-    return this.content.excerpt;
+  ensureCharacter(characterId: string) {
+    const found = this.findCharacter(characterId);
+    if (!found) throw new Error(`Character not found: ${characterId}`);
+    return found;
   }
 
-  get globalScenario() {
-    return this.content.globalScenario;
+  findEpisode(episodeId: string) {
+    const episode = this.content.episodes[episodeId];
+    if (!episode) return undefined;
+    return episode;
   }
 
-  get instructions() {
-    return this.content.instructions;
+  ensureEpisode(episodeId: string) {
+    const found = this.findEpisode(episodeId);
+    if (!found) throw new Error(`Episode not found: ${episodeId}`);
+    return found;
   }
 
-  get narratorVoices() {
-    return this.content.narratorVoices;
+  get defaultEpisodeId() {
+    return Object.keys(this.content.episodes)[0];
   }
 
-  get characters() {
-    return this.content.characters;
+  get defaultEpisode() {
+    return this.content.episodes[this.defaultEpisodeId];
+  }
+}
+
+export class ImmersiveScenario {
+  constructor(
+    readonly builtin: boolean,
+    readonly id: string,
+    readonly basePath: string,
+    readonly content: v.InferOutput<typeof ImmersiveScenarioSchema>,
+  ) {}
+
+  async resourceUrl(path: string) {
+    return join(this.basePath, path).then(convertFileSrc);
+  }
+
+  async getThumbnailUrl() {
+    if (!this.content.thumbnailPath) return undefined;
+    return this.resourceUrl(this.content.thumbnailPath);
+  }
+
+  async getCoverImageUrl() {
+    if (!this.content.coverImagePath) return undefined;
+    return this.resourceUrl(this.content.coverImagePath);
+  }
+
+  async getMediaUrls() {
+    return this.content.media
+      ? Promise.all(
+          this.content.media?.map((media) => this.resourceUrl(media.path)),
+        )
+      : [];
   }
 
   get defaultCharacterId() {
@@ -690,14 +794,6 @@ export class Scenario {
     return found;
   }
 
-  get locations() {
-    return this.content.locations;
-  }
-
-  get scenes() {
-    return this.content.scenes;
-  }
-
   get defaultSceneId() {
     return Object.keys(this.content.scenes)[0];
   }
@@ -716,10 +812,6 @@ export class Scenario {
     const found = this.findScene(sceneId);
     if (!found) throw new Error(`Scene not found: ${sceneId}`);
     return found;
-  }
-
-  get episodes() {
-    return this.content.episodes;
   }
 
   findEpisode(episodeId: string) {
@@ -743,17 +835,7 @@ export class Scenario {
   }
 }
 
-class ParseError extends Error {
-  constructor(readonly message: string) {
-    super(message);
-    this.name = "ParseError";
-  }
-}
-
-export type ErroredScenario = {
-  path: string;
-  error: Error;
-};
+export type Scenario = BaseScenario | ImmersiveScenario;
 
 export async function readScenarios(
   baseDir: BaseDirectory,
@@ -778,14 +860,22 @@ export async function readScenarios(
   }
 
   const scenarios: Scenario[] = [];
-  console.debug(`Reading scenarios from ${scenariosDir}`);
+  // console.debug(`Reading scenarios from ${scenariosDir}`);
   const entries = await readDir(scenariosDir);
 
   for (const entry of entries) {
     if (!entry.name || !entry.children) continue;
-    const scenario = await readScenario(baseDir, entry.name);
-    if (scenario instanceof Scenario) scenarios.push(scenario);
-    else console.error(scenario.error);
+
+    try {
+      const scenario = await readScenario(baseDir, entry.name);
+      scenarios.push(scenario);
+    } catch (e: any) {
+      if (e instanceof ScenarioError) {
+        console.error(e);
+      } else {
+        throw e;
+      }
+    }
   }
 
   return scenarios;
@@ -794,7 +884,7 @@ export async function readScenarios(
 export async function readScenario(
   baseDir: BaseDirectory,
   id: string,
-): Promise<Scenario | ErroredScenario> {
+): Promise<Scenario> {
   let path, indexPath;
 
   switch (baseDir) {
@@ -819,22 +909,14 @@ export async function readScenario(
   try {
     console.debug(`Reading scenario from ${indexPath}`);
     indexString = await readTextFile(indexPath);
-  } catch (error) {
-    return {
-      id,
-      path,
-      error: new Error(`Failed to read ${indexPath}`),
-    };
+  } catch (error: any) {
+    throw new ScenarioError(indexPath, error.message);
   }
 
   const indexJsonParseResult =
     safeParseJson<v.InferInput<typeof ScenarioSchema>>(indexString);
   if (!indexJsonParseResult.success) {
-    return {
-      id,
-      path,
-      error: new ParseError(indexJsonParseResult.error),
-    };
+    throw new ScenarioError(indexPath, indexJsonParseResult.error);
   }
 
   const scenarioParseResult = v.safeParse(
@@ -842,16 +924,29 @@ export async function readScenario(
     indexJsonParseResult.output,
   );
   if (!scenarioParseResult.success) {
-    const error = new ParseError(formatIssues(scenarioParseResult.issues));
-    return { id, path, error };
+    throw new ScenarioError(
+      indexPath,
+      formatIssues(scenarioParseResult.issues),
+    );
   }
 
-  return new Scenario(
-    baseDir === BaseDirectory.Resource,
-    id,
-    path,
-    scenarioParseResult.output,
-  );
+  if (scenarioParseResult.output.immersive) {
+    console.debug(`Read immersive scenario: ${id}`);
+    return new ImmersiveScenario(
+      baseDir === BaseDirectory.Resource,
+      id,
+      path,
+      scenarioParseResult.output,
+    );
+  } else {
+    console.debug(`Read base scenario: ${id}`);
+    return new BaseScenario(
+      baseDir === BaseDirectory.Resource,
+      id,
+      path,
+      scenarioParseResult.output,
+    );
+  }
 }
 
 /**
@@ -862,12 +957,17 @@ export async function readScenario(
  */
 export async function ensureScenario(id: string): Promise<Scenario> {
   // First, try to read the scenario from the resource directory.
-  let scenario = await readScenario(BaseDirectory.Resource, id);
-  if (scenario instanceof Scenario) return scenario;
+  const scenario = await readScenario(BaseDirectory.Resource, id).catch(
+    (e: any) => {
+      if (e instanceof ScenarioError) return null;
+      else throw e;
+    },
+  );
+
+  if (scenario) {
+    return scenario;
+  }
 
   // If the scenario is not found in the resource directory, try the local data directory.
-  scenario = await readScenario(BaseDirectory.AppLocalData, id);
-  if (scenario instanceof Scenario) return scenario;
-
-  throw scenario.error;
+  return await readScenario(BaseDirectory.AppLocalData, id);
 }

@@ -15,6 +15,7 @@ import {
 } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import Episode from "./Episode.vue";
+import { ImmersiveScenario } from "@/lib/simulation/scenario";
 
 const props = defineProps<{
   open: boolean;
@@ -37,14 +38,16 @@ watch(
   },
 );
 const selectedEpisode = computed(
-  () => props.scenario.episodes[selectedEpisodeId.value],
+  () => props.scenario.content.episodes[selectedEpisodeId.value],
 );
 const selectedEpisodeImageUrl = asyncComputed(() =>
   selectedEpisode.value?.imagePath
     ? props.scenario.resourceUrl(selectedEpisode.value.imagePath)
     : null,
 );
-const mode = ref(Mode.Immersive);
+const mode = ref(
+  props.scenario instanceof ImmersiveScenario ? Mode.Immersive : Mode.Chat,
+);
 
 async function play(episodeId?: string | null) {
   const simulationId = await Simulation.create(
@@ -80,21 +83,21 @@ Modal.max-h-full.w-full.max-w-3xl.rounded-lg(
           :src="scenarioImgUrl"
         )
         .flex.w-full.flex-col
-          CustomTitle(:title="scenario.name")
+          CustomTitle(:title="scenario.content.name")
             template(#extra)
               .flex.gap-1
                 BananaIcon.cursor-help(
-                  v-if="scenario.nsfw"
+                  v-if="scenario.content.nsfw"
                   :size="20"
                   v-tooltip="'This scenario is NSFW'"
                 )
                 MonitorIcon.cursor-help(
-                  v-if="scenario.immersive"
+                  v-if="scenario instanceof ImmersiveScenario && true"
                   :size="20"
                   v-tooltip="'This scenario supports visual novel mode'"
                 )
 
-          p.leading-snug {{ scenario.about }}
+          p.leading-snug {{ scenario.content.about }}
 
     .grid.grid-cols-5
       //- Episodes.
@@ -106,7 +109,7 @@ Modal.max-h-full.w-full.max-w-3xl.rounded-lg(
 
           ul.flex.flex-col.gap-2
             Episode.h-max.cursor-pointer.rounded-lg.border(
-              v-for="episodeId in Object.keys(scenario.episodes)"
+              v-for="episodeId in Object.keys(scenario.content.episodes)"
               :scenario
               :episode-id
               :selected="selectedEpisodeId === episodeId"
@@ -134,6 +137,7 @@ Modal.max-h-full.w-full.max-w-3xl.rounded-lg(
             button._mode-button(
               @click="mode = Mode.Immersive"
               :class="{ _selected: mode === Mode.Immersive }"
+              :disabled="!(scenario instanceof ImmersiveScenario)"
             )
               MonitorIcon(:size="28" :stroke-width="1.75")
               | Visual novel mode

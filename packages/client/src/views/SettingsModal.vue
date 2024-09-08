@@ -198,7 +198,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                 ._icon
                   ClapperboardIcon(:size="20")
                 span Director
-              LlmStatusIcon(:driver="simulation.director.llmDriver.value")
+              LlmStatusIcon(:driver="simulation.director?.llmDriver.value")
 
             //- Voicer agent tab.
             ._tab(

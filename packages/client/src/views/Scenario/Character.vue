@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import { Scenario } from "@/lib/simulation/scenario";
+import { type Scenario } from "@/lib/simulation/scenario";
 import { CrownIcon } from "lucide-vue-next";
 import { computed } from "vue";
 
 const props = defineProps<{
   scenario: Scenario;
   characterId: string;
-  character: Scenario["characters"][string];
+  character: Scenario["content"]["characters"][string];
 }>();
 
 const isMainCharacter = computed(

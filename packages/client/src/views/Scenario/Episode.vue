@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Placeholder from "@/components/Placeholder.vue";
-import { Scenario } from "@/lib/simulation/scenario";
+import { type Scenario } from "@/lib/simulation/scenario";
 import { asyncComputed } from "@vueuse/core";
 import { computed } from "vue";
 
@@ -10,7 +10,9 @@ const props = defineProps<{
   selected?: boolean;
 }>();
 
-const episode = computed(() => props.scenario.episodes[props.episodeId]);
+const episode = computed(
+  () => props.scenario.content.episodes[props.episodeId],
+);
 
 const episodeImageUrl = asyncComputed(() =>
   episode.value.imagePath

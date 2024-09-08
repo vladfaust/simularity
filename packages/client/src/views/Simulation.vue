@@ -17,6 +17,7 @@ import prettyBytes from "pretty-bytes";
 import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import DevConsole from "./Simulation/DevConsole.vue";
 import GameConsole from "./Simulation/GameConsole.vue";
+import type { ImmersiveScenario } from "@/lib/simulation/scenario";
 
 const props = defineProps<{ simulationId: string }>();
 const simulationId = Number(props.simulationId);
@@ -99,8 +100,8 @@ onMounted(async () => {
     // REFACTOR: Scene creation shall be incapsulated.
     gameInstance = new Game();
     scene = new DefaultScene(
-      simulation.value.scenario,
-      simulation.value.state.stage.value,
+      simulation.value.scenario as ImmersiveScenario,
+      simulation.value.state!.stage.value,
       (progress) => {
         loadProgress.value = progress;
       },

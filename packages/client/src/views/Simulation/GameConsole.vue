@@ -99,7 +99,7 @@ const sendButtonState = computed<SendButtonState>(() => {
     if (userInput.value) {
       return SendButtonState.WillSendMessage;
     } else if (
-      simulation.state.shallAdvanceEpisode.value ||
+      simulation.shallAdvanceEpisode.value ||
       simulation.canGoForward.value
     ) {
       return SendButtonState.WillGoForward;
@@ -113,7 +113,7 @@ const showSettingsModal = ref(false);
 
 const enabledCharacterIds = useLocalStorage<Set<string>>(
   `simulation:${simulation.id}:enabledCharacterIds`,
-  new Set([...Object.keys(simulation.scenario.characters), NARRATOR]),
+  new Set([...Object.keys(simulation.scenario.content.characters), NARRATOR]),
   {
     serializer: StorageSerializers.set,
   },
@@ -209,7 +209,7 @@ async function advance() {
 
   busy.value = true;
   try {
-    if (simulation.state.shallAdvanceEpisode.value) {
+    if (simulation.shallAdvanceEpisode.value) {
       await simulation.advanceCurrentEpisode();
     } else {
       if (simulation.canGoForward.value) {
@@ -341,7 +341,7 @@ function enableOnlyCharacter(characterId: string) {
   ) {
     console.debug("Disabling all characters except", characterId);
     enabledCharacterIds.value = new Set([
-      ...Object.keys(simulation.scenario.characters).filter(
+      ...Object.keys(simulation.scenario.content.characters).filter(
         (id) => id !== characterId,
       ),
       NARRATOR,
@@ -393,9 +393,9 @@ function onKeypress(event: KeyboardEvent) {
           switchEnabledCharacter(NARRATOR);
         }
       } else {
-        const characterId = Object.keys(simulation.scenario.characters).at(
-          int - 2,
-        );
+        const characterId = Object.keys(
+          simulation.scenario.content.characters,
+        ).at(int - 2);
 
         if (characterId) {
           if (event.metaKey) {
@@ -578,7 +578,7 @@ onUnmounted(() => {
 
       button._button.group.relative.aspect-square.h-full(
         @click="onSendButtonClick"
-        :disabled="busy || (!simulation.ready.value && !simulation.state.shallAdvanceEpisode.value)"
+        :disabled="busy || (!simulation.ready.value && !simulation.shallAdvanceEpisode.value)"
         :title="sendButtonState === SendButtonState.WillSendMessage ? 'Send message (enter)' : sendButtonState === SendButtonState.WillGoForward ? 'Go forward (enter)' : 'Predict (enter)'"
       )
         //- REFACTOR: Make a component for such multi-state animations.

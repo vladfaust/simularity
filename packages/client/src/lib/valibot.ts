@@ -22,7 +22,13 @@ export function formatIssues(
   const flatErrors = v.flatten(issues);
   let text = "";
 
+  if (flatErrors.root) {
+    text += `At root: ${(flatErrors.root as string[] | undefined)?.join(", ")}`;
+  }
+
   if (flatErrors.nested) {
+    if (flatErrors.root) text += "; ";
+
     text += Object.entries(flatErrors.nested)
       .map(
         ([path, errors]) =>

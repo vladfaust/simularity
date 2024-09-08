@@ -33,7 +33,7 @@ export const checkpoints = sqliteTable(
     ),
 
     summary: text("summary"),
-    state: text("state", { mode: "json" }).$type<StateDto>().notNull(),
+    state: text("state", { mode: "json" }).$type<StateDto>(),
 
     createdAt: timestamp("created_at", { notNull: true, defaultNow: true }),
   }),

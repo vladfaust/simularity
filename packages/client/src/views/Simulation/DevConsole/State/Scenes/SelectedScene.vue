@@ -1,21 +1,22 @@
 <script setup lang="ts">
-import { Scenario, Simulation } from "@/lib/simulation";
+import { Simulation } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
 import { Grid2X2Icon } from "lucide-vue-next";
 import { computed } from "vue";
 import OnStageMark from "../OnStageMark.vue";
+import type { ImmersiveScenario } from "@/lib/simulation/scenario";
 
 const { simulation, sceneId, scene } = defineProps<{
   simulation: Simulation;
   sceneId: string;
-  scene: Scenario["scenes"][string];
+  scene: ImmersiveScenario["content"]["scenes"][string];
 }>();
 
 const bgUrl = asyncComputed(() => simulation.scenario.resourceUrl(scene.bg));
-const isSet = computed(() => simulation.state.stage.value.sceneId == sceneId);
+const isSet = computed(() => simulation.state!.stage.value.sceneId == sceneId);
 
 function set() {
-  simulation.state.setScene(sceneId);
+  simulation.state!.setScene(sceneId);
 }
 </script>
 

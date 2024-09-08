@@ -4,7 +4,11 @@ import CustomTitle from "@/components/CustomTitle.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
-import { ensureScenario, Scenario } from "@/lib/simulation/scenario";
+import {
+  ensureScenario,
+  ImmersiveScenario,
+  type Scenario,
+} from "@/lib/simulation/scenario";
 import * as tauri from "@/lib/tauri";
 import { prettyNumber, replaceAsync } from "@/lib/utils";
 import { routeLocation } from "@/router";
@@ -41,13 +45,13 @@ const scenario = ref<Scenario | undefined>();
 
 // Replace links in the markdown description.
 const processedScenarioDescription = asyncComputed(async () => {
-  if (!scenario.value?.description) {
+  if (!scenario.value?.content.description) {
     return;
   }
 
   // Replace links in `[text](url)` with `[text](resourceUrl(url))`.
   let desc = await replaceAsync(
-    scenario.value.description,
+    scenario.value.content.description,
     /\[([^\]]+)\]\(([^)]+)\)/g,
     async (match, text, link) => {
       console.debug(`Replacing link in ${match}`);
@@ -108,14 +112,7 @@ async function showInFileManager() {
 }
 
 onMounted(async () => {
-  console.log("props.scenarioId", props.scenarioId);
-  const read = await ensureScenario(props.scenarioId);
-
-  if (read instanceof Scenario) {
-    scenario.value = read;
-  } else {
-    throw new Error(JSON.stringify(read));
-  }
+  scenario.value = await ensureScenario(props.scenarioId);
 
   saves.value = await d.db.query.simulations.findMany({
     columns: { id: true },
@@ -146,7 +143,7 @@ onMounted(async () => {
           ArrowLeftIcon(:size="20")
 
         //- Scenario name.
-        h1.text-lg.font-semibold.leading-none.tracking-wide {{ scenario?.name }}
+        h1.text-lg.font-semibold.leading-none.tracking-wide {{ scenario?.content.name }}
 
       //- Right side.
       button.btn.btn-sm.shrink-0.rounded-lg.border.transition-transform.pressable(
@@ -172,7 +169,7 @@ onMounted(async () => {
           .col-span-2.flex.flex-col.gap-2
             //- Current media.
             img.aspect-video.w-full.rounded-lg.object-cover.transition(
-              v-if="scenario.media.at(currentMediaIndex)?.type === 'image' && mediaUrls"
+              v-if="scenario.content.media?.at(currentMediaIndex)?.type === 'image' && mediaUrls"
               :src="mediaUrls[currentMediaIndex]"
               class="hover:brightness-105"
             )
@@ -181,8 +178,8 @@ onMounted(async () => {
             //- Media grid.
             ul.flex.gap-2.overflow-x-scroll
               li.shrink-0.cursor-pointer.transition-transform.pressable(
-                v-if="scenario.media.length"
-                v-for="media, i of scenario.media"
+                v-if="scenario.content.media?.length"
+                v-for="media, i of scenario.content.media"
                 style="width: calc(25% - 0.25rem)"
                 @click="currentMediaIndex = i"
               )
@@ -205,20 +202,20 @@ onMounted(async () => {
             Placeholder.aspect-video(v-else)
 
             .flex.h-full.flex-col.gap-1.p-3
-              CustomTitle(:title="scenario.name")
+              CustomTitle(:title="scenario.content.name")
                 template(#extra)
                   .flex.gap-1
                     BananaIcon.cursor-help(
-                      v-if="scenario.nsfw"
+                      v-if="scenario.content.nsfw"
                       :size="20"
                       v-tooltip="'This scenario is NSFW'"
                     )
                     MonitorIcon.cursor-help(
-                      v-if="scenario.immersive"
+                      v-if="scenario instanceof ImmersiveScenario && true"
                       :size="20"
                       v-tooltip="'This scenario supports visual novel mode'"
                     )
-              p.text-sm.leading-tight {{ scenario.about }}
+              p.text-sm.leading-tight {{ scenario.content.about }}
 
         //- Actions.
         .flex.flex-col.gap-2.rounded-lg.bg-white.p-3
@@ -285,30 +282,30 @@ onMounted(async () => {
               template(#icon)
                 DramaIcon(:size="18")
               template(#extra)
-                span {{ Object.keys(scenario.characters).length }}
+                span {{ Object.keys(scenario.content.characters).length }}
 
             //- Characters grid.
             .grid.gap-2(class="@sm:grid-cols-2")
               Character.overflow-hidden.rounded-lg.border(
-                v-for="[characterId, character] in Object.entries(scenario.characters)"
+                v-for="[characterId, character] in Object.entries(scenario.content.characters)"
                 :key="characterId"
                 :scenario
                 :character-id
                 :character
               )
 
-            template(v-if="Object.keys(scenario.episodes).length > 1")
+            template(v-if="Object.keys(scenario.content.episodes).length > 1")
               //- Episodes.
               CustomTitle(title="Episodes")
                 template(#icon)
                   BookMarkedIcon(:size="18")
                 template(#extra)
-                  span {{ Object.keys(scenario.episodes).length }}
+                  span {{ Object.keys(scenario.content.episodes).length }}
 
               //- Episodes grid.
               .grid.w-full.grid-cols-3.gap-2
                 Episode.cursor-pointer.overflow-hidden.rounded-lg.border.transition-transform.pressable(
-                  v-for="[episodeId, episode] in Object.entries(scenario.episodes)"
+                  v-for="[episodeId, episode] in Object.entries(scenario.content.episodes)"
                   :key="episodeId"
                   :scenario
                   :episodeId
@@ -323,24 +320,25 @@ onMounted(async () => {
                 .flex.items-center.gap-1
                   Globe2Icon(:size="16")
                   span.shrink-0.font-semibold Language
-                .font-mono {{ scenario.language }}
+                .font-mono {{ scenario.content.language }}
 
                 .flex.cursor-help.items-center.gap-1.underline.decoration-dashed(
                   title="Minimum context size for a Large Language Model"
                 )
                   ProportionsIcon(:size="16")
                   span.shrink-0.font-semibold Context
-                .font-mono {{ prettyNumber(scenario.contextWindowSize, { space: false }) }}
+                .font-mono {{ prettyNumber(scenario.content.contextWindowSize, { space: false }) }}
 
                 .flex.items-center.gap-1
                   DramaIcon(:size="16")
                   span.shrink-0.font-semibold Characters
-                .font-mono {{ Object.keys(scenario.characters).length }}
+                .font-mono {{ Object.keys(scenario.content.characters).length }}
 
-                .flex.items-center.gap-1
-                  ImageIcon(:size="16")
-                  span.shrink-0.font-semibold Scenes
-                .font-mono {{ Object.keys(scenario.scenes).length }}
+                template(v-if="scenario instanceof ImmersiveScenario && true")
+                  .flex.items-center.gap-1
+                    ImageIcon(:size="16")
+                    span.shrink-0.font-semibold Scenes
+                  .font-mono {{ Object.keys(scenario.content.scenes).length }}
 
   NewGameModal(
     v-if="scenario"

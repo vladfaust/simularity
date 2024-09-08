@@ -13,7 +13,7 @@ const { simulation } = defineProps<{
 
 const status = computed<Status | undefined>(() => {
   const writerBusy = simulation.writer.llmDriver.value?.busy.value;
-  const directorBusy = simulation.director.llmDriver.value?.busy.value;
+  const directorBusy = simulation.director?.llmDriver.value?.busy.value;
 
   if (writerBusy || directorBusy) {
     return Status.Busy;

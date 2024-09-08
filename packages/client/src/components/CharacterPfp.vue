@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import Placeholder from "@/components/Placeholder.vue";
-import { Scenario } from "@/lib/simulation";
+import { type Scenario } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
 
 const { scenario, character } = defineProps<{
   scenario: Scenario;
-  character: Scenario["characters"][string];
+  character: Scenario["content"]["characters"][string];
 }>();
 
 const pfpUrl = asyncComputed(() =>

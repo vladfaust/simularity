@@ -44,7 +44,8 @@ const screenshotUrl = asyncComputed(async () => {
 const starterEpisodeImageUrl = asyncComputed(() => {
   if (!simulation.value?.starterEpisodeId || !scenario.value) return undefined;
 
-  const episode = scenario.value?.episodes[simulation.value.starterEpisodeId];
+  const episode =
+    scenario.value?.content.episodes[simulation.value.starterEpisodeId];
   if (!episode.imagePath) return undefined;
 
   return scenario.value.resourceUrl(episode.imagePath);
@@ -82,11 +83,11 @@ onMounted(() => {
   .aspect-video.w-full.border-b(v-else)
 
   .flex.flex-col.p-2(v-if="simulation?.updatedAt")
-    CustomTitle(:title="scenario?.name")
+    CustomTitle(:title="scenario?.content.name")
       template(#extra)
         .flex.gap-1
           BananaIcon.cursor-help(
-            v-if="scenario?.nsfw"
+            v-if="scenario?.content.nsfw"
             :size="16"
             v-tooltip="'This scenario is NSFW'"
           )

@@ -1,17 +1,25 @@
 <script setup lang="ts">
 import { Simulation } from "@/lib/simulation";
+import type { ImmersiveScenario } from "@/lib/simulation/scenario";
 import { ImageIcon, ImageOffIcon } from "lucide-vue-next";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import OnStageMark from "./OnStageMark.vue";
 import Scene from "./Scenes/Scene.vue";
 import SelectedScene from "./Scenes/SelectedScene.vue";
+import { nonNullable } from "@/lib/utils";
 
 const { simulation } = defineProps<{
   simulation: Simulation;
 }>();
 
+const scenario = computed(
+  () =>
+    // Because DevConsole is only shown in immersive mode.
+    simulation.scenario as ImmersiveScenario,
+);
+
 const selectedSceneId = ref<string | undefined>(
-  simulation.state.stage.value.sceneId,
+  simulation.state!.stage.value.sceneId,
 );
 </script>
 
@@ -28,17 +36,17 @@ const selectedSceneId = ref<string | undefined>(
     .h-full.overflow-y-auto(@click="selectedSceneId = undefined")
       ul.grid.gap-2.p-3(class="max-lg:grid-cols-3 lg:grid-cols-4")
         li.relative.cursor-pointer.shadow-lg.transition-transform.pressable-sm(
-          v-for="[sceneId, scene] in Object.entries(simulation.scenario.scenes)"
+          v-for="[sceneId, scene] in Object.entries(scenario.content.scenes)"
           :key="sceneId"
           @click.stop="selectedSceneId = sceneId"
         )
           Scene.overflow-hidden.rounded-lg.border-2(
-            :scenario="simulation.scenario"
+            :scenario
             :scene
             :selected="selectedSceneId === sceneId"
           )
           OnStageMark.absolute.-bottom-1.-right-1.shadow-lg(
-            v-if="simulation.state.stage.value.sceneId === sceneId"
+            v-if="nonNullable(simulation.state).stage.value.sceneId === sceneId"
           )
 
   //- Selected scene.
@@ -46,7 +54,7 @@ const selectedSceneId = ref<string | undefined>(
     v-if="selectedSceneId"
     :simulation
     :scene-id="selectedSceneId"
-    :scene="simulation.scenario.scenes[selectedSceneId]"
+    :scene="scenario.content.scenes[selectedSceneId]"
     :key="selectedSceneId"
   )
   .flex.flex-col.items-center.justify-center.border-l.opacity-50(v-else)

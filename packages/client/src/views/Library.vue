@@ -3,7 +3,7 @@ import Header from "@/components/Browser/Header.vue";
 import CustomTitle from "@/components/CustomTitle.vue";
 import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
-import { readScenarios, Scenario } from "@/lib/simulation/scenario";
+import { readScenarios, type Scenario } from "@/lib/simulation/scenario";
 import { showLibrarySaves } from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { routeLocation } from "@/router";
@@ -26,7 +26,7 @@ const saves = shallowRef<Pick<typeof d.simulations.$inferSelect, "id">[]>([]);
 
 const filteredScenarios = computed(() =>
   scenarios.value.filter((scenario) =>
-    scenario.name.toLowerCase().includes(search.value.toLowerCase()),
+    scenario.content.name.toLowerCase().includes(search.value.toLowerCase()),
   ),
 );
 
@@ -140,7 +140,7 @@ onMounted(async () => {
         li.cursor-pointer.overflow-hidden.rounded-lg.border.bg-white.shadow-lg.transition-transform.pressable(
           v-for="scenario in filteredScenarios"
           :key="scenario.id"
-          :title="scenario.name"
+          :title="scenario.content.name"
           class="active:shadow-sm"
         )
           RouterLink(

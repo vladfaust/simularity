@@ -39,7 +39,7 @@ function onCharacterClick(event: MouseEvent, characterId: string) {
 
     //- Other characters.
     .relative(
-      v-for="([characterId, character], i) in Object.entries(simulation.scenario.characters)"
+      v-for="([characterId, character], i) in Object.entries(simulation.scenario.content.characters)"
     )
       ._index.-bottom-1.-left-1.z-10.h-4.w-4.rounded.shadow-lg
         span.text-xs {{ i + 2 }}

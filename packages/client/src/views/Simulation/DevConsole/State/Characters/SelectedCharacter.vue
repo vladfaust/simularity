@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import CharacterAvatar from "@/components/CharacterAvatar.vue";
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import { Scenario, Simulation } from "@/lib/simulation";
+import { Simulation } from "@/lib/simulation";
+import type { ImmersiveScenario } from "@/lib/simulation/scenario";
 import { asyncComputed } from "@vueuse/core";
 import { Grid2x2Icon, Grid2x2XIcon } from "lucide-vue-next";
 import { computed, ref } from "vue";
@@ -10,11 +11,17 @@ import OnStageMark from "../OnStageMark.vue";
 const { simulation, characterId, character } = defineProps<{
   simulation: Simulation;
   characterId: string;
-  character: Scenario["characters"][string];
+  character: ImmersiveScenario["content"]["characters"][string];
 }>();
 
+const scenario = computed(
+  () =>
+    // Because DevConsole is only shown in immersive mode.
+    simulation.scenario as ImmersiveScenario,
+);
+
 const onStageCharacter = computed(() =>
-  simulation.state.stage.value.characters.find((c) => c.id === characterId),
+  simulation.state!.stage.value.characters.find((c) => c.id === characterId),
 );
 
 const isOnStage = computed(() => !!onStageCharacter.value);
@@ -24,27 +31,26 @@ const onStageExpressionId = computed(
 );
 
 const selectedOutfitId = ref<string>(
-  onStageOutfitId.value || simulation.scenario.defaultOutfitId(characterId),
+  onStageOutfitId.value || scenario.value.defaultOutfitId(characterId),
 );
 const selectedExpressionId = ref<string>(
-  onStageExpressionId.value ||
-    simulation.scenario.defaultExpressionId(characterId),
+  onStageExpressionId.value || scenario.value.defaultExpressionId(characterId),
 );
 const sceneBgUrl = asyncComputed(() =>
-  simulation.scenario.resourceUrl(
-    simulation.scenario.ensureScene(simulation.state.stage.value.sceneId).bg,
+  scenario.value.resourceUrl(
+    scenario.value.ensureScene(simulation.state!.stage.value.sceneId).bg,
   ),
 );
 
 const expressionPreviewTranform = computed(
   () =>
-    simulation.scenario.ensureCharacter(characterId).layeredSpritesAvatar
+    scenario.value.ensureCharacter(characterId).layeredSpritesAvatar
       .expressionsPreviewTransform,
 );
 
 const outfitPreviewTranform = computed(
   () =>
-    simulation.scenario.ensureCharacter(characterId).layeredSpritesAvatar
+    scenario.value.ensureCharacter(characterId).layeredSpritesAvatar
       .outfitsPreviewTransform,
 );
 
@@ -52,7 +58,7 @@ function selectOutfitId(outfitId: string) {
   selectedOutfitId.value = outfitId;
 
   if (onStageCharacter.value) {
-    simulation.state.setOutfit(characterId, outfitId);
+    simulation.state!.setOutfit(characterId, outfitId);
   }
 }
 
@@ -60,12 +66,12 @@ function selectExpressionId(expressionId: string) {
   selectedExpressionId.value = expressionId;
 
   if (onStageCharacter.value) {
-    simulation.state.setExpression(characterId, expressionId);
+    simulation.state!.setExpression(characterId, expressionId);
   }
 }
 
 function addToStage() {
-  simulation.state.addCharacter(
+  simulation.state!.addCharacter(
     characterId,
     selectedOutfitId.value,
     selectedExpressionId.value,
@@ -73,7 +79,7 @@ function addToStage() {
 }
 
 function removeFromStage() {
-  simulation.state.removeCharacter(characterId);
+  simulation.state!.removeCharacter(characterId);
 }
 </script>
 
@@ -116,7 +122,7 @@ function removeFromStage() {
         v-for="outfitId of Object.keys(character.outfits)"
         :key="outfitId"
         :class="{ 'border-white': outfitId !== selectedOutfitId, 'border-primary-500': outfitId === selectedOutfitId }"
-        :scenario="simulation.scenario"
+        :scenario
         :character-id
         :outfit-id
         :expression-id="selectedExpressionId"
@@ -134,7 +140,7 @@ function removeFromStage() {
         v-for="expressionId of (character.expressions)"
         :key="expressionId"
         :class="{ 'border-white': expressionId !== selectedExpressionId, 'border-primary-500': expressionId === selectedExpressionId }"
-        :scenario="simulation.scenario"
+        :scenario
         :character-id
         :outfit-id="selectedOutfitId"
         :expression-id
@@ -149,7 +155,7 @@ function removeFromStage() {
   .relative.grid.h-full.w-full
     img.absolute.h-full.w-full.object-cover(:src="sceneBgUrl")
     CharacterAvatar.absolute.w-full(
-      :scenario="simulation.scenario"
+      :scenario
       :character-id
       :outfit-id="selectedOutfitId"
       :expression-id="selectedExpressionId"

@@ -156,6 +156,9 @@ export async function migrate(
     new (
       await import("./drizzle/migrations/007_add_mode_to_simulations.js")
     ).default(),
+    new (
+      await import("./drizzle/migrations/008_set_checkpoints_state_nullabe.js")
+    ).default(),
   ];
 
   return migrate_(

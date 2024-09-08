@@ -120,7 +120,7 @@ const selectedModelId = computed<string | undefined>({
         )
           CharacterPfp.aspect-square.h-6.rounded.border(
             :scenario="simulation.scenario"
-            :character="simulation.scenario.characters[mainCharacterId]"
+            :character="simulation.scenario.content.characters[mainCharacterId]"
           )
           span Main character voiceover
         CircleHelpIcon(:size="16")

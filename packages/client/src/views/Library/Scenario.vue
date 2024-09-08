@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Placeholder from "@/components/Placeholder.vue";
-import { Scenario } from "@/lib/simulation";
+import { type Scenario } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
 
 const props = defineProps<{
@@ -14,7 +14,7 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
 .flex.flex-col.divide-y
   img.w-full.select-none.object-cover.transition(
     class="aspect-[3/4] hover:scale-105 hover:brightness-105"
-    :class="{ 'blur scale-105': scenario.nsfw }"
+    :class="{ 'blur scale-105': scenario.content.nsfw }"
     v-if="thumbnailUrl"
     :src="thumbnailUrl"
   )

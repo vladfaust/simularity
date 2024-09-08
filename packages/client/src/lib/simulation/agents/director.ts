@@ -10,7 +10,7 @@ import { clone, safeParseJson, tap, trimEndAny } from "@/lib/utils";
 import { formatIssues, v } from "@/lib/valibot";
 import { toJSONSchema } from "@gcornut/valibot-json-schema";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
-import { Scenario } from "../scenario";
+import { ImmersiveScenario } from "../scenario";
 import { State, type StateDto } from "../state";
 import { type StateCommand } from "../state/commands";
 import { hookLlmAgentToDriverRef } from "./llm";
@@ -47,7 +47,7 @@ export class Director {
   readonly ready = computed(() => this.llmDriver.value?.ready.value);
   private readonly _driverConfigWatchStopHandle: () => void;
 
-  constructor(private scenario: Scenario) {
+  constructor(private scenario: ImmersiveScenario) {
     this.llmDriver = shallowRef(null);
     this._driverConfigWatchStopHandle = hookLlmAgentToDriverRef(
       "director",
@@ -217,43 +217,45 @@ export class Director {
   /**
    * Build a static prompt for the director agent.
    */
-  static buildStaticPrompt(scenario: Scenario): string {
+  static buildStaticPrompt(scenario: ImmersiveScenario): string {
     const setup = {
       locations: Object.fromEntries(
-        Object.values(scenario.locations).map((location) => [
+        Object.values(scenario.content.locations).map((location) => [
           location.name,
           location.prompt,
         ]),
       ),
       scenes: Object.fromEntries(
-        Object.entries(scenario.scenes).map(([sceneId, scene]) => [
+        Object.entries(scenario.content.scenes).map(([sceneId, scene]) => [
           sceneId,
           scene.name,
         ]),
       ),
       characters: Object.fromEntries(
-        Object.entries(scenario.characters).map(([characterId, character]) => [
-          characterId,
-          {
-            fullName: character.fullName,
+        Object.entries(scenario.content.characters).map(
+          ([characterId, character]) => [
+            characterId,
+            {
+              fullName: character.fullName,
 
-            // Used to identify a character.
-            appearance: character.appearancePrompt,
+              // Used to identify a character.
+              appearance: character.appearancePrompt,
 
-            // For emotional consistency.
-            psychologicalTraits: character.psychologicalTraits,
-            // relationships: character.relationships, // Not enough context.
+              // For emotional consistency.
+              psychologicalTraits: character.psychologicalTraits,
+              // relationships: character.relationships, // Not enough context.
 
-            outfits: Object.fromEntries(
-              Object.entries(character.outfits).map(([outfitId, outfit]) => [
-                outfitId,
-                outfit.name,
-              ]),
-            ),
+              outfits: Object.fromEntries(
+                Object.entries(character.outfits).map(([outfitId, outfit]) => [
+                  outfitId,
+                  outfit.name,
+                ]),
+              ),
 
-            emotions: character.expressions,
-          },
-        ]),
+              emotions: character.expressions,
+            },
+          ],
+        ),
       ),
     };
 
@@ -337,7 +339,7 @@ ${JSON.stringify(setup)}
   }
 
   private static _buildGrammar(
-    scenario: Scenario,
+    scenario: ImmersiveScenario,
     supportedLangs: Set<LlmGrammarLang>,
     characters: { id: string; required: boolean }[],
   ): {
@@ -350,13 +352,13 @@ ${JSON.stringify(setup)}
     for (const character of characters) {
       const schema = v.strictObject({
         outfit: v.union(
-          Object.keys(scenario.characters[character.id].outfits).map(
+          Object.keys(scenario.content.characters[character.id].outfits).map(
             (outfitId) => v.literal(outfitId),
           ),
         ),
         emotion: v.union(
-          scenario.characters[character.id].expressions.map((emotionId) =>
-            v.literal(emotionId),
+          scenario.content.characters[character.id].expressions.map(
+            (emotionId) => v.literal(emotionId),
           ),
         ),
       });
@@ -368,7 +370,9 @@ ${JSON.stringify(setup)}
 
     const schema = v.strictObject({
       scene: v.union(
-        Object.keys(scenario.scenes).map((sceneId) => v.literal(sceneId)),
+        Object.keys(scenario.content.scenes).map((sceneId) =>
+          v.literal(sceneId),
+        ),
       ),
       characters: v.strictObject(characterSchemas),
     });

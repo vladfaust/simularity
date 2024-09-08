@@ -1,7 +1,7 @@
 import { deepEqual } from "fast-equals";
-import { computed, readonly, ref, type Ref } from "vue";
+import { readonly, ref, type Ref } from "vue";
 import { clone, unreachable } from "../utils";
-import { Scenario } from "./scenario";
+import type { ImmersiveScenario } from "./scenario";
 import { type StageRenderer } from "./stageRenderer";
 import { type StateCommand } from "./state/commands";
 
@@ -42,11 +42,6 @@ export type Stage = {
  */
 export type StateDto = {
   stage: Stage;
-  currentEpisode?: {
-    id: string;
-    totalChunks: number;
-    nextChunkIndex: number;
-  } | null;
 };
 
 /**
@@ -56,50 +51,14 @@ export class State {
   private readonly _stage: Ref<Stage> = ref({ sceneId: "", characters: [] });
   readonly stage = readonly(this._stage);
 
-  private readonly _currentEpisode = ref<
-    | (Scenario["content"]["episodes"][0] & {
-        id: string;
-        nextChunkIndex: number;
-        totalChunks: number;
-      })
-    | null
-  >(null);
-
-  /**
-   * Will be set since a preceding non-episode update,
-   * and until the last episode chunk, inclusive.
-   */
-  readonly currentEpisode = readonly(this._currentEpisode);
-
-  /**
-   * Whether the current episode shall advance to the next chunk.
-   * If false, the episode is already at its last chunk.
-   */
-  readonly shallAdvanceEpisode = computed<boolean | undefined>(() => {
-    return this._currentEpisode.value
-      ? this._currentEpisode.value.nextChunkIndex <
-          this._currentEpisode.value.chunks.length
-      : undefined;
-  });
-
   private _connectedRenderer?: StageRenderer;
 
   constructor(
-    readonly scenario: Scenario,
+    readonly scenario: ImmersiveScenario,
     dto?: StateDto,
   ) {
     if (dto) {
       this._stage = ref(clone(dto.stage));
-
-      if (dto.currentEpisode) {
-        this._currentEpisode.value = {
-          ...scenario.ensureEpisode(dto.currentEpisode.id),
-          id: dto.currentEpisode.id,
-          nextChunkIndex: dto.currentEpisode.nextChunkIndex,
-          totalChunks: scenario.ensureEpisode(dto.currentEpisode.id).chunks
-            .length,
-        };
-      }
     }
   }
 
@@ -110,13 +69,6 @@ export class State {
   serialize(): StateDto {
     return {
       stage: clone(this._stage.value),
-      currentEpisode: this._currentEpisode.value
-        ? {
-            id: this._currentEpisode.value.id,
-            nextChunkIndex: this._currentEpisode.value.nextChunkIndex,
-            totalChunks: this._currentEpisode.value.chunks.length,
-          }
-        : null,
     };
   }
 
@@ -236,59 +188,6 @@ export class State {
     this._stage.value.sceneId = state.stage.sceneId;
     this._stage.value.characters = state.stage.characters ?? [];
     this._connectedRenderer?.setStage(this._stage.value);
-  }
-
-  /**
-   * Set the current episode, but do not advance it.
-   */
-  setEpisode(episodeId: string, nextChunkIndex = 0) {
-    const found = this.scenario.findEpisode(episodeId);
-    if (!found) throw new StateError(`Episode not found: ${episodeId}`);
-
-    this._currentEpisode.value = {
-      ...found,
-      id: episodeId,
-      nextChunkIndex,
-      totalChunks: found.chunks.length,
-    };
-  }
-
-  /**
-   * Advance the current episode to the next chunk.
-   *
-   * @assert The current episode is set.
-   * @assert The current episode has more chunks.
-   *
-   * @returns The applied chunk data.
-   */
-  async advanceCurrentEpisode(includeDirectorUpdate: boolean) {
-    const currentEpisode = this._currentEpisode.value;
-
-    if (!currentEpisode) {
-      throw new StateError("No current episode to advance");
-    }
-
-    const chunkIndex = currentEpisode.nextChunkIndex;
-
-    if (chunkIndex >= currentEpisode.chunks.length) {
-      throw new StateError("No more chunks to advance");
-    }
-
-    console.debug("Advancing episode", currentEpisode);
-    const { writerUpdate, directorUpdate } = currentEpisode.chunks[chunkIndex];
-
-    if (includeDirectorUpdate && directorUpdate?.length) {
-      console.debug("Applying stage code", directorUpdate);
-      this.apply(directorUpdate);
-      // TODO: if (scene.busy) await scene.busy;
-    }
-
-    return {
-      episodeId: currentEpisode.id,
-      chunkIndex: currentEpisode.nextChunkIndex++,
-      writerUpdate,
-      directorUpdate,
-    };
   }
 
   setScene(sceneId: string) {

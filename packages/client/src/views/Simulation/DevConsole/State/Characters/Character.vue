@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import { Scenario } from "@/lib/simulation";
+import type { ImmersiveScenario } from "@/lib/simulation/scenario";
 
 const { scenario, character } = defineProps<{
-  scenario: Scenario;
-  character: Scenario["characters"][string];
+  scenario: ImmersiveScenario;
+  character: ImmersiveScenario["content"]["characters"][string];
   isSelected?: boolean;
   isOnStage?: boolean;
 }>();

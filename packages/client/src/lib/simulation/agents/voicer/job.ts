@@ -50,13 +50,13 @@ export class VoicerJob {
           character.voices.xttsV2.embeddingPath,
         );
       } else {
-        if (!this.scenario.narratorVoices?.xttsV2?.embeddingPath) {
+        if (!this.scenario.content.narratorVoices?.xttsV2?.embeddingPath) {
           throw new MissingSpeakerError(null);
         }
 
-        params = this.scenario.narratorVoices.xttsV2.params;
+        params = this.scenario.content.narratorVoices.xttsV2.params;
         embeddingsUrl = await this.scenario.resourceUrl(
-          this.scenario.narratorVoices.xttsV2.embeddingPath,
+          this.scenario.content.narratorVoices.xttsV2.embeddingPath,
         );
       }
 
@@ -82,7 +82,7 @@ export class VoicerJob {
             speakerEmbedding: speaker.speaker_embedding,
           },
           this.text,
-          this.scenario.language,
+          this.scenario.content.language,
           params,
         ),
       );

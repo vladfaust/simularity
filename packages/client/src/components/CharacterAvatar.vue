@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { type Scenario } from "@/lib/simulation";
+import type { ImmersiveScenario } from "@/lib/simulation/scenario";
 import { asyncComputed } from "@vueuse/core";
 import { computed } from "vue";
 
 const props = defineProps<{
-  scenario: Scenario;
+  scenario: ImmersiveScenario;
   characterId: string;
   outfitId?: string;
   expressionId?: string;

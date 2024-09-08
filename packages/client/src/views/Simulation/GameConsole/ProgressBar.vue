@@ -75,11 +75,11 @@ const writerStatusText = computed<string | undefined>(() =>
 );
 
 const directorStatus = computed<Status>(() =>
-  llmStatus("director", job?.agents.director.llmDriver.value ?? null),
+  llmStatus("director", job?.agents.director?.llmDriver.value ?? null),
 );
 
 const directorStatusText = computed<string | undefined>(() =>
-  llmStatusText(job?.agents.director.llmDriver.value ?? null),
+  llmStatusText(job?.agents.director?.llmDriver.value ?? null),
 );
 
 const voicerStatus = computed<Status>(() => {
