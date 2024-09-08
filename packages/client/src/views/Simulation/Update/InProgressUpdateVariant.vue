@@ -94,7 +94,7 @@ const character = computed(() => {
       slot(name="variant-navigation")
 
   //- Text.
-  div(:class="{ 'h-full overflow-y-scroll': isSingle }")
+  .overflow-y-scroll(:class="{ 'h-full overflow-y-scroll': isSingle }")
     p
       RichText(
         v-if="live && bufferedText"
