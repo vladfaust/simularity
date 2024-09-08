@@ -544,7 +544,7 @@ onUnmounted(() => {
         input.h-full.w-full.rounded-lg.px-3.opacity-90.transition-opacity(
           ref="userInputElement"
           v-model="userInput"
-          :placeholder="inputPlaceholder"
+          :placeholder="userInputEnabled ? inputPlaceholder : ''"
           :disabled="!userInputEnabled"
           class="!disabled:opacity-50 hover:opacity-100 focus:opacity-100"
           @keydown.enter.exact="userInput ? sendMessage() : advance()"
