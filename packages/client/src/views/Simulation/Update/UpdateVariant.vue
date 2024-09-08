@@ -63,6 +63,8 @@ const clock = computed(() => {
   return tap(minutes, minutesToClock);
 });
 
+const editTextarea = ref<HTMLTextAreaElement | null>(null);
+
 async function onEditCommitClick() {
   if (!anyEditChanges.value) {
     console.log("No changes");
@@ -125,6 +127,14 @@ async function createTts() {
     .finally(() => {
       ttsCreationInProgress.value = false;
     });
+}
+
+function startEdit() {
+  editInProgress.value = true;
+
+  setTimeout(() => {
+    editTextarea.value?.focus();
+  }, 10);
 }
 
 watch(
@@ -204,7 +214,7 @@ watch(
 
       //- Edit.
       .flex(v-if="canEdit && !variant.writerUpdate.episodeId")
-        button(v-if="!editInProgress" @click.stop="editInProgress = true")
+        button(v-if="!editInProgress" @click.stop="startEdit")
           Edit3Icon(:size="20")
 
         template(v-else)
@@ -228,7 +238,9 @@ watch(
   div(:class="{ 'h-full overflow-y-scroll': isSingle }")
     textarea.mt-1.h-full.w-full.rounded-lg.bg-neutral-100.px-2.py-1.font-mono.text-sm.leading-snug(
       v-if="editInProgress"
+      ref="editTextarea"
       v-model="editText"
+      @keydown.enter.prevent="onEditCommitClick"
     )
 
     RichText(v-else :text="variant.writerUpdate.text" as="p")
