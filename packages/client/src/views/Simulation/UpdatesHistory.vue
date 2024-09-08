@@ -11,6 +11,9 @@ const { simulation } = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  (event: "triggerEditHandler", handler: () => void): void;
+  (event: "triggerNextVariantHandler", handler: () => void): void;
+  (event: "triggerPreviousVariantHandler", handler: () => void): void;
   (event: "chooseVariant", updateIndex: number, variantIndex: number): void;
   (event: "regenerate", updateIndex: number): void;
   (
@@ -19,6 +22,8 @@ const emit = defineEmits<{
     variantIndex: number,
     newText: string,
   ): void;
+  (event: "beginEdit", updateIndex: number): void;
+  (event: "stopEdit", updateIndex: number): void;
 }>();
 
 const scrollContainer = ref<HTMLElement | null>(null);
@@ -26,6 +31,9 @@ const INFINITE_LOAD_DELAY = 1000;
 const INFINITE_LOAD_LIMIT = 10;
 
 const isEditingMap = ref(new Map<number, boolean>());
+const triggerEditHandlerMap = new Map<number, () => void>();
+const triggerPreviousVariantHandlerMap = new Map<number, () => void>();
+const triggerNextVariantHandlerMap = new Map<number, () => void>();
 
 // Top infinite scroll (historical updates).
 const topScrollIsLoading = ref(false);
@@ -116,6 +124,20 @@ function scrollToUpdate(index: number) {
 
 onMounted(() => {
   scrollToUpdate(simulation.currentUpdateIndex.value);
+
+  emit("triggerEditHandler", () => {
+    triggerEditHandlerMap.get(simulation.currentUpdateIndex.value)?.();
+  });
+
+  emit("triggerPreviousVariantHandler", () => {
+    triggerPreviousVariantHandlerMap.get(
+      simulation.currentUpdateIndex.value,
+    )?.();
+  });
+
+  emit("triggerNextVariantHandler", () => {
+    triggerNextVariantHandlerMap.get(simulation.currentUpdateIndex.value)?.();
+  });
 });
 </script>
 
@@ -141,10 +163,13 @@ onMounted(() => {
       :update-index="simulation.updates.value.length - 1 - i"
       :is-historical="simulation.updates.value.length - 1 - i < simulation.historicalUpdatesLength.value"
       :is-future="simulation.updates.value.length - 1 - i > simulation.currentUpdateIndex.value"
+      @trigger-edit-handler="triggerEditHandlerMap.set(simulation.updates.value.length - 1 - i, $event)"
+      @trigger-previous-variant-handler="triggerPreviousVariantHandlerMap.set(simulation.updates.value.length - 1 - i, $event)"
+      @trigger-next-variant-handler="triggerNextVariantHandlerMap.set(simulation.updates.value.length - 1 - i, $event)"
       @regenerate="emit('regenerate', simulation.updates.value.length - 1 - i)"
-      @begin-edit="() => isEditingMap.set(i, true)"
+      @begin-edit="() => isEditingMap.set(i, true); emit('beginEdit', simulation.updates.value.length - 1 - i)"
       @edit="(variantIndex, newText) => emit('edit', simulation.updates.value.length - 1 - i, variantIndex, newText)"
-      @stop-edit="() => isEditingMap.set(i, false)"
+      @stop-edit="() => isEditingMap.set(i, false); emit('stopEdit', simulation.updates.value.length - 1 - i)"
       @choose-variant="(variantIndex) => emit('chooseVariant', simulation.updates.value.length - 1 - i, variantIndex)"
       @click="isEditingMap.get(i) ? undefined : simulation.jumpToIndex(simulation.updates.value.length - 1 - i)"
       :class="{ 'cursor-pointer': !isEditingMap.get(i) }"

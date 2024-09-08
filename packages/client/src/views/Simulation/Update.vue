@@ -7,6 +7,7 @@ import InProgressUpdateVariant from "./Update/InProgressUpdateVariant.vue";
 import UpdateVariant from "./Update/UpdateVariant.vue";
 import VariantNavigation from "./Update/VariantNavigation.vue";
 import { TransitionRoot } from "@headlessui/vue";
+import { onMounted } from "vue";
 
 const props = defineProps<{
   simulation: Simulation;
@@ -22,6 +23,9 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  (event: "triggerEditHandler", handler: () => void): void;
+  (event: "triggerNextVariantHandler", handler: () => void): void;
+  (event: "triggerPreviousVariantHandler", handler: () => void): void;
   (event: "regenerate"): void;
   (event: "chooseVariant", variantIndex: number): void;
   (event: "edit", variantIndex: number, newContent: string): void;
@@ -35,10 +39,20 @@ const rootClass = computed(() => ({
 }));
 
 function onClickPreviousVariant() {
+  if (props.update.chosenVariant?.writerUpdate.episodeId) {
+    console.debug("Cannot navigate episode variant");
+    return;
+  }
+
   emit("chooseVariant", props.update.chosenVariantIndex.value - 1);
 }
 
 function onClickNextVariant() {
+  if (props.update.chosenVariant?.writerUpdate.episodeId) {
+    console.debug("Cannot navigate episode variant");
+    return;
+  }
+
   if (
     props.update.chosenVariantIndex.value <
     props.update.variants.value.length - 1
@@ -48,6 +62,11 @@ function onClickNextVariant() {
     emit("regenerate");
   }
 }
+
+onMounted(() => {
+  emit("triggerPreviousVariantHandler", onClickPreviousVariant);
+  emit("triggerNextVariantHandler", onClickNextVariant);
+});
 </script>
 
 <template lang="pug">
@@ -64,6 +83,7 @@ function onClickNextVariant() {
     :can-edit
     :preference-function="(pref) => simulation.preferWriterUpdate(props.update, pref)"
     :apply-edit-function="(text) => simulation.editUpdateVariant(nonNullable(update.chosenVariant), text)"
+    @trigger-edit-handler="emit('triggerEditHandler', $event)"
     @begin-edit="emit('beginEdit')"
     @stop-edit="emit('stopEdit')"
   )

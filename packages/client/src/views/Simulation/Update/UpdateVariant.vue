@@ -16,6 +16,7 @@ import {
 import { computed, ref, watch } from "vue";
 import { toast } from "vue3-toastify";
 import RichText from "./RichText.vue";
+import { onMounted } from "vue";
 
 const props = defineProps<{
   simulation: Simulation;
@@ -27,6 +28,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  (event: "triggerEditHandler", handler: () => void): void;
   (event: "beginEdit"): void;
   (event: "stopEdit"): void;
 }>();
@@ -130,6 +132,11 @@ async function createTts() {
 }
 
 function startEdit() {
+  if (props.variant.writerUpdate.episodeId) {
+    console.debug("Cannot edit episode variant");
+    return;
+  }
+
   editInProgress.value = true;
 
   setTimeout(() => {
@@ -148,6 +155,10 @@ watch(
     }
   },
 );
+
+onMounted(() => {
+  emit("triggerEditHandler", startEdit);
+});
 </script>
 
 <template lang="pug">
@@ -214,7 +225,7 @@ watch(
 
       //- Edit.
       .flex(v-if="canEdit && !variant.writerUpdate.episodeId")
-        button(v-if="!editInProgress" @click.stop="startEdit")
+        button(v-if="!editInProgress" @click.stop="startEdit" title="Edit (e)")
           Edit3Icon(:size="20")
 
         template(v-else)
@@ -241,6 +252,7 @@ watch(
       ref="editTextarea"
       v-model="editText"
       @keydown.enter.prevent="onEditCommitClick"
+      @keydown.escape="editInProgress = false"
     )
 
     RichText(v-else :text="variant.writerUpdate.text" as="p")

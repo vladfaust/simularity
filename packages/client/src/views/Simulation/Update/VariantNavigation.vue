@@ -21,6 +21,7 @@ defineEmits<{
   button.btn.transition-transform.pressable(
     @click.stop="$emit('previous')"
     :disabled="!canGoPrevious"
+    title="Previous variant (←)"
   )
     CircleChevronLeftIcon(:size="18")
 
@@ -30,6 +31,7 @@ defineEmits<{
     @click.stop="$emit('next')"
     :disabled="!canGoNext"
     :class="{ 'hover:text-ai-500 hover:animate-pulse': nextWillRegenerate }"
+    title="Next variant (→)"
   )
     CircleChevronRightIcon(:size="18")
 </template>

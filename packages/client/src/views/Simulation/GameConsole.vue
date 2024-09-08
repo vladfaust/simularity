@@ -32,6 +32,8 @@ import VisualizeModal from "./GameConsole/VisualizeModal.vue";
 import GpuStatus from "./GpuStatus.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
+import { onMounted } from "vue";
+import { onUnmounted } from "vue";
 
 enum SendButtonState {
   Busy,
@@ -131,6 +133,14 @@ const inputPlaceholder = computed(
 );
 
 const queryClient = useQueryClient();
+const userInputElement = ref<HTMLInputElement | null>(null);
+
+// Thanks: https://stackoverflow.com/a/53059914/3645337.
+let triggerEditHandler: () => void | undefined;
+let triggerPreviousVariantHandler: () => void | undefined;
+let triggerNextVariantHandler: () => void | undefined;
+
+const isEditing = ref(false);
 
 function onSendButtonClick() {
   if (inferenceAbortController.value) {
@@ -342,6 +352,72 @@ function enableOnlyCharacter(characterId: string) {
     enabledCharacterIds.value = new Set([characterId]);
   }
 }
+
+function onKeypress(event: KeyboardEvent) {
+  if (isEditing.value) {
+    return;
+  }
+
+  if (event.key === "Enter") {
+    if (document.activeElement !== userInputElement.value) {
+      if (userInput.value) sendMessage();
+      else advance();
+    }
+  } else if (event.key === "e") {
+    if (document.activeElement !== userInputElement.value) {
+      triggerEditHandler?.();
+    }
+  } else if (event.key === "h") {
+    if (document.activeElement !== userInputElement.value) {
+      switchUpdatesFullscreen();
+    }
+  } else if (event.key === " ") {
+    // If not currently focused on the input, focus on it.
+    if (document.activeElement !== userInputElement.value) {
+      event.preventDefault();
+      userInputElement.value?.focus();
+    }
+  } else if (event.key === "Escape") {
+    // Unfocus the input.
+    if (document.activeElement === userInputElement.value) {
+      userInputElement.value?.blur();
+    }
+  }
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (document.activeElement !== userInputElement.value) {
+    if (event.key === "ArrowUp") {
+      // Go back in history.
+      if (simulation.canGoBack.value) simulation.goBack();
+    } else if (event.key === "ArrowDown") {
+      // Go forward in history.
+      if (simulation.canGoForward.value) simulation.goForward();
+      // Otherwise, predict the next update.
+      else if (document.activeElement !== userInputElement.value) {
+        if (userInput.value) sendMessage();
+        else advance();
+      }
+    } else if (event.key === "ArrowLeft") {
+      console.log("ArrowLeft");
+      triggerPreviousVariantHandler?.();
+    } else if (event.key === "ArrowRight") {
+      console.log("ArrowRight");
+      triggerNextVariantHandler?.();
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener("keypress", onKeypress);
+  window.addEventListener("keydown", onKeydown);
+});
+
+onUnmounted(() => {
+  console.log("Unmounted");
+  window.removeEventListener("keypress", onKeypress);
+  window.removeEventListener("keydown", onKeydown);
+});
 </script>
 
 <template lang="pug">
@@ -364,9 +440,14 @@ function enableOnlyCharacter(characterId: string) {
         v-if="updatesFullscreen"
         :simulation
         :fullscreen="true"
+        @trigger-edit-handler="triggerEditHandler = $event"
+        @trigger-previous-variant-handler="triggerPreviousVariantHandler = $event"
+        @trigger-next-variant-handler="triggerNextVariantHandler = $event"
         @choose-variant="chooseUpdateVariant"
         @regenerate="regenerateUpdate"
         @edit="onUpdateVariantEdit"
+        @begin-edit="isEditing = true"
+        @stop-edit="isEditing = false"
         :class="updatesFullscreen ? 'overflow-y-scroll' : 'overflow-y-hidden h-full'"
       )
 
@@ -382,15 +463,20 @@ function enableOnlyCharacter(characterId: string) {
         :is-single="true"
         :show-variant-navigation="true"
         :update-index="simulation.currentUpdateIndex.value"
+        @trigger-edit-handler="triggerEditHandler = $event"
+        @trigger-previous-variant-handler="triggerPreviousVariantHandler = $event"
+        @trigger-next-variant-handler="triggerNextVariantHandler = $event"
         @choose-variant="(variantIndex) => chooseUpdateVariant(simulation.currentUpdateIndex.value, variantIndex)"
         @regenerate="regenerateUpdate(simulation.currentUpdateIndex.value)"
         @edit="(variantIndex, newText) => onUpdateVariantEdit(simulation.currentUpdateIndex.value, variantIndex, newText)"
+        @begin-edit="isEditing = true"
+        @stop-edit="isEditing = false"
       )
 
       .flex.h-full.w-8.shrink-0.flex-col.justify-between.gap-1
         //- Expand updates button.
         button._button.relative.aspect-square.w-full(
-          title="Expand"
+          title="Expand (h)"
           @click="switchUpdatesFullscreen"
         )
           TransitionRoot.absolute(
@@ -423,14 +509,14 @@ function enableOnlyCharacter(characterId: string) {
           //-   CameraIcon(:size="20")
 
           button._button.aspect-square.w-full(
-            title="Go back"
+            title="Go back (⬆️)"
             :disabled="!simulation.canGoBack.value"
             @click="simulation.goBack()"
           )
             UndoDotIcon(:size="20")
 
           button._button.aspect-square.w-full(
-            title="Go forward"
+            title="Go forward (⬇)"
             :disabled="!simulation.canGoForward.value"
             @click="simulation.goForward()"
           )
@@ -438,7 +524,9 @@ function enableOnlyCharacter(characterId: string) {
 
     //- User input.
     .flex.h-12.w-full.gap-2.rounded
-      .relative.w-full.overflow-hidden.rounded-lg.shadow-lg
+      .relative.w-full.rounded-lg.shadow-lg(
+        :class="{ 'overflow-hidden': !!simulation.currentJob.value }"
+      )
         //- Progress bar when simulation is busy.
         TransitionRoot.absolute.z-10.h-full.w-full(
           :show="!!simulation.currentJob.value"
@@ -453,7 +541,8 @@ function enableOnlyCharacter(characterId: string) {
           ProgressBar.h-full.w-full(:job="simulation.currentJob.value")
 
         //- User input otherwise.
-        input.h-full.w-full.px-3.opacity-90.transition-opacity(
+        input.h-full.w-full.rounded-lg.px-3.opacity-90.transition-opacity(
+          ref="userInputElement"
           v-model="userInput"
           :placeholder="inputPlaceholder"
           :disabled="!userInputEnabled"
@@ -464,6 +553,7 @@ function enableOnlyCharacter(characterId: string) {
       button._button.group.relative.aspect-square.h-full(
         @click="onSendButtonClick"
         :disabled="busy || (!simulation.ready.value && !simulation.state.shallAdvanceEpisode.value)"
+        :title="sendButtonState === SendButtonState.WillSendMessage ? 'Send message (enter)' : sendButtonState === SendButtonState.WillGoForward ? 'Go forward (enter)' : 'Predict (enter)'"
       )
         //- REFACTOR: Make a component for such multi-state animations.
         //- TODO: Abort button.
