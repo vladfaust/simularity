@@ -860,21 +860,19 @@ export class Simulation {
               summary: summarizationResult.newSummary,
               state: this.state.serialize(),
             })
-            .onConflictDoUpdate({
-              set: { summary: summarizationResult.newSummary },
-              target: [
-                d.checkpoints.simulationId,
-                d.checkpoints.writerUpdateId,
-              ],
-            })
             .returning()
         )[0];
 
         // Update the writer update.
         await tx
           .update(d.writerUpdates)
-          .set({ didConsolidate: true })
+          .set({
+            didConsolidate: true,
+            checkpointId: this._checkpoint.value!.id,
+          })
           .where(eq(d.writerUpdates.id, writerUpdate.id));
+
+        writerUpdate.didConsolidate = true;
 
         const futureUpdatesToUpdate = this._futureUpdates.value.filter(
           (update) => {
