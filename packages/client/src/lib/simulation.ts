@@ -1804,14 +1804,14 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       }
 
       const update = this._recentUpdates.value[i];
-      console.debug("Applying update", update.chosenVariant?.writerUpdate.text);
+      // console.debug("Applying update", update.chosenVariant?.writerUpdate.text);
       const directorUpdate = update.chosenVariant?.directorUpdate;
 
       if (directorUpdate) {
         console.debug("Applying stage code", directorUpdate.code);
         this.state.apply(directorUpdate.code);
       } else {
-        console.debug("No director update to apply");
+        // console.debug("No director update to apply");
       }
 
       i++;
