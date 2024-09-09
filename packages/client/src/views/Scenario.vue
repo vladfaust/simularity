@@ -18,6 +18,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import {
   ArrowLeftIcon,
   BookMarkedIcon,
+  BookmarkIcon,
   CherryIcon,
   DramaIcon,
   FolderIcon,
@@ -109,24 +110,34 @@ onMounted(async () => {
   .flex.w-full.justify-center.border-y.bg-white
     .flex.w-full.max-w-4xl.items-center.justify-between.gap-2.p-3
       //- Left side.
-      .flex.items-center.gap-2
+      .flex.shrink-0.items-center.gap-2
         //- Back to library button.
         RouterLink.btn.btn-square.rounded-lg.border.p-1.transition-transform.pressable(
           :to="routeLocation({ name: 'Library' })"
           title="Back to library"
         )
-          ArrowLeftIcon(:size="20")
+          ArrowLeftIcon(:size="18")
 
         //- Scenario name.
         h1.text-lg.font-semibold.leading-none.tracking-wide {{ scenario?.content.name }}
 
+      .w-full.border-b
+
       //- Right side.
-      button.btn.btn-sm.shrink-0.rounded-lg.border.transition-transform.pressable(
-        v-if="!scenario?.builtin"
-        @click="showInFileManager"
-      )
-        FolderIcon(:size="18")
-        span Reveal in finder
+      .flex.shrink-0.items-center.gap-2
+        //- Reveal in finder button.
+        button.btn.btn-sm.shrink-0.shrink-0.rounded-lg.border.transition-transform.pressable(
+          v-if="!scenario?.builtin"
+          @click="showInFileManager"
+        )
+          FolderIcon(:size="18")
+          span.leading-none Reveal in finder
+
+        button.btn.btn-square.rounded-lg.border.p-1.transition-transform.pressable(
+          title="Bookmark (not implemented yet)"
+          disabled
+        )
+          BookmarkIcon(:size="18")
 
   .relative.flex.h-full.w-full.flex-col.items-center.overflow-y-hidden
     //- Background image.
