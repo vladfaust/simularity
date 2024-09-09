@@ -19,8 +19,7 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
 //- Grid layout.
 .group.relative.aspect-square(v-if="layout === 'grid'")
   img.h-full.w-full.select-none.object-cover.transition(
-    class="hover:blur-none hover:brightness-105"
-    :class="{ blur: scenario.content.nsfw }"
+    class="hover:brightness-105"
     v-if="thumbnailUrl"
     :src="thumbnailUrl"
   )
@@ -55,7 +54,6 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
   .aspect-square.w-32.shrink-0.overflow-hidden
     img.h-full.w-full.select-none.object-cover.transition(
       class="group-hover:blur-none group-hover:brightness-105"
-      :class="{ blur: scenario.content.nsfw && !noBlurNsfw }"
       v-if="thumbnailUrl"
       :src="thumbnailUrl"
     )
