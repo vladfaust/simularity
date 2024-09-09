@@ -23,8 +23,8 @@ const scenario = asyncComputed(() =>
   simulation.value ? ensureScenario(simulation.value.scenarioId) : undefined,
 );
 
-const scenarioThumbnailUrl = asyncComputed(
-  () => scenario.value?.getThumbnailUrl() ?? null,
+const scenarioCoverUrl = asyncComputed(
+  () => scenario.value?.getCoverImageUrl() ?? null,
 );
 
 const screenshotUrl = asyncComputed(async () => {
@@ -39,16 +39,6 @@ const screenshotUrl = asyncComputed(async () => {
   } else {
     return null;
   }
-});
-
-const starterEpisodeImageUrl = asyncComputed(() => {
-  if (!simulation.value?.starterEpisodeId || !scenario.value) return undefined;
-
-  const episode =
-    scenario.value?.content.episodes[simulation.value.starterEpisodeId];
-  if (!episode.imagePath) return undefined;
-
-  return scenario.value.resourceUrl(episode.imagePath);
 });
 
 const latestUpdate = asyncComputed(() => {
@@ -86,8 +76,9 @@ onMounted(() => {
 .group.flex.flex-col
   .relative.aspect-video.w-full.overflow-hidden
     img.h-full.w-full.object-cover.transition(
-      v-if="screenshotUrl || starterEpisodeImageUrl || scenarioThumbnailUrl"
-      :src="nonNullable(screenshotUrl || starterEpisodeImageUrl || scenarioThumbnailUrl)"
+      v-if="screenshotUrl || scenarioCoverUrl"
+      :src="nonNullable(screenshotUrl || scenarioCoverUrl)"
+      :class="{ 'blur-sm scale-105': simulation?.mode === Mode.Chat }"
     )
     Placeholder.h-full.w-full.border-b(v-else)
     ul.absolute.bottom-0.left-0.z-10.flex.h-full.w-full.flex-col-reverse.gap-1.overflow-y-scroll.p-2(

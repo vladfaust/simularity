@@ -12,7 +12,7 @@ import {
   writeBinaryFile,
 } from "@tauri-apps/api/fs";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
-import { watchImmediate } from "@vueuse/core";
+import { asyncComputed, watchImmediate } from "@vueuse/core";
 import prettyBytes from "pretty-bytes";
 import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import DevConsole from "./Simulation/DevConsole.vue";
@@ -31,6 +31,9 @@ const fullFade = ref(true);
 const loadProgress = ref(0);
 
 const showDevModal = ref(false);
+const scenarioCoverUrl = asyncComputed(() =>
+  simulation.value?.scenario.getCoverImageUrl(),
+);
 
 function consoleEventListener(event: KeyboardEvent) {
   // Detect tilda key press on different keyboard layouts.
@@ -166,6 +169,11 @@ onUnmounted(() => {
       span {{ Math.round(loadProgress * 100) }}%
   .relative.flex.h-full.w-full.justify-center.overflow-hidden
     .relative.h-full.w-full.bg-neutral-100
+      img.absolute.top-0.h-full.w-full.object-cover.blur(
+        v-if="simulation?.mode !== Mode.Immersive && scenarioCoverUrl"
+        :src="scenarioCoverUrl"
+      )
+
       TransitionRoot#canvas-fade.absolute.top-0.z-10.h-screen.w-screen.bg-black(
         :unmount="true"
         :show="canvasFade"
