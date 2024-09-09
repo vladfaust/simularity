@@ -103,7 +103,7 @@ onMounted(() => {
         @next="onClickNextVariant"
       )
 
-  TransitionRoot(
+  TransitionRoot.h-full(
     appear
     :show="!!update.inProgressVariant.value"
     enter="duration-200 ease-out"
@@ -113,7 +113,7 @@ onMounted(() => {
     leave-from="opacity-100"
     leave-to="opacity-0"
   )
-    InProgressUpdateVariant.w-full(
+    InProgressUpdateVariant.h-full.w-full(
       :variant="update.inProgressVariant.value"
       :is-single
       :live="true"
