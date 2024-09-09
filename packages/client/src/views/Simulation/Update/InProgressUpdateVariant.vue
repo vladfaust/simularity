@@ -44,6 +44,26 @@ watch(extractedText, (text) => {
   bufferedText.value = text;
 });
 
+const textContainer = ref<HTMLElement | null>(null);
+watch(extractedText, () => {
+  // Scroll to the bottom of the text.
+  if (textContainer.value) {
+    textContainer.value.scrollTop = textContainer.value.scrollHeight;
+  }
+});
+
+watch(
+  () => props.variant,
+  (variant) => {
+    if (variant === undefined) {
+      // Scroll back to the top.
+      if (textContainer.value) {
+        textContainer.value.scrollTop = 0;
+      }
+    }
+  },
+);
+
 const character = computed(() => {
   if (!props.simulation?.scenario) return undefined;
   if (!bufferedCharacterId.value) return undefined;
@@ -94,7 +114,10 @@ const character = computed(() => {
       slot(name="variant-navigation")
 
   //- Text.
-  .overflow-y-scroll(:class="{ 'h-full overflow-y-scroll': isSingle }")
+  .overflow-y-scroll(
+    ref="textContainer"
+    :class="{ 'h-full overflow-y-scroll': isSingle }"
+  )
     p
       RichText(
         v-if="live && bufferedText"
