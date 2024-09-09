@@ -21,7 +21,7 @@ async function login() {
 </script>
 
 <template lang="pug">
-.flex.h-full.justify-between.px-3
+.flex.h-full.items-center.justify-between.px-3
   .flex
     //- RouterLink._header-link(:to="routeLocation({ name: 'Home' })")
     //-   HomeIcon(:size="20")
@@ -30,6 +30,8 @@ async function login() {
     RouterLink._header-link(:to="routeLocation({ name: 'Library' })")
       LibraryBigIcon(:size="20")
       span Library
+
+  img.-mb-2.h-8(src="/img/logo.svg" alt="Logo")
 
   .flex.items-center.gap-2
     span.font-mono(v-if="accountBalanceQuery.data.value") {{ tap(accountBalanceQuery.data.value.credit, parseFloat) ?? 0 }}¢
