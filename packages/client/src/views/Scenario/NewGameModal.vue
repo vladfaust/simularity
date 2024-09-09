@@ -123,7 +123,7 @@ Modal.max-h-full.w-full.max-w-2xl.rounded-lg(
               :disabled="!(scenario instanceof ImmersiveScenario)"
             )
               MonitorIcon(:size="28" :stroke-width="1.75")
-              | Visual novel mode
+              | Visual novel mode (experimental)
             button._mode-button(
               @click="mode = Mode.Chat"
               :class="{ _selected: mode === Mode.Chat }"
