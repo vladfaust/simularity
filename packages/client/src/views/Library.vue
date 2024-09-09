@@ -2,10 +2,9 @@
 import Header from "@/components/Browser/Header.vue";
 import CustomTitle from "@/components/CustomTitle.vue";
 import * as resources from "@/lib/resources";
-import { readScenarios, type Scenario } from "@/lib/simulation/scenario";
 import * as tauri from "@/lib/tauri";
+import { useScenariosQuery } from "@/queries";
 import { routeLocation } from "@/router";
-import { BaseDirectory } from "@tauri-apps/api/fs";
 import { useLocalStorage } from "@vueuse/core";
 import {
   CherryIcon,
@@ -14,15 +13,15 @@ import {
   LayoutListIcon,
   ScrollTextIcon,
 } from "lucide-vue-next";
-import { computed, onMounted, ref, shallowRef, triggerRef } from "vue";
+import { computed, ref } from "vue";
 import ScenarioVue from "./Library/Scenario.vue";
 
-const scenarios = shallowRef<Scenario[]>([]);
+const scenariosQuery = useScenariosQuery();
 const scenarioNameFilter = ref("");
 const showNsfw = useLocalStorage("showNsfw", false);
 
 const filteredScenarios = computed(() =>
-  scenarios.value.filter(
+  scenariosQuery.data.value?.filter(
     (scenario) =>
       scenario.content.name
         .toLowerCase()
@@ -35,12 +34,6 @@ const layoutGrid = useLocalStorage("layoutGrid", true);
 async function openScenariosDir() {
   await tauri.utils.fileManagerOpen(await resources.scenariosDir());
 }
-
-onMounted(async () => {
-  scenarios.value.push(...(await readScenarios(BaseDirectory.Resource)));
-  scenarios.value.push(...(await readScenarios(BaseDirectory.AppLocalData)));
-  triggerRef(scenarios);
-});
 </script>
 
 <template lang="pug">

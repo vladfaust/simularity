@@ -3,12 +3,14 @@ import CustomTitle from "@/components/CustomTitle.vue";
 import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
 import { ensureScenario, type Scenario } from "@/lib/simulation/scenario";
+import { savesQueryKey, useSavesQuery } from "@/queries";
 import { routeLocation } from "@/router";
 import { asyncComputed } from "@vueuse/core";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { EyeIcon, EyeOffIcon, HistoryIcon, Trash2Icon } from "lucide-vue-next";
-import { computed, onMounted, ref, shallowRef } from "vue";
+import { computed, ref } from "vue";
 import Save from "./Saves/Save.vue";
+import { useQueryClient } from "@tanstack/vue-query";
 
 const props = defineProps<{
   expand: boolean;
@@ -22,21 +24,20 @@ const emit = defineEmits<{
   (event: "clickExpand"): void;
 }>();
 
+const savesQuery = useSavesQuery(props.scenarioId);
+const queryClient = useQueryClient();
 const deletionMode = ref(false);
-const saves = shallowRef<
-  Pick<typeof d.simulations.$inferSelect, "id" | "scenarioId">[]
->([]);
 const scenarioMap = asyncComputed<Map<string, Scenario> | undefined>(
   async () => {
-    if (!saves.value.length) return undefined;
+    if (!savesQuery.data.value?.length) return undefined;
     const scenarios = await Promise.all(
-      saves.value.map((save) => ensureScenario(save.scenarioId)),
+      savesQuery.data.value.map((save) => ensureScenario(save.scenarioId)),
     );
     return new Map(scenarios.map((s) => [s.id, s]));
   },
 );
 const filteredSaves = computed(() =>
-  saves.value.filter((s) => {
+  savesQuery.data.value?.filter((s) => {
     const scenario = scenarioMap.value?.get(s.scenarioId);
     if (!scenario) return false;
 
@@ -68,24 +69,8 @@ async function deleteSave(simulationId: number) {
     .set({ deletedAt: new Date() })
     .where(eq(d.simulations.id, simulationId));
 
-  saves.value = saves.value.filter((s) => s.id !== simulationId);
+  queryClient.invalidateQueries({ queryKey: savesQueryKey(props.scenarioId) });
 }
-
-onMounted(async () => {
-  const conditions = [isNull(d.simulations.deletedAt)];
-
-  if (props.scenarioId) {
-    conditions.push(eq(d.simulations.scenarioId, props.scenarioId));
-  }
-
-  d.db.query.simulations
-    .findMany({
-      columns: { id: true, scenarioId: true },
-      orderBy: desc(d.simulations.updatedAt),
-      where: and(...conditions),
-    })
-    .then((value) => (saves.value = value));
-});
 </script>
 
 <template lang="pug">

@@ -886,6 +886,13 @@ export async function readScenarios(
   return scenarios;
 }
 
+export async function readAllScenarios(): Promise<Scenario[]> {
+  const scenarios = await readScenarios(BaseDirectory.Resource);
+  const localScenarios = await readScenarios(BaseDirectory.AppLocalData);
+
+  return [...scenarios, ...localScenarios];
+}
+
 export async function readScenario(
   baseDir: BaseDirectory,
   id: string,
