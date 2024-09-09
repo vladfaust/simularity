@@ -3,10 +3,10 @@ import Alert from "@/components/Alert.vue";
 import CustomTitle from "@/components/CustomTitle.vue";
 import Modal from "@/components/Modal.vue";
 import { Mode, Simulation, type Scenario } from "@/lib/simulation";
+import { ImmersiveScenario } from "@/lib/simulation/scenario";
 import router, { routeLocation } from "@/router";
 import { asyncComputed } from "@vueuse/core";
 import {
-  BananaIcon,
   BookMarkedIcon,
   MessagesSquareIcon,
   MonitorIcon,
@@ -14,8 +14,8 @@ import {
   Settings2Icon,
 } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
+import ScenarioVue from "../Library/Scenario.vue";
 import Episode from "./Episode.vue";
-import { ImmersiveScenario } from "@/lib/simulation/scenario";
 
 const props = defineProps<{
   open: boolean;
@@ -27,7 +27,6 @@ const emit = defineEmits<{
   (event: "close"): void;
 }>();
 
-const scenarioImgUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
 const selectedEpisodeId = ref<string>(
   props.episodeId ?? props.scenario.defaultEpisodeId,
 );
@@ -66,7 +65,7 @@ async function play(episodeId?: string | null) {
 </script>
 
 <template lang="pug">
-Modal.max-h-full.w-full.max-w-3xl.rounded-lg(
+Modal.max-h-full.w-full.max-w-2xl.rounded-lg(
   :open
   @close="emit('close')"
   title="New game"
@@ -77,27 +76,11 @@ Modal.max-h-full.w-full.max-w-3xl.rounded-lg(
   .flex.h-full.flex-col.divide-y.overflow-y-scroll
     //- Scenario details.
     .bg-neutral-100.p-3
-      .flex.gap-2.rounded-lg.bg-white.p-3.shadow-lg
-        img.aspect-square.h-24.rounded-lg.border.object-cover(
-          v-if="scenarioImgUrl"
-          :src="scenarioImgUrl"
-        )
-        .flex.w-full.flex-col
-          CustomTitle(:title="scenario.content.name")
-            template(#extra)
-              .flex.gap-1
-                BananaIcon.cursor-help(
-                  v-if="scenario.content.nsfw"
-                  :size="20"
-                  v-tooltip="'This scenario is NSFW'"
-                )
-                MonitorIcon.cursor-help(
-                  v-if="scenario instanceof ImmersiveScenario && true"
-                  :size="20"
-                  v-tooltip="'This scenario supports visual novel mode'"
-                )
-
-          p.leading-snug {{ scenario.content.about }}
+      ScenarioVue.overflow-hidden.rounded-lg.bg-white.shadow-lg(
+        :scenario
+        :no-blur-nsfw="true"
+        layout="list"
+      )
 
     .grid.grid-cols-5
       //- Episodes.

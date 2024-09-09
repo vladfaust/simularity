@@ -8,11 +8,14 @@ import { showLibrarySaves } from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { routeLocation } from "@/router";
 import { BaseDirectory } from "@tauri-apps/api/fs";
+import { useLocalStorage } from "@vueuse/core";
 import { desc, eq, isNull } from "drizzle-orm";
 import {
   ChevronDownIcon,
   FolderOpenIcon,
   HistoryIcon,
+  LayoutGridIcon,
+  LayoutListIcon,
   ScrollTextIcon,
   Trash2Icon,
 } from "lucide-vue-next";
@@ -29,6 +32,7 @@ const filteredScenarios = computed(() =>
     scenario.content.name.toLowerCase().includes(search.value.toLowerCase()),
   ),
 );
+const layoutGrid = useLocalStorage("layoutGrid", true);
 
 async function openScenariosDir() {
   await tauri.utils.fileManagerOpen(await resources.scenariosDir());
@@ -134,17 +138,25 @@ onMounted(async () => {
       CustomTitle.w-full(title="Scenarios")
         template(#icon)
           ScrollTextIcon(:size="18")
-        template(#extra) {{ filteredScenarios.length }}
+        template(#extra)
+          button.btn.btn-pressable(@click="layoutGrid = !layoutGrid")
+            LayoutGridIcon(v-if="layoutGrid" :size="18")
+            LayoutListIcon(v-else :size="18")
 
-      ul.grid.w-full.w-full.max-w-4xl.gap-2(class="2xs:grid-cols-2 xs:grid-cols-3")
-        li.cursor-pointer.overflow-hidden.rounded-lg.border.bg-white.shadow-lg.transition-transform.pressable(
+      ul.w-full.w-full.max-w-4xl.gap-2(
+        :class="{ 'grid 2xs:grid-cols-2 xs:grid-cols-3': layoutGrid, 'grid grid-cols-2': !layoutGrid }"
+      )
+        li.cursor-pointer.overflow-hidden.rounded-lg.border.bg-white.shadow-lg.transition-transform.pressable-sm(
           v-for="scenario in filteredScenarios"
           :key="scenario.id"
-          :title="scenario.content.name"
           class="active:shadow-sm"
         )
           RouterLink(
             :to="routeLocation({ name: 'Scenario', params: { scenarioId: scenario.id } })"
           )
-            ScenarioVue(:scenario)
+            ScenarioVue(
+              :key="scenario.id"
+              :scenario
+              :layout="layoutGrid ? 'grid' : 'list'"
+            )
 </template>

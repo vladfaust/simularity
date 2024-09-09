@@ -67,6 +67,11 @@ const BaseScenarioSchema = v.object({
   nsfw: v.optional(v.boolean()),
 
   /**
+   * A list of tags to categorize the scenario.
+   */
+  tags: v.optional(v.array(v.string())),
+
+  /**
    * Scenario thumbnail image path.
    * Recommended aspect ratio: 1:1.
    */
