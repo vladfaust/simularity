@@ -85,6 +85,10 @@
     @apply gap-1 px-2 py-1 text-sm font-semibold;
   }
 
+  .btn-sm-square {
+    @apply gap-1 p-1 text-sm font-semibold;
+  }
+
   .btn-neutral {
     @apply border-b-2 bg-neutral-100 text-neutral-800;
   }

@@ -2,6 +2,7 @@
 import Header from "@/components/Browser/Header.vue";
 import CustomTitle from "@/components/CustomTitle.vue";
 import Placeholder from "@/components/Placeholder.vue";
+import Saves from "@/components/Saves.vue";
 import { d } from "@/lib/drizzle";
 import {
   ensureScenario,
@@ -16,8 +17,8 @@ import { asyncComputed } from "@vueuse/core";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import {
   ArrowLeftIcon,
-  BananaIcon,
   BookMarkedIcon,
+  CherryIcon,
   DramaIcon,
   FolderIcon,
   Globe2Icon,
@@ -28,7 +29,6 @@ import {
   ScrollTextIcon,
 } from "lucide-vue-next";
 import { onMounted, ref, shallowRef } from "vue";
-import Saves from "./Library/Saves.vue";
 import Character from "./Scenario/Character.vue";
 import Episode from "./Scenario/Episode.vue";
 import NewGameModal from "./Scenario/NewGameModal.vue";
@@ -180,7 +180,7 @@ onMounted(async () => {
               CustomTitle(:title="scenario.content.name")
                 template(#extra)
                   .flex.gap-1
-                    BananaIcon.cursor-help(
+                    CherryIcon.cursor-help.text-red-500(
                       v-if="scenario.content.nsfw"
                       :size="20"
                       v-tooltip="'This scenario is NSFW'"

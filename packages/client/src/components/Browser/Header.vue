@@ -5,6 +5,7 @@ import { onLoginButtonClick } from "@/logic/loginButton";
 import { useAccountBalanceQuery } from "@/queries";
 import { routeLocation } from "@/router";
 import {
+  HistoryIcon,
   LibraryBigIcon,
   Loader2Icon,
   LogInIcon,
@@ -21,19 +22,20 @@ async function login() {
 </script>
 
 <template lang="pug">
-.flex.h-full.items-center.justify-between.px-3
+.grid.h-full.px-3(style="grid-template-columns: 1fr auto 1fr")
   .flex
-    //- RouterLink._header-link(:to="routeLocation({ name: 'Home' })")
-    //-   HomeIcon(:size="20")
-    //-   span Home
-
     RouterLink._header-link(:to="routeLocation({ name: 'Library' })")
       LibraryBigIcon(:size="20")
       span Library
 
-  img.-mb-2.h-8(src="/img/logo.svg" alt="Logo")
+    RouterLink._header-link(:to="routeLocation({ name: 'Saves' })")
+      HistoryIcon(:size="20")
+      span Recent
 
-  .flex.items-center.gap-2
+  .flex.items-center.justify-center
+    img.-mb-2.h-8(src="/img/logo.svg" alt="Logo")
+
+  .flex.items-center.justify-end.gap-2
     span.font-mono(v-if="accountBalanceQuery.data.value") {{ tap(accountBalanceQuery.data.value.credit, parseFloat) ?? 0 }}¢
     RouterLink._header-link(
       v-if="storage.remoteServerJwt.value"

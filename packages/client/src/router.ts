@@ -5,6 +5,7 @@ import {
   type RouteRecordRaw,
 } from "vue-router";
 import Library from "./views/Library.vue";
+import Saves from "./views/Saves.vue";
 import Scenario from "./views/Scenario.vue";
 import Shutdown from "./views/Shutdown.vue";
 import Simulation from "./views/Simulation.vue";
@@ -13,6 +14,7 @@ import User from "./views/User.vue";
 export type RouteName =
   | "Home"
   | "Library"
+  | "Saves"
   | "Scenario"
   | "Simulation"
   | "User"
@@ -22,6 +24,7 @@ export function routeLocation(
   args:
     | { name: "Home" }
     | { name: "Library" }
+    | { name: "Saves" }
     | { name: "Scenario"; params: { scenarioId: string } }
     | { name: "Simulation"; params: { simulationId: number } }
     | { name: "User" }
@@ -36,6 +39,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "Home" satisfies RouteName,
     alias: "/home",
     redirect: "/library",
+  },
+  {
+    path: "/saves",
+    name: "Saves" satisfies RouteName,
+    component: Saves,
   },
   {
     path: "/library",

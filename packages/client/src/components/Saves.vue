@@ -2,17 +2,19 @@
 import CustomTitle from "@/components/CustomTitle.vue";
 import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
+import { ensureScenario, type Scenario } from "@/lib/simulation/scenario";
 import { routeLocation } from "@/router";
+import { asyncComputed } from "@vueuse/core";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { EyeIcon, EyeOffIcon, HistoryIcon, Trash2Icon } from "lucide-vue-next";
-import { onMounted, ref, shallowRef } from "vue";
+import { computed, onMounted, ref, shallowRef } from "vue";
 import Save from "./Saves/Save.vue";
 
 const props = defineProps<{
   expand: boolean;
   scenarioId?: string;
-
-  // TODO: Allow filtering by scenario name.
+  hideNsfw?: boolean;
+  hideExpandButton?: boolean;
   filterScenarioName?: string;
 }>();
 
@@ -21,7 +23,32 @@ const emit = defineEmits<{
 }>();
 
 const deletionMode = ref(false);
-const saves = shallowRef<Pick<typeof d.simulations.$inferSelect, "id">[]>([]);
+const saves = shallowRef<
+  Pick<typeof d.simulations.$inferSelect, "id" | "scenarioId">[]
+>([]);
+const scenarioMap = asyncComputed<Map<string, Scenario> | undefined>(
+  async () => {
+    if (!saves.value.length) return undefined;
+    const scenarios = await Promise.all(
+      saves.value.map((save) => ensureScenario(save.scenarioId)),
+    );
+    return new Map(scenarios.map((s) => [s.id, s]));
+  },
+);
+const filteredSaves = computed(() =>
+  saves.value.filter((s) => {
+    const scenario = scenarioMap.value?.get(s.scenarioId);
+    if (!scenario) return false;
+
+    return (
+      (!props.hideNsfw || !scenario.content.nsfw) &&
+      (!props.filterScenarioName ||
+        scenario.content.name
+          .toLowerCase()
+          .includes(props.filterScenarioName.toLowerCase()))
+    );
+  }),
+);
 
 async function deleteSave(simulationId: number) {
   if (
@@ -53,7 +80,7 @@ onMounted(async () => {
 
   d.db.query.simulations
     .findMany({
-      columns: { id: true },
+      columns: { id: true, scenarioId: true },
       orderBy: desc(d.simulations.updatedAt),
       where: and(...conditions),
     })
@@ -62,7 +89,6 @@ onMounted(async () => {
 </script>
 
 <template lang="pug">
-//- Recent plays (saves).
 .flex.flex-col
   CustomTitle.cursor-pointer(title="Recent plays" @click="emit('clickExpand')")
     template(#icon)
@@ -77,6 +103,7 @@ onMounted(async () => {
         )
           Trash2Icon(:size="18")
         button.btn.btn-pressable(
+          v-if="!hideExpandButton"
           @click.stop="emit('clickExpand'); deletionMode = !expand"
           v-tooltip="'Toggle visibility'"
         )
@@ -84,22 +111,19 @@ onMounted(async () => {
           EyeOffIcon(:size="18" v-else)
 
   ul.grid.w-full.grid-cols-3.gap-2(class="@container" :class="{ hidden: !expand }")
-    li.w-full.shrink-0(
-      v-for="simulation of saves"
-      :style="{ animation: deletionMode ? 'tilt-shaking 0.2s infinite' : 'none' }"
-    )
+    li.cursor-pointer(v-for="simulation of filteredSaves")
       RouterLink(
         :to="routeLocation({ name: 'Simulation', params: { simulationId: simulation.id } })"
         custom
-        v-slot="{ href, navigate }"
+        v-slot="{ navigate }"
       )
         .content(
-          :href
           @click.stop.preventDefault="deletionMode ? deleteSave(simulation.id) : navigate()"
           :class="{ 'cursor-crosshair': deletionMode }"
         )
           Save.overflow-hidden.rounded-lg.bg-white.shadow-lg.transition-transform.pressable(
             :simulation-id="simulation.id"
             :key="simulation.id"
+            :style="{ animation: deletionMode ? 'tilt-shaking 0.2s infinite' : 'none' }"
           )
 </template>

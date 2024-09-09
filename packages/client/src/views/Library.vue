@@ -8,25 +8,29 @@ import { routeLocation } from "@/router";
 import { BaseDirectory } from "@tauri-apps/api/fs";
 import { useLocalStorage } from "@vueuse/core";
 import {
+  CherryIcon,
   FolderOpenIcon,
   LayoutGridIcon,
   LayoutListIcon,
   ScrollTextIcon,
 } from "lucide-vue-next";
 import { computed, onMounted, ref, shallowRef, triggerRef } from "vue";
-import Saves from "./Library/Saves.vue";
 import ScenarioVue from "./Library/Scenario.vue";
 
 const scenarios = shallowRef<Scenario[]>([]);
-const search = ref("");
+const scenarioNameFilter = ref("");
+const showNsfw = useLocalStorage("showNsfw", false);
 
 const filteredScenarios = computed(() =>
-  scenarios.value.filter((scenario) =>
-    scenario.content.name.toLowerCase().includes(search.value.toLowerCase()),
+  scenarios.value.filter(
+    (scenario) =>
+      scenario.content.name
+        .toLowerCase()
+        .includes(scenarioNameFilter.value.toLowerCase()) &&
+      (showNsfw.value || !scenario.content.nsfw),
   ),
 );
 const layoutGrid = useLocalStorage("layoutGrid", true);
-const showSaves = useLocalStorage<boolean>("showLibrarySaves", true);
 
 async function openScenariosDir() {
   await tauri.utils.fileManagerOpen(await resources.scenariosDir());
@@ -46,16 +50,23 @@ onMounted(async () => {
 
   .flex.w-full.justify-center.border-t.bg-white
     .flex.w-full.max-w-4xl.items-center.justify-between.gap-2.p-3
-      input.w-full.rounded-lg.bg-neutral-100.px-2.py-1.shadow-inner(
-        v-model="search"
-        placeholder="Search..."
+      input.w-full.rounded-lg.bg-neutral-100.px-2.py-1.text-sm.italic.shadow-inner(
+        v-model="scenarioNameFilter"
+        placeholder="Filter scenarios by name..."
       )
       button.btn.btn-sm.shrink-0.rounded-lg.border.transition-transform.pressable(
         @click="openScenariosDir"
         title="Open scenarios directory"
+        v-tooltip="'Open scenarios directory'"
       )
         FolderOpenIcon(:size="18")
-        span Open folder
+        span.leading-none Open folder
+      button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
+        @click="showNsfw = !showNsfw"
+        title="Toggle NSFW"
+        v-tooltip="'Toggle NSFW'"
+      )
+        CherryIcon(:size="18" :class="{ 'text-red-500': showNsfw }")
 
   .flex.h-full.w-full.flex-col.items-center.gap-3.overflow-y-auto.py-3.shadow-inner
     //- Scenarios.
@@ -87,11 +98,4 @@ onMounted(async () => {
               :scenario
               :layout="layoutGrid ? 'grid' : 'list'"
             )
-
-    //- Saves.
-    Saves.w-full.max-w-4xl.gap-2.px-3(
-      :class="{ hidden: search }"
-      :expand="showSaves"
-      @click-expand="showSaves = !showSaves"
-    )
 </template>

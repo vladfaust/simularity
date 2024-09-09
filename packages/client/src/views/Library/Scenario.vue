@@ -33,7 +33,7 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
       CustomTitle(:title="scenario.content.name")
         template(#extra)
           .flex.gap-1
-            CherryIcon.cursor-help(
+            CherryIcon.cursor-help.text-red-500(
               v-if="scenario.content.nsfw"
               :size="18"
               v-tooltip="'This scenario is NSFW'"
@@ -68,7 +68,7 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
       CustomTitle(:title="scenario.content.name")
         template(#extra)
           .flex.gap-1
-            CherryIcon.cursor-help(
+            CherryIcon.cursor-help.text-red-500(
               v-if="scenario.content.nsfw"
               :size="18"
               v-tooltip="'This scenario is NSFW'"

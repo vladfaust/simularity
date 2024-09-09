@@ -99,7 +99,7 @@ onMounted(() => {
     CustomTitle(:title="scenario?.content.name")
       template(#extra)
         .flex.gap-1
-          CherryIcon.cursor-help(
+          CherryIcon.cursor-help.text-red-500(
             v-if="scenario?.content.nsfw"
             :size="16"
             v-tooltip="'This scenario is NSFW'"
