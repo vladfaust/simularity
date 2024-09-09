@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Alert from "@/components/Alert.vue";
 import * as storage from "@/lib/storage";
 import { useModelsQuery } from "@/queries";
 import { computed, onMounted, ref, watch } from "vue";
@@ -63,6 +64,9 @@ onMounted(async () => {
 
 <template lang="pug">
 .grid.gap-2.overflow-y-scroll.bg-neutral-50.p-2.shadow-inner
+  Alert.bg-white(type="info")
+    | At this moment inference may be slow at first due to server cold start.
+    | This will be improved in the future.
   Model.rounded-lg.border.bg-white(
     v-for="model in remoteModels"
     :key="model.id"

@@ -68,7 +68,7 @@ const selectedModelId = computed<string | undefined>({
       .grid.shrink-0.grid-cols-2.gap-1.overflow-hidden.rounded-t-lg.border-x.border-t.p-2
         button.btn-neutral.btn.btn-sm.w-full.rounded.transition-transform.pressable(
           disabled
-          tip="Local driver is not available yet."
+          v-tooltip="'Local driver is not available yet.'"
         )
           HardDriveIcon(:size="20")
           span Local
