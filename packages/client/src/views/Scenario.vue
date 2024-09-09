@@ -3,7 +3,6 @@ import Header from "@/components/Browser/Header.vue";
 import CustomTitle from "@/components/CustomTitle.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import { d } from "@/lib/drizzle";
-import * as resources from "@/lib/resources";
 import {
   ensureScenario,
   ImmersiveScenario,
@@ -19,23 +18,20 @@ import {
   ArrowLeftIcon,
   BananaIcon,
   BookMarkedIcon,
-  ChevronDownIcon,
   DramaIcon,
   FolderIcon,
   Globe2Icon,
-  HistoryIcon,
   ImageIcon,
   MonitorIcon,
   PlayCircleIcon,
   ProportionsIcon,
   ScrollTextIcon,
-  Trash2Icon,
 } from "lucide-vue-next";
 import { onMounted, ref, shallowRef } from "vue";
+import Saves from "./Library/Saves.vue";
 import Character from "./Scenario/Character.vue";
 import Episode from "./Scenario/Episode.vue";
 import NewGameModal from "./Scenario/NewGameModal.vue";
-import Save from "./Scenario/Save.vue";
 
 const props = defineProps<{
   scenarioId: string;
@@ -80,27 +76,6 @@ const saves = shallowRef<Pick<typeof d.simulations.$inferSelect, "id">[]>([]);
 const showSaves = ref(false);
 const newGameEpisodeId = ref<string | undefined>();
 const newGameModal = ref(false);
-
-async function deleteSave(simulationId: number) {
-  if (
-    !(await resources.confirm_("Are you sure you want to delete this save?", {
-      title: "Delete save",
-      okLabel: "Delete",
-      type: "info",
-    }))
-  ) {
-    console.log("Cancelled delete save", simulationId);
-    return;
-  }
-
-  console.log("Deleting save", simulationId);
-  await d.db
-    .update(d.simulations)
-    .set({ deletedAt: new Date() })
-    .where(eq(d.simulations.id, simulationId));
-
-  saves.value = saves.value.filter((s) => s.id !== simulationId);
-}
 
 async function showInFileManager() {
   if (!scenario.value) {
@@ -228,38 +203,11 @@ onMounted(async () => {
 
           //- Recent plays.
           .flex.flex-col.gap-2(v-if="saves.length")
-            CustomTitle.cursor-pointer(
-              title="Recent plays"
-              @click="showSaves = !showSaves"
+            Saves.w-full.gap-2(
+              :expand="showSaves"
+              @click-expand="showSaves = !showSaves"
+              :scenario-id
             )
-              template(#icon)
-                HistoryIcon(:size="18")
-              template(#extra)
-                .flex.items-center.gap-1
-                  span {{ saves.length }}
-                  .rounded.border.transition-transform.pressable
-                    ChevronDownIcon.transition(
-                      :size="18"
-                      :class="{ '-rotate-180': showSaves }"
-                    )
-
-            ul.grid.grid-cols-4.gap-2(:class="{ hidden: !showSaves }")
-              li.relative(v-for="simulation of saves")
-                //- Delete button.
-                .absolute.-right-1.-top-1.z-20
-                  button.btn.rounded.bg-white.p-1.shadow.transition.pressable(
-                    @click.stop="deleteSave(simulation.id)"
-                    class="hover:text-red-500"
-                  )
-                    Trash2Icon(:size="16")
-
-                RouterLink(
-                  :to="routeLocation({ name: 'Simulation', params: { simulationId: simulation.id } })"
-                )
-                  Save.overflow-hidden.rounded-lg.bg-white.shadow-lg.transition-transform.pressable(
-                    :simulation-id="simulation.id"
-                    :key="simulation.id"
-                  )
 
         //- Details section.
         .grid.grid-cols-4.gap-2

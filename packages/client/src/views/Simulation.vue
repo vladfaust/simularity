@@ -165,7 +165,7 @@ onUnmounted(() => {
         )
       span {{ Math.round(loadProgress * 100) }}%
   .relative.flex.h-full.w-full.justify-center.overflow-hidden
-    .relative.h-full.w-full
+    .relative.h-full.w-full.bg-neutral-100
       TransitionRoot#canvas-fade.absolute.top-0.z-10.h-screen.w-screen.bg-black(
         :unmount="true"
         :show="canvasFade"

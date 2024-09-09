@@ -1,30 +1,30 @@
 <script setup lang="ts">
 import CustomTitle from "@/components/CustomTitle.vue";
+import Placeholder from "@/components/Placeholder.vue";
 import { d } from "@/lib/drizzle";
 import { Mode } from "@/lib/simulation";
 import { ensureScenario } from "@/lib/simulation/scenario";
+import { nonNullable } from "@/lib/utils";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { asyncComputed } from "@vueuse/core";
 import { eq } from "drizzle-orm";
-import { BananaIcon, MessagesSquareIcon, MonitorIcon } from "lucide-vue-next";
-import { onMounted, ref } from "vue";
+import { CherryIcon, MessagesSquareIcon, MonitorIcon } from "lucide-vue-next";
+import { computed, onMounted, ref } from "vue";
+import Message, { type SimpleMessage } from "./Save/Message.vue";
 
 const { simulationId } = defineProps<{
   simulationId: number;
 }>();
 
-const simulation = ref<
-  | Pick<
-      typeof d.simulations.$inferSelect,
-      "id" | "updatedAt" | "scenarioId" | "mode" | "starterEpisodeId"
-    >
-  | null
-  | undefined
->();
+const simulation = ref<typeof d.simulations.$inferSelect | null | undefined>();
 
 const scenario = asyncComputed(() =>
   simulation.value ? ensureScenario(simulation.value.scenarioId) : undefined,
+);
+
+const scenarioThumbnailUrl = asyncComputed(
+  () => scenario.value?.getThumbnailUrl() ?? null,
 );
 
 const screenshotUrl = asyncComputed(async () => {
@@ -51,17 +51,30 @@ const starterEpisodeImageUrl = asyncComputed(() => {
   return scenario.value.resourceUrl(episode.imagePath);
 });
 
+const latestUpdate = asyncComputed(() => {
+  if (!simulation.value?.currentUpdateId) return null;
+
+  return d.db.query.writerUpdates.findFirst({
+    where: eq(d.writerUpdates.id, simulation.value.currentUpdateId),
+  });
+});
+
+const latestMessage = computed<SimpleMessage | null>(() => {
+  return latestUpdate.value
+    ? {
+        id: latestUpdate.value.id,
+        characterId: latestUpdate.value.characterId,
+        text: latestUpdate.value.text,
+        clockMinutes: latestUpdate.value.simulationDayClock,
+        createdAt: latestUpdate.value.createdAt!,
+      }
+    : null;
+});
+
 onMounted(() => {
   d.db.query.simulations
     .findFirst({
       where: eq(d.simulations.id, simulationId),
-      columns: {
-        id: true,
-        updatedAt: true,
-        scenarioId: true,
-        mode: true,
-        starterEpisodeId: true,
-      },
     })
     .then((s) => {
       simulation.value = s ?? null;
@@ -71,22 +84,22 @@ onMounted(() => {
 
 <template lang="pug">
 .group.flex.flex-col
-  img.aspect-video.object-cover.transition(
-    v-if="screenshotUrl || starterEpisodeImageUrl"
-    :src="screenshotUrl || starterEpisodeImageUrl"
-    class="group-hover:brightness-105"
-  )
-  .grid.aspect-video.h-full.w-full.place-items-center.border-b(
-    v-else-if="simulation?.mode === Mode.Chat"
-  )
-    MessagesSquareIcon(:size="24")
-  .aspect-video.w-full.border-b(v-else)
+  .relative.aspect-video.w-full.overflow-hidden
+    img.h-full.w-full.object-cover.transition(
+      v-if="screenshotUrl || starterEpisodeImageUrl || scenarioThumbnailUrl"
+      :src="nonNullable(screenshotUrl || starterEpisodeImageUrl || scenarioThumbnailUrl)"
+    )
+    Placeholder.h-full.w-full.border-b(v-else)
+    ul.absolute.bottom-0.left-0.z-10.flex.h-full.w-full.flex-col-reverse.gap-1.overflow-y-scroll.p-2(
+      v-if="scenario && latestMessage"
+    )
+      Message(:key="latestMessage.id" :scenario :message="latestMessage")
 
-  .flex.flex-col.p-2(v-if="simulation?.updatedAt")
+  .flex.flex-col.p-3(v-if="simulation?.updatedAt")
     CustomTitle(:title="scenario?.content.name")
       template(#extra)
         .flex.gap-1
-          BananaIcon.cursor-help(
+          CherryIcon.cursor-help(
             v-if="scenario?.content.nsfw"
             :size="16"
             v-tooltip="'This scenario is NSFW'"
@@ -101,5 +114,6 @@ onMounted(() => {
             :size="16"
             v-tooltip="'This simulation runs in chat mode'"
           )
-    span.text-xs {{ simulation.updatedAt.toLocaleString() }}
+
+    span.text-xs.leading-tight.text-gray-500 {{ simulation.updatedAt.toLocaleString() }}
 </template>
