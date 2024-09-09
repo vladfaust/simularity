@@ -103,7 +103,7 @@ const character = computed(() => {
           template(v-else-if="character === null")
             span.font-semibold.leading-none Narrator
 
-          span.leading-none {{ bufferedClock }}
+          //- span.leading-none {{ bufferedClock }}
 
     //- Buttons.
     .flex.items-center.gap-2

@@ -2,7 +2,7 @@
 import CharacterPfp from "@/components/CharacterPfp.vue";
 import { Simulation } from "@/lib/simulation";
 import { Update } from "@/lib/simulation/update";
-import { minutesToClock, tap } from "@/lib/utils";
+// import { minutesToClock, tap } from "@/lib/utils";
 import {
   AudioLinesIcon,
   CheckIcon,
@@ -60,10 +60,10 @@ const character = computed(() => {
   }
 });
 
-const clock = computed(() => {
-  const minutes = props.variant.writerUpdate.simulationDayClock;
-  return tap(minutes, minutesToClock);
-});
+// const clock = computed(() => {
+//   const minutes = props.variant.writerUpdate.simulationDayClock;
+//   return tap(minutes, minutesToClock);
+// });
 
 const editTextarea = ref<HTMLTextAreaElement | null>(null);
 
@@ -175,7 +175,7 @@ onMounted(() => {
         span.font-semibold.leading-none(:style="{ color: character.color }") {{ character.name }}
       template(v-else-if="character === null")
         span.font-semibold.leading-none Narrator
-      span.leading-none {{ clock }}
+      //- span.leading-none {{ clock }}
 
       //- ADHOC: Consolidation indicator.
       span.leading-none(v-if="variant.writerUpdate.didConsolidate") [C]
