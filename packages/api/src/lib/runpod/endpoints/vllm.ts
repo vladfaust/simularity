@@ -51,7 +51,7 @@ const VllmEndpointOutputSchema = v.array(
 export class VllmEndpoint {
   static create(
     userId: string,
-    worker: typeof d.ttsWorkers.$inferSelect & {
+    worker: typeof d.llmWorkers.$inferSelect & {
       model: Pick<typeof d.llmModels.$inferSelect, "creditPrice">;
     },
   ): VllmEndpoint | null {
