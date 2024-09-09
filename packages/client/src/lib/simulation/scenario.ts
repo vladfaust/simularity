@@ -124,18 +124,18 @@ const BaseScenarioSchema = v.object({
   /**
    * Tell the model what the player is expecting from this scenario.
    */
-  excerpt: v.string(),
+  excerpt: v.optional(v.string()),
 
   /**
    * Global scenario prompt, always present.
    * Describe the setting and the situation.
    */
-  globalScenario: v.string(),
+  globalScenario: v.optional(v.string()),
 
   /**
    * "Secret" instructions to drive AI generation.
    */
-  instructions: v.string(),
+  instructions: v.optional(v.string()),
 
   /**
    * Voice models and embeddings for the narrator.
