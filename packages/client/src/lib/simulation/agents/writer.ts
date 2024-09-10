@@ -9,7 +9,7 @@ import { d } from "@/lib/drizzle";
 import * as storage from "@/lib/storage";
 import { clockToMinutes, minutesToClock, trimEndAny } from "@/lib/utils";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
-import { ImmersiveScenario, type Scenario } from "../scenario";
+import { type Scenario } from "../scenario";
 import type { StateDto } from "../state";
 import { Update } from "../update";
 import { hookLlmAgentToDriverRef } from "./llm";
@@ -405,32 +405,13 @@ Simulation setup complete. Have fun!
    */
   // TODO: Add events in time, such as stage updates.
   private static _buildDynamicPrompt(
-    scenario: Scenario,
+    _scenario: Scenario,
     checkpoint: Checkpoint,
     historicalUpdate: Update[],
     recentUpdates: Update[],
-    currentState: StateDto | undefined,
+    _currentState: StateDto | undefined,
     maxHistoricalLines = 3,
   ): string {
-    let stateLine;
-    if (currentState && scenario instanceof ImmersiveScenario) {
-      stateLine = `<${SYSTEM}> `;
-
-      const scene = scenario.ensureScene(currentState.stage.sceneId);
-      stateLine += `Rendered stage set to '${scene.name}': '${scene.prompt}'.`;
-
-      if (currentState.stage.characters.length) {
-        stateLine += ` Characters on stage: ${currentState.stage.characters
-          .map(
-            (character) =>
-              `<${character.id}> (rendered outfit: "${character.outfitId}")`,
-          )
-          .join(", ")}.`;
-      } else {
-        stateLine += " There are no characters on stage.";
-      }
-    }
-
     const historicalLines = historicalUpdate
       .slice(-maxHistoricalLines)
       .map((update) => this.updateToLine(update))
@@ -445,7 +426,7 @@ Simulation setup complete. Have fun!
 ${checkpoint.summary || "(empty)"}
 
 [Transcription]
-${historicalLines ? historicalLines + "\n" : ""}${recentLines}${stateLine ? "\n" + stateLine : ""}`;
+${historicalLines ? historicalLines + "\n" : ""}${recentLines}`;
   }
 
   /**
