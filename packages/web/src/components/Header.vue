@@ -5,7 +5,7 @@ import { userId } from "@/store";
 
 <template lang="pug">
 .flex.justify-center
-  .flex.w-full.max-w-xl.items-center.justify-between.p-3
+  .flex.w-full.max-w-2xl.items-center.justify-between.p-3
     RouterLink.-mb-1.h-8.transition-transform.pressable(
       :to="routeLocation({ name: 'Home' })"
     )
