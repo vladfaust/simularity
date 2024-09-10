@@ -147,63 +147,74 @@ int simularity_gpt_infer(
   auto start = std::chrono::high_resolution_clock::now();
 
   while (eval_tokens.size() < n_eval) {
-    llama_token next;
-
     try {
-      next = sampling_ctx->sample(session->context);
-    } catch (std::exception &e) {
-      spdlog::error("Error at sample: {}", e.what());
-      return -7;
-    }
+      llama_token next;
 
-    auto piece = llama_token_to_piece(session->model(), next, true);
-
-    if (next == llama_token_eos(session->model())) {
-      spdlog::info("Stop: EOS token found");
-      break;
-    }
-
-    // Accept the token.
-    sampling_ctx->accept(session->context, next);
-    eval_tokens.push_back(next);
-    session->prompt.push_back(next);
-
-    // Call the inference callback.
-    if (inference_callback != NULL) {
-      if (!inference_callback(piece.c_str(), inference_callback_user_data)) {
-        spdlog::info("Stop: inference callback returned false");
-        break;
+      try {
+        next = sampling_ctx->sample(session->context);
+      } catch (std::exception &e) {
+        spdlog::error("Error at sample: {}", e.what());
+        return -7;
       }
-    }
 
-    bool found = false;
-    for (auto &stop_sequence : stop_sequences) {
-      if (eval_tokens.size() < stop_sequence.size() ||
-          !std::equal(
-              eval_tokens.end() - stop_sequence.size(),
-              eval_tokens.end(),
-              stop_sequence.begin()
-          )) {
+      std::string piece;
+      try {
+        piece = llama_token_to_piece(session->model(), next, true);
+      } catch (std::exception &e) {
+        spdlog::warn("Failed to convert token to piece: ⌘{}", next);
         continue;
       }
 
-      spdlog::info("Stop: sequence found ({})", stop_sequence);
-      found = true;
+      if (next == llama_token_eos(session->model())) {
+        spdlog::info("Stop: EOS token found");
+        break;
+      }
 
-      break;
-    }
-    if (found) break;
+      // Accept the token.
+      sampling_ctx->accept(session->context, next);
+      eval_tokens.push_back(next);
+      session->prompt.push_back(next);
 
-    // Clear the batch and add the single next token to it.
-    batch->batch.n_tokens = 0;
-    batch->add(next, n_prompt + eval_tokens.size(), true);
+      // Call the inference callback.
+      if (inference_callback != NULL) {
+        if (!inference_callback(piece.c_str(), inference_callback_user_data)) {
+          spdlog::info("Stop: inference callback returned false");
+          break;
+        }
+      }
 
-    // Decode the next token.
-    auto err = llama_decode(session->context, batch->batch);
-    if (err == -1) return -2; // Could not find a KV slot (context overflow).
-    else if (err) {
-      spdlog::warn("Failed to decode -> {}", err);
-      return -6; // Decoding error.
+      bool found = false;
+      for (auto &stop_sequence : stop_sequences) {
+        if (eval_tokens.size() < stop_sequence.size() ||
+            !std::equal(
+                eval_tokens.end() - stop_sequence.size(),
+                eval_tokens.end(),
+                stop_sequence.begin()
+            )) {
+          continue;
+        }
+
+        spdlog::info("Stop: sequence found ({})", stop_sequence);
+        found = true;
+
+        break;
+      }
+      if (found) break;
+
+      // Clear the batch and add the single next token to it.
+      batch->batch.n_tokens = 0;
+      batch->add(next, n_prompt + eval_tokens.size(), true);
+
+      // Decode the next token.
+      auto err = llama_decode(session->context, batch->batch);
+      if (err == -1) return -2; // Could not find a KV slot (context overflow).
+      else if (err) {
+        spdlog::warn("Failed to decode -> {}", err);
+        return -6; // Decoding error.
+      }
+    } catch (std::exception &e) {
+      spdlog::error("Unhandled error during inference loop: {}", e.what());
+      return -100;
     }
   }
 
