@@ -43,7 +43,8 @@
         "request": true,
         "scope": [
           "http://localhost:3000/*",
-          "https://api.simularity.ai/*"
+          "https://api.simularity.ai/*",
+          "tauri://localhost/*"
         ]
       },
       "path": {
@@ -112,7 +113,7 @@
       ]
     },
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: asset: https://asset.localhost blob:; media-src blob:; connect-src https://api.simularity.ai ipc: http://ipc.localhost asset: https://asset.localhost"
+      "csp": "default-src 'self'; img-src 'self' data: asset: https://asset.localhost blob:; media-src blob:; connect-src https://api.simularity.ai ipc: http://ipc.localhost asset: https://asset.localhost tauri://localhost"
     },
     "updater": {
       "active": false
