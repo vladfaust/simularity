@@ -2,7 +2,7 @@
 import type { BaseLlmDriver } from "@/lib/ai/llm/BaseLlmDriver";
 import { RemoteLlmDriver } from "@/lib/ai/llm/RemoteLlmDriver";
 import { TauriLlmDriver } from "@/lib/ai/llm/TauriLlmDriver";
-import { CloudIcon, CpuIcon } from "lucide-vue-next";
+import { CloudIcon, CpuIcon, OctagonAlertIcon } from "lucide-vue-next";
 import { computed } from "vue";
 
 enum Status {
@@ -12,6 +12,7 @@ enum Status {
 
 const props = defineProps<{
   driver: BaseLlmDriver | undefined | null;
+  required?: boolean;
 }>();
 
 const status = computed<Status | undefined>(() => {
@@ -24,7 +25,13 @@ const status = computed<Status | undefined>(() => {
 
 <template lang="pug">
 .flex.items-center.gap-2
+  OctagonAlertIcon.text-error-500(
+    v-if="required && status === undefined"
+    v-tooltip="'Agent needs setup'"
+    :size="18"
+  )
   .h-2.w-2.rounded-full(
+    v-else
     :class="{ 'bg-green-500': status === Status.Ready, 'bg-yellow-500': status === Status.Busy, 'bg-gray-500': status === undefined, 'animate-pulse': status === Status.Busy }"
   )
   CpuIcon(

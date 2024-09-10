@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Simulation } from "@/lib/simulation";
+import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import type { TtsConfig } from "@/lib/storage/tts";
 import { clone, tap } from "@/lib/utils";
@@ -187,7 +187,10 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                   FeatherIcon(:size="20")
                 span Writer
               .flex.items-center
-                LlmStatusIcon(:driver="simulation.writer.llmDriver.value")
+                LlmStatusIcon(
+                  :driver="simulation.writer.llmDriver.value"
+                  :required="true"
+                )
 
             //- Director agent tab.
             ._tab(
@@ -198,7 +201,10 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                 ._icon
                   ClapperboardIcon(:size="20")
                 span Director
-              LlmStatusIcon(:driver="simulation.director?.llmDriver.value")
+              LlmStatusIcon(
+                :driver="simulation.director?.llmDriver.value"
+                :required="simulation.mode === Mode.Immersive"
+              )
 
             //- Voicer agent tab.
             ._tab(

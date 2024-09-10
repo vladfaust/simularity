@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Simulation } from "@/lib/simulation";
+import { OctagonAlert } from "lucide-vue-next";
 import { computed } from "vue";
 
 enum Status {
@@ -35,7 +36,13 @@ const statusText = computed<string | undefined>(() => {
 </script>
 
 <template lang="pug">
+OctagonAlert.text-error-500(
+  v-if="status === undefined"
+  v-tooltip="'Simulation needs setup'"
+  :size="18"
+)
 .h-2.w-2.rounded-full(
+  v-else
   :size="16"
   :stroke-width="2.5"
   :class="{ 'bg-green-500': status === Status.Idle, 'bg-yellow-500': status === Status.Busy, 'bg-neutral-500': status === undefined, 'animate-pulse': status === Status.Busy }"
