@@ -436,6 +436,11 @@ const BaseScenarioSchema = v.object({
 
             text: v.pipe(v.string(), v.trim(), v.nonEmpty()),
           }),
+
+          /**
+           * An optional list of characters to enable, exclusively.
+           */
+          enabledCharacters: v.optional(v.array(IdSchema)),
         }),
       ),
     }),

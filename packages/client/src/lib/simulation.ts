@@ -10,6 +10,7 @@ import {
   shallowRef,
   triggerRef,
   type Raw,
+  type Ref,
 } from "vue";
 import {
   CompletionAbortError,
@@ -427,7 +428,7 @@ export class Simulation {
    * @assert There is current episode.
    * @assert The episode has chunks left.
    */
-  async advanceCurrentEpisode() {
+  async advanceCurrentEpisode(enabledCharacterIds: Ref<Set<string>>) {
     if (this.busy.value) {
       throw new Error("Simulation is busy");
     }
@@ -454,6 +455,13 @@ export class Simulation {
         this.currentUpdate.value?.chosenVariant?.writerUpdate.id;
       console.debug("Parent update ID", parentUpdateId);
 
+      const directorUpdate = (chunk as ImmersiveScenarioEpisodeChunk)
+        .directorUpdate
+        ? {
+            code: (chunk as ImmersiveScenarioEpisodeChunk).directorUpdate!,
+          }
+        : undefined;
+
       const incoming = await Simulation._saveUpdatesToDb(this.id, {
         writerUpdate: {
           parentUpdateId,
@@ -467,15 +475,13 @@ export class Simulation {
           episodeId: currentWriterUpdate.episodeId!,
           episodeChunkIndex: currentWriterUpdate.episodeChunkIndex! + 1,
         },
-        directorUpdate:
-          this.scenario instanceof ImmersiveScenario &&
-          this.mode === Mode.Immersive &&
-          (chunk as ImmersiveScenarioEpisodeChunk).directorUpdate
-            ? {
-                code: (chunk as ImmersiveScenarioEpisodeChunk).directorUpdate!,
-              }
-            : undefined,
+        directorUpdate,
       });
+
+      if (directorUpdate) {
+        console.log("Applying stage code", directorUpdate.code);
+        this.state!.apply(directorUpdate.code);
+      }
 
       // Add the new episode update to the recent updates.
       const episodeUpdate = markRaw(
@@ -492,6 +498,10 @@ export class Simulation {
       );
 
       this._recentUpdates.value.push(episodeUpdate);
+
+      if (chunk.enabledCharacters) {
+        enabledCharacterIds.value = new Set(chunk.enabledCharacters);
+      }
     } finally {
       this._busy.value = false;
     }

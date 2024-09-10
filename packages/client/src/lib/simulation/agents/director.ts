@@ -14,6 +14,7 @@ import { ImmersiveScenario } from "../scenario";
 import { State, type StateDto } from "../state";
 import { type StateCommand } from "../state/commands";
 import { hookLlmAgentToDriverRef } from "./llm";
+import { NARRATOR } from "./writer";
 
 export type SimpleUpdate = {
   characterId: string | null;
@@ -349,7 +350,7 @@ ${JSON.stringify(setup)}
   } {
     const characterSchemas: Record<string, v.GenericSchema> = {};
 
-    for (const character of characters) {
+    for (const character of characters.filter((c) => c.id !== NARRATOR)) {
       const schema = v.strictObject({
         outfit: v.union(
           Object.keys(scenario.content.characters[character.id].outfits).map(
