@@ -455,12 +455,13 @@ export class Simulation {
         this.currentUpdate.value?.chosenVariant?.writerUpdate.id;
       console.debug("Parent update ID", parentUpdateId);
 
-      const directorUpdate = (chunk as ImmersiveScenarioEpisodeChunk)
-        .directorUpdate
-        ? {
-            code: (chunk as ImmersiveScenarioEpisodeChunk).directorUpdate!,
-          }
-        : undefined;
+      const directorUpdate =
+        this.mode === Mode.Immersive &&
+        (chunk as ImmersiveScenarioEpisodeChunk).directorUpdate
+          ? {
+              code: (chunk as ImmersiveScenarioEpisodeChunk).directorUpdate!,
+            }
+          : undefined;
 
       const incoming = await Simulation._saveUpdatesToDb(this.id, {
         writerUpdate: {

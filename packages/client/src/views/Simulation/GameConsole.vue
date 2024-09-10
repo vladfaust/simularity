@@ -209,7 +209,10 @@ async function advance() {
 
   busy.value = true;
   try {
-    if (simulation.shallAdvanceEpisode.value) {
+    if (
+      simulation.shallAdvanceEpisode.value &&
+      !simulation.canGoForward.value
+    ) {
       await simulation.advanceCurrentEpisode(enabledCharacterIds);
     } else {
       if (simulation.canGoForward.value) {
