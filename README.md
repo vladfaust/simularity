@@ -1,24 +1,49 @@
 # Simularity
 
-> Run interactive simulations locally, or in cloud.
+This repository contains mathematical proof of simulated reality (_simularity_).
 
-This project aims to implement a foundation for self-hosted interactive simulation applications.
+The project can run locally (currently MacOS M-series chips only).
+Alternatively, cloud inference is available at [simularity.ai](https://simularity.ai).
 
-The closest description for the project right now is "AI-driven visual novels".
+## Demo 🚀
 
-## Foundation
+Click to play a YouTube video:
 
-This project implements a base for future interactive simulation applications, presumably with application-specific modules and assets.
+[![Simularity Chat Mode Demo](https://img.youtube.com/vi/CFIA9X39cUA/0.jpg)](https://www.youtube.com/watch?v=CFIA9X39cUA)
 
-Ideally, a typical application workflow includes development of the assets only (such as scenarios, characters, images, UI elements etc.), so that all the foundation is re-used.
+[![Simularity Visual Novel Demo](https://img.youtube.com/vi/iIuxUJkCPgU/0.jpg)](https://www.youtube.com/watch?v=iIuxUJkCPgU)
 
-## Deployment
+## Deployment 🚢
+
+### Quick Start
+
+Run development web server:
+
+```sh
+cd packages/client
+npm run dev
+```
+
+Run the Tauri application:
+
+```sh
+cd packages/tauri
+cargo tauri dev
+```
+
+Simularity depends on scenarios.
+Download example scenarios from the [simularity-scenarios](https://github.com/vladfaust/simularity-scenarios) repository and place them into the `/Users/user/Library/Application Support/ai.simularity.dev/scenarios` directory.
 
 ### Dokku
 
-See [packages/api/README.md](./packages/api/README.md) and [packages/web/README.md](./packages/web/README.md) for deployment instructions.
+See [packages/api/README.md](./packages/api/README.md) and [packages/web/README.md](./packages/web/README.md) for Dokku deployment instructions.
 
-## Marketing 📈
+## History 📜
+
+My previous simulation project, [aistories](https://github.com/vladfaust/aistories), was dependent on third-party AI providers.
+This project is a self-contained simulation engine which can run locally thanks to Llama.cpp.
+
+## Marketing Ideas 📈
 
 - https://youtu.be/Kbk9BiPhm7o?si=8xfqeHy6H59Cyf7X&t=780 (on how digital compute works to satisfy the limbic system).
 - Speedrun on romancing a character.
