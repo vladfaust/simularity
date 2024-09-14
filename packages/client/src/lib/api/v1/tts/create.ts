@@ -1,4 +1,8 @@
-import { PaymentRequiredError } from "@/lib/api";
+import {
+  PaymentRequiredError,
+  RemoteApiError,
+  UnauthorizedError,
+} from "@/lib/api";
 import { timeoutSignal } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 import {
@@ -7,8 +11,6 @@ import {
 } from "@simularity/api-sdk/v1/tts/create";
 import * as tauriHttp from "@tauri-apps/api/http";
 import { toMilliseconds } from "duration-fns";
-
-export class ServerError extends Error {}
 
 export const TTS_SPEAKER = v.object({
   gpt_cond_latent: v.array(v.array(v.number())),
@@ -74,12 +76,16 @@ export async function create(
   });
 
   if (!response.ok) {
-    if (response.status === 402) {
-      throw new PaymentRequiredError();
-    } else {
-      throw new ServerError(
-        `POST ${url} request failed: ${response.status} ${JSON.stringify(response.data)}`,
-      );
+    switch (response.status) {
+      case 401:
+        throw new UnauthorizedError();
+      case 402:
+        throw new PaymentRequiredError();
+      default:
+        throw new RemoteApiError(
+          response,
+          `POST ${url} request failed: ${response.status} ${JSON.stringify(response.data)}`,
+        );
     }
   }
 
@@ -121,7 +127,8 @@ export async function* createStream(
   });
 
   if (!response.ok) {
-    throw new ServerError(
+    throw new RemoteApiError(
+      response,
       `Failed to create completion: ${response.status} ${await response.text()}`,
     );
   }

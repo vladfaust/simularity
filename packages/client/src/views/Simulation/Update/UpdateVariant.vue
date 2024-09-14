@@ -17,6 +17,7 @@ import { computed, ref, watch } from "vue";
 import { toast } from "vue3-toastify";
 import RichText from "./RichText.vue";
 import { onMounted } from "vue";
+import * as api from "@/lib/api";
 
 const props = defineProps<{
   simulation: Simulation;
@@ -123,8 +124,16 @@ async function createTts() {
       switchPlayTts();
     })
     .catch((e) => {
-      toast("Failed to create TTS", { type: "error" });
-      throw e;
+      if (e instanceof api.UnauthorizedError) {
+        console.warn(e);
+        toast.error("Please log in.");
+      } else if (e instanceof api.PaymentRequiredError) {
+        console.warn(e);
+        toast.error("Not enough credits.");
+      } else {
+        toast.error("Failed to create TTS");
+        throw e;
+      }
     })
     .finally(() => {
       ttsCreationInProgress.value = false;

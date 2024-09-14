@@ -1,4 +1,8 @@
-import { PaymentRequiredError, RemoteApiError } from "@/lib/api";
+import {
+  PaymentRequiredError,
+  RemoteApiError,
+  UnauthorizedError,
+} from "@/lib/api";
 import { v } from "@/lib/valibot";
 import * as createCompletionApi from "@simularity/api-sdk/v1/completions/create";
 import * as tauriHttp from "@tauri-apps/api/http";
@@ -36,13 +40,16 @@ export async function create(
   });
 
   if (!response.ok) {
-    if (response.status === 402) {
-      throw new PaymentRequiredError();
-    } else {
-      throw new RemoteApiError(
-        response,
-        `POST ${url} request failed: ${response.status} ${JSON.stringify(response.data)}`,
-      );
+    switch (response.status) {
+      case 401:
+        throw new UnauthorizedError();
+      case 402:
+        throw new PaymentRequiredError();
+      default:
+        throw new RemoteApiError(
+          response,
+          `POST ${url} request failed: ${response.status} ${JSON.stringify(response.data)}`,
+        );
     }
   }
 

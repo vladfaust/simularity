@@ -185,7 +185,10 @@ async function sendMessage() {
       userInput.value = userMessage;
     }
 
-    if (e instanceof api.PaymentRequiredError) {
+    if (e instanceof api.UnauthorizedError) {
+      console.warn(e);
+      toast.error("Please log in.");
+    } else if (e instanceof api.PaymentRequiredError) {
       console.warn(e);
       toast.error("Not enough credits.");
     } else {
@@ -229,7 +232,10 @@ async function advance() {
       }
     }
   } catch (e: any) {
-    if (e instanceof api.PaymentRequiredError) {
+    if (e instanceof api.UnauthorizedError) {
+      console.warn(e);
+      toast.error("Please log in.");
+    } else if (e instanceof api.PaymentRequiredError) {
       console.warn(e);
       toast.error("Not enough credits.");
     } else {
@@ -309,7 +315,10 @@ async function regenerateUpdate(updateIndex: number) {
       inferenceAbortController.value!.signal,
     );
   } catch (e) {
-    if (e instanceof api.PaymentRequiredError) {
+    if (e instanceof api.UnauthorizedError) {
+      console.warn(e);
+      toast.error("Please log in.");
+    } else if (e instanceof api.PaymentRequiredError) {
       console.warn(e);
       toast.error("Not enough credits.");
     } else {

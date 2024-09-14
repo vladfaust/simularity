@@ -11,6 +11,13 @@ export class RemoteApiError extends Error {
   }
 }
 
+export class UnauthorizedError extends Error {
+  constructor() {
+    super();
+    this.name = "UnauthorizedError";
+  }
+}
+
 export class PaymentRequiredError extends Error {
   constructor() {
     super();
