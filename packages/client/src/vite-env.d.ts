@@ -22,6 +22,9 @@ interface ImportMetaEnv {
   /** Patreon campaign URL. */
   // TODO: Replace with a system API call to get the campaign URL.
   readonly VITE_PATREON_CAMPAIGN_URL: string;
+
+  /** Whether to enable experimental features. */
+  readonly VITE_EXPERIMENTAL_FEATURES: string;
 }
 
 interface ImportMeta {

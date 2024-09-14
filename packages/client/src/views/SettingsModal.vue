@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { env } from "@/env";
 import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
+import { directorTeacherMode } from "@/lib/storage/llm";
 import type { TtsConfig } from "@/lib/storage/tts";
 import { clone, tap } from "@/lib/utils";
 import { onLoginButtonClick } from "@/logic/loginButton";
@@ -203,7 +205,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                 span Director
               LlmStatusIcon(
                 :driver="simulation.director?.llmDriver.value"
-                :required="simulation.mode === Mode.Immersive"
+                :required="simulation.mode === Mode.Immersive && (!env.VITE_EXPERIMENTAL_FEATURES || !directorTeacherMode)"
               )
 
             //- Voicer agent tab.

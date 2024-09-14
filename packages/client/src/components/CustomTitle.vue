@@ -11,6 +11,6 @@ defineProps<{
     slot(name="default")
       span.font-semibold.leading-snug.tracking-wide {{ title }}
   .min-w-4.grow.border-b
-  .shrink-0(v-if="$slots.extra")
+  .flex.shrink-0.items-center(v-if="$slots.extra")
     slot(name="extra")
 </template>

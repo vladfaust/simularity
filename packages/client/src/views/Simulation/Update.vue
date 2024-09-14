@@ -20,6 +20,8 @@ const props = defineProps<{
   updateIndex: number;
   isHistorical?: boolean;
   isFuture?: boolean;
+  hideTts?: boolean;
+  hidePreference?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -81,6 +83,8 @@ onMounted(() => {
     :simulation
     :is-single
     :can-edit
+    :hide-tts
+    :hide-preference
     :preference-function="(pref) => simulation.preferWriterUpdate(props.update, pref)"
     :apply-edit-function="(text) => simulation.editUpdateVariant(nonNullable(update.chosenVariant), text)"
     @trigger-edit-handler="emit('triggerEditHandler', $event)"
@@ -91,7 +95,7 @@ onMounted(() => {
       span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
     template(
       #variant-navigation
-      v-if="!update.chosenVariant.writerUpdate.episodeId"
+      v-if="showVariantNavigation && !update.chosenVariant.writerUpdate.episodeId"
     )
       VariantNavigation(
         :can-go-previous="update.chosenVariantIndex.value > 0"

@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { Simulation } from "@/lib/simulation";
+import CustomTitle from "@/components/CustomTitle.vue";
+import { Simulation, State } from "@/lib/simulation";
 import { compareStateDeltas } from "@/lib/simulation/state";
 import { Update } from "@/lib/simulation/update";
-import { AsteriskIcon, SaveIcon, ThumbsUpIcon } from "lucide-vue-next";
-import { computed, ref } from "vue";
+import {
+  AsteriskIcon,
+  SaveIcon,
+  ThumbsUpIcon,
+  UndoIcon,
+} from "lucide-vue-next";
+import { computed, ref, triggerRef } from "vue";
 import Command from "./DirectorUpdate/Command.vue";
 
 const props = defineProps<{
@@ -54,34 +60,60 @@ async function prefer() {
     preferenceInProgress.value = false;
   }
 }
+
+function reset() {
+  props.simulation.state!.setState(props.simulation.previousState.value!);
+
+  if (directorUpdate.value?.code.length) {
+    props.simulation.state!.apply(directorUpdate.value.code);
+  }
+
+  triggerRef(delta);
+}
+
+function removeCommand(index: number) {
+  const localDelta = State.delta(
+    props.simulation.state!.serialize(),
+    props.simulation.previousState.value,
+  );
+  localDelta.splice(index, 1);
+
+  props.simulation.state!.setState(props.simulation.previousState.value!);
+  props.simulation.state!.apply(localDelta);
+
+  triggerRef(delta);
+}
 </script>
 
 <template lang="pug">
 .flex.flex-col.gap-2
-  .flex.justify-between
-    h1.flex.items-center.font-medium.leading-tight.tracking-wide.text-white
-      | State delta
-      AsteriskIcon.text-yellow-500.drop-shadow(
-        v-if="modified"
-        :size="18"
-        title="Delta modified"
-      )
+  CustomTitle
+    span.font-semibold.leading-snug.tracking-wide.text-white State delta
+    AsteriskIcon.text-yellow-500.drop-shadow(
+      v-if="modified"
+      :size="18"
+      title="Delta modified"
+    )
+    template(#extra)
+      .flex.items-center.gap-1
+        //- Reset button.
+        button(v-if="modified" :disabled="saveInProgress" @click="reset")
+          UndoIcon.text-white(:size="20")
 
-    .flex.items-center.gap-1
-      //- Save button.
-      button(v-if="modified" :disabled="saveInProgress" @click="save")
-        SaveIcon.text-white(:size="20")
+        //- Save button.
+        button(v-if="modified" :disabled="saveInProgress" @click="save")
+          SaveIcon.text-white(:size="20")
 
-      //- Positive preference button.
-      button
-        ThumbsUpIcon.drop-shadow(
-          :size="18"
-          :class="modified || directorUpdate?.preference ? 'text-success-700 fill-success-500' : 'text-white'"
-          :disabled="preferenceInProgress"
+        //- Positive preference button.
+        button(
+          v-if="!modified"
           @click="prefer"
+          :disabled="preferenceInProgress"
+          :class="directorUpdate?.preference ? 'text-success-700 fill-success-500' : 'text-white'"
         )
+          ThumbsUpIcon.drop-shadow(:size="18")
 
-  .flex.flex-col.gap-1.rounded-lg.bg-white.p-2
+  .flex.flex-col.gap-1.rounded-lg.bg-white.p-3
     h2.font-medium Director update code
     .flex.flex-col.gap-1(v-if="directorUpdate?.code.length")
       Command.shadow(
@@ -97,6 +129,8 @@ async function prefer() {
         v-for="command, i of delta"
         :key="i + command.name + command.args"
         :command
+        :can-remove="true"
+        @remove="removeCommand(i)"
       )
     span.italic(v-else) Empty
 </template>

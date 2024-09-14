@@ -3,6 +3,7 @@ import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
 import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
+import { directorTeacherMode } from "@/lib/storage/llm";
 import { Bug, clone } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 import pRetry from "p-retry";
@@ -72,7 +73,9 @@ export class PredictUpdateVariantJob {
     try {
       this._writerDone.value = false;
       this._directorDone.value =
-        this.mode === Mode.Immersive ? false : undefined;
+        this.mode === Mode.Immersive && !directorTeacherMode.value
+          ? false
+          : undefined;
 
       const writerResponse = await this.agents.writer.inferUpdate(
         this.checkpoint,
@@ -130,7 +133,7 @@ export class PredictUpdateVariantJob {
       }
 
       let directorResponse;
-      if (this.mode === Mode.Immersive) {
+      if (this.mode === Mode.Immersive && !directorTeacherMode.value) {
         directorResponse = await pRetry(
           async () => {
             const directorResponse = await this._inferDirectorUpdate(

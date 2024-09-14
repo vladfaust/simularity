@@ -176,3 +176,8 @@ export function useLatestRemoteModelConfig(
       return latestDirectorRemoteModelConfig;
   }
 }
+
+export const directorTeacherMode = useLocalStorage<boolean>(
+  "llm:director:teacherMode",
+  false,
+);

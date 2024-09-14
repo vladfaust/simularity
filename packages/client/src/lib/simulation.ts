@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import { fs } from "@tauri-apps/api";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
@@ -43,6 +44,7 @@ import {
 import { type StateCommand } from "./simulation/state/commands";
 import { Update } from "./simulation/update";
 import * as storage from "./storage";
+import { directorTeacherMode } from "./storage/llm";
 import { Bug, Deferred, assert, assertCallback } from "./utils";
 
 export { State, type Scenario };
@@ -259,7 +261,10 @@ export class Simulation {
   readonly ready = computed(
     () =>
       this.writer.ready.value &&
-      (this.mode === Mode.Immersive ? this.director!.ready.value : true),
+      (this.mode === Mode.Immersive
+        ? this.director!.ready.value ||
+          (env.VITE_EXPERIMENTAL_FEATURES && directorTeacherMode.value)
+        : true),
   );
 
   /**
@@ -625,12 +630,8 @@ export class Simulation {
       );
     }
 
-    if (!this.writer.ready.value) {
-      throw new Error("Writer is not ready");
-    }
-
-    if (this.mode === Mode.Immersive && !this.director!.ready.value) {
-      throw new Error("Director is not ready");
+    if (!this.ready.value) {
+      throw new Error("Simulaton is not ready");
     }
 
     this._busy.value = true;

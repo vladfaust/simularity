@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { type StateCommand } from "@/lib/simulation/state/commands";
+import { CircleMinusIcon } from "lucide-vue-next";
 import { computed } from "vue";
 
 const { command } = defineProps<{
   command: StateCommand;
+  canRemove?: boolean;
+}>();
+
+const emit = defineEmits<{
+  (event: "remove"): void;
 }>();
 
 const bgColor = computed(() => {
@@ -23,7 +29,10 @@ const bgColor = computed(() => {
 </script>
 
 <template lang="pug">
-span.text-shadow.rounded.p-2.font-mono.text-sm.leading-none.text-white(
+.text-shadow.flex.items-center.justify-between.rounded.p-2(
   :style="{ backgroundColor: bgColor }"
-) {{ command.name }}({{ Object.values(command.args).join(", ") }})
+)
+  span.font-mono.text-sm.leading-none.text-white {{ command.name }}({{ Object.values(command.args).join(", ") }})
+  button.btn.btn-pressable(v-if="canRemove" @click="emit('remove')")
+    CircleMinusIcon.text-white.drop-shadow(:size="16")
 </template>

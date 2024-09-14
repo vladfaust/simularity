@@ -55,13 +55,15 @@ Dialog.relative.z-50(
               :can-edit="false"
               :is-single="true"
               :show-variant-navigation="false"
+              :hide-tts="true"
+              :hide-preference="true"
               :update-index="simulation.currentUpdateIndex.value"
             )
 
           //- Director update.
           .flex.flex-col.gap-2.rounded-xl.p-3(
             class="bg-white/20"
-            v-if="simulation.currentUpdate.value?.chosenVariant?.directorUpdate"
+            v-if="simulation.currentUpdate.value"
           )
             DirectorUpdate(
               :simulation

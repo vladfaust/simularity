@@ -24,6 +24,8 @@ const props = defineProps<{
   variant: Update["ensureChosenVariant"];
   isSingle: boolean;
   canEdit: boolean;
+  hideTts?: boolean;
+  hidePreference?: boolean;
   preferenceFunction: (preference: boolean | null) => Promise<void>;
   applyEditFunction: (newContent: string) => Promise<void>;
 }>();
@@ -194,7 +196,9 @@ onMounted(() => {
       slot(name="extra")
 
       //- TTS.
-      template(v-if="!editInProgress && !variant.writerUpdate.episodeId")
+      template(
+        v-if="!hideTts && !editInProgress && !variant.writerUpdate.episodeId"
+      )
         //- Play TTS.
         //- Press again to stop.
         button.btn-pressable(
@@ -216,7 +220,7 @@ onMounted(() => {
 
       //- Preference.
       .flex.items-center.gap-1(
-        v-if="!editInProgress && !variant.writerUpdate.episodeId"
+        v-if="!hidePreference && !editInProgress && !variant.writerUpdate.episodeId"
       )
         button.btn-pressable(
           :class="{ 'text-success-500': variant.writerUpdate.preference === true }"
