@@ -1,6 +1,7 @@
 <script setup lang="ts">
 defineProps<{
   title?: string;
+  hideBorder?: boolean;
 }>();
 </script>
 
@@ -10,7 +11,7 @@ defineProps<{
     slot(name="icon")
     slot(name="default")
       span.font-semibold.leading-snug.tracking-wide {{ title }}
-  .min-w-4.grow.border-b
+  .min-w-4.grow.border-b(v-if="!hideBorder")
   .flex.shrink-0.items-center(v-if="$slots.extra")
     slot(name="extra")
 </template>

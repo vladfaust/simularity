@@ -101,6 +101,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
     if (internalSession) {
       console.debug({ internalSession });
 
+      // TODO: It can likely be replaced w/ SHA-256.
       const { xx64Hash } = await tauri.gpt.getModelHashById(
         internalSession.modelId,
       );

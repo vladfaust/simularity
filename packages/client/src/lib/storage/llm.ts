@@ -14,7 +14,10 @@ export type LlmAgentId = "writer" | "director";
  */
 export type CachedModel = {
   path: string;
-  modelHash: string;
+  modelHash: {
+    xx64: string;
+    sha256: string;
+  };
 
   /**
    * Unix timestamp in milliseconds.

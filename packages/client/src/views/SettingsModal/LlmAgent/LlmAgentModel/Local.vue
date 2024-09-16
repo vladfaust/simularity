@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import * as resources from "@/lib/resources";
 import * as storage from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { omit } from "@/lib/utils";
@@ -7,15 +8,23 @@ import * as fs from "@tauri-apps/api/fs";
 import * as path from "@tauri-apps/api/path";
 import { asyncComputed } from "@vueuse/core";
 import {
-  CloudDownloadIcon,
   FileIcon,
   FolderOpenIcon,
   ProportionsIcon,
+  RefreshCwIcon,
 } from "lucide-vue-next";
 import * as fsExtra from "tauri-plugin-fs-extra-api";
 import { computed, onMounted, ref, shallowRef, triggerRef } from "vue";
-import Model from "./Local/Model.vue";
-import DownloadModal from "./Local/DownloadModal.vue";
+import CustomModel from "./Local/CustomModel.vue";
+import WellKnownModel, {
+  type AvailableModel,
+  type WellKnownModelProps,
+} from "./Local/WellKnownModel.vue";
+
+enum Tab {
+  Downloaded,
+  Available,
+}
 
 const props = defineProps<{
   agentId: storage.llm.LlmAgentId;
@@ -40,7 +49,85 @@ const selectedModel = computed(() =>
 const latestLocalModelConfig = storage.llm.useLatestLocalModelConfig(
   props.agentId,
 );
-const downloadModalOpen = ref(false);
+const availableModels = asyncComputed<Record<string, AvailableModel>>(() =>
+  fetch(`/available_models/${props.agentId}.json`).then((res) => res.json()),
+);
+const tab = ref<Tab>(Tab.Downloaded);
+
+const allModels = computed<
+  | {
+      custom: storage.llm.CachedModel[];
+      wellKnown: WellKnownModelProps[];
+    }
+  | undefined
+>(() => {
+  const custom: storage.llm.CachedModel[] = [];
+  const wellKnown: WellKnownModelProps[] = [];
+
+  for (const cachedModel of cachedModels.value) {
+    let found = false;
+
+    loop: for (const [_, availableModel] of Object.entries(
+      availableModels.value,
+    )) {
+      for (const [quantId, quant] of Object.entries(availableModel.quants)) {
+        if (cachedModel.modelHash.sha256 !== quant.hash.sha256) continue;
+
+        let existingRecommended = wellKnown.find(
+          (recommendedModel) =>
+            // TODO: Use ID instead of name.
+            recommendedModel.recommendationModel.name === availableModel.name,
+        );
+
+        if (!existingRecommended) {
+          existingRecommended = {
+            recommendationModel: availableModel,
+            cachedModelsByQuants: {},
+          };
+
+          wellKnown.push(existingRecommended);
+        }
+
+        existingRecommended.cachedModelsByQuants[quantId] = {
+          model: cachedModel,
+          selected: computed(
+            () => selectedModel.value?.path === cachedModel.path,
+          ),
+          removeDeletesFile: cachedModel.path.startsWith(
+            modelsDirectoryRef.value,
+          ),
+        };
+
+        found = true;
+        break loop;
+      }
+    }
+
+    if (!found) {
+      custom.push(cachedModel);
+    }
+  }
+
+  // Add recommeded models that have no cached models.
+  for (const [_, availableModel] of Object.entries(availableModels.value)) {
+    let existingWellknown = wellKnown.find(
+      (wk) =>
+        // TODO: Use ID instead of name.
+        wk.recommendationModel.name === availableModel.name,
+    );
+
+    if (!existingWellknown) {
+      existingWellknown = {
+        recommendationModel: availableModel,
+        cachedModelsByQuants: {},
+      };
+
+      wellKnown.push(existingWellknown);
+    }
+  }
+
+  return { custom, wellKnown };
+});
 
 async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
   console.log(`Caching model ${modelPath}`);
@@ -48,15 +135,18 @@ async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
   const loadedModel = await tauri.gpt.loadModel(modelPath);
   console.debug("Model loaded", loadedModel);
 
-  const { xx64Hash: modelHash } = await tauri.gpt.getModelHashByPath(modelPath);
-  console.debug("Model hash", modelHash);
+  const xx64HashPromise = tauri.gpt.getModelHashByPath(modelPath);
+  const sha256HashPromise = tauri.utils.fileSha256(modelPath);
 
   metadata ||= await fsExtra.metadata(modelPath);
 
   const cachedModel: storage.llm.CachedModel = {
     path: modelPath,
     contextSize: loadedModel.nCtxTrain,
-    modelHash,
+    modelHash: {
+      xx64: (await xx64HashPromise).xx64Hash,
+      sha256: await sha256HashPromise,
+    },
     nParams: loadedModel.nParams,
     ramSize: loadedModel.size,
     modifiedAt: metadata.modifiedAt.getTime(),
@@ -68,13 +158,7 @@ async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
   return cachedModel;
 }
 
-function setDriverConfig(cachedModelIndex: number) {
-  const cachedModel = cachedModels.value.at(cachedModelIndex);
-
-  if (!cachedModel) {
-    throw new Error(`Cached model not found at index ${cachedModelIndex}`);
-  }
-
+function setDriverConfig(cachedModel: storage.llm.CachedModel) {
   const contextSize = Math.min(
     cachedModel.contextSize,
     props.recommendedContextSize ?? cachedModel.contextSize,
@@ -91,16 +175,10 @@ function setDriverConfig(cachedModelIndex: number) {
   });
 }
 
-function selectModel(cachedModelIndex: number) {
-  const cachedModel = cachedModels.value.at(cachedModelIndex);
-
-  if (!cachedModel) {
-    throw new Error(`Cached model not found at index ${cachedModelIndex}`);
-  }
-
+function selectModel(cachedModel: storage.llm.CachedModel) {
   if (selectedModelPath.value !== cachedModel.path) {
     selectedModelPath.value = cachedModel.path;
-    setDriverConfig(cachedModelIndex);
+    setDriverConfig(cachedModel);
   }
 }
 
@@ -132,7 +210,7 @@ async function openLocalModelSelectionDialog() {
       customModelsStorage.value.push(modelPath);
       triggerRef(cachedModels);
       if (!selectedModelPath.value) {
-        selectModel(cachedModels.value.length - 1);
+        selectModel(cachedModel);
       }
     } catch (e: any) {
       console.error(`Failed to cache model ${modelPath}`, e);
@@ -157,7 +235,23 @@ async function openModelsDirectory() {
  * If model is in the models directory, its file is deleted.
  * Otherwise, the model entry is removed from the storage.
  */
-async function removeModel(modelPath: string) {
+async function removeModel(modelPath: string, deleteFile: boolean) {
+  if (
+    !(await resources.confirm_(
+      deleteFile
+        ? "Are you sure you want to remove this model? The model file will be deleted."
+        : "Are you sure you want to remove this model from the list?",
+      {
+        title: deleteFile ? "Delete model file?" : "Remove model?",
+        okLabel: deleteFile ? "Delete" : "Remove",
+        type: "warning",
+      },
+    ))
+  ) {
+    console.log("Cancelled delete", modelPath);
+    return;
+  }
+
   if (modelPath.startsWith(modelsDirectoryRef.value)) {
     console.log(`Deleting model file ${modelPath}`);
     await fs.removeFile(modelPath);
@@ -244,6 +338,7 @@ onMounted(async () => {
 
     if (!cachedModel) {
       uncachedModels.value.push(entry.path);
+      triggerRef(uncachedModels);
 
       try {
         cachedModel = await cacheModel(entry.path, metadata);
@@ -252,6 +347,7 @@ onMounted(async () => {
         continue;
       } finally {
         uncachedModels.value.pop();
+        triggerRef(uncachedModels);
       }
     }
 
@@ -272,7 +368,7 @@ onMounted(async () => {
         );
       }
 
-      setDriverConfig(cachedModelIndex);
+      setDriverConfig(cachedModels.value[cachedModelIndex]);
       selectedModelPath.value = latestLocalModelConfig.value.modelPath;
     }
   }
@@ -280,58 +376,77 @@ onMounted(async () => {
 </script>
 
 <template lang="pug">
-.flex.flex-col.divide-y
-  .flex.justify-between.gap-1.p-2
-    .flex.items-center.gap-1
-      button.btn-pressable.btn-neutral.btn.btn-sm.rounded(
-        title="Download models from the cloud"
-        @click="downloadModalOpen = true"
-      )
-        CloudDownloadIcon(:size="18")
-        span Download
+.flex.flex-col
+  .grid.grid-cols-2
+    ._tab.group(:class="{'_tab-selected': tab === Tab.Downloaded}" @click="tab = Tab.Downloaded")
+      span.transition-transform(class="group-active:scale-[0.975]") Downloaded Models ({{ cachedModels.length }})
+    ._tab.group(:class="{'_tab-selected': tab === Tab.Available}" @click="tab = Tab.Available")
+      span.transition-transform(class="group-active:scale-[0.975]") Available Models
 
-      button.btn-pressable.btn-neutral.btn.btn-sm.rounded(
+  .grid.gap-2.bg-gray-50.p-2.shadow-inner(v-if="tab === Tab.Downloaded")
+    .flex.col-span-full.gap-2.items-center
+      button.shrink-0.btn-pressable.bg-white.btn.btn-sm.rounded-lg.border(
         @click="openLocalModelSelectionDialog"
         title="Add a local model from file"
       )
         FileIcon(:size="18")
         span Add from file
 
-    button.btn-pressable.btn-neutral.btn.btn-sm.rounded(
-      @click="openModelsDirectory"
-      title="Open the models directory"
-    )
-      FolderOpenIcon(:size="18")
-      span Open directory
-
-  .grid.gap-2.bg-gray-50.p-2.shadow-inner
-    template(v-if="cachedModels.length || uncachedModels.length")
-      Model.rounded-lg.border.bg-white(
-        v-for="(cachedModel, index) in cachedModels"
-        :class="{ 'border-primary-500': selectedModelPath === cachedModel.path }"
-        :key="cachedModel.path"
-        :model="cachedModel"
-        :selected="selectedModelPath === cachedModel.path"
-        :remove-deletes-file="cachedModel.path.startsWith(modelsDirectoryRef)"
-        @select="selectModel(index)"
-        @remove="removeModel(cachedModel.path)"
+      button.shrink-0.btn-pressable.bg-white.btn.btn-sm.rounded-lg.border(
+        @click="openModelsDirectory"
+        title="Open the models directory"
       )
-      Model.rounded-lg.border.bg-white(
+        FolderOpenIcon(:size="18")
+        span Open directory
+
+      .w-full.border-b
+
+      button.group.shrink-0.btn.btn-pressable.bg-white.btn-sm.rounded-lg.border(
+        disabled
+      )
+        RefreshCwIcon.transition(:size="18")
+        span Refresh
+
+    template(v-if="cachedModels.length || uncachedModels.length")
+      CustomModel.rounded-lg.border.bg-white(
         v-for="modelPath in uncachedModels"
         :key="modelPath"
         :model="{ path: modelPath }"
         :selected="false"
-        :remove-deletes-file="modelPath.startsWith(modelsDirectoryRef)"
-        @remove="removeModel(modelPath)"
+        @remove="removeModel(modelPath, modelPath.startsWith(modelsDirectoryRef))"
       )
-    p.col-span-full.flex.justify-center.p-1.text-sm.italic.opacity-50(v-else)
-      | No models found. Add
-      |
-      span.font-mono .gguf
-      |
-      | &nbsp;models manually.
+      WellKnownModel.rounded-lg.border.bg-white(
+        v-for="(recommended,) in allModels?.wellKnown.filter(wk => Object.keys(wk.cachedModelsByQuants).length)"
+        :class="{ 'border-primary-500': Object.entries(recommended.cachedModelsByQuants).some(([_, model]) => model.model.path === selectedModelPath) }"
+        v-bind="recommended"
+        :key="recommended.recommendationModel.name"
+        @select="(quantId) => selectModel(recommended.cachedModelsByQuants[quantId].model)"
+        @remove="(quantId, deleteFile) => removeModel(recommended.cachedModelsByQuants[quantId].model.path, deleteFile)"
+      )
+      CustomModel.rounded-lg.border.bg-white(
+        v-for="(cachedModel) in allModels?.custom"
+        :class="{ 'border-primary-500': selectedModelPath === cachedModel.path }"
+        :key="cachedModel.path"
+        :model="cachedModel"
+        :selected="selectedModelPath === cachedModel.path"
+        @select="selectModel(cachedModel)"
+        @remove="removeModel(cachedModel.path, cachedModel.path.startsWith(modelsDirectoryRef))"
+      )
+    p.border.rounded-lg.bg-white.col-span-full.flex.justify-center.p-2.text-sm(v-else)
+      | No models found. Switch to Available Models tab to download some.
 
-  .flex.flex-col.gap-2.p-2(
+  .grid.gap-2.bg-gray-50.p-2.shadow-inner(v-else-if="tab === Tab.Available")
+    WellKnownModel.rounded-lg.border.bg-white(
+      v-for="(recommended,) in allModels?.wellKnown"
+      :class="{ 'border-primary-500': Object.entries(recommended.cachedModelsByQuants).some(([_, model]) => model.model.path === selectedModelPath) }"
+      v-bind="recommended"
+      :key="recommended.recommendationModel.name"
+      :show-uncached-quants="true"
+      @select="(quantId) => selectModel(recommended.cachedModelsByQuants[quantId].model)"
+      @remove="(quantId, deleteFile) => removeModel(recommended.cachedModelsByQuants[quantId].model.path, deleteFile)"
+    )
+
+  .flex.flex-col.gap-2.p-2.border-t(
     v-if="driverConfig?.type === 'local' && selectedModel"
   )
     .flex.items-center.justify-between
@@ -349,10 +464,22 @@ onMounted(async () => {
       :context-size="driverConfig.contextSize"
       :max-context-size="selectedModel.contextSize"
     )
-
-  DownloadModal(
-    :open="downloadModalOpen"
-    :agent-id
-    @close="downloadModalOpen = false"
-  )
 </template>
+
+<style lang="scss" scoped>
+._tab {
+  @apply flex cursor-pointer items-center justify-center gap-1 border-b-2 p-2;
+
+  & > span {
+    @apply rounded border px-2 py-1 text-sm font-semibold shadow-sm;
+  }
+
+  &:hover {
+    @apply text-primary-500;
+  }
+
+  &-selected {
+    @apply border-primary-500 bg-white   text-primary-500;
+  }
+}
+</style>
