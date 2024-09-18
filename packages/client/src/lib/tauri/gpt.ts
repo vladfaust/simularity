@@ -45,7 +45,7 @@ export async function getModelHashById(modelId: string) {
 }
 
 /**
- * Compute the hash of a GPT model by its ID.
+ * Compute the hash of a GPT model by its path.
  */
 export async function getModelHashByPath(modelPath: string) {
   return invoke("gpt_model_hash_by_path", {

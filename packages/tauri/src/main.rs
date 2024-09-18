@@ -4,7 +4,11 @@
     windows_subsystem = "windows"
 )]
 
-use std::{collections::HashMap, fs::create_dir_all, sync::Arc};
+use std::{
+    collections::HashMap,
+    fs::create_dir_all,
+    sync::{atomic::AtomicBool, Arc},
+};
 use tauri::async_runtime::Mutex;
 
 mod commands;
@@ -16,6 +20,9 @@ struct AppState {
 
     /// { uri => connection }. A connection will be held until it is closed.
     pub sqlite_connections: Mutex<HashMap<String, Arc<Mutex<rusqlite::Connection>>>>,
+
+    /// { file_path => abort_flag }. A download will be held until it is complete.
+    pub file_downloads: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
 
 impl AppState {
@@ -23,6 +30,7 @@ impl AppState {
         Self {
             gpt_sessions: Mutex::new(HashMap::new()),
             sqlite_connections: Mutex::new(HashMap::new()),
+            file_downloads: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -60,6 +68,7 @@ fn main() {
             commands::sqlite::sqlite_close,
             commands::utils::file_manager_open,
             commands::utils::file_sha256,
+            commands::utils::file_download::file_download,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

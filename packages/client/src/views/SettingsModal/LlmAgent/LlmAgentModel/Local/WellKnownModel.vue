@@ -20,6 +20,7 @@ export type AvailableModel = {
 };
 
 export type WellKnownModelProps = {
+  recommendationModelId: string;
   recommendationModel: AvailableModel;
   cachedModelsByQuants: Record<
     string,
@@ -29,25 +30,31 @@ export type WellKnownModelProps = {
       removeDeletesFile: boolean;
     }
   >;
-  showUncachedQuants?: boolean;
+  downloadsByQuant: ShallowRef<Record<string, ShallowRef<Download>>>;
 };
 </script>
 
 <script setup lang="ts">
 import CustomTitle from "@/components/CustomTitle.vue";
+import { Download, downloadManager } from "@/lib/downloads";
 import * as storage from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { prettyNumber } from "@/lib/utils";
-import { shell } from "@tauri-apps/api";
+import { path, shell } from "@tauri-apps/api";
 import {
+  BanIcon,
   BrainCogIcon,
   ChevronDownIcon,
   CircleMinusIcon,
   FolderOpenIcon,
+  LoaderCircleIcon,
+  PauseIcon,
+  PlayIcon,
   ProportionsIcon,
 } from "lucide-vue-next";
 import prettyBytes from "pretty-bytes";
-import { computed, ref, type Ref } from "vue";
+import type { ShallowRef } from "vue";
+import { computed, ref, shallowRef, triggerRef, type Ref } from "vue";
 
 const WELL_KNOWN_QUANTS: Record<
   string,
@@ -74,51 +81,84 @@ const WELL_KNOWN_QUANTS: Record<
   },
 };
 
-const props = defineProps<WellKnownModelProps>();
+const props = defineProps<
+  WellKnownModelProps & {
+    showUncachedQuants?: boolean;
+    basePath: string;
+  }
+>();
+
 const emit = defineEmits<{
   (event: "remove", quantId: string, deleteFile: boolean): void;
   (event: "select", quantId: string): void;
 }>();
 
 const showAllQuants = ref(false);
-const cachedQuants = computed(() =>
-  Object.fromEntries(
-    Object.entries(props.recommendationModel.quants).filter(([_, quant]) =>
-      Object.entries(props.cachedModelsByQuants).some(
-        ([_, cachedModel]) =>
-          cachedModel.model.modelHash.sha256 === quant.hash.sha256,
-      ),
-    ),
-  ),
-);
-const gotAnyUncachedQuants = computed(
-  () =>
-    Object.keys(props.recommendationModel.quants).length >
-    Object.keys(cachedQuants.value).length,
-);
 
 /**
  * If `showAllQuants` is true, show all quants.
  * Otherwise, show either the quants that are cached or the first quant.
+ * Always show downloaded quants.
  */
-const shownQuants = computed(() =>
-  props.showUncachedQuants && showAllQuants.value
-    ? props.recommendationModel.quants
-    : Object.entries(props.cachedModelsByQuants).length
-      ? cachedQuants.value
-      : Object.fromEntries(
-          Object.entries(props.recommendationModel.quants).slice(0, 1),
-        ),
-);
+const shownQuants = computed(() => {
+  const shown = Object.entries(props.recommendationModel.quants).filter(
+    ([quantId, _]) => {
+      if (props.showUncachedQuants && showAllQuants.value) {
+        return true;
+      } else {
+        const isCached = quantId in props.cachedModelsByQuants;
+        const isDownloaded = quantId in props.downloadsByQuant.value;
+        return isCached || isDownloaded || showAllQuants.value;
+      }
+    },
+  );
+
+  return Object.fromEntries(
+    shown.length
+      ? shown
+      : Object.entries(props.recommendationModel.quants).slice(0, 1),
+  );
+});
 
 function openHfUrl() {
   if (!props.recommendationModel.hfUrl) return;
   shell.open(props.recommendationModel.hfUrl);
 }
 
-function download(quantId: string) {
+/**
+ * Create new download for the quant.
+ */
+async function createDownload(quantId: string) {
   const quant = props.recommendationModel.quants[quantId];
-  shell.open(quant.urls.hf);
+
+  const id = `${props.recommendationModelId}.${quantId}`;
+  const downloadPath = await path.join(props.basePath, `${id}.download`);
+
+  const download = await downloadManager.create(downloadPath, [
+    {
+      targetPath: await path.join(props.basePath, `${id}.gguf`),
+      url: quant.urls.hf,
+      hashes: {
+        sha256: quant.hash.sha256,
+      },
+    },
+  ]);
+
+  props.downloadsByQuant.value[quantId] = shallowRef(download);
+  triggerRef(props.downloadsByQuant);
+}
+
+/**
+ * Cancel an existing download for the quant.
+ */
+async function cancelDownload(quantId: string) {
+  const download = props.downloadsByQuant.value[quantId].value;
+  if (!download) throw new Error(`No download found for quant ${quantId}`);
+
+  delete props.downloadsByQuant.value[quantId];
+  triggerRef(props.downloadsByQuant);
+
+  await download.destroy();
 }
 
 async function showInFileManager(quantId: string) {
@@ -158,37 +198,51 @@ li.flex.flex-col.divide-y
   )
     template(v-for="[quantId, quant] in Object.entries(shownQuants)")
       //- Select button.
-      template(v-if="cachedModelsByQuants[quantId]")
-        button.btn.btn-pressable.btn-neutral.btn-sm.rounded(
-          :class="{ 'btn-primary': cachedModelsByQuants[quantId].selected.value, 'btn-neutral': !cachedModelsByQuants[quantId].selected.value }"
-          @click="emit('select', quantId)"
+      button.btn.btn-pressable.btn-neutral.btn-sm.rounded(
+        v-if="cachedModelsByQuants[quantId]"
+        :class="{ 'btn-primary': cachedModelsByQuants[quantId].selected.value, 'btn-neutral': !cachedModelsByQuants[quantId].selected.value }"
+        @click="emit('select', quantId)"
+      )
+        template(v-if="cachedModelsByQuants[quantId].selected.value")
+          | Selected
+        template(v-else)
+          | Select
+
+      //- Download progress.
+      .btn.btn-sm.rounded.border(v-else-if="downloadsByQuant.value[quantId]")
+        LoaderCircleIcon.animate-spin(
+          :size="18"
+          v-if="!downloadsByQuant.value[quantId].value.paused.value"
         )
-          template(v-if="cachedModelsByQuants[quantId].selected.value")
-            span Selected
-          template(v-else)
-            span Select
+        | {{ Math.round(downloadsByQuant.value[quantId].value.progress.value * 100) }}%
 
       //- Download button.
       button.btn.btn-pressable.btn-neutral.btn-sm.rounded(
         v-else
-        @click="download(quantId)"
+        @click="createDownload(quantId)"
       )
         | Download
 
-      .flex.items-center
+      .flex.items-center.justify-center
         span.text-sm.leading-none(
           v-tooltip="WELL_KNOWN_QUANTS[quantId]?.help"
           :class="{ 'cursor-help underline decoration-dotted': WELL_KNOWN_QUANTS[quantId]?.help }"
         ) {{ WELL_KNOWN_QUANTS[quantId]?.name || quantId }}
 
       .flex.items-center
-        span.rounded.border.px-1.text-xs.leading-none(class="py-0.5")
+        span.cursor-help.rounded.border.px-1.text-xs.leading-none(
+          v-if="downloadsByQuant.value[quantId]"
+          class="py-0.5"
+          v-tooltip="`${prettyBytes(downloadsByQuant.value[quantId].value.averageSpeed.value ?? 0, { space: true, binary: true })}/s`"
+        )
+          | {{ prettyBytes(downloadsByQuant.value[quantId].value.totalFileSize.value, { space: false, binary: false }) }}
+        span.rounded.border.px-1.text-xs.leading-none(v-else class="py-0.5")
           | {{ prettyBytes(cachedModelsByQuants[quantId]?.model.ramSize ?? quant.ramSize, { space: false, binary: false }) }}
 
       //- Actions.
+      //- When the quant is cached.
       .flex.items-center.gap-2(v-if="cachedModelsByQuants[quantId]")
         .w-full.border-b
-
         .flex.items-center.gap-1
           //- Open in file manager.
           button.btn.btn-pressable(
@@ -205,9 +259,38 @@ li.flex.flex-col.divide-y
           )
             CircleMinusIcon(:size="18")
 
+      //- When the quant is being downloaded.
+      .flex.items-center.gap-2(v-else-if="downloadsByQuant.value[quantId]")
+        .w-full.border-b
+        .flex.items-center.gap-1
+          //- Resume.
+          button.btn.btn-pressable(
+            v-if="downloadsByQuant.value[quantId].value.paused.value"
+            title="Resume download"
+            @click="downloadsByQuant.value[quantId].value.resume()"
+          )
+            PlayIcon(:size="18")
+
+          //- Pause.
+          button.btn.btn-pressable(
+            v-else
+            title="Pause download"
+            @click="downloadsByQuant.value[quantId].value.pause()"
+          )
+            PauseIcon(:size="18")
+
+          //- Cancel.
+          button.btn.btn-pressable(
+            title="Cancel download"
+            @click="cancelDownload(quantId)"
+          )
+            BanIcon(:size="18")
+
+      .flex(v-else)
+
     button.btn.col-span-full.gap-1.rounded.border.bg-neutral-100.px-2.text-sm.font-semibold.transition.pressable-sm(
       class="py-1.5"
-      v-if="Object.keys(recommendationModel.quants).length > 1 && gotAnyUncachedQuants && showUncachedQuants"
+      v-if="(Object.keys(recommendationModel.quants).length > Object.keys(shownQuants).length && showUncachedQuants) || showAllQuants"
       @click="showAllQuants = !showAllQuants"
     )
       ChevronDownIcon(:size="18" :class="{ 'rotate-180': showAllQuants }")

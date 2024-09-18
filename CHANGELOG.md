@@ -5,6 +5,8 @@
 ### September 2024
 
 - [x] feat: credits (Tue 3)
+- [x] MVP release! (Tue 10) 🚀
+- [x] feat: download models (Wed 18)
 
 ### August 2024
 

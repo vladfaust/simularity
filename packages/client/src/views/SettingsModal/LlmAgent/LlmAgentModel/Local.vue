@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Download } from "@/lib/downloads";
+import { downloadManager } from "@/lib/downloads";
 import * as resources from "@/lib/resources";
 import * as storage from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
@@ -14,6 +16,7 @@ import {
   RefreshCwIcon,
 } from "lucide-vue-next";
 import * as fsExtra from "tauri-plugin-fs-extra-api";
+import type { ShallowRef } from "vue";
 import { computed, onMounted, ref, shallowRef, triggerRef } from "vue";
 import CustomModel from "./Local/CustomModel.vue";
 import WellKnownModel, {
@@ -67,7 +70,7 @@ const allModels = computed<
   for (const cachedModel of cachedModels.value) {
     let found = false;
 
-    loop: for (const [_, availableModel] of Object.entries(
+    loop: for (const [availableModelId, availableModel] of Object.entries(
       availableModels.value,
     )) {
       for (const [quantId, quant] of Object.entries(availableModel.quants)) {
@@ -81,8 +84,10 @@ const allModels = computed<
 
         if (!existingRecommended) {
           existingRecommended = {
+            recommendationModelId: availableModelId,
             recommendationModel: availableModel,
             cachedModelsByQuants: {},
+            downloadsByQuant: shallowRef({}),
           };
 
           wellKnown.push(existingRecommended);
@@ -108,8 +113,24 @@ const allModels = computed<
     }
   }
 
-  // Add recommeded models that have no cached models.
-  for (const [_, availableModel] of Object.entries(availableModels.value)) {
+  // Iterate through available models to create new
+  // well-known models, and set downloads.
+  for (const [availableModelId, availableModel] of Object.entries(
+    availableModels.value,
+  )) {
+    const downloadsByQuant: Record<string, ShallowRef<Download>> = {};
+
+    for (const quantId of Object.keys(availableModel.quants)) {
+      const download = downloadManager.downloads.get(
+        `${availableModelId}.${quantId}`,
+      );
+
+      if (download) {
+        download.onComplete(() => refresh());
+        downloadsByQuant[quantId] = shallowRef(download);
+      }
+    }
+
     let existingWellknown = wellKnown.find(
       (wk) =>
         // TODO: Use ID instead of name.
@@ -118,16 +139,106 @@ const allModels = computed<
 
     if (!existingWellknown) {
       existingWellknown = {
+        recommendationModelId: availableModelId,
         recommendationModel: availableModel,
-        cachedModelsByQuants: {},
+        cachedModelsByQuants: {}, // Empty.
+        downloadsByQuant: shallowRef(downloadsByQuant),
       };
 
       wellKnown.push(existingWellknown);
+    } else {
+      existingWellknown.downloadsByQuant = shallowRef(downloadsByQuant);
     }
   }
 
   return { custom, wellKnown };
 });
+
+async function refresh() {
+  const modelsDir = await modelsDirectory();
+  console.log(`Checking for models in ${modelsDir}`);
+
+  await fs.createDir(modelsDir, {
+    dir: fs.BaseDirectory.AppLocalData,
+    recursive: true,
+  });
+
+  const entries = await fs.readDir(modelsDir, {
+    dir: fs.BaseDirectory.AppLocalData,
+  });
+
+  // Remove custom models that no longer exist.
+  const customModelEntries = await Promise.all(
+    customModelsStorage.value.map(async (modelPath) => {
+      if (await fs.exists(modelPath)) {
+        return {
+          path: modelPath,
+          name: await path.basename(modelPath),
+        };
+      }
+
+      console.warn(`Custom model ${modelPath} not found, removing`);
+
+      return null;
+    }),
+  );
+
+  // Remove the missing custom models from the storage.
+  for (let i = customModelEntries.length - 1; i >= 0; i--) {
+    if (!customModelEntries[i]) {
+      customModelsStorage.value.splice(i, 1);
+    }
+  }
+
+  // Add existing custom models to the entries list.
+  entries.push(...customModelEntries.filter((entry) => entry !== null));
+
+  for (const entry of entries) {
+    if (!entry.name) {
+      console.warn("Entry has no name, skipping");
+      continue;
+    }
+
+    // Only process `.gguf` files.
+    if (!entry.name.endsWith(".gguf")) {
+      console.log(`${entry.name} is not a GGUF file, skipping`);
+      continue;
+    }
+
+    if (entry.children) {
+      console.log(`${entry.name} is a directory, skipping`);
+      continue;
+    }
+
+    let cachedModel = storage.llm.getCachedModel(entry.path);
+    const metadata = await fsExtra.metadata(entry.path);
+
+    if (cachedModel) {
+      if (metadata.modifiedAt.getTime() !== cachedModel.modifiedAt) {
+        console.log(`Cached model ${entry.path} is outdated`);
+        cachedModel = null;
+      }
+    }
+
+    if (!cachedModel) {
+      uncachedModels.value.push(entry.path);
+      triggerRef(uncachedModels);
+
+      try {
+        cachedModel = await cacheModel(entry.path, metadata);
+      } catch (e: any) {
+        console.error(`Failed to cache model ${entry.path}`, e);
+        continue;
+      } finally {
+        uncachedModels.value.pop();
+        triggerRef(uncachedModels);
+      }
+    }
+
+    cachedModels.value.push(cachedModel);
+    triggerRef(cachedModels);
+  }
+}
 
 async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
   console.log(`Caching model ${modelPath}`);
@@ -136,7 +247,7 @@ async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
   console.debug("Model loaded", loadedModel);
 
   const xx64HashPromise = tauri.gpt.getModelHashByPath(modelPath);
-  const sha256HashPromise = tauri.utils.fileSha256(modelPath);
+  const sha256HashPromise = tauri.utils.fileSha256(modelPath, true);
 
   metadata ||= await fsExtra.metadata(modelPath);
 
@@ -235,6 +346,7 @@ async function openModelsDirectory() {
  * If model is in the models directory, its file is deleted.
  * Otherwise, the model entry is removed from the storage.
  */
+// FIXME: After removal, the "100%" download remains.
 async function removeModel(modelPath: string, deleteFile: boolean) {
   if (
     !(await resources.confirm_(
@@ -277,83 +389,7 @@ async function removeModel(modelPath: string, deleteFile: boolean) {
 }
 
 onMounted(async () => {
-  const modelsDir = await modelsDirectory();
-  console.log(`Checking for models in ${modelsDir}`);
-
-  await fs.createDir(modelsDir, {
-    dir: fs.BaseDirectory.AppLocalData,
-    recursive: true,
-  });
-
-  const entries = await fs.readDir(modelsDir, {
-    dir: fs.BaseDirectory.AppLocalData,
-  });
-
-  // Remove custom models that no longer exist.
-  const customModelEntries = await Promise.all(
-    customModelsStorage.value.map(async (modelPath) => {
-      if (await fs.exists(modelPath)) {
-        return {
-          path: modelPath,
-          name: await path.basename(modelPath),
-        };
-      }
-
-      console.warn(`Custom model ${modelPath} not found, removing`);
-
-      return null;
-    }),
-  );
-
-  // Remove the missing custom models from the storage.
-  for (let i = customModelEntries.length - 1; i >= 0; i--) {
-    if (!customModelEntries[i]) {
-      customModelsStorage.value.splice(i, 1);
-    }
-  }
-
-  // Add existing custom models to the entries list.
-  entries.push(...customModelEntries.filter((entry) => entry !== null));
-
-  for (const entry of entries) {
-    if (!entry.name) {
-      console.warn("Entry has no name, skipping");
-      continue;
-    }
-
-    if (entry.children) {
-      console.log(`${entry.name} is a directory, skipping`);
-      continue;
-    }
-
-    let cachedModel = storage.llm.getCachedModel(entry.path);
-    const metadata = await fsExtra.metadata(entry.path);
-
-    if (cachedModel) {
-      if (metadata.modifiedAt.getTime() !== cachedModel.modifiedAt) {
-        console.log(`Cached model ${entry.path} is outdated`);
-        cachedModel = null;
-      }
-    }
-
-    if (!cachedModel) {
-      uncachedModels.value.push(entry.path);
-      triggerRef(uncachedModels);
-
-      try {
-        cachedModel = await cacheModel(entry.path, metadata);
-      } catch (e: any) {
-        console.error(`Failed to cache model ${entry.path}`, e);
-        continue;
-      } finally {
-        uncachedModels.value.pop();
-        triggerRef(uncachedModels);
-      }
-    }
-
-    cachedModels.value.push(cachedModel);
-    triggerRef(cachedModels);
-  }
+  await refresh();
 
   if (driverConfig.value?.type !== "local") {
     if (latestLocalModelConfig.value) {
@@ -402,7 +438,8 @@ onMounted(async () => {
       .w-full.border-b
 
       button.group.shrink-0.btn.btn-pressable.bg-white.btn-sm.rounded-lg.border(
-        disabled
+        @click="refresh"
+        title="Refresh"
       )
         RefreshCwIcon.transition(:size="18")
         span Refresh
@@ -416,9 +453,10 @@ onMounted(async () => {
         @remove="removeModel(modelPath, modelPath.startsWith(modelsDirectoryRef))"
       )
       WellKnownModel.rounded-lg.border.bg-white(
-        v-for="(recommended,) in allModels?.wellKnown.filter(wk => Object.keys(wk.cachedModelsByQuants).length)"
+        v-for="(recommended,) in allModels?.wellKnown.filter(wk => Object.keys(wk.cachedModelsByQuants).length || Object.keys(wk.downloadsByQuant.value).length)"
         :class="{ 'border-primary-500': Object.entries(recommended.cachedModelsByQuants).some(([_, model]) => model.model.path === selectedModelPath) }"
         v-bind="recommended"
+        :base-path="modelsDirectoryRef"
         :key="recommended.recommendationModel.name"
         @select="(quantId) => selectModel(recommended.cachedModelsByQuants[quantId].model)"
         @remove="(quantId, deleteFile) => removeModel(recommended.cachedModelsByQuants[quantId].model.path, deleteFile)"
@@ -440,6 +478,7 @@ onMounted(async () => {
       v-for="(recommended,) in allModels?.wellKnown"
       :class="{ 'border-primary-500': Object.entries(recommended.cachedModelsByQuants).some(([_, model]) => model.model.path === selectedModelPath) }"
       v-bind="recommended"
+      :base-path="modelsDirectoryRef"
       :key="recommended.recommendationModel.name"
       :show-uncached-quants="true"
       @select="(quantId) => selectModel(recommended.cachedModelsByQuants[quantId].model)"

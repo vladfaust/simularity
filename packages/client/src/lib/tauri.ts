@@ -1,5 +1,4 @@
 import * as path from "@tauri-apps/api/path";
-import { appLocalDataDir, BaseDirectory } from "@tauri-apps/api/path";
 
 export * as gpt from "./tauri/gpt";
 export * as sqlite from "./tauri/sqlite";
@@ -17,11 +16,13 @@ export class TauriInvokeError extends Error {
   }
 }
 
-export async function resolveBaseDir(baseDir: BaseDirectory) {
+export async function resolveBaseDir(baseDir: path.BaseDirectory) {
   switch (baseDir) {
-    case BaseDirectory.AppLocalData:
-      return appLocalDataDir();
-    case BaseDirectory.Resource:
+    case path.BaseDirectory.AppLocalData:
+      return path.appLocalDataDir();
+    case path.BaseDirectory.AppCache:
+      return path.appCacheDir();
+    case path.BaseDirectory.Resource:
       // NOTE: It's not really useful, shall resolve resources one-by-one.
       return path.resourceDir();
     default:

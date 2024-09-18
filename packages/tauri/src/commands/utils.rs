@@ -3,6 +3,8 @@ use ring::digest::{Context, Digest, SHA256};
 use std::fs::File;
 use std::io::{BufReader, Read};
 
+pub mod file_download;
+
 // See https://github.com/tauri-apps/plugins-workspace/issues/999#issuecomment-1965624559.
 #[cfg(not(target_os = "linux"))]
 /// Opens the file manager at the given path.

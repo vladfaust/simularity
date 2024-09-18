@@ -4,6 +4,7 @@ import FloatingVue from "floating-vue";
 import "floating-vue/dist/style.css";
 import { createApp } from "vue";
 import App from "./App.vue";
+import { downloadManager } from "./lib/downloads";
 import { migrate } from "./lib/drizzle";
 import { Deferred } from "./lib/utils";
 import router from "./router";
@@ -37,5 +38,6 @@ app.use(FloatingVue);
 
 router.isReady().then(async () => {
   await migrated.promise;
+  downloadManager.init();
   app.mount("#app");
 });

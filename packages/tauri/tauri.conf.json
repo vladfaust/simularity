@@ -26,8 +26,8 @@
         "readDir": true,
         "readFile": true,
         "removeDir": false,
-        "removeFile": false,
-        "renameFile": false,
+        "removeFile": true,
+        "renameFile": true,
         "scope": [
           "$APPLOCALDATA/**/*",
           "$APPCACHE/**/*",

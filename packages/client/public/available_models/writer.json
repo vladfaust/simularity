@@ -23,6 +23,15 @@
         "urls": {
           "hf": "https://huggingface.co/TheBloke/Kunoichi-7B-GGUF/resolve/main/kunoichi-7b.Q5_K_M.gguf"
         }
+      },
+      "q6k": {
+        "hash": {
+          "sha256": "7de1a4e3406855596748c476cb4021862af415f3f1c87c9f8a3d10b64d0c3e9b"
+        },
+        "ramSize": 6378026434,
+        "urls": {
+          "hf": "https://huggingface.co/TheBloke/Kunoichi-7B-GGUF/resolve/main/kunoichi-7b.Q6_K.gguf"
+        }
       }
     }
   }
