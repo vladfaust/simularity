@@ -59,36 +59,38 @@ pub async fn gpt_create(
         progress_event_name.unwrap_or("None"), dump_session
     );
 
-    let state_file_path = if dump_session.unwrap_or(false)
-        && let Some(prompt) = initial_prompt.as_ref()
-    {
-        let model_hash = simularity_core::model_get_hash_by_id(model_id).unwrap();
-        let model_hash = format!("{:x}", model_hash);
+    let state_file_path = if let Some(prompt) = initial_prompt.as_ref() {
+        if dump_session.unwrap_or(false) {
+            let model_hash = simularity_core::model_get_hash_by_id(model_id).unwrap();
+            let model_hash = format!("{:x}", model_hash);
 
-        let mut hasher = Sha256::new();
-        hasher.update(model_hash.as_bytes());
-        hasher.update(prompt.as_bytes());
-        let state_hash = format!("{:x}", hasher.finalize());
+            let mut hasher = Sha256::new();
+            hasher.update(model_hash.as_bytes());
+            hasher.update(prompt.as_bytes());
+            let state_hash = format!("{:x}", hasher.finalize());
 
-        let state_file_path = app
-            .path_resolver()
-            .app_cache_dir()
-            .expect("app cache dir is available")
-            .join(format!("{}.llama-state", state_hash));
+            let state_file_path = app
+                .path_resolver()
+                .app_cache_dir()
+                .expect("app cache dir is available")
+                .join(format!("{}.llama-state", state_hash));
 
-        std::fs::create_dir_all(
-            state_file_path
-                .parent()
-                .expect("state file path has parent directory"),
-        )
-        .expect("state file path is valid");
+            std::fs::create_dir_all(
+                state_file_path
+                    .parent()
+                    .expect("state file path has parent directory"),
+            )
+            .expect("state file path is valid");
 
-        Some(
-            state_file_path
-                .to_str()
-                .expect("state file path is valid utf-8")
-                .to_string(),
-        )
+            Some(
+                state_file_path
+                    .to_str()
+                    .expect("state file path is valid utf-8")
+                    .to_string(),
+            )
+        } else {
+            None
+        }
     } else {
         None
     };

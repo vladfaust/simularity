@@ -136,21 +136,20 @@ pub async fn file_download(
 
             downloaded_since_acc += downloaded_since;
 
-            if let Some(event_name) = &progress_event_name
-                && downloaded_since_acc > 0
-                && last_emit.elapsed() > throttle
-            {
-                let event = ProgressEvent {
-                    downloaded_bytes: downloaded_since_acc,
-                    elapsed_time: last_emit.elapsed().as_millis() as u32,
-                    current_file_size: initial_file_size + dlnow as u64,
-                    target_content_length: initial_file_size + dltotal as u64,
-                };
+            if let Some(event_name) = &progress_event_name {
+                if downloaded_since_acc > 0 && last_emit.elapsed() > throttle {
+                    let event = ProgressEvent {
+                        downloaded_bytes: downloaded_since_acc,
+                        elapsed_time: last_emit.elapsed().as_millis() as u32,
+                        current_file_size: initial_file_size + dlnow as u64,
+                        target_content_length: initial_file_size + dltotal as u64,
+                    };
 
-                window.emit(event_name, event).unwrap();
+                    window.emit(event_name, event).unwrap();
 
-                downloaded_since_acc = 0;
-                last_emit = Instant::now();
+                    downloaded_since_acc = 0;
+                    last_emit = Instant::now();
+                }
             }
 
             downloaded_so_far_clone.store(dlnow as u64, Ordering::Relaxed);
