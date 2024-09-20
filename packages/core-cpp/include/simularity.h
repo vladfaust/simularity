@@ -1,7 +1,7 @@
 #ifndef SIMULARITY_H
 #define SIMULARITY_H
 
-#include <_types/_uint64_t.h>
+#include <cstdint>
 
 #ifdef __cplusplus
 extern "C" {

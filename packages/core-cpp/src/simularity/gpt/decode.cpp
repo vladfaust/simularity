@@ -1,6 +1,6 @@
 #pragma once
 
-#include <_types/_uint32_t.h>
+#include <cstdint>
 #include <llama.h>
 #include <simularity.h>
 #include <spdlog/fmt/fmt.h>

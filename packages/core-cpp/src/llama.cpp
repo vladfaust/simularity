@@ -1,6 +1,6 @@
 #pragma once
 
-#include <_types/_uint64_t.h>
+#include <cstdint>
 #include <random>
 #include <string>
 #include <unordered_map>
