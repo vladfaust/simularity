@@ -64,14 +64,14 @@ std::vector<llama_token> llama_tokenize(
   return tokens;
 }
 
-size_t LAMA_MAX_PIECE_SIZE = 16;
+const size_t LLAMA_MAX_PIECE_SIZE = 16;
 
 std::string llama_token_to_piece(
     const struct llama_model *model, const llama_token token, bool special
 ) {
-  char buf[LAMA_MAX_PIECE_SIZE];
+  char buf[LLAMA_MAX_PIECE_SIZE];
   auto len =
-      llama_token_to_piece(model, token, buf, LAMA_MAX_PIECE_SIZE, 0, special);
+      llama_token_to_piece(model, token, buf, LLAMA_MAX_PIECE_SIZE, 0, special);
   if (len < 0) throw std::runtime_error("Failed to convert token to piece.");
   return std::string(buf, len);
 }
