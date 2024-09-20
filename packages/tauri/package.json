@@ -4,6 +4,10 @@
   "description": "Simularity Tauri package",
   "author": "Vladislav Kosarev <vladfaust.com>",
   "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "config:windows": "node scripts/config/windows.js"
+  },
   "devDependencies": {
     "prettier": "^3.2.5",
     "prettier-plugin-sql": "^0.18.0"
