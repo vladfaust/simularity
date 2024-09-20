@@ -7,6 +7,7 @@ fn main() {
     println!("cargo:rerun-if-changed=../core-cpp/src");
     println!("cargo:rustc-link-lib=c++");
 
+    // See https://stackoverflow.com/questions/41917096/how-do-i-make-rustc-link-search-relative-to-the-project-location.
     // println!("cargo::rustc-link-search=../core-cpp/build");
     println!(
         "cargo::rustc-link-search={}",
