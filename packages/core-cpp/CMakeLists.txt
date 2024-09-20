@@ -11,7 +11,7 @@ set(TARGET simularity)
 add_library(${TARGET} STATIC src/simularity.cpp)
 target_include_directories(${TARGET} PRIVATE include)
 target_include_directories(${TARGET} PRIVATE vendor)
-target_compile_features(${TARGET} PRIVATE cxx_std_17)
+target_compile_features(${TARGET} PRIVATE cxx_std_20)
 
 # GGML lib
 #
