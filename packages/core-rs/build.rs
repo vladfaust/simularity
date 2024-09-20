@@ -5,7 +5,17 @@ fn main() {
     let dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
     println!("cargo:rerun-if-changed=../core-cpp/src");
-    println!("cargo:rustc-link-lib=c++");
+
+    #[cfg(target_os = "windows")]
+    {
+        // See https://learn.microsoft.com/en-us/cpp/c-runtime-library/crt-library-features.
+        println!("cargo:rustc-link-lib=libcpmt");
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        println!("cargo:rustc-link-lib=c++");
+    }
 
     // See https://stackoverflow.com/questions/41917096/how-do-i-make-rustc-link-search-relative-to-the-project-location.
     // println!("cargo::rustc-link-search=../core-cpp/build");
