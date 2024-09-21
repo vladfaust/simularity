@@ -1,0 +1,24 @@
+# By default, Rust links against non-debug CRT:
+#
+# "/NODEFAULTLIB:libvcruntimed.lib"
+# "/NODEFAULTLIB:vcruntime.lib"
+# "/NODEFAULTLIB:vcruntimed.lib"
+# "/NODEFAULTLIB:libcmtd.lib"
+# "/NODEFAULTLIB:msvcrt.lib"
+# "/NODEFAULTLIB:msvcrtd.lib"
+# "/NODEFAULTLIB:libucrt.lib"
+# "/NODEFAULTLIB:libucrtd.lib"
+# "/DEFAULTLIB:libcmt.lib"
+# "/DEFAULTLIB:libvcruntime.lib"
+# "/DEFAULTLIB:ucrt.lib"`
+#
+# However, if Core C++ is compiled in debug mode, it will link against debug CRT.
+# Need to override the libs it with `d` versions.
+#
+[target.'cfg(all(windows, target_env="msvc", debug_assertions))']
+rustflags = [
+  "-C",
+  "link-args=/NODEFAULTLIB:libcmt.lib /NODEFAULTLIB:libvcruntime.lib /NODEFAULTLIB:ucrt.lib",
+  "-C",
+  "link-args=/DEFAULTLIB:libcmtd.lib /DEFAULTLIB:libvcruntimed.lib /DEFAULTLIB:ucrtd.lib",
+]
