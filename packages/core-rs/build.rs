@@ -29,12 +29,12 @@ fn main() {
         {
             #[cfg(not(debug_assertions))]
             {
-                println!("cargo:rustc-link-lib=static=ucrt");
+                println!("cargo:rustc-link-lib=static=libcmt");
             }
 
             #[cfg(debug_assertions)]
             {
-                println!("cargo:rustc-link-lib=static=ucrtd");
+                println!("cargo:rustc-link-lib=static=libcmtd");
             }
         }
     }
