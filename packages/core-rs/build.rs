@@ -6,10 +6,25 @@ fn main() {
 
     println!("cargo:rerun-if-changed=../core-cpp/src");
 
+    #[cfg(feature = "cuda")]
+    {
+        #[cfg(target_os = "windows")]
+        {
+            println!(
+                "cargo:rustc-link-search=native={}",
+                env::var("CUDA_LIB_PATH").expect("CUDA_LIB_PATH is set")
+            );
+        }
+
+        println!("cargo:rustc-link-lib=dylib=cuda");
+        println!("cargo:rustc-link-lib=dylib=cudart");
+        println!("cargo:rustc-link-lib=dylib=cublas");
+        println!("cargo:rustc-link-lib=dylib=curand");
+    }
+
     #[cfg(target_os = "windows")]
     {
-        // See https://learn.microsoft.com/en-us/cpp/c-runtime-library/crt-library-features.
-        println!("cargo:rustc-link-lib=libcpmt");
+        // C++ STL is linked automatically on Windows.
     }
 
     #[cfg(not(target_os = "windows"))]
