@@ -1,0 +1,50 @@
+steps:
+  - label: "Build Client"
+    artifact_paths:
+      - "packages/client/dist/**/*"
+    command: |
+      echo "--- Building API SDK"
+      cd packages\\api-sdk
+      npm ci
+      npm run build
+      echo "--- Building Client"
+      cd ..\\client
+      npm ci
+      npm run build
+
+  - wait
+
+  - label: "Build Core C++"
+    artifact_paths:
+      - "packages/core-cpp/build/simularity.lib"
+      - "packages/core-cpp/build/xxhash.lib"
+      - "packages/core-cpp/build/vendor/llama.cpp/src/llama.lib"
+      - "packages/core-cpp/build/vendor/ggml/src/ggml.lib"
+    command: |
+      Import-Module "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"; Enter-VsDevShell -VsInstallPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" -DevCmdArguments '-arch=x64'
+      cd packages\\core-cpp
+      mkdir build
+      cd build
+      echo "--- Configuring"
+      cmake -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CUDA_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DGGML_CUDA=ON -GNinja ..
+      echo "--- Building"
+      cmake --build . -j3
+
+  - wait
+
+  - label: "Build Tauri"
+    artifact_paths:
+      - "C:/target/debug/bundle/msi/Simularity AI_0.0.1_x64_en-US.msi"
+      - "C:/target/debug/bundle/nsis/Simularity AI_0.0.1_x64-setup.exe"
+    command: |
+      Import-Module "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"; Enter-VsDevShell -VsInstallPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" -DevCmdArguments '-arch=x64'
+      \$env:Path += ";C:\Users\Administrator\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin;C:\Users\Administrator\.cargo\\bin"
+      \$env:CUDA_LIB_PATH = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\lib\x64'
+      echo "--- Downloading artifacts"
+      buildkite-agent artifact download 'packages\\core-cpp\\build\\**' . --step 'Build Core C++'
+      buildkite-agent artifact download 'packages\\client\\dist\\**' . --step 'Build Client'
+      echo "--- Building app"
+      mkdir packages\\client\\resources
+      ni packages\\client\\resources\\temp
+      cd packages\\tauri
+      cargo tauri build -v -d -- --target-dir C:\\target --features cuda
