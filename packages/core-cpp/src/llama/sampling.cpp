@@ -23,12 +23,6 @@ std::string llama_token_to_piece(
     const struct llama_model *model, const llama_token token, bool special
 );
 
-llama_token llama_sample_token_with_rng(
-    struct llama_context *ctx,
-    llama_token_data_array *candidates,
-    std::mt19937 &rng
-);
-
 struct llama_sampling_context *
 llama_sampling_init(const struct llama_sampling_params &params) {
   struct llama_sampling_context *result = new llama_sampling_context();

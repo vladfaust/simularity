@@ -75,31 +75,3 @@ std::string llama_token_to_piece(
   if (len < 0) throw std::runtime_error("Failed to convert token to piece.");
   return std::string(buf, len);
 }
-
-llama_token llama_sample_token_with_rng(
-    struct llama_context *ctx,
-    llama_token_data_array *candidates,
-    std::mt19937 &rng
-) {
-  GGML_ASSERT(ctx);
-
-  const int64_t t_start_sample_us = ggml_time_us();
-  llama_sample_softmax(nullptr, candidates);
-
-  std::vector<float> probs;
-  probs.reserve(candidates->size);
-  for (size_t i = 0; i < candidates->size; ++i) {
-    probs.push_back(candidates->data[i].p);
-  }
-
-  std::discrete_distribution<> dist(probs.begin(), probs.end());
-  int idx = dist(rng);
-
-  llama_token result = candidates->data[idx].id;
-
-  // FIXME: The context struct is opaque, so we can't access these fields.
-  // ctx->t_sample_us += ggml_time_us() - t_start_sample_us;
-  // ctx->n_sample++;
-
-  return result;
-}
