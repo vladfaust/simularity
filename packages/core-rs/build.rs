@@ -24,19 +24,7 @@ fn main() {
 
     #[cfg(target_os = "windows")]
     {
-        // See https://learn.microsoft.com/en-us/cpp/c-runtime-library/crt-library-features.
-        #[cfg(target_env = "msvc")]
-        {
-            #[cfg(not(debug_assertions))]
-            {
-                println!("cargo:rustc-link-lib=static=libcmt");
-            }
-
-            #[cfg(debug_assertions)]
-            {
-                println!("cargo:rustc-link-lib=static=libcmtd");
-            }
-        }
+        // C++ STL is linked automatically on Windows.
     }
 
     #[cfg(not(target_os = "windows"))]
