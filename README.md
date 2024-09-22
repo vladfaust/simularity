@@ -58,8 +58,7 @@ See [packages/api/README.md](./packages/api/README.md) and [packages/web/README.
 
 2. Connect via Remote Desktop.
 3. These are the variable you'll need to set: `$buildkiteAgentToken`, `$sshKeyUser`, `$userPassword`.
-4. Download VS Build Tools and run the installer: `$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest https://aka.ms/vs/17/release.ltsc.17.10/vs_buildtools.exe -OutFile ~\Downloads\vs_BuildTools.exe`, `~\Downloads\vs_BuildTools.exe`.
-   Install the following:
+4. Download VS Build Tools and install the following:
 
    1. MSVC,
    2. Windows SDK,
@@ -74,7 +73,7 @@ See [packages/api/README.md](./packages/api/README.md) and [packages/web/README.
      --add Microsoft.VisualStudio.Component.VC.CMake.Project
    ```
 
-5. Download and install Cuda with `$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/cuda/12.6.1/local_installers/cuda_12.6.1_560.94_windows.exe" -OutFile ~\Downloads\cuda_12.6.1_560.94_windows.exe; ~\Downloads\cuda_12.6.1_560.94_windows.exe -s`.
+5. Download and install Cuda with `$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/cuda/12.6.1/network_installers/cuda_12.6.1_windows_network.exe" -OutFile ~\Downloads\cuda_12.6.1_windows_network.exe; ~\Downloads\cuda_12.6.1_windows_network.exe -s`.
    See https://www.server-world.info/en/note?os=Windows_Server_2022&p=cuda.
 
 6. After CUDA is installed, copy some extensions: `cp "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\extras\visual_studio_integration\MSBuildExtensions\*" "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Microsoft\VC\v170\BuildCustomizations\"` (see https://stackoverflow.com/questions/56636714/cuda-compile-problems-on-windows-cmake-error-no-cuda-toolset-found).

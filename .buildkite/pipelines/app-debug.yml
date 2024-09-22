@@ -26,7 +26,7 @@ steps:
       mkdir build
       cd build
       echo "--- Configuring"
-      cmake -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CUDA_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=ON -GNinja ..
+      cmake -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CUDA_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DGGML_CUDA=ON -GNinja ..
       echo "--- Building"
       cmake --build . -j3
 
@@ -47,4 +47,4 @@ steps:
       ni packages\\client\\resources\\temp
       cd packages\\tauri
       npm run config:windows
-      cargo tauri build -v -c tauri.conf.windows.local.json -- --target-dir C:\\target --features cuda
+      cargo tauri build -v -d -c tauri.conf.windows.local.json -- --target-dir C:\\target --features cuda
