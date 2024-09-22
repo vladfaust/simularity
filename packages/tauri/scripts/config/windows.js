@@ -3,7 +3,7 @@ import fs from "fs";
 const tauriConf = JSON.parse(fs.readFileSync("tauri.conf.json", "utf-8"));
 
 tauriConf.tauri.bundle.resources.push(
-  ...["./cublas64_12.dll", "./cudart64_12.dll"],
+  ...["./cublas64_12.dll", "./cublasLt64_12.dll", "./cudart64_12.dll"],
 );
 
 fs.writeFileSync(
