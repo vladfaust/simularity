@@ -94,7 +94,11 @@
         "../client/resources"
       ],
       "shortDescription": "",
-      "targets": "all",
+      "targets": [
+        "nsis",
+        "dmg",
+        "updater"
+      ],
       "windows": {
         "certificateThumbprint": null,
         "digestAlgorithm": "sha256",
