@@ -1,2 +1,0 @@
-[target.'cfg(all(windows, target_env="msvc", debug_assertions))']
-rustflags = ["-C", "link-args=/NODEFAULTLIB:ucrt.lib /DEFAULTLIB:ucrtd.lib"]

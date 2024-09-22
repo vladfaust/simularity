@@ -24,7 +24,14 @@ fn main() {
 
     #[cfg(target_os = "windows")]
     {
-        // C++ STL is linked automatically on Windows.
+        #[cfg(target_env = "msvc")]
+        {
+            #[cfg(debug_assertions)]
+            {
+                println!("cargo::rustc-link-arg=/NODEFAULTLIB:ucrt.lib");
+                println!("cargo::rustc-link-arg=/DEFAULTLIB:ucrtd.lib");
+            }
+        }
     }
 
     #[cfg(not(target_os = "windows"))]
