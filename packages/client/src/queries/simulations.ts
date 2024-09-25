@@ -1,5 +1,5 @@
 import { d } from "@/lib/drizzle";
-import type { QueryOptions } from "@/queries";
+import { useScenariosQuery, type QueryOptions } from "@/queries";
 import { useQuery } from "@tanstack/vue-query";
 import { get } from "@vueuse/core";
 import { and, desc, eq, isNull } from "drizzle-orm";
@@ -30,27 +30,60 @@ export function simulationQueryKey(simulationId: number) {
 
 export function useSavesQuery(
   scenarioId: MaybeRef<string | undefined>,
+  includeNsfw?: MaybeRef<boolean>,
+  scenarioNameFilter?: MaybeRef<string | undefined>,
   queryOptions: QueryOptions = {
     staleTime: Infinity,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnMount: true,
   },
 ) {
+  const { data: scenarios } = useScenariosQuery();
+
   const query = useQuery({
-    queryKey: computed(() => savesQueryKey(get(scenarioId))),
-    queryFn: () => {
+    queryKey: computed(() =>
+      savesQueryKey(get(scenarioId), get(includeNsfw), get(scenarioNameFilter)),
+    ),
+    queryFn: async () => {
       const conditions = [isNull(d.simulations.deletedAt)];
 
       if (get(scenarioId)) {
         conditions.push(eq(d.simulations.scenarioId, get(scenarioId)!));
       }
 
-      return d.db.query.simulations.findMany({
+      let saves = await d.db.query.simulations.findMany({
         columns: { id: true, scenarioId: true },
         orderBy: desc(d.simulations.updatedAt),
         where: and(...conditions),
       });
+
+      if (get(includeNsfw) === false) {
+        saves = saves.filter((save) => {
+          const scenario = scenarios.value!.find(
+            (s) => s.id === save.scenarioId,
+          );
+          return scenario && !scenario.content.nsfw;
+        });
+      }
+
+      if (!get(scenarioId) && get(scenarioNameFilter)) {
+        saves = saves.filter((save) => {
+          const scenario = scenarios.value!.find(
+            (s) => s.id === save.scenarioId,
+          );
+
+          return (
+            scenario &&
+            scenario.content.name
+              .toLowerCase()
+              .includes(get(scenarioNameFilter)!.toLowerCase().trim())
+          );
+        });
+      }
+
+      return saves;
     },
+    enabled: computed(() => scenarios.value !== undefined),
     ...queryOptions,
   });
 
@@ -60,6 +93,21 @@ export function useSavesQuery(
   };
 }
 
-export function savesQueryKey(scenarioId: string | undefined) {
-  return ["saves", scenarioId];
+export function allSavesQueryKey() {
+  return ["saves"];
+}
+
+export function savesQueryKey(
+  scenarioId: string | undefined,
+  includeNsfw: boolean | undefined,
+  scenarioNameFilter: string | undefined,
+) {
+  return [
+    "saves",
+    {
+      scenarioId,
+      includeNsfw,
+      scenarioNameFilter: scenarioNameFilter?.toLowerCase().trim() || undefined,
+    },
+  ];
 }

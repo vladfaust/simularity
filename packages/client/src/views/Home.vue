@@ -8,6 +8,7 @@ import { asyncComputed } from "@vueuse/core";
 import FooterVue from "@/components/Footer.vue";
 import SettingsModal from "./SettingsModal.vue";
 import { ref } from "vue";
+import LoadGameModal from "./LoadGameModal.vue";
 
 const { data: scenario } = useScenarioQuery(env.VITE_PRODUCT_ID);
 
@@ -17,6 +18,7 @@ const backgroundImageUrl = asyncComputed(() =>
 
 const title = asyncComputed(() => scenario.value?.content.name);
 
+const loadGameModalOpen = ref(false);
 const settingModalOpen = ref(false);
 
 async function newGame() {
@@ -55,7 +57,7 @@ async function exit() {
       span.text-nowrap.text-xl.font-bold.tracking-wide {{ title }}
     .flex.flex-col.items-center.gap-2
       button._btn(@click="newGame") New game
-      RouterLink._btn(:to="routeLocation({ name: 'Saves' })") Load game
+      button._btn(@click="loadGameModalOpen = true") Load game
       button._btn(@click="settingModalOpen = true") Settings
       RouterLink._btn(:to="routeLocation({ name: 'Library' })") Extra
       button._btn(@click="exit") Exit
@@ -69,6 +71,7 @@ async function exit() {
   )
 
   SettingsModal(:open="settingModalOpen" @close="settingModalOpen = false")
+  LoadGameModal(:open="loadGameModalOpen" @close="loadGameModalOpen = false")
 </template>
 
 <style lang="scss" scoped>

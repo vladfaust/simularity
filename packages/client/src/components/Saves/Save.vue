@@ -9,9 +9,10 @@ import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { asyncComputed } from "@vueuse/core";
 import { eq } from "drizzle-orm";
-import { CherryIcon, MessagesSquareIcon, MonitorIcon } from "lucide-vue-next";
+import { MessagesSquareIcon, MonitorIcon } from "lucide-vue-next";
 import { computed } from "vue";
 import Message, { type SimpleMessage } from "./Save/Message.vue";
+import NsfwIcon from "../NsfwIcon.vue";
 
 const { simulationId } = defineProps<{
   simulationId: number;
@@ -80,7 +81,7 @@ const latestMessage = computed<SimpleMessage | null>(() => {
     CustomTitle(:title="scenario?.content.name")
       template(#extra)
         .flex.gap-1
-          CherryIcon.cursor-help.text-red-500(
+          NsfwIcon.cursor-help.text-red-500(
             v-if="scenario?.content.nsfw"
             :size="16"
             v-tooltip="'This scenario is NSFW'"
