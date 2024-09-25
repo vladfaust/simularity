@@ -928,7 +928,8 @@ export async function readScenario(
   }
 
   const scenarioParseResult = v.safeParse(
-    "immersive" in manifestJsonParseResult && manifestJsonParseResult.immersive
+    "immersive" in manifestJsonParseResult.output &&
+      manifestJsonParseResult.output.immersive
       ? ImmersiveScenarioSchema
       : BaseScenarioSchema,
     manifestJsonParseResult.output,
