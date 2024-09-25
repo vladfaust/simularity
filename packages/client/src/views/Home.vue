@@ -58,8 +58,10 @@ async function exit() {
 </script>
 
 <template lang="pug">
-.flex.h-screen
-  .flex.flex-col.items-center.justify-between.gap-2.p-3
+.relative.flex.h-screen
+  .z-10.m-3.flex.flex-col.items-center.justify-between.gap-2.rounded-l-lg.p-3.shadow-lg.backdrop-blur(
+    class="bg-white/95"
+  )
     .px-3
       span.text-nowrap.text-xl.font-bold.tracking-wide {{ title }}
     .flex.flex-col.items-center.gap-2
@@ -81,7 +83,7 @@ async function exit() {
     .px-3
       FooterVue
 
-  img.pointer-events-none.h-full.w-full.object-cover(
+  img.pointer-events-none.absolute.h-full.w-full.object-cover(
     v-if="backgroundImageUrl"
     :src="backgroundImageUrl"
     alt="Background"
@@ -93,7 +95,7 @@ async function exit() {
 
 <style lang="scss" scoped>
 ._btn {
-  @apply btn btn-md rounded-lg bg-black/10 transition-transform pressable;
+  @apply btn btn-md rounded-lg bg-black/5 transition-transform pressable;
 
   &:not(._danger) {
     @apply hover:btn-primary;
