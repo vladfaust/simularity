@@ -13,6 +13,8 @@ import { safeParseJson } from "../utils";
 import { formatIssues, v } from "../valibot";
 import { StateCommandSchema } from "./state/commands";
 
+const MANIFEST_FILE_NAME = "manifest.json";
+
 export class ScenarioError extends Error {
   constructor(
     readonly path: string,
@@ -55,11 +57,6 @@ const BaseScenarioSchema = v.object({
    * Scenario name.
    */
   name: v.string(),
-
-  /**
-   * This scenario is not immersive.
-   */
-  immersive: v.literal(false),
 
   /**
    * Whether the scenario is not safe for work.
@@ -631,11 +628,6 @@ const ImmersiveScenarioSchema = v.object({
   ),
 });
 
-const ScenarioSchema = v.variant("immersive", [
-  BaseScenarioSchema,
-  ImmersiveScenarioSchema,
-]);
-
 export class BaseScenario {
   constructor(
     readonly builtin: boolean,
@@ -902,18 +894,18 @@ export async function readScenario(
   baseDir: BaseDirectory,
   id: string,
 ): Promise<Scenario> {
-  let path, indexPath;
+  let path, manifestPath;
 
   switch (baseDir) {
     case BaseDirectory.AppLocalData:
       path = await resolve(await resolveBaseDir(baseDir), "scenarios", id);
-      indexPath = await join(path, `index.json`);
+      manifestPath = await join(path, MANIFEST_FILE_NAME);
 
       break;
     case BaseDirectory.Resource:
       path = await resolveResource(`${RESOURCES_PATH}/scenarios/${id}`);
-      indexPath = await resolveResource(
-        `${RESOURCES_PATH}/scenarios/${id}/index.json`,
+      manifestPath = await resolveResource(
+        `${RESOURCES_PATH}/scenarios/${id}/${MANIFEST_FILE_NAME}`,
       );
 
       break;
@@ -922,32 +914,33 @@ export async function readScenario(
       throw new Error(`Unimplemented for base directory: ${baseDir}`);
   }
 
-  let indexString;
+  let manifestString;
   try {
-    console.debug(`Reading scenario from ${indexPath}`);
-    indexString = await readTextFile(indexPath);
+    console.debug(`Reading scenario from ${manifestPath}`);
+    manifestString = await readTextFile(manifestPath);
   } catch (error: any) {
-    throw new ScenarioError(indexPath, error.message);
+    throw new ScenarioError(manifestPath, error.message);
   }
 
-  const indexJsonParseResult =
-    safeParseJson<v.InferInput<typeof ScenarioSchema>>(indexString);
-  if (!indexJsonParseResult.success) {
-    throw new ScenarioError(indexPath, indexJsonParseResult.error);
+  const manifestJsonParseResult = safeParseJson<any>(manifestString);
+  if (!manifestJsonParseResult.success) {
+    throw new ScenarioError(manifestPath, manifestJsonParseResult.error);
   }
 
   const scenarioParseResult = v.safeParse(
-    ScenarioSchema,
-    indexJsonParseResult.output,
+    "immersive" in manifestJsonParseResult && manifestJsonParseResult.immersive
+      ? ImmersiveScenarioSchema
+      : BaseScenarioSchema,
+    manifestJsonParseResult.output,
   );
   if (!scenarioParseResult.success) {
     throw new ScenarioError(
-      indexPath,
+      manifestPath,
       formatIssues(scenarioParseResult.issues),
     );
   }
 
-  if (scenarioParseResult.output.immersive) {
+  if ("immersive" in scenarioParseResult.output) {
     console.debug(`Read immersive scenario: ${id}`);
     return new ImmersiveScenario(
       baseDir === BaseDirectory.Resource,
