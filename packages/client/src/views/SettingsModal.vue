@@ -118,7 +118,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
       leave-from="opacity-100"
       leave-to="opacity-0"
     )
-      DialogPanel.flex.h-full.w-full.max-w-4xl.flex-col.overflow-y-hidden.rounded-xl.bg-white.shadow-lg
+      DialogPanel.flex.h-full.w-full.max-w-3xl.flex-col.overflow-y-hidden.rounded-xl.bg-white.shadow-lg
         .flex.items-center.justify-between.gap-2.border-b.p-3
           h1.flex.shrink-0.items-center.gap-1
             SettingsIcon.inline-block(:size="20" class="hover:animate-spin")

@@ -9,6 +9,13 @@ import FooterVue from "@/components/Footer.vue";
 import SettingsModal from "./SettingsModal.vue";
 import { ref } from "vue";
 import LoadGameModal from "./LoadGameModal.vue";
+import {
+  DoorOpenIcon,
+  HistoryIcon,
+  PuzzleIcon,
+  SettingsIcon,
+  SparkleIcon,
+} from "lucide-vue-next";
 
 const { data: scenario } = useScenarioQuery(env.VITE_PRODUCT_ID);
 
@@ -56,11 +63,21 @@ async function exit() {
     .px-3
       span.text-nowrap.text-xl.font-bold.tracking-wide {{ title }}
     .flex.flex-col.items-center.gap-2
-      button._btn(@click="newGame") New game
-      button._btn(@click="loadGameModalOpen = true") Load game
-      button._btn(@click="settingModalOpen = true") Settings
-      RouterLink._btn(:to="routeLocation({ name: 'Library' })") Extra
-      button._btn(@click="exit") Exit
+      button._btn.group(@click="newGame")
+        SparkleIcon(:size="20" class="group-hover:animate-pulse")
+        | New game
+      button._btn.group(@click="loadGameModalOpen = true")
+        HistoryIcon(:size="20" class="group-hover:animate-pulse")
+        | Load game
+      button._btn.group(@click="settingModalOpen = true")
+        SettingsIcon(:size="20" class="group-hover:animate-spin")
+        | Settings
+      RouterLink._btn.group(:to="routeLocation({ name: 'Library' })")
+        PuzzleIcon(:size="20" class="group-hover:animate-pulse")
+        | Extra
+      button._btn._danger.group(@click="exit")
+        DoorOpenIcon(:size="20" class="group-hover:animate-pulse")
+        | Exit
     .px-3
       FooterVue
 
@@ -77,6 +94,13 @@ async function exit() {
 <style lang="scss" scoped>
 ._btn {
   @apply btn btn-md rounded-lg bg-black/10 transition-transform pressable;
-  @apply hover:btn-primary;
+
+  &:not(._danger) {
+    @apply hover:btn-primary;
+  }
+
+  &._danger {
+    @apply hover:btn-error;
+  }
 }
 </style>
