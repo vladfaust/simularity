@@ -76,7 +76,9 @@ const selectedModelId = computed<string | undefined>({
       Toggle#voicer-enabled(v-model="ttsConfig.enabled" size="sm")
 
   //- Model selection.
-  .flex.flex-col(v-if="ttsConfig.enabled")
+  .flex.flex-col(
+    :class="{ 'opacity-50 pointer-events-none': !ttsConfig.enabled }"
+  )
     .flex.w-full.items-center.justify-between
       h2.font-semibold.leading-tight.tracking-wide Model
       .ml-2.h-0.w-full.border-t
@@ -106,7 +108,9 @@ const selectedModelId = computed<string | undefined>({
       )
 
   //- Voiceover settings.
-  .flex.flex-col.gap-2.rounded-lg.border.p-2(v-if="ttsConfig.enabled")
+  .flex.flex-col.gap-2.rounded-lg.border.p-2(
+    :class="{ 'opacity-50 pointer-events-none': !ttsConfig.enabled }"
+  )
     //- Enable or disable voicing automatically.
     .flex.items-center.justify-between.gap-2
       .flex.shrink-0.items-center.gap-1
