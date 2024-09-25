@@ -37,8 +37,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/",
     name: "Home" satisfies RouteName,
-    alias: "/home",
-    redirect: "/library",
+    component: () => import("./views/Home.vue"),
   },
   {
     path: "/saves",

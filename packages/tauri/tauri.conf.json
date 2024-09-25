@@ -50,6 +50,10 @@
       "path": {
         "all": true
       },
+      "process": {
+        "exit": true,
+        "relaunch": true
+      },
       "protocol": {
         "asset": true,
         "assetScope": [

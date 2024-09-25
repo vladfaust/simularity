@@ -33,7 +33,8 @@ async function login() {
       span Recent
 
   .flex.items-center.justify-center
-    img.-mb-2.h-8(src="/img/logo.svg" alt="Logo")
+    RouterLink._header-link(:to="routeLocation({ name: 'Home' })")
+      img.-mb-2.h-8(src="/img/logo.svg" alt="Logo")
 
   .flex.items-center.justify-end.gap-2
     span.font-mono(v-if="accountBalanceQuery.data.value") {{ tap(accountBalanceQuery.data.value.credit, parseFloat) ?? 0 }}¢

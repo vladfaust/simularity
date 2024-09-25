@@ -8,6 +8,7 @@ import { unreachable } from "@/lib/utils";
 import {
   BotIcon,
   CircleHelpIcon,
+  CrownIcon,
   GlobeIcon,
   HardDriveIcon,
   PersonStandingIcon,
@@ -16,14 +17,14 @@ import { computed, ref } from "vue";
 import RemoteModelSettings from "./Voicer/RemoteModelSettings.vue";
 
 const { simulation } = defineProps<{
-  simulation: Simulation;
+  simulation?: Simulation;
 }>();
 
 const ttsConfig = defineModel<storage.tts.TtsConfig>("ttsConfig", {
   required: true,
 });
 
-const mainCharacterId = computed(() => simulation.scenario.defaultCharacterId);
+const mainCharacterId = computed(() => simulation?.scenario.defaultCharacterId);
 const driverType = ref<"remote">(ttsConfig.value.driver?.type ?? "remote");
 
 const selectedModelId = computed<string | undefined>({
@@ -119,9 +120,12 @@ const selectedModelId = computed<string | undefined>({
           for="main-character-enabled"
         )
           CharacterPfp.aspect-square.h-6.rounded.border(
+            v-if="simulation && mainCharacterId"
             :scenario="simulation.scenario"
             :character="simulation.scenario.content.characters[mainCharacterId]"
           )
+          .grid.aspect-square.h-6.place-items-center.rounded.border(v-else)
+            CrownIcon(:size="16")
           span Main character voiceover
         CircleHelpIcon(:size="16")
       .w-full.border-b

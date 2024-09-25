@@ -26,6 +26,7 @@ function envBool() {
 const env = v.parse(
   v.object({
     VITE_EXPERIMENTAL_FEATURES: envBool(),
+    VITE_PRODUCT_ID: v.string(),
   }),
   import.meta.env,
 );

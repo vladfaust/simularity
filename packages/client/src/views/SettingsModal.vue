@@ -51,7 +51,7 @@ enum Tab {
 
 defineProps<{
   open: boolean;
-  simulation: Simulation;
+  simulation?: Simulation;
 }>();
 
 const emit = defineEmits<{
@@ -188,7 +188,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                 ._icon
                   FeatherIcon(:size="20")
                 span Writer
-              .flex.items-center
+              .flex.items-center(v-if="simulation")
                 LlmStatusIcon(
                   :driver="simulation.writer.llmDriver.value"
                   :required="true"
@@ -204,6 +204,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                   ClapperboardIcon(:size="20")
                 span Director
               LlmStatusIcon(
+                v-if="simulation"
                 :driver="simulation.director?.llmDriver.value"
                 :required="simulation.mode === Mode.Immersive && (!env.VITE_EXPERIMENTAL_FEATURES || !directorTeacherMode)"
               )
@@ -217,7 +218,10 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                 ._icon
                   AudioLinesIcon(:size="20")
                 span Voicer
-              VoicerStatusIcon(:driver="simulation.voicer.ttsDriver.value")
+              VoicerStatusIcon(
+                v-if="simulation"
+                :driver="simulation.voicer.ttsDriver.value"
+              )
 
           //- Tab content.
           .col-span-3.h-full.overflow-y-scroll
