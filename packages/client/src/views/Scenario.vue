@@ -4,13 +4,10 @@ import CustomTitle from "@/components/CustomTitle.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import Saves from "@/components/Saves.vue";
 import { d } from "@/lib/drizzle";
-import {
-  ensureScenario,
-  ImmersiveScenario,
-  type Scenario,
-} from "@/lib/simulation/scenario";
+import { ImmersiveScenario } from "@/lib/simulation/scenario";
 import * as tauri from "@/lib/tauri";
 import { prettyNumber, replaceAsync } from "@/lib/utils";
+import { useScenarioQuery } from "@/queries";
 import { routeLocation } from "@/router";
 import { VueMarkdownIt } from "@f3ve/vue-markdown-it";
 import { asyncComputed } from "@vueuse/core";
@@ -38,7 +35,7 @@ const props = defineProps<{
   scenarioId: string;
 }>();
 
-const scenario = ref<Scenario | undefined>();
+const { data: scenario } = useScenarioQuery(props.scenarioId);
 
 // Replace links in the markdown description.
 const processedScenarioDescription = asyncComputed(async () => {
@@ -88,8 +85,6 @@ async function showInFileManager() {
 }
 
 onMounted(async () => {
-  scenario.value = await ensureScenario(props.scenarioId);
-
   saves.value = await d.db.query.simulations.findMany({
     columns: { id: true },
     orderBy: desc(d.simulations.updatedAt),
@@ -215,6 +210,7 @@ onMounted(async () => {
           //- Recent plays.
           .flex.flex-col.gap-2(v-if="saves.length")
             Saves.w-full.gap-2(
+              :key="scenarioId"
               :expand="showSaves"
               @click-expand="showSaves = !showSaves"
               :scenario-id

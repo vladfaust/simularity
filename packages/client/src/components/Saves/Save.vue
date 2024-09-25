@@ -3,24 +3,24 @@ import CustomTitle from "@/components/CustomTitle.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import { d } from "@/lib/drizzle";
 import { Mode } from "@/lib/simulation";
-import { ensureScenario } from "@/lib/simulation/scenario";
 import { nonNullable } from "@/lib/utils";
+import { useScenarioQuery, useSimulationQuery } from "@/queries";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { asyncComputed } from "@vueuse/core";
 import { eq } from "drizzle-orm";
 import { CherryIcon, MessagesSquareIcon, MonitorIcon } from "lucide-vue-next";
-import { computed, onMounted, ref } from "vue";
+import { computed } from "vue";
 import Message, { type SimpleMessage } from "./Save/Message.vue";
 
 const { simulationId } = defineProps<{
   simulationId: number;
 }>();
 
-const simulation = ref<typeof d.simulations.$inferSelect | null | undefined>();
+const { data: simulation } = useSimulationQuery(simulationId);
 
-const scenario = asyncComputed(() =>
-  simulation.value ? ensureScenario(simulation.value.scenarioId) : undefined,
+const { data: scenario } = useScenarioQuery(
+  computed(() => simulation.value?.scenarioId),
 );
 
 const scenarioCoverUrl = asyncComputed(
@@ -59,16 +59,6 @@ const latestMessage = computed<SimpleMessage | null>(() => {
         createdAt: latestUpdate.value.createdAt!,
       }
     : null;
-});
-
-onMounted(() => {
-  d.db.query.simulations
-    .findFirst({
-      where: eq(d.simulations.id, simulationId),
-    })
-    .then((s) => {
-      simulation.value = s ?? null;
-    });
 });
 </script>
 
