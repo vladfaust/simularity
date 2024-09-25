@@ -64,6 +64,8 @@ const allModels = computed<
     }
   | undefined
 >(() => {
+  if (!availableModels.value) return;
+
   const custom: storage.llm.CachedModel[] = [];
   const wellKnown: WellKnownModelProps[] = [];
 
