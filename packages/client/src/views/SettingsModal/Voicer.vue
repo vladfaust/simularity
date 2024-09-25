@@ -6,15 +6,18 @@ import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { unreachable } from "@/lib/utils";
 import {
+  AudioLinesIcon,
   BotIcon,
   CircleHelpIcon,
   CrownIcon,
   GlobeIcon,
   HardDriveIcon,
   PersonStandingIcon,
+  SpeechIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import RemoteModelSettings from "./Voicer/RemoteModelSettings.vue";
+import CustomTitle from "@/components/CustomTitle.vue";
 
 const { simulation } = defineProps<{
   simulation?: Simulation;
@@ -52,12 +55,25 @@ const selectedModelId = computed<string | undefined>({
   Alert(type="info")
     | Voicer is an optional TTS (Text-to-Speech) agent which gives voice to the characters. It can be enabled or disabled at any time.
 
+  CustomTitle(title="Speech Volume")
+    template(#icon)
+      SpeechIcon(:size="20")
+    template(#extra)
+      .flex.shrink-0.items-center.gap-2
+        input(
+          type="range"
+          min="0"
+          max="100"
+          v-model="storage.speechVolumeStorage.value"
+        )
+        .flex.w-14.items-center.justify-end.rounded-full.border.px-2.text-sm.font-medium {{ storage.speechVolumeStorage.value }}%
+
   //- Enable or disable the voicer agent.
-  .flex.items-center.justify-between.gap-2
-    label.flex.shrink-0.cursor-pointer.items-center.gap-1(for="voicer-enabled")
-      span.font-medium Enable Voicer
-    .w-full.border-b
-    Toggle#voicer-enabled(v-model="ttsConfig.enabled")
+  CustomTitle(title="Enable voice generation")
+    template(#icon)
+      AudioLinesIcon(:size="20")
+    template(#extra)
+      Toggle#voicer-enabled(v-model="ttsConfig.enabled" size="sm")
 
   //- Model selection.
   .flex.flex-col(v-if="ttsConfig.enabled")
@@ -100,7 +116,7 @@ const selectedModelId = computed<string | undefined>({
           span Characters voiceover
         CircleHelpIcon(:size="16")
       .w-full.border-b
-      Toggle#auto-enabled(v-model="ttsConfig.otherCharacters")
+      Toggle#auto-enabled(v-model="ttsConfig.otherCharacters" size="sm")
 
     //- Enable or disable narrator voicer.
     .flex.items-center.justify-between.gap-2
@@ -111,7 +127,7 @@ const selectedModelId = computed<string | undefined>({
           span Narrator voiceover
         CircleHelpIcon(:size="16")
       .w-full.border-b
-      Toggle#narrator-enabled(v-model="ttsConfig.narrator")
+      Toggle#narrator-enabled(v-model="ttsConfig.narrator" size="sm")
 
     //- Enable or disable main character voicer.
     .flex.items-center.justify-between.gap-2
@@ -129,5 +145,8 @@ const selectedModelId = computed<string | undefined>({
           span Main character voiceover
         CircleHelpIcon(:size="16")
       .w-full.border-b
-      Toggle#main-character-enabled(v-model="ttsConfig.mainCharacter")
+      Toggle#main-character-enabled(
+        v-model="ttsConfig.mainCharacter"
+        size="sm"
+      )
 </template>

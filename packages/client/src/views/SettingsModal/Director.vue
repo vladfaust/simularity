@@ -6,7 +6,7 @@ import { env } from "@/env";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { directorTeacherMode } from "@/lib/storage/llm";
-import { GraduationCapIcon } from "lucide-vue-next";
+import { GraduationCapIcon, TreesIcon } from "lucide-vue-next";
 import LlmAgentModel from "./LlmAgent/LlmAgentModel.vue";
 
 const CONTEXT_SIZE_MULTIPLIER = 1.25;
@@ -26,6 +26,19 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
     | Director is an agent responsible for generating scene updates as the story advances.
     | It has to be a fine instruction-tuned model with good reasoning—to understand what's going on—, trained for JSON outputs.
     | Director is only required in visual novel mode.
+
+  CustomTitle(title="Ambience Volume")
+    template(#icon)
+      TreesIcon(:size="20")
+    template(#extra)
+      .flex.shrink-0.items-center.gap-2
+        input(
+          type="range"
+          min="0"
+          max="100"
+          v-model="storage.ambientVolumeStorage.value"
+        )
+        .flex.w-14.items-center.justify-end.rounded-full.border.px-2.text-sm.font-medium {{ storage.ambientVolumeStorage.value }}%
 
   CustomTitle(v-if="env.VITE_EXPERIMENTAL_FEATURES" title="Teacher Mode")
     template(#icon)

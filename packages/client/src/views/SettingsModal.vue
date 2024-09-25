@@ -25,7 +25,6 @@ import {
   ClapperboardIcon,
   CornerRightDownIcon,
   FeatherIcon,
-  JoystickIcon,
   Loader2Icon,
   LogInIcon,
   SettingsIcon,
@@ -35,14 +34,12 @@ import {
 import { computed, ref } from "vue";
 import Account from "./SettingsModal/Account.vue";
 import Director from "./SettingsModal/Director.vue";
-import General from "./SettingsModal/General.vue";
 import LlmStatusIcon from "./SettingsModal/LlmAgent/StatusIcon.vue";
 import Voicer from "./SettingsModal/Voicer.vue";
 import VoicerStatusIcon from "./SettingsModal/Voicer/StatusIcon.vue";
 import Writer from "./SettingsModal/Writer.vue";
 
 enum Tab {
-  General,
   Writer,
   Director,
   Voicer,
@@ -58,7 +55,8 @@ const emit = defineEmits<{
   (event: "close"): void;
 }>();
 
-const tab = ref(Tab.General);
+const DEFAULT_TAB = Tab.Writer;
+const tab = ref(DEFAULT_TAB);
 
 const writerConfig = storage.llm.useDriverConfig("writer");
 const tempWriterConfig = ref(tap(writerConfig.value, clone) ?? null);
@@ -164,16 +162,6 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                 LogInIcon(v-else :size="20")
                 | Cloud login
 
-            //- General tab.
-            ._tab(
-              :class="{ _selected: tab === Tab.General }"
-              @click="tab = Tab.General"
-            )
-              ._name
-                ._icon
-                  JoystickIcon(:size="20")
-                span General
-
             //- AI Agents "tab".
             .flex.items-center.justify-between.gap-1.border-b.p-2.pl-4.text-gray-500
               span.text-sm AI Agents
@@ -226,12 +214,9 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
           //- Tab content.
           .col-span-3.h-full.overflow-y-scroll
             .h-full
-              //- General tab.
-              General(v-if="tab === Tab.General" :simulation)
-
               //- Writer agent tab.
               Writer(
-                v-else-if="tab === Tab.Writer"
+                v-if="tab === Tab.Writer"
                 :simulation
                 v-model:driver-config="tempWriterConfig"
               )
@@ -253,7 +238,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
               //- Account tab.
               Account(
                 v-else-if="tab === Tab.Account"
-                @logout="tab = Tab.General"
+                @logout="tab = DEFAULT_TAB"
               )
 </template>
 
