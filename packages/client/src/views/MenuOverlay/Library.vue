@@ -55,8 +55,8 @@ async function openScenariosDir() {
 
   //- List of scenarios.
   .h-full.w-full.overflow-y-auto.p-3.shadow-inner(class="@container")
-    ul.grid.w-full.gap-2(class="@sm:grid-cols-2 @xl:grid-cols-3 @4xl:grid-cols-4")
-      li.cursor-pointer.overflow-hidden.rounded-lg.shadow-lg.transition.pressable-sm(
+    ul.grid.w-full.gap-2(class="@lg:grid-cols-3 @4xl:grid-cols-4")
+      li.cursor-pointer.overflow-hidden.rounded-lg.border-4.border-white.shadow-lg.transition.pressable-sm(
         v-for="scenario in filteredScenarios"
         :key="scenario.id"
         class="active:shadow-sm"
@@ -64,6 +64,7 @@ async function openScenariosDir() {
         ScenarioVue(
           :key="scenario.id"
           :scenario
+          :always-hide-details="true"
           layout="grid"
           @click="$emit('select', scenario.id)"
         )
