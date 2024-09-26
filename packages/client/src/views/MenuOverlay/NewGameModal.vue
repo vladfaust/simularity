@@ -14,8 +14,8 @@ import {
   Settings2Icon,
 } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
-import ScenarioVue from "../Library/Scenario.vue";
-import Episode from "./Episode.vue";
+import ScenarioVue from "./Library/Scenario.vue";
+import Episode from "./Scenario/Episode.vue";
 
 const props = defineProps<{
   open: boolean;

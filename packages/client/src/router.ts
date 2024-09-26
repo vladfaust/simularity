@@ -4,30 +4,15 @@ import {
   type RouteLocationNamedRaw,
   type RouteRecordRaw,
 } from "vue-router";
-import Library from "./views/Library.vue";
-import Saves from "./views/Saves.vue";
-import Scenario from "./views/Scenario.vue";
 import Shutdown from "./views/Shutdown.vue";
 import Simulation from "./views/Simulation.vue";
-import User from "./views/User.vue";
 
-export type RouteName =
-  | "Home"
-  | "Library"
-  | "Saves"
-  | "Scenario"
-  | "Simulation"
-  | "User"
-  | "Shutdown";
+export type RouteName = "Home" | "Simulation" | "Shutdown";
 
 export function routeLocation(
   args:
     | { name: "Home" }
-    | { name: "Library" }
-    | { name: "Saves" }
-    | { name: "Scenario"; params: { scenarioId: string } }
     | { name: "Simulation"; params: { simulationId: number } }
-    | { name: "User" }
     | { name: "Shutdown" },
 ): RouteLocationNamedRaw & { name: RouteName } {
   return args;
@@ -40,36 +25,10 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import("./views/Home.vue"),
   },
   {
-    path: "/saves",
-    name: "Saves" satisfies RouteName,
-    component: Saves,
-  },
-  {
-    path: "/library",
-    children: [
-      {
-        path: "",
-        name: "Library" satisfies RouteName,
-        component: Library,
-      },
-      {
-        path: ":scenarioId",
-        name: "Scenario" satisfies RouteName,
-        component: Scenario,
-        props: true,
-      },
-    ],
-  },
-  {
     path: "/simulations/:simulationId",
     name: "Simulation" satisfies RouteName,
     component: Simulation,
     props: true,
-  },
-  {
-    path: "/user",
-    name: "User" satisfies RouteName,
-    component: User,
   },
   {
     path: "/quit",

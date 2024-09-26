@@ -7,7 +7,7 @@ import {
   type PredictionOptions,
 } from "@/lib/simulation/agents/writer";
 import { accountBalanceQueryKey } from "@/queries";
-import SettingsModal from "@/views/SettingsModal.vue";
+import SettingsModal from "@/views/MenuOverlay/SettingsModal.vue";
 import { TransitionRoot } from "@headlessui/vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { StorageSerializers, useLocalStorage } from "@vueuse/core";

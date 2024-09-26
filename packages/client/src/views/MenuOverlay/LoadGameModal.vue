@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Modal from "@/components/Modal.vue";
 import { HistoryIcon } from "lucide-vue-next";
-import SavesVue from "@/components/Saves.vue";
+import SavesVue from "@/views/MenuOverlay/Saves.vue";
 
 defineProps<{
   open: boolean;

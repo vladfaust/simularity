@@ -16,8 +16,8 @@ import {
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import { toast } from "vue3-toastify";
-import NsfwIcon from "./NsfwIcon.vue";
-import Save from "./Saves/Save.vue";
+import NsfwIcon from "@/components/NsfwIcon.vue";
+import Save from "@/components/Saves/Save.vue";
 import { env } from "@/env";
 
 const props = defineProps<{
@@ -109,56 +109,60 @@ async function switchSelection(simulationId: number) {
 </script>
 
 <template lang="pug">
-.relative.flex.h-full.w-full.flex-col.overflow-y-hidden
-  .flex.w-full.justify-center.bg-white.shadow-lg
-    .flex.w-full.max-w-4xl.items-center.justify-between.gap-2.p-3
-      .relative.flex.w-full.items-center
-        input.w-full.rounded-lg.bg-neutral-100.px-2.py-1.text-sm.italic.shadow-inner(
-          v-model="scenarioNameFilter"
-          placeholder="Filter by scenario name..."
-          :disabled="selectionMode"
-          class="disabled:opacity-50"
-        )
-        button.btn-pressable.btn.absolute.right-1.leading-none(
-          v-if="scenarioNameFilter"
-          @click="scenarioNameFilter = ''"
-          title="Clear search"
-          v-tooltip="'Clear search'"
-          :disabled="selectionMode"
-        )
-          XCircleIcon.fill-neutral-400.text-white(:size="16")
-
-      //- Toggle selection mode.
-      button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
-        @click="selectionMode = !selectionMode; selectedSaveIds = []"
-        title="Switch to selection mode"
-        v-tooltip="'Switch to selection mode'"
+.relative.flex.flex-col.overflow-y-hidden
+  //- Header.
+  .flex.w-full.items-center.justify-between.gap-2.bg-white.p-3
+    .relative.flex.w-full.items-center
+      input.w-full.rounded-lg.bg-neutral-100.px-2.py-1.text-sm.italic.shadow-inner(
+        v-model="scenarioNameFilter"
+        placeholder="Filter by scenario name..."
+        :disabled="selectionMode"
+        class="disabled:opacity-50"
       )
-        SquareMousePointerIcon(
-          :size="18"
-          :class="{ 'text-primary-500': selectionMode }"
-        )
-
-      //- Toggle extra scenarios.
-      button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
-        @click="showExtra = !showExtra"
-        title="Toggle extra scenarios"
-        v-tooltip="'Toggle extra scenarios'"
+      button.btn-pressable.btn.absolute.right-1.leading-none(
+        v-if="scenarioNameFilter"
+        @click="scenarioNameFilter = ''"
+        title="Clear search"
+        v-tooltip="'Clear search'"
         :disabled="selectionMode"
       )
-        PuzzleIcon(:size="18" :class="{ 'text-primary-500': showExtra }")
+        XCircleIcon.fill-neutral-400.text-white(:size="16")
 
-      //- Toggle NSFW.
-      button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
-        @click="showNsfw = !showNsfw"
-        title="Toggle NSFW"
-        v-tooltip="'Toggle NSFW'"
-        :disabled="selectionMode"
+    //- Toggle selection mode.
+    button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
+      @click="selectionMode = !selectionMode; selectedSaveIds = []"
+      title="Switch to selection mode"
+      v-tooltip="'Switch to selection mode'"
+    )
+      SquareMousePointerIcon(
+        :size="18"
+        :class="{ 'text-primary-500': selectionMode }"
       )
-        NsfwIcon(:size="18" :class="{ ' text-pink-500': showNsfw }")
 
-  .w-full.overflow-y-auto.p-3.shadow-inner
-    ul.grid.min-h-48.w-full.grid-cols-3.gap-2(class="@container")
+    //- Toggle extra scenarios.
+    button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
+      @click="showExtra = !showExtra"
+      title="Toggle extra scenarios"
+      v-tooltip="'Toggle extra scenarios'"
+      :disabled="selectionMode"
+    )
+      PuzzleIcon(:size="18" :class="{ 'text-primary-500': showExtra }")
+
+    //- Toggle NSFW.
+    button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
+      @click="showNsfw = !showNsfw"
+      title="Toggle NSFW"
+      v-tooltip="'Toggle NSFW'"
+      :disabled="selectionMode"
+    )
+      NsfwIcon(:size="18" :class="{ ' text-pink-500': showNsfw }")
+
+  //- Saves.
+  .h-full.w-full.overflow-y-auto.p-3.shadow-inner(class="@container")
+    ul.grid.w-full.gap-2(
+      class="@sm:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4"
+      :class="{ 'h-full': !filteredSaves?.length }"
+    )
       li.cursor-pointer(
         v-if="filteredSaves?.length"
         v-for="simulation of filteredSaves"
@@ -171,10 +175,11 @@ async function switchSelection(simulationId: number) {
           .content.transition.pressable(
             @click.stop.preventDefault="selectionMode ? switchSelection(simulation.id) : navigate()"
           )
-            Save.select-none.overflow-hidden.rounded-lg.bg-white.shadow-lg(
+            Save.select-none.overflow-hidden.rounded-lg.bg-white.shadow-lg.transition(
               :simulation-id="simulation.id"
               :key="simulation.id"
               :class="{ 'opacity-50': selectionMode && !selectedSaveIds.includes(simulation.id) }"
+              class="active:shadow-sm"
             )
 
       //- Empty state.

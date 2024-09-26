@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CustomTitle from "@/components/CustomTitle.vue";
+import NsfwIcon from "@/components/NsfwIcon.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import { type Scenario } from "@/lib/simulation";
 import { ImmersiveScenario } from "@/lib/simulation/scenario";
@@ -9,7 +10,7 @@ import { CherryIcon, MonitorIcon } from "lucide-vue-next";
 const props = defineProps<{
   scenario: Scenario;
   layout: "grid" | "list";
-  noBlurNsfw?: boolean;
+  narrowPadding?: boolean;
 }>();
 
 const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
@@ -17,22 +18,23 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
 
 <template lang="pug">
 //- Grid layout.
-.group.relative.aspect-square(v-if="layout === 'grid'")
+.group.relative.overflow-hidden(v-if="layout === 'grid'" class="aspect-[2/3]")
   img.h-full.w-full.select-none.object-cover.transition(
     class="hover:brightness-105"
     v-if="thumbnailUrl"
     :src="thumbnailUrl"
   )
   Placeholder.h-full.w-full(v-else)
-  .absolute.bottom-0.left-0.z-10.flex.h-max.w-full.flex-col.justify-between.gap-1.bg-white.bg-opacity-90.p-3.backdrop-blur(
-    class="group-hover:bg-opacity-100"
+
+  .absolute.bottom-0.left-0.z-10.flex.h-max.w-full.flex-col.justify-between.gap-1.bg-white(
+    :class="{ 'p-3': !narrowPadding, 'px-2 py-3': narrowPadding }"
   )
     //- Top.
     .flex.flex-col
       CustomTitle(:title="scenario.content.name")
         template(#extra)
           .flex.gap-1
-            CherryIcon.cursor-help.text-red-500(
+            NsfwIcon.cursor-help.text-pink-500(
               v-if="scenario.content.nsfw"
               :size="18"
               v-tooltip="'This scenario is NSFW'"

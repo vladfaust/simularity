@@ -47,7 +47,7 @@ const SpriteTransformSchema = v.object({
   scale: v.optional(v.number()),
 });
 
-const BaseScenarioSchema = v.object({
+export const BaseScenarioSchema = v.object({
   /**
    * Scenario protocol version.
    */
@@ -68,9 +68,12 @@ const BaseScenarioSchema = v.object({
    */
   tags: v.optional(v.array(v.string())),
 
+  iconPath: v.optional(v.string()),
+  logoPath: v.optional(v.string()),
+
   /**
    * Scenario thumbnail image path.
-   * Recommended aspect ratio: 1:1.
+   * Recommended aspect ratio: 2:3.
    */
   thumbnailPath: v.optional(v.string()),
 
@@ -441,6 +444,20 @@ const BaseScenarioSchema = v.object({
         }),
       ),
     }),
+  ),
+
+  /**
+   * List of achievements in the scenario.
+   */
+  achievements: v.optional(
+    v.array(
+      v.object({
+        title: v.string(),
+        description: v.string(),
+        iconPath: v.optional(v.string()),
+        points: v.number(),
+      }),
+    ),
   ),
 });
 
