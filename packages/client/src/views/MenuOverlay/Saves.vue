@@ -1,60 +1,67 @@
 <script setup lang="ts">
+import CustomTitle from "@/components/CustomTitle.vue";
 import { d } from "@/lib/drizzle";
-import { allSavesQueryKey, useSavesQuery, useScenariosQuery } from "@/queries";
+import { allSavesQueryKey, useSavesQuery } from "@/queries";
 import { routeLocation } from "@/router";
 import { TransitionRoot } from "@headlessui/vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { dialog } from "@tauri-apps/api";
-import { useLocalStorage } from "@vueuse/core";
 import { inArray } from "drizzle-orm";
 import {
+  HistoryIcon,
   Loader2Icon,
-  PuzzleIcon,
   SquareMousePointerIcon,
   Trash2Icon,
-  XCircleIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import { toast } from "vue3-toastify";
-import NsfwIcon from "@/components/NsfwIcon.vue";
-import Save from "@/components/Saves/Save.vue";
-import { env } from "@/env";
+import Save from "./Saves/Save.vue";
 
-const props = defineProps<{
-  scenarioId?: string;
+type Save = NonNullable<(typeof saves)["value"]>[number];
+
+const { scenarioId } = defineProps<{
+  scenarioId: string;
 }>();
 
 const queryClient = useQueryClient();
-const showExtra = useLocalStorage("showExtraSave", false);
-const scenarioNameFilter = ref("");
-const scenarioId = computed(() =>
-  props.scenarioId ?? showExtra.value ? undefined : env.VITE_PRODUCT_ID,
-);
-const { data: saves } = useSavesQuery(
-  scenarioId,
-  showExtra,
-  scenarioNameFilter,
-);
-const { data: scenarios } = useScenariosQuery();
-const showNsfw = useLocalStorage("showNsfw", false);
+const { data: saves } = useSavesQuery(scenarioId);
 const selectionMode = ref(false);
 const selectedSaveIds = ref<number[]>([]);
 const deletionInProgress = ref(false);
 
-const filteredSaves = computed(() =>
-  saves.value?.filter((s) => {
-    const scenario = scenarios.value?.find((sc) => sc.id === s.scenarioId);
-    if (!scenario) return false;
+/**
+ * Saves grouped by date (`[{ date: string, saves: Object }]`).
+ */
+const savesGroupedByDate = computed(() => {
+  if (!saves.value) return [];
 
-    return (
-      (showNsfw.value || !scenario.content.nsfw) &&
-      (!scenarioNameFilter.value ||
-        scenario.content.name
-          .toLowerCase()
-          .includes(scenarioNameFilter.value.toLowerCase()))
-    );
-  }),
-);
+  const grouped = new Map<string, Save[]>();
+
+  for (const save of saves.value) {
+    const date = save.createdAt!.toLocaleDateString(undefined, {
+      dateStyle: "medium",
+    });
+
+    const weekday = save.createdAt!.toLocaleDateString(undefined, {
+      weekday: "short",
+    });
+
+    const fullDate = `${weekday} ${date}`;
+
+    if (!grouped.has(fullDate)) {
+      grouped.set(fullDate, []);
+    }
+
+    grouped.get(fullDate)!.push(save);
+  }
+
+  console.log("Grouped saves", Array.from(grouped));
+
+  return Array.from(grouped).map(([date, saves]) => ({
+    date,
+    saves,
+  }));
+});
 
 async function deleteSelected() {
   if (selectedSaveIds.value.length === 0) return;
@@ -111,80 +118,66 @@ async function switchSelection(simulationId: number) {
 <template lang="pug">
 .relative.flex.flex-col.overflow-y-hidden
   //- Header.
-  .flex.w-full.items-center.justify-between.gap-2.bg-white.p-3
-    .relative.flex.w-full.items-center
-      input.w-full.rounded-lg.bg-neutral-100.px-2.py-1.text-sm.italic.shadow-inner(
-        v-model="scenarioNameFilter"
-        placeholder="Filter by scenario name..."
-        :disabled="selectionMode"
-        class="disabled:opacity-50"
-      )
-      button.btn-pressable.btn.absolute.right-1.leading-none(
-        v-if="scenarioNameFilter"
-        @click="scenarioNameFilter = ''"
-        title="Clear search"
-        v-tooltip="'Clear search'"
-        :disabled="selectionMode"
-      )
-        XCircleIcon.fill-neutral-400.text-white(:size="16")
-
-    //- Toggle selection mode.
-    button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
-      @click="selectionMode = !selectionMode; selectedSaveIds = []"
-      title="Switch to selection mode"
-      v-tooltip="'Switch to selection mode'"
-    )
-      SquareMousePointerIcon(
-        :size="18"
-        :class="{ 'text-primary-500': selectionMode }"
-      )
-
-    //- Toggle extra scenarios.
-    button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
-      @click="showExtra = !showExtra"
-      title="Toggle extra scenarios"
-      v-tooltip="'Toggle extra scenarios'"
-      :disabled="selectionMode"
-    )
-      PuzzleIcon(:size="18" :class="{ 'text-primary-500': showExtra }")
-
-    //- Toggle NSFW.
-    button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
-      @click="showNsfw = !showNsfw"
-      title="Toggle NSFW"
-      v-tooltip="'Toggle NSFW'"
-      :disabled="selectionMode"
-    )
-      NsfwIcon(:size="18" :class="{ ' text-pink-500': showNsfw }")
+  CustomTitle.bg-white.p-3(title="Load game")
+    template(#icon)
+      HistoryIcon(:size="20")
+    template(#extra)
+      .flex.items-center
+        //- TODO: Filter by mode.
+        //- TODO: Filter by favorites.
+        //- Toggle selection mode.
+        button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
+          @click="selectionMode = !selectionMode; selectedSaveIds = []"
+          title="Switch to selection mode"
+          v-tooltip="'Switch to selection mode'"
+        )
+          SquareMousePointerIcon(
+            :size="18"
+            :class="{ 'text-primary-500': selectionMode }"
+          )
 
   //- Saves.
-  .h-full.w-full.overflow-y-auto.p-3.shadow-inner(class="@container")
-    ul.grid.w-full.gap-2(
-      class="@sm:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4"
-      :class="{ 'h-full': !filteredSaves?.length }"
+  .flex.h-full.w-full.flex-col.gap-2.overflow-y-auto.p-3.shadow-inner(
+    class="@container"
+  )
+    ul.flex.flex-col.gap-2(
+      v-if="savesGroupedByDate.length"
+      v-for="group of savesGroupedByDate"
+      :key="group.date"
     )
-      li.cursor-pointer(
-        v-if="filteredSaves?.length"
-        v-for="simulation of filteredSaves"
-      )
-        RouterLink(
-          :to="routeLocation({ name: 'Simulation', params: { simulationId: simulation.id } })"
-          custom
-          v-slot="{ navigate }"
-        )
-          .content.transition.pressable(
-            @click.stop.preventDefault="selectionMode ? switchSelection(simulation.id) : navigate()"
-          )
-            Save.select-none.overflow-hidden.rounded-lg.bg-white.shadow-lg.transition(
-              :simulation-id="simulation.id"
-              :key="simulation.id"
-              :class="{ 'opacity-50': selectionMode && !selectedSaveIds.includes(simulation.id) }"
-              class="active:shadow-sm"
-            )
+      //- Date.
+      CustomTitle(:title="group.date")
+        span.cursor-help.font-semibold.leading-snug.tracking-wide(
+          v-tooltip="`Games created ${group.saves[0].createdAt?.toLocaleDateString()}`"
+        ) {{ group.date }}
 
-      //- Empty state.
-      .col-span-full.flex.w-full.flex-col.items-center.justify-center(v-else)
-        p.text-gray-500 No saves found.
+      //- Saves.
+      ul.grid.w-full.gap-2(
+        class="@sm:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4"
+        :class="{ 'h-full': !saves?.length }"
+      )
+        li.cursor-pointer(
+          v-for="simulation of group.saves"
+          :key="simulation.id"
+        )
+          RouterLink(
+            :to="routeLocation({ name: 'Simulation', params: { simulationId: simulation.id } })"
+            custom
+            v-slot="{ navigate }"
+          )
+            .content.transition.pressable(
+              @click.stop.preventDefault="selectionMode ? switchSelection(simulation.id) : navigate()"
+            )
+              Save.select-none.overflow-hidden.rounded-lg.bg-white.shadow-lg.transition(
+                :simulation-id="simulation.id"
+                :key="simulation.id"
+                :class="{ 'opacity-50': selectionMode && !selectedSaveIds.includes(simulation.id) }"
+                class="active:shadow-sm"
+              )
+
+    //- Empty state.
+    .col-span-full.flex.w-full.flex-col.items-center.justify-center(v-else)
+      p.text-gray-500 No saves found.
 
   //- Selection actions.
   TransitionRoot.absolute.bottom-0.z-10.flex.w-full.p-3(

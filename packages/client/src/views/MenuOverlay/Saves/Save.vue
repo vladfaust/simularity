@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import CustomTitle from "@/components/CustomTitle.vue";
+import ChatMode from "@/components/Icons/ChatMode.vue";
+import ImmersiveMode from "@/components/Icons/ImmersiveMode.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import { d } from "@/lib/drizzle";
 import { Mode } from "@/lib/simulation";
@@ -9,10 +11,8 @@ import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { asyncComputed } from "@vueuse/core";
 import { eq } from "drizzle-orm";
-import { MessagesSquareIcon, MonitorIcon } from "lucide-vue-next";
 import { computed } from "vue";
 import Message, { type SimpleMessage } from "./Save/Message.vue";
-import NsfwIcon from "../NsfwIcon.vue";
 
 const { simulationId } = defineProps<{
   simulationId: number;
@@ -72,6 +72,7 @@ const latestMessage = computed<SimpleMessage | null>(() => {
       :class="{ 'blur-sm scale-105': simulation?.mode === Mode.Chat }"
     )
     Placeholder.h-full.w-full.border-b(v-else)
+
     ul.absolute.bottom-0.left-0.z-10.flex.h-full.w-full.flex-col-reverse.gap-1.overflow-y-scroll.p-2(
       v-if="scenario && latestMessage"
     )
@@ -79,23 +80,18 @@ const latestMessage = computed<SimpleMessage | null>(() => {
 
   .flex.flex-col.p-3(v-if="simulation?.updatedAt")
     CustomTitle(:title="scenario?.content.name")
+      template(#default)
+        span.text-xs.leading-tight.text-gray-500 Upd. {{ simulation.updatedAt.toLocaleString() }}
       template(#extra)
         .flex.gap-1
-          NsfwIcon.cursor-help.text-red-500(
-            v-if="scenario?.content.nsfw"
-            :size="16"
-            v-tooltip="'This scenario is NSFW'"
-          )
-          MonitorIcon.cursor-help(
+          ImmersiveMode.cursor-help(
             v-if="simulation?.mode === Mode.Immersive"
             :size="16"
-            v-tooltip="'This simulation runs in visual novel mode'"
+            v-tooltip="'This simulation runs in immersive mode'"
           )
-          MessagesSquareIcon.cursor-help(
+          ChatMode.cursor-help(
             v-else
             :size="16"
             v-tooltip="'This simulation runs in chat mode'"
           )
-
-    span.text-xs.leading-tight.text-gray-500 {{ simulation.updatedAt.toLocaleString() }}
 </template>
