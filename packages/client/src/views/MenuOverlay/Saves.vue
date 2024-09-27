@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/vue-query";
 import { dialog } from "@tauri-apps/api";
 import { inArray } from "drizzle-orm";
 import {
+  CircleSlash2Icon,
   HistoryIcon,
   Loader2Icon,
   SquareMousePointerIcon,
@@ -118,7 +119,7 @@ async function switchSelection(simulationId: number) {
 <template lang="pug">
 .relative.flex.flex-col.overflow-y-hidden
   //- Header.
-  CustomTitle.bg-white.p-3(title="Load game")
+  CustomTitle.border-b.p-3(title="Load game")
     template(#icon)
       HistoryIcon(:size="20")
     template(#extra)
@@ -130,6 +131,7 @@ async function switchSelection(simulationId: number) {
           @click="selectionMode = !selectionMode; selectedSaveIds = []"
           title="Switch to selection mode"
           v-tooltip="'Switch to selection mode'"
+          :disabled="savesGroupedByDate.length === 0"
         )
           SquareMousePointerIcon(
             :size="18"
@@ -137,9 +139,7 @@ async function switchSelection(simulationId: number) {
           )
 
   //- Saves.
-  .flex.h-full.w-full.flex-col.gap-2.overflow-y-auto.p-3.shadow-inner(
-    class="@container"
-  )
+  .flex.h-full.w-full.flex-col.gap-2.overflow-y-auto.p-3(class="@container")
     ul.flex.flex-col.gap-2(
       v-if="savesGroupedByDate.length"
       v-for="group of savesGroupedByDate"
@@ -176,8 +176,11 @@ async function switchSelection(simulationId: number) {
               )
 
     //- Empty state.
-    .col-span-full.flex.w-full.flex-col.items-center.justify-center(v-else)
-      p.text-gray-500 No saves found.
+    .flex.h-full.w-full.flex-col.items-center.justify-center.gap-2.p-3.opacity-50(
+      v-else
+    )
+      CircleSlash2Icon(:size="32")
+      p No saves found.
 
   //- Selection actions.
   TransitionRoot.absolute.bottom-0.z-10.flex.w-full.p-3(

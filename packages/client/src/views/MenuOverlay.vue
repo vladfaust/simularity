@@ -60,7 +60,7 @@ async function exit() {
 
 <template lang="pug">
 .grid.grid-cols-4.overflow-hidden.backdrop-blur(class="lg:grid-cols-6")
-  .flex.flex-col.items-center.justify-between.gap-2.border-r.p-3(class="bg-white/95")
+  .flex.flex-col.items-center.justify-between.gap-2.border-r.p-3(class="bg-white/90")
     //- Logo button.
     button.btn.btn-pressable-sm.aspect-video.w-full.max-w-56.gap-2.overflow-hidden.rounded-lg.p-3(
       @click="tab === Tab.Scenario ? (tab = Tab.Library) : (tab = Tab.Scenario)"

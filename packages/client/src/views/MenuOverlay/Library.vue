@@ -4,7 +4,7 @@ import * as resources from "@/lib/resources";
 import * as tauri from "@/lib/tauri";
 import { useScenariosQuery } from "@/queries";
 import { useLocalStorage } from "@vueuse/core";
-import { FolderOpenIcon } from "lucide-vue-next";
+import { FolderOpenIcon, LibraryBigIcon } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import ScenarioVue from "./Library/Scenario.vue";
 
@@ -34,11 +34,15 @@ async function openScenariosDir() {
 <template lang="pug">
 .flex.flex-col
   //- Header.
-  .flex.w-full.justify-center.bg-white
+  .flex.w-full.justify-center.border-b
     .flex.w-full.items-center.justify-between.gap-2.p-3
-      input.w-full.rounded-lg.bg-neutral-100.px-2.py-1.text-sm.italic.shadow-inner(
+      .flex.shrink-0.items-center.gap-1
+        LibraryBigIcon(:size="20")
+        span.font-semibold.leading-snug.tracking-wide Library
+      input.w-full.rounded.rounded-lg.border.bg-white.px-2.text-sm(
+        style="padding-top: calc(0.25rem - 1px); padding-bottom: calc(0.25rem - 1px)"
         v-model="scenarioNameFilter"
-        placeholder="Filter scenarios by name..."
+        placeholder="Filter by name..."
       )
       button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
         @click="openScenariosDir"
@@ -54,7 +58,7 @@ async function openScenariosDir() {
         NsfwIcon(:size="18" :class="{ 'text-pink-500': showNsfw }")
 
   //- List of scenarios.
-  .h-full.w-full.overflow-y-auto.p-3.shadow-inner(class="@container")
+  .h-full.w-full.overflow-y-auto.p-3(class="@container")
     ul.grid.w-full.gap-2(class="@lg:grid-cols-3 @4xl:grid-cols-4")
       li.cursor-pointer.overflow-hidden.rounded-lg.border-4.border-white.shadow-lg.transition.pressable-sm(
         v-for="scenario in filteredScenarios"
