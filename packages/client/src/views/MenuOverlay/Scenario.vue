@@ -221,7 +221,7 @@ $breakpoint: 1024px;
 @media (min-width: $breakpoint) {
   ._main {
     grid-template-areas: "side content content content";
-    @apply grid-cols-4;
+    @apply grid-cols-4 gap-2;
   }
 
   ._side {

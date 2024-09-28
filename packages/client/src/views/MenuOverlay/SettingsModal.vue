@@ -1,29 +1,19 @@
 <script setup lang="ts">
+import CustomTitle from "@/components/CustomTitle.vue";
 import { env } from "@/env";
 import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { directorTeacherMode } from "@/lib/storage/llm";
 import type { TtsConfig } from "@/lib/storage/tts";
 import { clone, tap } from "@/lib/utils";
-import { onLoginButtonClick } from "@/logic/loginButton";
-import {
-  accountBalanceQueryKey,
-  accountQueryKey,
-  useAccountBalanceQuery,
-} from "@/queries";
-import { useQueryClient } from "@tanstack/vue-query";
 import { deepEqual } from "fast-equals";
 import {
   AudioLinesIcon,
+  BrainCircuitIcon,
   ClapperboardIcon,
-  CornerRightDownIcon,
   FeatherIcon,
-  Loader2Icon,
-  LogInIcon,
-  UserCircle2Icon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
-import Account from "./SettingsModal/Account.vue";
 import Director from "./SettingsModal/Director.vue";
 import LlmStatusIcon from "./SettingsModal/LlmAgent/StatusIcon.vue";
 import Voicer from "./SettingsModal/Voicer.vue";
@@ -34,7 +24,6 @@ enum Tab {
   Writer,
   Director,
   Voicer,
-  Account,
 }
 
 defineProps<{
@@ -71,10 +60,6 @@ const anyChanges = computed(() => {
   );
 });
 
-const accountBalanceQuery = useAccountBalanceQuery();
-const loginInProgress = ref(false);
-const queryClient = useQueryClient();
-
 function onClose() {
   writerConfig.value = tempWriterConfig.value;
   directorConfig.value = tempDirectorConfig.value;
@@ -82,90 +67,65 @@ function onClose() {
 
   emit("close");
 }
-
-async function login() {
-  await onLoginButtonClick(loginInProgress, false, true);
-  await queryClient.invalidateQueries({ queryKey: accountQueryKey() });
-  await queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
-  tab.value = Tab.Account;
-}
 </script>
 
 <template lang="pug">
-.grid.grid-cols-4.overflow-y-hidden
-  //- FIXME: Overflow-y-scroll doesn't work here.
-  .flex.h-full.flex-col.overflow-y-scroll.border-r
-    //- Account tab.
-    ._tab(
-      v-if="storage.remoteServerJwt.value"
-      :class="{ _selected: tab === Tab.Account }"
-      @click="tab = Tab.Account"
-    )
-      ._name
-        ._icon
-          UserCircle2Icon(:size="20")
-        span Account
-      span.rounded.border.border-primary-600.bg-primary-500.px-2.py-1.font-mono.text-xs.font-medium.text-primary-base(
-        title="Credit balance"
-      ) {{ accountBalanceQuery.data.value?.credit ?? 0 }}¢
-    .border-b.p-3(v-else)
-      button.btn.btn-md.btn-primary.btn-pressable.w-full.rounded-lg(
-        @click="login"
+.flex.flex-col
+  .border-b(
+    style="padding-top: calc(0.25rem - 1px); padding-bottom: calc(0.25rem - 1px)"
+  )
+    CustomTitle.p-3(title="AI Settings" :hide-border="true")
+      template(#icon)
+        BrainCircuitIcon(:size="20")
+
+  .flex.h-full.flex-col.overflow-hidden
+    .flex.w-full.divide-x.border-b
+      //- Writer agent tab.
+      ._tab(
+        :class="{ _selected: tab === Tab.Writer }"
+        @click="tab = Tab.Writer"
       )
-        Loader2Icon.animate-spin(
-          v-if="loginInProgress"
-          :size="20"
-          :stroke-width="2.5"
-        )
-        LogInIcon(v-else :size="20")
-        | Cloud login
+        ._name
+          ._icon
+            FeatherIcon(:size="20")
+          span Writer
+        .flex.items-center(v-if="simulation")
+          LlmStatusIcon(
+            :driver="simulation.writer.llmDriver.value"
+            :required="true"
+          )
 
-    //- AI Agents "tab".
-    .flex.items-center.justify-between.gap-1.border-b.p-2.pl-4.text-gray-500
-      span.text-sm AI Agents
-      CornerRightDownIcon(:size="18")
-
-    //- Writer agent tab.
-    ._tab(:class="{ _selected: tab === Tab.Writer }" @click="tab = Tab.Writer")
-      ._name
-        ._icon
-          FeatherIcon(:size="20")
-        span Writer
-      .flex.items-center(v-if="simulation")
+      //- Director agent tab.
+      ._tab(
+        :class="{ _selected: tab === Tab.Director }"
+        @click="tab = Tab.Director"
+      )
+        ._name
+          ._icon
+            ClapperboardIcon(:size="20")
+          span Director
         LlmStatusIcon(
-          :driver="simulation.writer.llmDriver.value"
-          :required="true"
+          v-if="simulation"
+          :driver="simulation.director?.llmDriver.value"
+          :required="simulation.mode === Mode.Immersive && (!env.VITE_EXPERIMENTAL_FEATURES || !directorTeacherMode)"
         )
 
-    //- Director agent tab.
-    ._tab(
-      :class="{ _selected: tab === Tab.Director }"
-      @click="tab = Tab.Director"
-    )
-      ._name
-        ._icon
-          ClapperboardIcon(:size="20")
-        span Director
-      LlmStatusIcon(
-        v-if="simulation"
-        :driver="simulation.director?.llmDriver.value"
-        :required="simulation.mode === Mode.Immersive && (!env.VITE_EXPERIMENTAL_FEATURES || !directorTeacherMode)"
+      //- Voicer agent tab.
+      ._tab(
+        :class="{ _selected: tab === Tab.Voicer }"
+        @click="tab = Tab.Voicer"
       )
+        ._name
+          ._icon
+            AudioLinesIcon(:size="20")
+          span Voicer
+        VoicerStatusIcon(
+          v-if="simulation"
+          :driver="simulation.voicer.ttsDriver.value"
+        )
 
-    //- Voicer agent tab.
-    ._tab(:class="{ _selected: tab === Tab.Voicer }" @click="tab = Tab.Voicer")
-      ._name
-        ._icon
-          AudioLinesIcon(:size="20")
-        span Voicer
-      VoicerStatusIcon(
-        v-if="simulation"
-        :driver="simulation.voicer.ttsDriver.value"
-      )
-
-  //- Tab content.
-  .col-span-3.h-full.overflow-y-scroll
-    .h-full
+    //- Tab content.
+    .h-full.overflow-y-scroll
       //- Writer agent tab.
       Writer(
         v-if="tab === Tab.Writer"
@@ -186,17 +146,14 @@ async function login() {
         :simulation
         v-model:tts-config="tempTtsConfig"
       )
-
-      //- Account tab.
-      Account(v-else-if="tab === Tab.Account" @logout="tab = DEFAULT_TAB")
 </template>
 
 <style lang="scss" scoped>
 ._tab {
-  @apply flex cursor-pointer items-center justify-between gap-2 border-b p-3;
+  @apply flex w-full cursor-pointer items-center justify-center gap-2 p-2;
 
   &._selected {
-    @apply bg-gray-50 text-primary-500 shadow-inner;
+    @apply text-primary-500;
   }
 
   ._name {
