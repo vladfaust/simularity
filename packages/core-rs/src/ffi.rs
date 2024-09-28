@@ -74,6 +74,7 @@ extern "C" {
     // int simularity_gpt_create(
     //     const char *model_id,
     //     unsigned context_size,
+    //     unsigned unsigned batch_size,,
     //     const char *initial_prompt,
     //     const char *state_file_path,
     //     void(progress_callback)(float, void *),
@@ -82,6 +83,7 @@ extern "C" {
     pub fn simularity_gpt_create(
         model_id: *const c_char,
         context_size: c_uint,
+        batch_size: c_uint,
         initial_prompt: *const c_char,
         state_file_path: *const c_char,
         progress_callback: Option<extern "C" fn(c_float, *mut c_void) -> bool>,

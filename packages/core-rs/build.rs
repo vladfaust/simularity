@@ -1,5 +1,6 @@
 fn main() {
     println!("cargo:rerun-if-changed=../core-cpp/src");
+    println!("cargo:rerun-if-changed=../core-cpp/vendor");
     println!("cargo:rustc-link-lib=c++");
 
     println!("cargo::rustc-link-search=../core-cpp/build");

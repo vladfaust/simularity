@@ -126,12 +126,10 @@ int simularity_gpt_infer(
   auto n_prompt = prompt_tokens.size();
   auto n_target = n_prompt + n_eval;
 
-  std::unique_ptr<Batch> batch;
   try {
-    batch = simularity_gpt_decode_internal(
+    simularity_gpt_decode_internal(
         session,
         prompt_tokens,
-        n_target,
         decode_progress_callback,
         decode_progress_callback_user_data
     );
@@ -142,6 +140,9 @@ int simularity_gpt_infer(
     spdlog::error("Unknown decode error: {}", e.code);
     return -4;
   }
+
+  auto batch = Batch(1);
+  batch.add(prompt_tokens.back(), n_prompt - 1, true);
 
   std::vector<llama_token> eval_tokens;
   auto start = std::chrono::high_resolution_clock::now();
@@ -202,11 +203,11 @@ int simularity_gpt_infer(
       if (found) break;
 
       // Clear the batch and add the single next token to it.
-      batch->batch.n_tokens = 0;
-      batch->add(next, n_prompt + eval_tokens.size(), true);
+      batch.batch.n_tokens = 0;
+      batch.add(next, n_prompt + eval_tokens.size(), true);
 
       // Decode the next token.
-      auto err = llama_decode(session->context, batch->batch);
+      auto err = llama_decode(session->context, batch.batch);
       if (err == -1) return -2; // Could not find a KV slot (context overflow).
       else if (err) {
         spdlog::warn("Failed to decode -> {}", err);

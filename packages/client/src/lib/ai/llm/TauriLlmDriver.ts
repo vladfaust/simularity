@@ -175,13 +175,14 @@ export class TauriLlmDriver implements BaseLlmDriver {
       const modelHashPromise = tauri.gpt.getModelHashById(modelId);
 
       this.progress.value = 0;
-      const result = await tauri.gpt.create(
+      const result = await tauri.gpt.create({
         modelId,
-        this.config.contextSize,
-        this._initializationParams.value.initialPrompt,
-        (e) => (this.progress.value = e.progress),
-        this._initializationParams.value.dumpSession,
-      );
+        contextSize: this.config.contextSize,
+        batchSize: 512, // TODO: Make configurable.
+        initialPrompt: this._initializationParams.value.initialPrompt,
+        progressCallback: (e) => (this.progress.value = e.progress),
+        dumpSession: this._initializationParams.value.dumpSession,
+      });
       this.progress.value = 1;
 
       const internalSessionId = result.sessionId;

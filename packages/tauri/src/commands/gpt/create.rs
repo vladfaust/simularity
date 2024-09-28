@@ -33,6 +33,7 @@ pub struct Response {
 ///
 /// * `model_id` - The model ID, obtained from `gpt_load_model`.
 /// * `context_size` - Context size, or `None` for default by model.
+/// * `batch_size` - Batch size, or `None` for default.
 /// * `initial_prompt` - If set, would try to load the session
 ///    from cache, otherwise decode from scratch.
 /// * `progress_event_name` - If set, would emit progress events.
@@ -40,7 +41,8 @@ pub struct Response {
 ///
 pub async fn gpt_create(
     model_id: &str,
-    context_size: usize,
+    context_size: Option<u32>,
+    batch_size: Option<u32>,
     initial_prompt: Option<&str>,
     progress_event_name: Option<&str>,
     dump_session: Option<bool>,
@@ -49,8 +51,10 @@ pub async fn gpt_create(
     state: tauri::State<'_, crate::AppState>,
 ) -> Result<Response, tauri::InvokeError> {
     println!(
-        "gpt_create(model_id: {}, context_size: {}, initial_prompt: {}, progress_event_name: {}, dump_session: {:?})",
-        model_id, context_size,
+        "gpt_create(model_id: {}, context_size: {}, batch_size: {}, initial_prompt: {}, progress_event_name: {}, dump_session: {:?})",
+        model_id,
+        context_size.unwrap_or(0),
+        batch_size.unwrap_or(0),
         if initial_prompt.is_some() {
             "Some"
         } else {
@@ -68,6 +72,7 @@ pub async fn gpt_create(
         let mut hasher = Sha256::new();
         hasher.update(model_hash.as_bytes());
         hasher.update(prompt.as_bytes());
+        hasher.update(batch_size.unwrap_or(0).to_be_bytes());
         let state_hash = format!("{:x}", hasher.finalize());
 
         let state_file_path = app
@@ -118,7 +123,8 @@ pub async fn gpt_create(
 
     let create_result = simularity_core::gpt::create(
         model_id,
-        Some(context_size as u32),
+        context_size,
+        batch_size,
         initial_prompt,
         state_file_path.as_deref(),
         progress_callback,

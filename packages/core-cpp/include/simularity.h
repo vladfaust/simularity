@@ -101,6 +101,7 @@ int simularity_gpt_token_length(const char *model_id, const char *prompt);
 
   @param model_id The model ID.
   @param context_size The context size, zero for default.
+  @param batch_size The batch size, zero for default.
   @param initial_prompt The initial prompt, may be NULL.
   @param state_file_path The path to a file to load the session state from
     or save it to. May be NULL. Ignored if `initial_prompt` is NULL.
@@ -122,6 +123,7 @@ int simularity_gpt_token_length(const char *model_id, const char *prompt);
 int simularity_gpt_create(
     const char *model_id,
     unsigned context_size,
+    unsigned batch_size,
     const char *initial_prompt,
     const char *state_file_path,
     void(progress_callback)(float, void *),
