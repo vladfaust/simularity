@@ -21,6 +21,8 @@ import Library from "./MenuOverlay/Library.vue";
 import NewGameModal from "./MenuOverlay/NewGameModal.vue";
 import Scenario from "./MenuOverlay/Scenario.vue";
 import SettingsModal from "./MenuOverlay/SettingsModal.vue";
+import type { Simulation } from "@/lib/simulation";
+import GpuStatus from "./Simulation/GpuStatus.vue";
 
 enum Tab {
   Scenario,
@@ -29,6 +31,10 @@ enum Tab {
   Settings,
   Library,
 }
+
+defineProps<{
+  simulation?: Simulation;
+}>();
 
 const { data: scenario } = useScenarioQuery(selectedScenarioId);
 const scenarioTitle = asyncComputed(() => scenario.value?.content.name);
@@ -107,6 +113,7 @@ async function exit() {
       )
         BrainCircuitIcon(:size="20")
         | AI Settings
+        GpuStatus(v-if="simulation" :simulation)
 
       //- Account button.
       button._btn(
@@ -152,7 +159,7 @@ async function exit() {
       :show="tab === Tab.Settings"
       v-bind="transition"
     )
-      SettingsModal.h-full
+      SettingsModal.h-full(:simulation)
 
     TransitionRoot.absolute.h-full.w-full(
       :show="tab === Tab.Library"
