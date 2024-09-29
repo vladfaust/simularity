@@ -531,8 +531,8 @@ onMounted(async () => {
     )
 
   //- Settings.
-  .p-3
-    .grid.gap-2.rounded-lg.bg-white.p-3.shadow-lg(v-if="driverConfig?.type === 'local' && selectedModel" class="xl:grid-cols-2")
+  .p-3(v-if="driverConfig?.type === 'local' && selectedModel")
+    .grid.gap-2.rounded-lg.bg-white.p-3.shadow-lg( class="xl:grid-cols-2")
       //- Context size.
       RichInput#context-size(
         title="Context size"
