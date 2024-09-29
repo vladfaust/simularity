@@ -8,6 +8,7 @@ import { prettyNumber } from "@/lib/utils";
 import { useScenarioQuery } from "@/queries";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import {
+  BookIcon,
   BookMarkedIcon,
   DramaIcon,
   FolderIcon,
@@ -62,7 +63,7 @@ onMounted(async () => {
 .flex.flex-col
   CustomTitle.border-b.p-3(:title="scenario?.content.name")
     template(#icon)
-      ScrollTextIcon(:size="20")
+      BookIcon(:size="20")
     template(#extra)
       .flex.items-center.gap-1
         .cursor-help.rounded-lg.border.border-dashed.p-1.text-pink-500(
@@ -92,7 +93,7 @@ onMounted(async () => {
         //- Episodes.
         CustomTitle(title="Episodes")
           template(#icon)
-            BookMarkedIcon(:size="18")
+            ScrollTextIcon(:size="18")
           template(#extra)
             span {{ Object.keys(scenario.content.episodes).length }}
 

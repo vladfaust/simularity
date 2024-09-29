@@ -10,10 +10,10 @@ import { deepEqual } from "fast-equals";
 import {
   AsteriskIcon,
   AudioLinesIcon,
-  BrainCircuitIcon,
   ClapperboardIcon,
   FeatherIcon,
   SaveIcon,
+  SettingsIcon,
 } from "lucide-vue-next";
 import { computed, onUnmounted, ref } from "vue";
 import Director from "./SettingsModal/Director.vue";
@@ -86,7 +86,7 @@ onUnmounted(() => {
 .flex.flex-col
   CustomTitle.border-b.p-3(:hide-border="!anyChanges")
     template(#icon)
-      BrainCircuitIcon(:size="20")
+      SettingsIcon(:size="20")
 
     template(#extra)
       .flex.items-center.gap-1(v-if="anyChanges")
@@ -98,7 +98,7 @@ onUnmounted(() => {
       .h-7(v-else)
 
     .flex.items-center
-      span.font-semibold.leading-snug.tracking-wide AI Settings
+      span.font-semibold.leading-snug.tracking-wide Settings
       AsteriskIcon.cursor-help.text-primary-500(
         :size="18"
         v-if="anyChanges"

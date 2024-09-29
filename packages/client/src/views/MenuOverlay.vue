@@ -20,9 +20,9 @@ import { TransitionRoot } from "@headlessui/vue";
 import { dialog } from "@tauri-apps/api";
 import { asyncComputed } from "@vueuse/core";
 import {
-  BrainCircuitIcon,
   DoorOpenIcon,
   HistoryIcon,
+  SettingsIcon,
   SparkleIcon,
   Undo2Icon,
   User2Icon,
@@ -126,8 +126,8 @@ async function exit() {
         @click="tab = Tab.Settings"
         :class="{ _selected: tab === Tab.Settings }"
       )
-        BrainCircuitIcon(:size="20")
-        | AI Settings
+        SettingsIcon(:size="20")
+        | Settings
         GpuStatus.ml-1(v-if="simulation" :simulation)
 
       //- Account button.
