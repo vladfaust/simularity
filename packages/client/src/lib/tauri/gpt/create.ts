@@ -25,7 +25,7 @@ export async function create(args: {
   batchSize?: number;
   initialPrompt?: string;
   progressCallback?: (event: ProgressEventPayload) => void;
-  dumpSession?: boolean;
+  cacheDir?: string;
 }): Promise<Response> {
   const unlisten = args.progressCallback
     ? await listen(PROGRESS_EVENT_NAME, (event) => {
@@ -39,7 +39,7 @@ export async function create(args: {
     batchSize: args.batchSize,
     initialPrompt: args.initialPrompt,
     progressEventName: args.progressCallback ? PROGRESS_EVENT_NAME : undefined,
-    dumpSession: args.dumpSession,
+    cacheDir: args.cacheDir,
   })) as Response;
 
   unlisten?.();

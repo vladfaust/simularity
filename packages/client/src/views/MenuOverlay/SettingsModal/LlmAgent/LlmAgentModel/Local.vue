@@ -6,16 +6,20 @@ import * as resources from "@/lib/resources";
 import * as storage from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { omit } from "@/lib/utils";
+import { broom } from "@lucide/lab";
 import * as dialog from "@tauri-apps/api/dialog";
 import * as fs from "@tauri-apps/api/fs";
 import * as path from "@tauri-apps/api/path";
 import { asyncComputed } from "@vueuse/core";
 import {
+  DatabaseZapIcon,
   FileIcon,
   FolderOpenIcon,
+  Icon,
   RefreshCwIcon,
   Settings2Icon,
 } from "lucide-vue-next";
+import prettyBytes from "pretty-bytes";
 import * as fsExtra from "tauri-plugin-fs-extra-api";
 import type { ShallowRef } from "vue";
 import { computed, onMounted, ref, shallowRef, triggerRef, watch } from "vue";
@@ -44,6 +48,8 @@ const uncachedModels = ref<string[]>([]);
 const selectedModelPath = ref<string | null>(
   driverConfig.value?.type === "local" ? driverConfig.value.modelPath : null,
 );
+
+const cacheFiles = shallowRef<{ path: string; size: number }[]>([]);
 
 watch(
   [selectedModelPath, cachedModels],
@@ -250,6 +256,65 @@ async function refresh() {
     cachedModels.value.push(cachedModel);
     triggerRef(cachedModels);
   }
+  {
+    // Check cache dir (`appCacheDir/${agentId}`).
+    const cacheDir = await path.join(
+      await tauri.resolveBaseDir(fs.BaseDirectory.AppCache),
+      props.agentId,
+    );
+
+    // Create the cache dir if it doesn't exist.
+    await fs.createDir(cacheDir, { recursive: true });
+
+    const entries = await fs.readDir(cacheDir);
+
+    for (const entry of entries) {
+      console.log("Cache entry", entry);
+      if (!entry.name) {
+        console.warn("Entry has no name, skipping");
+        continue;
+      }
+
+      // Only process `.llama-state` files.
+      if (!entry.name.endsWith(".llama-state")) {
+        console.log(`${entry.name} is not a .llama-state file, skipping`);
+        continue;
+      }
+
+      if (entry.children) {
+        console.log(`${entry.name} is a directory, skipping`);
+        continue;
+      }
+
+      cacheFiles.value.push({
+        path: entry.path,
+        size: (await fsExtra.metadata(entry.path)).size,
+      });
+    }
+
+    console.log("State cache files", cacheFiles.value);
+    triggerRef(cacheFiles);
+  }
+}
+
+async function clearStateCache() {
+  if (!cacheFiles.value.length) {
+    return;
+  }
+
+  const cacheDir = await path.join(
+    await tauri.resolveBaseDir(fs.BaseDirectory.AppCache),
+    props.agentId,
+  );
+
+  const entries = await fs.readDir(cacheDir);
+
+  for (const entry of entries) {
+    console.log("Removing cache entry", entry);
+    await fs.removeFile(entry.path);
+  }
+
+  cacheFiles.value = [];
 }
 
 async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
@@ -469,7 +534,10 @@ onMounted(async () => {
     //- Context size.
     .flex.flex-col.gap-2.rounded-lg
       .flex.items-center.justify-between
-        label.flex.shrink-0.items-center.gap-2(for="context-size")
+        label.cursor-help.flex.shrink-0.items-center.gap-2(
+          for="context-size"
+          v-tooltip="'Model context size'"
+        )
           .btn.bg-white.rounded-lg.border(class="p-1")
             Settings2Icon(:size="16" :stroke-width="2.5")
           span.font-medium Context size
@@ -490,7 +558,10 @@ onMounted(async () => {
       v-if="driverConfig?.type === 'local' && selectedModel"
     )
       .flex.items-center.justify-between
-        label.flex.shrink-0.items-center.gap-2(for="batch-size")
+        label.cursor-help.flex.shrink-0.items-center.gap-2(
+          for="batch-size"
+          v-tooltip="'Model batch size (advanced)'"
+        )
           .btn.bg-white.rounded-lg.border(class="p-1")
             Settings2Icon(:size="16" :stroke-width="2.5")
           span.font-medium Batch size
@@ -498,4 +569,25 @@ onMounted(async () => {
         NumberInputWithDefault.input.input-md.shrink-0.rounded-lg.border.px-2.py-1.text-sm#batch-size(
           v-model="driverConfig.batchSize"
         )
+
+    //- Cache.
+    .flex.flex-col.gap-2.rounded-lg(
+    )
+      .flex.items-center.justify-between.gap-2
+        .cursor-help.flex.shrink-0.items-center.gap-2(
+          v-tooltip="'State cache allows models to load faster'"
+        )
+          .btn.bg-white.rounded-lg.border(class="p-1")
+            DatabaseZapIcon(:size="16" :stroke-width="2.5")
+          span.font-medium State cache
+        .w-full.border-b
+        .flex.shrink-0.items-center.gap-2
+          template(v-if="cacheFiles.length")
+            span.text-sm {{ prettyBytes( cacheFiles.reduce((acc, file) => acc + file.size, 0)) }}
+            button.btn-pressable.btn.btn-sm-square.border.rounded-lg.bg-white(
+              @click="clearStateCache"
+              title="Clear state cache"
+            )
+              Icon(:iconNode="broom" name="broom" :size='16')
+          span.text-sm.opacity-50(v-else) Empty
 </template>

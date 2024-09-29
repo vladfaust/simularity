@@ -37,7 +37,7 @@ pub struct Response {
 /// * `initial_prompt` - If set, would try to load the session
 ///    from cache, otherwise decode from scratch.
 /// * `progress_event_name` - If set, would emit progress events.
-/// * `dump_session` - If set, would dump the session to cache.
+/// * `cache_dir` - If set, would dump the session to cache.
 ///
 pub async fn gpt_create(
     model_id: &str,
@@ -45,7 +45,7 @@ pub async fn gpt_create(
     batch_size: Option<u32>,
     initial_prompt: Option<&str>,
     progress_event_name: Option<&str>,
-    dump_session: Option<bool>,
+    cache_dir: Option<&str>,
     app: tauri::AppHandle,
     window: tauri::Window,
     state: tauri::State<'_, crate::AppState>,
@@ -60,10 +60,10 @@ pub async fn gpt_create(
         } else {
             "None"
         },
-        progress_event_name.unwrap_or("None"), dump_session
+        progress_event_name.unwrap_or("None"), cache_dir
     );
 
-    let state_file_path = if dump_session.unwrap_or(false)
+    let state_file_path = if cache_dir.is_some()
         && let Some(prompt) = initial_prompt.as_ref()
     {
         let model_hash = simularity_core::model_get_hash_by_id(model_id).unwrap();
@@ -79,6 +79,7 @@ pub async fn gpt_create(
             .path_resolver()
             .app_cache_dir()
             .expect("app cache dir is available")
+            .join(cache_dir.unwrap())
             .join(format!("{}.llama-state", state_hash));
 
         std::fs::create_dir_all(
