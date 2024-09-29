@@ -152,6 +152,8 @@ async function createDownload(quantId: string) {
  * Cancel an existing download for the quant.
  */
 async function cancelDownload(quantId: string) {
+  console.log("Cancelling download for quant", quantId);
+
   const download = props.downloadsByQuant.value[quantId].value;
   if (!download) throw new Error(`No download found for quant ${quantId}`);
 
