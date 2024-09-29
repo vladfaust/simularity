@@ -1,29 +1,25 @@
 <script setup lang="ts">
 import CustomTitle from "@/components/CustomTitle.vue";
+import EpisodeCard from "@/components/EpisodeCard.vue";
+import ImmersiveModeIcon from "@/components/Icons/ImmersiveMode.vue";
 import NsfwIcon from "@/components/NsfwIcon.vue";
+import ScenarioCard from "@/components/ScenarioCard.vue";
+import ScenarioDetails from "@/components/ScenarioDetails.vue";
 import { d } from "@/lib/drizzle";
 import { ImmersiveScenario } from "@/lib/simulation/scenario";
 import * as tauri from "@/lib/tauri";
-import { prettyNumber } from "@/lib/utils";
 import { useScenarioQuery } from "@/queries";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import {
   BookIcon,
-  BookMarkedIcon,
   DramaIcon,
   FolderIcon,
-  Globe2Icon,
-  ImageIcon,
-  MonitorIcon,
-  ProportionsIcon,
   ScrollTextIcon,
   TrophyIcon,
 } from "lucide-vue-next";
 import { onMounted, shallowRef } from "vue";
-import ScenarioVue from "./Library/Scenario.vue";
 import Achievement from "./Scenario/Achievement.vue";
 import Character from "./Scenario/Character.vue";
-import Episode from "./Scenario/Episode.vue";
 
 const props = defineProps<{
   scenarioId: string;
@@ -70,12 +66,12 @@ onMounted(async () => {
           v-if="scenario?.content.nsfw"
           v-tooltip="'This scenario is NSFW'"
         )
-          NsfwIcon(:size="18")
+          NsfwIcon.text-pink-500(:size="18")
         .cursor-help.rounded-lg.border.border-dashed.p-1(
           v-if="scenario instanceof ImmersiveScenario && true"
           v-tooltip="'This scenario supports immersive mode'"
         )
-          MonitorIcon(:size="18")
+          ImmersiveModeIcon(:size="18")
         button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
           v-if="!scenario?.builtin"
           @click="showInFileManager"
@@ -99,7 +95,7 @@ onMounted(async () => {
 
         //- Episodes grid.
         .grid.w-full.grid-cols-3.gap-2
-          Episode.cursor-pointer.overflow-hidden.rounded-lg.bg-white.shadow-lg.transition-transform.pressable(
+          EpisodeCard.cursor-pointer.overflow-hidden.rounded-lg.border-4.border-white.bg-white.shadow-lg.transition-transform.pressable(
             v-for="[episodeId, episode] in Object.entries(scenario.content.episodes)"
             :key="episodeId"
             :scenario
@@ -146,7 +142,7 @@ onMounted(async () => {
     //- Side section.
     section._side.h-full.gap-3.border-r.p-3(style="grid-area: side")
       .flex.flex-col.gap-3(style="grid-area: scenario")
-        ScenarioVue._scenario-card.h-full.shrink.cursor-pointer.rounded-lg.border-4.border-white.shadow-lg.transition-transform.pressable-sm(
+        ScenarioCard._scenario-card.h-full.shrink.cursor-pointer.rounded-lg.border-4.border-white.shadow-lg.transition-transform.pressable-sm(
           :scenario
           layout="grid"
           :narrow-padding="true"
@@ -155,47 +151,10 @@ onMounted(async () => {
         )
 
       .flex.flex-col.gap-3(style="grid-area: content")
-        .flex.flex-col.gap-2.rounded-lg.bg-white.p-3.shadow-lg
-          p.col-span-2.text-sm.italic.leading-tight {{ scenario.content.about }}
-
-          ul.flex.flex-wrap.gap-1
-            li.rounded-lg.border.px-1.text-xs(
-              v-for="tag of scenario.content.tags"
-            ) \#{{ tag }}
-
-          .flex.flex-wrap.gap-x-2.gap-y-1.text-sm
-            .flex.items-center.gap-1
-              Globe2Icon(:size="16")
-              span.shrink-0.font-semibold Language:
-              span {{ scenario.content.language }}
-
-            .flex.cursor-help.items-center.gap-1.underline.decoration-dashed(
-              title="Minimum context size for a Large Language Model"
-            )
-              ProportionsIcon(:size="16")
-              span.shrink-0.font-semibold Context:
-              span {{ prettyNumber(scenario.content.contextWindowSize, { space: false }) }}
-
-            .flex.items-center.gap-1
-              BookMarkedIcon(:size="16")
-              span.shrink-0.font-semibold Episodes:
-              span {{ Object.keys(scenario.content.episodes).length }}
-
-            .flex.items-center.gap-1
-              TrophyIcon(:size="16")
-              span.shrink-0.font-semibold Achievements:
-              span {{ scenario.content.achievements ? Object.keys(scenario.content.achievements).length : 0 }}
-
-            .flex.items-center.gap-1
-              DramaIcon(:size="16")
-              span.shrink-0.font-semibold Characters:
-              span {{ Object.keys(scenario.content.characters).length }}
-
-            template(v-if="scenario instanceof ImmersiveScenario && true")
-              .flex.items-center.gap-1
-                ImageIcon(:size="16")
-                span.shrink-0.font-semibold Scenes:
-                span {{ Object.keys(scenario.content.scenes).length }}
+        ScenarioDetails.gap-2.rounded-lg.bg-white.p-3.shadow-lg(
+          :scenario
+          :show-attributes="true"
+        )
 
         button.btn-pressable.btn.btn-primary.btn-md.rounded-lg(
           @click="$emit('newGame')"
@@ -222,7 +181,7 @@ $breakpoint: 1024px;
 @media (min-width: $breakpoint) {
   ._main {
     grid-template-areas: "side content content content";
-    @apply grid-cols-4 gap-2;
+    @apply grid-cols-4;
   }
 
   ._side {

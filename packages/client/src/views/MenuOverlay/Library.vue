@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import NsfwIcon from "@/components/NsfwIcon.vue";
+import ScenarioCard from "@/components/ScenarioCard.vue";
 import * as resources from "@/lib/resources";
 import * as tauri from "@/lib/tauri";
 import { useScenariosQuery } from "@/queries";
 import { useLocalStorage } from "@vueuse/core";
 import { FolderOpenIcon, LibraryBigIcon } from "lucide-vue-next";
 import { computed, ref } from "vue";
-import ScenarioVue from "./Library/Scenario.vue";
 
 defineEmits<{
   (event: "select", scenarioId: string): void;
@@ -65,7 +65,7 @@ async function openScenariosDir() {
         :key="scenario.id"
         class="active:shadow-sm"
       )
-        ScenarioVue(
+        ScenarioCard(
           :key="scenario.id"
           :scenario
           :always-hide-details="true"

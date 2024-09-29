@@ -1,21 +1,16 @@
 <script setup lang="ts">
-import Alert from "@/components/Alert.vue";
 import CustomTitle from "@/components/CustomTitle.vue";
+import EpisodeCard from "@/components/EpisodeCard.vue";
+import ChatModeIcon from "@/components/Icons/ChatMode.vue";
+import ImmersiveModeIcon from "@/components/Icons/ImmersiveMode.vue";
 import Modal from "@/components/Modal.vue";
+import ScenarioCard from "@/components/ScenarioCard.vue";
 import { Mode, Simulation, type Scenario } from "@/lib/simulation";
 import { ImmersiveScenario } from "@/lib/simulation/scenario";
 import router, { routeLocation } from "@/router";
 import { asyncComputed } from "@vueuse/core";
-import {
-  BookMarkedIcon,
-  MessagesSquareIcon,
-  MonitorIcon,
-  PlayCircleIcon,
-  Settings2Icon,
-} from "lucide-vue-next";
+import { SparkleIcon } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
-import ScenarioVue from "./Library/Scenario.vue";
-import Episode from "./Scenario/Episode.vue";
 
 const props = defineProps<{
   open: boolean;
@@ -24,26 +19,24 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  (event: "selectEpisode", episodeId: string): void;
   (event: "close"): void;
 }>();
 
 const selectedEpisodeId = ref<string>(
   props.episodeId ?? props.scenario.defaultEpisodeId,
 );
-watch(
-  () => props.episodeId,
-  (episodeId) => {
-    selectedEpisodeId.value = episodeId ?? props.scenario.defaultEpisodeId;
-  },
-);
+
 const selectedEpisode = computed(
   () => props.scenario.content.episodes[selectedEpisodeId.value],
 );
+
 const selectedEpisodeImageUrl = asyncComputed(() =>
   selectedEpisode.value?.imagePath
     ? props.scenario.resourceUrl(selectedEpisode.value.imagePath)
     : null,
 );
+
 const mode = ref(
   props.scenario instanceof ImmersiveScenario ? Mode.Immersive : Mode.Chat,
 );
@@ -62,93 +55,85 @@ async function play(episodeId?: string | null) {
     }),
   );
 }
+
+watch(props, (props) => {
+  selectedEpisodeId.value = props.episodeId ?? props.scenario.defaultEpisodeId;
+});
 </script>
 
 <template lang="pug">
-Modal.max-h-full.w-full.max-w-2xl.rounded-lg(
+Modal.h-full.w-full.max-w-5xl.rounded-lg(
+  class="bg-white/90"
   :open
   @close="emit('close')"
   title="New game"
 )
   template(#icon)
-    PlayCircleIcon(:size="22")
+    SparkleIcon(:size="22")
 
-  .flex.h-full.flex-col.divide-y.overflow-y-scroll
-    //- Scenario details.
-    .bg-neutral-100.p-3
-      ScenarioVue.overflow-hidden.rounded-lg.bg-white.shadow-lg(
-        :scenario
-        :no-blur-nsfw="true"
-        layout="list"
+  .grid.h-full.grid-cols-5.divide-x.overflow-y-hidden
+    //- Episode selection.
+    .col-span-2.flex.h-full.flex-col.overflow-y-scroll
+      .border-b.p-3
+        ScenarioCard.overflow-hidden.rounded-lg.bg-white.shadow-lg.shadow-lg(
+          :scenario
+          :always-hide-details="true"
+          layout="list"
+        )
+
+      .grid.max-h-full.grid-cols-2.gap-2.p-3
+        EpisodeCard.h-max.cursor-pointer.rounded-lg.border-4.bg-white.shadow-lg(
+          v-for="episodeId in Object.keys(scenario.content.episodes)"
+          :scenario
+          :episode-id
+          :selected="selectedEpisodeId === episodeId"
+          @click.stop="selectedEpisodeId = episodeId; emit('selectEpisode', episodeId)"
+          :class="{ 'border-primary-500': selectedEpisodeId === episodeId, 'border-white': selectedEpisodeId !== episodeId }"
+        )
+
+    //- Episode details.
+    .col-span-3.flex.h-full.flex-col.gap-2.overflow-y-scroll.p-3
+      img.aspect-video.rounded-lg.border-4.border-white.object-cover.shadow-lg(
+        v-if="selectedEpisodeImageUrl"
+        :src="selectedEpisodeImageUrl"
       )
 
-    .grid.grid-cols-5
-      //- Episodes.
-      .col-span-2.contain-size
-        .flex.h-full.flex-col.gap-3.overflow-y-scroll.p-3
-          CustomTitle.rounded-xl.border.p-2(title="1. Episode selection")
-            template(#extra)
-              BookMarkedIcon(:size="20")
+      .my-1.px-1
+        CustomTitle(:title="selectedEpisode.name" :hide-border="true")
+        p.leading-snug {{ selectedEpisode.about }}
 
-          ul.flex.flex-col.gap-2
-            Episode.h-max.cursor-pointer.rounded-lg.border(
-              v-for="episodeId in Object.keys(scenario.content.episodes)"
-              :scenario
-              :episode-id
-              :selected="selectedEpisodeId === episodeId"
-              @click.stop="selectedEpisodeId = episodeId"
-              :class="{ 'border-primary-500': selectedEpisodeId === episodeId }"
-            )
-
-      //- Episode details.
-      .col-span-3.flex.h-max.flex-col.gap-3.border-l.p-3
-        CustomTitle.rounded-xl.border.p-2(title="2. Settings")
-          template(#extra)
-            Settings2Icon(:size="20")
-
-        .flex.flex-col.gap-2
-          img.aspect-video.rounded-lg.object-cover(
-            v-if="selectedEpisodeImageUrl"
-            :src="selectedEpisodeImageUrl"
+      .flex.divide-x.overflow-hidden.rounded-lg.rounded-lg.border.bg-white
+        .w-full
+          button._mode-button(
+            @click="mode = Mode.Chat"
+            :class="{ _selected: mode === Mode.Chat }"
           )
+            ChatModeIcon(:size="20")
+            | Chat mode
 
-          .my-1.px-1
-            CustomTitle(:title="'Episode: ' + selectedEpisode.name")
-            p.leading-snug {{ selectedEpisode.about }}
+        .w-full
+          button._mode-button(
+            @click="mode = Mode.Immersive"
+            :class="{ _selected: mode === Mode.Immersive }"
+            :disabled="!(scenario instanceof ImmersiveScenario)"
+          )
+            ImmersiveModeIcon(:size="20")
+            | Immersive mode
 
-          .grid.grid-cols-2.gap-2
-            button._mode-button(
-              @click="mode = Mode.Immersive"
-              :class="{ _selected: mode === Mode.Immersive }"
-              :disabled="!(scenario instanceof ImmersiveScenario)"
-            )
-              MonitorIcon(:size="28" :stroke-width="1.75")
-              | Visual novel mode (experimental)
-            button._mode-button(
-              @click="mode = Mode.Chat"
-              :class="{ _selected: mode === Mode.Chat }"
-            )
-              MessagesSquareIcon(:size="28" :stroke-width="1.75")
-              | Chat mode
-
-          Alert(type="info")
-            p(v-if="mode === Mode.Immersive") In visual novel mode you get visual and audio feedback, but it is slower and requires more compute. With the potential for quests and achievements, this is the future of gaming!
-            p(v-else) In chat mode you get text and voice feedback only, but it is faster and requires less compute.
-
-  .border-t.p-3
+  .col-span-full.border-t.p-3
     button.btn.btn-pressable-sm.btn-primary.btn-md.w-full.rounded-lg(
       :disabled="!selectedEpisodeId"
       @click="play(selectedEpisodeId)"
     )
-      | 3. Play!
+      | Start game
 </template>
 
 <style lang="scss" scoped>
 ._mode-button {
-  @apply btn btn-pressable-sm btn-neutral flex flex-col rounded-lg border p-3 font-semibold leading-tight;
+  @apply btn btn-sm w-full p-2;
 
   &._selected {
-    @apply btn-primary;
+    @apply text-primary-500;
   }
 }
 </style>

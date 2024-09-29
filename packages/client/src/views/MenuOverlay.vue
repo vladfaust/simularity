@@ -18,7 +18,7 @@ import router, { routeLocation } from "@/router";
 import SavesVue from "@/views/MenuOverlay/Saves.vue";
 import { TransitionRoot } from "@headlessui/vue";
 import { dialog } from "@tauri-apps/api";
-import { asyncComputed } from "@vueuse/core";
+import { asyncComputed, watchImmediate } from "@vueuse/core";
 import {
   DoorOpenIcon,
   HistoryIcon,
@@ -62,6 +62,14 @@ watch(tab, (newTab) => emit("tabChange", newTab));
  * Undefined means no request.
  */
 const newGameRequest = ref<string | null | undefined>();
+const newGameRequestEpisodeId = ref<string | undefined>();
+watchImmediate(newGameRequest, (episodeId) => {
+  if (episodeId || episodeId === null) {
+    newGameRequestEpisodeId.value = episodeId ?? undefined;
+  } else {
+    setTimeout(() => (newGameRequestEpisodeId.value = undefined), 500);
+  }
+});
 
 const transition = {
   enter: "duration-200 ease-out",
@@ -186,8 +194,9 @@ async function exit() {
     v-if="scenario"
     :open="newGameRequest !== undefined"
     :scenario
-    :episode-id="newGameRequest ?? undefined"
+    :episode-id="newGameRequestEpisodeId ?? undefined"
     @close="newGameRequest = undefined"
+    @select-episode="newGameRequestEpisodeId = $event"
   )
 </template>
 

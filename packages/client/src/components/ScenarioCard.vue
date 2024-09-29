@@ -5,10 +5,10 @@ import Placeholder from "@/components/Placeholder.vue";
 import { type Scenario } from "@/lib/simulation";
 import { ImmersiveScenario } from "@/lib/simulation/scenario";
 import { TransitionRoot } from "@headlessui/vue";
-import { asyncComputed } from "@vueuse/core";
-import { CherryIcon, MonitorIcon } from "lucide-vue-next";
-import { useElementHover } from "@vueuse/core";
+import { asyncComputed, useElementHover } from "@vueuse/core";
+import { MonitorIcon } from "lucide-vue-next";
 import { ref } from "vue";
+import ImmersiveModeIcon from "./Icons/ImmersiveMode.vue";
 
 const card = ref<HTMLElement | null>(null);
 const isHovered = useElementHover(card);
@@ -72,9 +72,9 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
         li.rounded-lg.border.px-1.text-xs(v-for="tag of scenario.content.tags") \#{{ tag }}
 
 //- List layout.
-.group.flex(v-else)
+.group.flex(v-else class="@container")
   //- Thumbnail.
-  .aspect-square.w-32.shrink-0.overflow-hidden
+  .hidden.aspect-square.w-32.overflow-hidden(class="@xs:block")
     img.h-full.w-full.select-none.object-cover.transition(
       class="group-hover:blur-none group-hover:brightness-105"
       v-if="thumbnailUrl"
@@ -83,21 +83,21 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
     Placeholder.h-full.w-full(v-else)
 
   //- Details.
-  .flex.w-full.flex-col.justify-between.gap-1.p-2
+  .flex.w-full.flex-col.justify-between.gap-1.p-3
     //- Top.
     .flex.flex-col
       CustomTitle(:title="scenario.content.name")
         template(#extra)
           .flex.gap-1
-            CherryIcon.cursor-help.text-red-500(
+            NsfwIcon.cursor-help.text-pink-500(
               v-if="scenario.content.nsfw"
               :size="18"
               v-tooltip="'This scenario is NSFW'"
             )
-            MonitorIcon.cursor-help(
+            ImmersiveModeIcon.cursor-help(
               v-if="scenario instanceof ImmersiveScenario && true"
               :size="18"
-              v-tooltip="'This scenario supports visual novel mode'"
+              v-tooltip="'This scenario supports immersive mode'"
             )
       p.text-sm.leading-snug {{ scenario.content.teaser }}
 
