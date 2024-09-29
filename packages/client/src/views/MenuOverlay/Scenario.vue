@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
 import EpisodeCard from "@/components/EpisodeCard.vue";
-import ImmersiveModeIcon from "@/components/Icons/ImmersiveMode.vue";
+import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
 import NsfwIcon from "@/components/NsfwIcon.vue";
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import ScenarioCard from "@/components/ScenarioCard.vue";
 import ScenarioDetails from "@/components/ScenarioDetails.vue";
 import { d } from "@/lib/drizzle";
@@ -57,7 +57,7 @@ onMounted(async () => {
 
 <template lang="pug">
 .flex.flex-col
-  CustomTitle.border-b.p-3(:title="scenario?.content.name")
+  RichTitle.border-b.p-3(:title="scenario?.content.name")
     template(#icon)
       BookIcon(:size="20")
     template(#extra)
@@ -87,7 +87,7 @@ onMounted(async () => {
     )
       template(v-if="Object.keys(scenario.content.episodes).length > 1")
         //- Episodes.
-        CustomTitle(title="Episodes")
+        RichTitle(title="Episodes")
           template(#icon)
             ScrollTextIcon(:size="18")
           template(#extra)
@@ -108,7 +108,7 @@ onMounted(async () => {
         v-if="scenario.content.achievements && scenario.content.achievements.length"
       )
         //- Achievements.
-        CustomTitle(title="Achievements")
+        RichTitle(title="Achievements")
           template(#icon)
             TrophyIcon(:size="18")
           template(#extra)
@@ -123,7 +123,7 @@ onMounted(async () => {
             )
 
       //- Characters.
-      CustomTitle(title="Characters")
+      RichTitle(title="Characters")
         template(#icon)
           DramaIcon(:size="18")
         template(#extra)

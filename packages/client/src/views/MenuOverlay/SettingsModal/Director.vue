@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import Alert from "@/components/Alert.vue";
-import CustomTitle from "@/components/CustomTitle.vue";
 import InteractiveHelper from "@/components/InteractiveHelper.vue";
-import Toggle from "@/components/Toggle.vue";
+import RichRange from "@/components/RichForm/RichRange.vue";
+import RichToggle from "@/components/RichForm/RichToggle.vue";
 import { env } from "@/env";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
@@ -30,27 +30,22 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
       | Director is only required in visual novel mode.
 
   .flex.flex-col.gap-2.p-3
-    CustomTitle(title="Ambience Volume")
-      template(#icon)
-        TreesIcon(:size="20")
-      template(#extra)
-        .flex.shrink-0.items-center.gap-2
-          input(
-            type="range"
-            min="0"
-            max="100"
-            v-model="storage.ambientVolumeStorage.value"
-          )
-          .flex.w-14.items-center.justify-end.rounded-full.border.px-2.text-sm.font-medium {{ storage.ambientVolumeStorage.value }}%
+    .flex.flex-col.gap-2.rounded-lg.bg-white.p-3.shadow-lg
+      RichRange#ambience-volume(
+        title="Ambience Volume"
+        v-model="storage.ambientVolumeStorage.value"
+        :percent="true"
+      )
+        template(#icon)
+          TreesIcon(:size="16")
 
-    CustomTitle(v-if="env.VITE_EXPERIMENTAL_FEATURES" title="Teacher Mode")
-      template(#icon)
-        GraduationCapIcon(:size="20")
-      template(#extra)
-        Toggle#teacher-mode(v-model="directorTeacherMode" size="sm")
-
-    Alert(v-if="env.VITE_EXPERIMENTAL_FEATURES" type="info")
-      | In teacher mode, director generation is disabled; updates shall be created manually.
+      RichToggle#teacher-mode(
+        v-if="env.VITE_EXPERIMENTAL_FEATURES"
+        title="Teacher Mode"
+        v-model="directorTeacherMode"
+      )
+        template(#icon)
+          GraduationCapIcon(:size="16")
 
     LlmAgentModel(
       agent-id="director"

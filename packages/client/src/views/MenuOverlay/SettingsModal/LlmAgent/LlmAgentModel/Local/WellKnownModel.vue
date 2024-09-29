@@ -35,7 +35,7 @@ export type WellKnownModelProps = {
 </script>
 
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { Download, downloadManager } from "@/lib/downloads";
 import * as storage from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
@@ -172,7 +172,7 @@ async function showInFileManager(quantId: string) {
 <template lang="pug">
 li.flex.flex-col.divide-y
   .flex.flex-col.p-3
-    CustomTitle(:title="recommendationModel.name")
+    RichTitle(:title="recommendationModel.name")
       template(#extra v-if="recommendationModel.hfUrl")
         button.btn-pressable(@click="openHfUrl") 🤗
 

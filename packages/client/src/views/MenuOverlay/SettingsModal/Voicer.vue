@@ -1,26 +1,24 @@
 <script setup lang="ts">
 import Alert from "@/components/Alert.vue";
-import CharacterPfp from "@/components/CharacterPfp.vue";
-import CustomTitle from "@/components/CustomTitle.vue";
 import InteractiveHelper from "@/components/InteractiveHelper.vue";
-import Toggle from "@/components/Toggle.vue";
+import RichRange from "@/components/RichForm/RichRange.vue";
+import RichToggle from "@/components/RichForm/RichToggle.vue";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { unreachable } from "@/lib/utils";
 import {
   AudioLinesIcon,
   BotIcon,
-  CircleHelpIcon,
   CrownIcon,
+  DramaIcon,
   GlobeIcon,
   HardDriveIcon,
-  PersonStandingIcon,
   SpeechIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import RemoteModelSettings from "./Voicer/RemoteModelSettings.vue";
 
-const { simulation } = defineProps<{
+defineProps<{
   simulation?: Simulation;
 }>();
 
@@ -28,7 +26,6 @@ const ttsConfig = defineModel<storage.tts.TtsConfig>("ttsConfig", {
   required: true,
 });
 
-const mainCharacterId = computed(() => simulation?.scenario.defaultCharacterId);
 const driverType = ref<"remote">(ttsConfig.value.driver?.type ?? "remote");
 
 const selectedModelId = computed<string | undefined>({
@@ -58,25 +55,46 @@ const selectedModelId = computed<string | undefined>({
       | Voicer is an optional TTS (Text-to-Speech) agent which gives voice to the characters. It can be enabled or disabled at any time.
 
   .flex.flex-col.gap-2.p-3
-    CustomTitle(title="Speech Volume")
-      template(#icon)
-        SpeechIcon(:size="20")
-      template(#extra)
-        .flex.shrink-0.items-center.gap-2
-          input(
-            type="range"
-            min="0"
-            max="100"
-            v-model="storage.speechVolumeStorage.value"
-          )
-          .flex.w-14.items-center.justify-end.rounded-full.border.px-2.text-sm.font-medium {{ storage.speechVolumeStorage.value }}%
+    .flex.flex-col.gap-2.rounded-lg.bg-white.p-3.shadow-lg
+      RichRange#speech-volume(
+        title="Speech Volume"
+        v-model="storage.speechVolumeStorage.value"
+        :percent="true"
+      )
+        template(#icon)
+          SpeechIcon(:size="16")
 
-    //- Enable or disable the voicer agent.
-    CustomTitle(title="Enable voice generation")
-      template(#icon)
-        AudioLinesIcon(:size="20")
-      template(#extra)
-        Toggle#voicer-enabled(v-model="ttsConfig.enabled" size="sm")
+      //- TODO: Replace with "anything is enabled => enable driver" logic.
+      RichToggle#voicer-enabled(
+        title="Enable voice generation"
+        v-model="ttsConfig.enabled"
+      )
+        template(#icon)
+          AudioLinesIcon(:size="16")
+
+      //- Enable or disable voicing automatically.
+      RichToggle#auto-enabled(
+        title="Characters voiceover"
+        v-model="ttsConfig.otherCharacters"
+      )
+        template(#icon)
+          DramaIcon(:size="16")
+
+      //- Enable or disable narrator voicer.
+      RichToggle#narrator-enabled(
+        title="Narrator voiceover"
+        v-model="ttsConfig.narrator"
+      )
+        template(#icon)
+          BotIcon(:size="16")
+
+      //- Enable or disable main character voicer.
+      RichToggle#main-character-enabled(
+        title="Main character voiceover"
+        v-model="ttsConfig.mainCharacter"
+      )
+        template(#icon)
+          CrownIcon(:size="16")
 
     //- Model selection.
     .flex.flex-col(
@@ -108,52 +126,5 @@ const selectedModelId = computed<string | undefined>({
           v-if="driverType === 'remote'"
           :selected-model-id="selectedModelId"
           @selectModel="selectedModelId = $event"
-        )
-
-    //- Voiceover settings.
-    .flex.flex-col.gap-2.rounded-lg.border.p-2(
-      :class="{ 'opacity-50 pointer-events-none': !ttsConfig.enabled }"
-    )
-      //- Enable or disable voicing automatically.
-      .flex.items-center.justify-between.gap-2
-        .flex.shrink-0.items-center.gap-1
-          label.flex.cursor-pointer.items-center.gap-1(for="auto-enabled")
-            .grid.aspect-square.h-6.place-items-center.rounded.border
-              PersonStandingIcon(:size="16")
-            span Characters voiceover
-          CircleHelpIcon(:size="16")
-        .w-full.border-b
-        Toggle#auto-enabled(v-model="ttsConfig.otherCharacters" size="sm")
-
-      //- Enable or disable narrator voicer.
-      .flex.items-center.justify-between.gap-2
-        .flex.shrink-0.items-center.gap-1
-          label.flex.cursor-pointer.items-center.gap-1(for="narrator-enabled")
-            .grid.aspect-square.h-6.place-items-center.rounded.border
-              BotIcon(:size="16")
-            span Narrator voiceover
-          CircleHelpIcon(:size="16")
-        .w-full.border-b
-        Toggle#narrator-enabled(v-model="ttsConfig.narrator" size="sm")
-
-      //- Enable or disable main character voicer.
-      .flex.items-center.justify-between.gap-2
-        .flex.shrink-0.items-center.gap-1
-          label.flex.cursor-pointer.items-center.gap-1(
-            for="main-character-enabled"
-          )
-            CharacterPfp.aspect-square.h-6.rounded.border(
-              v-if="simulation && mainCharacterId"
-              :scenario="simulation.scenario"
-              :character="simulation.scenario.content.characters[mainCharacterId]"
-            )
-            .grid.aspect-square.h-6.place-items-center.rounded.border(v-else)
-              CrownIcon(:size="16")
-            span Main character voiceover
-          CircleHelpIcon(:size="16")
-        .w-full.border-b
-        Toggle#main-character-enabled(
-          v-model="ttsConfig.mainCharacter"
-          size="sm"
         )
 </template>

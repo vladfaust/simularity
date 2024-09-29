@@ -596,12 +596,12 @@ onUnmounted(() => {
           ProgressBar.h-full.w-full(:job="simulation.currentJob.value")
 
         //- User input otherwise.
-        input.h-full.w-full.rounded-lg.px-3.opacity-90.transition-opacity(
+        input.h-full.w-full.rounded-lg.px-3.transition-opacity(
           ref="userInputElement"
           v-model="userInput"
           :placeholder="userInputEnabled ? inputPlaceholder : ''"
           :disabled="!userInputEnabled"
-          class="!disabled:opacity-50 hover:opacity-100 focus:opacity-100"
+          :class="{ '!opacity-50': !userInputEnabled }"
           @keydown.enter.exact="userInput ? sendMessage() : advance()"
         )
 

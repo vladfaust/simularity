@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
-import ChatMode from "@/components/Icons/ChatMode.vue";
-import ImmersiveMode from "@/components/Icons/ImmersiveMode.vue";
+import ChatModeIcon from "@/components/Icons/ChatModeIcon.vue";
+import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
 import Placeholder from "@/components/Placeholder.vue";
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { d } from "@/lib/drizzle";
 import { Mode } from "@/lib/simulation";
 import { nonNullable } from "@/lib/utils";
@@ -79,17 +79,17 @@ const latestMessage = computed<SimpleMessage | null>(() => {
       Message(:key="latestMessage.id" :scenario :message="latestMessage")
 
   .flex.flex-col.p-3(v-if="simulation?.updatedAt")
-    CustomTitle(:title="scenario?.content.name")
+    RichTitle(:title="scenario?.content.name")
       template(#default)
         span.text-xs.leading-tight.text-gray-500 Upd. {{ simulation.updatedAt.toLocaleString() }}
       template(#extra)
         .flex.gap-1
-          ImmersiveMode.cursor-help(
+          ImmersiveModeIcon.cursor-help(
             v-if="simulation?.mode === Mode.Immersive"
             :size="16"
             v-tooltip="'This simulation runs in immersive mode'"
           )
-          ChatMode.cursor-help(
+          ChatModeIcon.cursor-help(
             v-else
             :size="16"
             v-tooltip="'This simulation runs in chat mode'"

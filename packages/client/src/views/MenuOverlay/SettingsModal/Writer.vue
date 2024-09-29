@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import Alert from "@/components/Alert.vue";
 import InteractiveHelper from "@/components/InteractiveHelper.vue";
+import RichToggle from "@/components/RichForm/RichToggle.vue";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
-import { SigmaSquareIcon } from "lucide-vue-next";
+import { Settings2Icon, SigmaSquareIcon } from "lucide-vue-next";
 import { ref } from "vue";
 import LlmAgentModel from "./LlmAgent/LlmAgentModel.vue";
 
@@ -38,6 +39,15 @@ const selectedModel = ref<storage.llm.CachedModel | null>();
           SigmaSquareIcon(:size="18")
 
   .flex.flex-col.gap-2.p-3
+    .flex.flex-col.gap-2.rounded-lg.bg-white.p-2.shadow-lg
+      //- Show update IDs.
+      RichToggle#auto-enabled(
+        title="Show update IDs"
+        v-model="storage.showUpdateIds.value"
+      )
+        template(#icon)
+          Settings2Icon(:size="16")
+
     LlmAgentModel(
       agent-id="writer"
       :driver-instance="simulation?.writer.llmDriver.value ?? undefined"

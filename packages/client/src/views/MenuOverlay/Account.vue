@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import * as api from "@/lib/api";
 import { confirm_ } from "@/lib/resources";
 import { remoteServerJwt } from "@/lib/storage";
@@ -69,7 +69,7 @@ async function gotoPatreonCampaign() {
 
 <template lang="pug">
 .flex.flex-col
-  CustomTitle.border-b.p-3(title="Account")
+  RichTitle.border-b.p-3(title="Account")
     template(#icon)
       User2Icon(:size="20")
     template(#extra)
@@ -82,7 +82,7 @@ async function gotoPatreonCampaign() {
         LogOutIcon(:size="18")
 
   .flex.w-full.flex-col.p-3(v-if="accountQuery.data.value")
-    CustomTitle(title="E-mail")
+    RichTitle(title="E-mail")
       template(#icon)
         MailIcon(:size="20")
       template(#extra)
@@ -92,7 +92,7 @@ async function gotoPatreonCampaign() {
         )
         .font-mono(v-else) {{ accountQuery.data.value?.email }}
 
-    CustomTitle(title="Credits")
+    RichTitle(title="Credits")
       template(#icon)
         CircleDollarSignIcon(:size="20")
       template(#extra)
@@ -102,7 +102,7 @@ async function gotoPatreonCampaign() {
         )
         .font-mono(v-else) ¢{{ accountBalanceQuery.data.value?.credit ?? 0 }}
 
-    CustomTitle(title="Patreon")
+    RichTitle(title="Patreon")
       template(#icon)
         img.h-5(src="/img/patreon.svg" alt="Patreon")
       template(#extra)

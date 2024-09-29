@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
 import EpisodeCard from "@/components/EpisodeCard.vue";
-import ChatModeIcon from "@/components/Icons/ChatMode.vue";
-import ImmersiveModeIcon from "@/components/Icons/ImmersiveMode.vue";
+import ChatModeIcon from "@/components/Icons/ChatModeIcon.vue";
+import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
 import Modal from "@/components/Modal.vue";
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import ScenarioCard from "@/components/ScenarioCard.vue";
 import { Mode, Simulation, type Scenario } from "@/lib/simulation";
 import { ImmersiveScenario } from "@/lib/simulation/scenario";
@@ -99,7 +99,7 @@ Modal.h-full.w-full.max-w-5xl.rounded-lg(
       )
 
       .my-1.px-1
-        CustomTitle(:title="selectedEpisode.name" :hide-border="true")
+        RichTitle(:title="selectedEpisode.name" :hide-border="true")
         p.leading-snug {{ selectedEpisode.about }}
 
       .flex.divide-x.overflow-hidden.rounded-lg.rounded-lg.border.bg-white

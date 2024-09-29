@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
+import CustomTitle from "@/components/RichForm/RichTitle.vue";
 import * as storage from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { prettyNumber } from "@/lib/utils";

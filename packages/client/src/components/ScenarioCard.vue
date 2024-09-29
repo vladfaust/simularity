@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
+import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
 import NsfwIcon from "@/components/NsfwIcon.vue";
 import Placeholder from "@/components/Placeholder.vue";
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { type Scenario } from "@/lib/simulation";
 import { ImmersiveScenario } from "@/lib/simulation/scenario";
 import { TransitionRoot } from "@headlessui/vue";
 import { asyncComputed, useElementHover } from "@vueuse/core";
 import { MonitorIcon } from "lucide-vue-next";
 import { ref } from "vue";
-import ImmersiveModeIcon from "./Icons/ImmersiveMode.vue";
 
 const card = ref<HTMLElement | null>(null);
 const isHovered = useElementHover(card);
@@ -52,7 +52,7 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
     )
       //- Top.
       .flex.flex-col
-        CustomTitle(:title="scenario.content.name")
+        RichTitle(:title="scenario.content.name")
           template(#extra)
             .flex.gap-1
               NsfwIcon.cursor-help.text-pink-500(
@@ -86,7 +86,7 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
   .flex.w-full.flex-col.justify-between.gap-1.p-3
     //- Top.
     .flex.flex-col
-      CustomTitle(:title="scenario.content.name")
+      RichTitle(:title="scenario.content.name")
         template(#extra)
           .flex.gap-1
             NsfwIcon.cursor-help.text-pink-500(

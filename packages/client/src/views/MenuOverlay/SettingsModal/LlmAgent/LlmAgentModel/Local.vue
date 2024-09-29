@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import NumberInputWithDefault from "@/components/NumberInputWithDefault.vue";
+import NumberInputWithDefault from "@/components/RichForm/NumberInputWithDefault.vue";
+import RichInput from "@/components/RichForm/RichInput.vue";
 import type { Download } from "@/lib/downloads";
 import { downloadManager } from "@/lib/downloads";
 import * as resources from "@/lib/resources";
@@ -530,57 +531,37 @@ onMounted(async () => {
     )
 
   //- Settings.
-  .grid.gap-2.p-3(v-if="driverConfig?.type === 'local' && selectedModel" class="xl:grid-cols-2")
-    //- Context size.
-    .flex.flex-col.gap-2.rounded-lg
-      .flex.items-center.justify-between
-        label.cursor-help.flex.shrink-0.items-center.gap-2(
-          for="context-size"
-          v-tooltip="'Model context size'"
-        )
-          .btn.bg-white.rounded-lg.border(class="p-1")
-            Settings2Icon(:size="16" :stroke-width="2.5")
-          span.font-medium Context size
-        .ml-2.w-full.border-b
-        input.input.input-md.shrink-0.rounded-lg.border.px-2.py-1.text-sm#context-size(
-          type="number"
+  .p-3
+    .grid.gap-2.rounded-lg.bg-white.p-3.shadow-lg(v-if="driverConfig?.type === 'local' && selectedModel" class="xl:grid-cols-2")
+      //- Context size.
+      RichInput#context-size(
+        title="Context size"
+        v-model="driverConfig.contextSize"
+      )
+        template(#icon)
+          Settings2Icon(:size="16")
+        NumberInputWithDefault.input.input-md.shrink-0.rounded-lg.border.px-2.py-1.text-sm#context-size(
           v-model="driverConfig.contextSize"
           :max="selectedModel.contextSize"
         )
-      slot(
-        name="context-size-help"
-        :context-size="driverConfig.contextSize"
-        :max-context-size="selectedModel.contextSize"
-      )
 
-    //- Batch size.
-    .flex.flex-col.gap-2.rounded-lg(
-      v-if="driverConfig?.type === 'local' && selectedModel"
-    )
-      .flex.items-center.justify-between
-        label.cursor-help.flex.shrink-0.items-center.gap-2(
-          for="batch-size"
-          v-tooltip="'Model batch size (advanced)'"
-        )
-          .btn.bg-white.rounded-lg.border(class="p-1")
-            Settings2Icon(:size="16" :stroke-width="2.5")
-          span.font-medium Batch size
-        .ml-2.w-full.border-b
+      //- Batch size.
+      RichInput#batch-size(
+        title="Batch size"
+        v-model="driverConfig.batchSize"
+      )
+        template(#icon)
+          Settings2Icon(:size="16")
         NumberInputWithDefault.input.input-md.shrink-0.rounded-lg.border.px-2.py-1.text-sm#batch-size(
           v-model="driverConfig.batchSize"
         )
 
-    //- Cache.
-    .flex.flex-col.gap-2.rounded-lg(
-    )
-      .flex.items-center.justify-between.gap-2
-        .cursor-help.flex.shrink-0.items-center.gap-2(
-          v-tooltip="'State cache allows models to load faster'"
-        )
-          .btn.bg-white.rounded-lg.border(class="p-1")
-            DatabaseZapIcon(:size="16" :stroke-width="2.5")
-          span.font-medium State cache
-        .w-full.border-b
+      //- Cache.
+      RichInput#state-cache(
+        title="State cache"
+      )
+        template(#icon)
+          DatabaseZapIcon(:size="16")
         .flex.shrink-0.items-center.gap-2
           template(v-if="cacheFiles.length")
             span.text-sm {{ prettyBytes( cacheFiles.reduce((acc, file) => acc + file.size, 0)) }}

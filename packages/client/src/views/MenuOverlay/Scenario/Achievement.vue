@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import type { Scenario } from "@/lib/simulation";
 import { BaseScenarioSchema } from "@/lib/simulation/scenario";
 import { v } from "@/lib/valibot";
@@ -31,7 +31,7 @@ const iconUrl = asyncComputed(() =>
 
   .flex.w-full.flex-col.justify-between.p-2
     .flex.flex-col
-      CustomTitle(:title="achievement.title")
+      RichTitle(:title="achievement.title")
         template(#extra)
           .flex.items-center.gap-1
             span.text-sm {{ achievement.points }}

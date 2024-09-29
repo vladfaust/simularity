@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { d } from "@/lib/drizzle";
 import { allSavesQueryKey, useSavesQuery } from "@/queries";
 import { routeLocation } from "@/router";
@@ -119,7 +119,7 @@ async function switchSelection(simulationId: number) {
 <template lang="pug">
 .relative.flex.flex-col.overflow-y-hidden
   //- Header.
-  CustomTitle.border-b.p-3(title="Load game")
+  RichTitle.border-b.p-3(title="Load game")
     template(#icon)
       HistoryIcon(:size="20")
     template(#extra)
@@ -146,7 +146,7 @@ async function switchSelection(simulationId: number) {
       :key="group.date"
     )
       //- Date.
-      CustomTitle(:title="group.date")
+      RichTitle(:title="group.date")
         span.cursor-help.font-semibold.leading-snug.tracking-wide(
           v-tooltip="`Games created ${group.saves[0].createdAt?.toLocaleDateString()}`"
         ) {{ group.date }}

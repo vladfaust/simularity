@@ -27,3 +27,5 @@ export const selectedScenarioId = useLocalStorage(
   "selectedScenarioId",
   env.VITE_PRODUCT_ID,
 );
+
+export const showUpdateIds = useLocalStorage("showUpdateIds", false);

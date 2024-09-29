@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { env } from "@/env";
 import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
@@ -84,7 +84,7 @@ onUnmounted(() => {
 
 <template lang="pug">
 .flex.flex-col
-  CustomTitle.border-b.p-3(:hide-border="!anyChanges")
+  RichTitle.border-b.p-3(:hide-border="!anyChanges")
     template(#icon)
       SettingsIcon(:size="20")
 
