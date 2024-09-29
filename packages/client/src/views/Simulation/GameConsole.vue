@@ -6,6 +6,7 @@ import {
   NARRATOR,
   type PredictionOptions,
 } from "@/lib/simulation/agents/writer";
+import { writerNEval } from "@/lib/storage/llm";
 import { accountBalanceQueryKey } from "@/queries";
 import { TransitionRoot } from "@headlessui/vue";
 import { useQueryClient } from "@tanstack/vue-query";
@@ -22,15 +23,14 @@ import {
   SquareSigmaIcon,
   UndoDotIcon,
 } from "lucide-vue-next";
-import { computed, onMounted, onUnmounted, ref, triggerRef } from "vue";
+import { computed, onMounted, onUnmounted, ref, triggerRef, watch } from "vue";
 import { toast } from "vue3-toastify";
 import PredictionOptionsPanel from "./GameConsole/PredictionOptionsPanel.vue";
 import ProgressBar from "./GameConsole/ProgressBar.vue";
 import VisualizeModal from "./GameConsole/VisualizeModal.vue";
+import GpuStatus from "./GpuStatus.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
-import GpuStatus from "./GpuStatus.vue";
-import { watch } from "vue";
 
 enum SendButtonState {
   Busy,
@@ -38,8 +38,6 @@ enum SendButtonState {
   WillGoForward,
   WillPredict,
 }
-
-const N_EVAL = 100;
 
 const props = defineProps<{
   simulation: Simulation;
@@ -179,7 +177,7 @@ async function sendMessage() {
     );
 
     await simulation.predictUpdate(
-      N_EVAL,
+      writerNEval.value,
       predictionOptions.value,
       modelSettings.value,
       inferenceAbortController.value!.signal,
@@ -228,7 +226,7 @@ async function advance() {
         inferenceAbortController.value = new AbortController();
 
         await simulation.predictUpdate(
-          N_EVAL,
+          writerNEval.value,
           predictionOptions.value,
           modelSettings.value,
           inferenceAbortController.value!.signal,
@@ -313,7 +311,7 @@ async function regenerateUpdate(updateIndex: number) {
     }
 
     await simulation.predictCurrentUpdateVariant(
-      N_EVAL,
+      writerNEval.value,
       predictionOptions.value,
       modelSettings.value,
       inferenceAbortController.value!.signal,
