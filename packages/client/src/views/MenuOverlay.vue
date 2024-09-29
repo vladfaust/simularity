@@ -78,7 +78,7 @@ async function exit() {
 </script>
 
 <template lang="pug">
-.grid.grid-cols-4.overflow-hidden.backdrop-blur(class="lg:grid-cols-6")
+.grid.grid-cols-4.overflow-hidden.backdrop-blur(class="xl:grid-cols-6")
   .flex.flex-col.items-center.justify-between.gap-2.border-r.p-3(class="bg-white/90")
     //- Logo button.
     button.btn.aspect-video.w-full.max-w-56.gap-2.overflow-hidden.rounded-lg.p-3.transition.pressable-sm(
@@ -113,7 +113,7 @@ async function exit() {
       )
         BrainCircuitIcon(:size="20")
         | AI Settings
-        GpuStatus(v-if="simulation" :simulation)
+        GpuStatus.ml-1(v-if="simulation" :simulation)
 
       //- Account button.
       button._btn(
@@ -132,7 +132,7 @@ async function exit() {
     .px-3
       FooterVue
 
-  .relative.col-span-3.h-full.w-full.overflow-hidden(class="bg-white/90 lg:col-span-5")
+  .relative.col-span-3.h-full.w-full.overflow-hidden(class="bg-white/90 xl:col-span-5")
     TransitionRoot.absolute.h-full.w-full(
       :show="tab === Tab.Scenario"
       v-bind="transition"

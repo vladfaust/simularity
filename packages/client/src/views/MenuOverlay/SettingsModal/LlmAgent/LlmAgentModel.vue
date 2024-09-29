@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { type BaseLlmDriver } from "@/lib/ai/llm/BaseLlmDriver";
 import * as storage from "@/lib/storage";
-import { ActivityIcon, CloudIcon, CpuIcon, LogsIcon } from "lucide-vue-next";
+import { CloudIcon, CpuIcon } from "lucide-vue-next";
 import { ref } from "vue";
 import LocalSettings from "./LlmAgentModel/Local.vue";
 import RemoteSettings from "./LlmAgentModel/Remote.vue";
-import GptStatus from "./Status.vue";
 
 defineProps<{
   agentId: storage.llm.LlmAgentId;
@@ -15,6 +14,10 @@ defineProps<{
 
 const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
   "driverConfig",
+);
+
+const selectedModel = defineModel<storage.llm.CachedModel | null>(
+  "selectedModel",
 );
 
 const driverType = ref<storage.llm.LlmDriverConfig["type"]>(
@@ -31,14 +34,14 @@ const driverType = ref<storage.llm.LlmDriverConfig["type"]>(
 
       //- Driver tabs.
       .grid.shrink-0.grid-cols-2.gap-1.overflow-hidden.rounded-t-lg.border-x.border-t.p-2
-        button.btn.btn-sm.w-full.rounded.transition-transform.pressable(
-          :class="{ 'btn-primary': driverType === 'local', 'btn-neutral': driverType !== 'local' }"
+        button.btn.btn-sm.w-full.rounded.border.transition-transform.pressable(
+          :class="{ 'btn-primary': driverType === 'local', 'bg-white': driverType !== 'local' }"
           @click="driverType = 'local'"
         )
           CpuIcon(:size="18")
           span Local
-        button.btn.btn-sm.rounded.transition-transform.pressable(
-          :class="{ 'btn-primary': driverType === 'remote', 'btn-neutral': driverType !== 'remote' }"
+        button.btn.btn-sm.rounded.border.transition-transform.pressable(
+          :class="{ 'btn-primary': driverType === 'remote', 'bg-white': driverType !== 'remote' }"
           @click="driverType = 'remote'"
         )
           CloudIcon(:size="18")
@@ -52,6 +55,7 @@ const driverType = ref<storage.llm.LlmDriverConfig["type"]>(
         :agent-id
         :recommended-context-size
         v-model:driver-config="driverConfig"
+        v-model:selected-model="selectedModel"
       )
         template(#context-size-help="{ contextSize, maxContextSize }")
           slot(
@@ -66,15 +70,4 @@ const driverType = ref<storage.llm.LlmDriverConfig["type"]>(
         :agent-id
         v-model:driver-config="driverConfig"
       )
-
-  //- Status.
-  .flex.gap-1(v-if="driverInstance")
-    .flex.w-full.w-full.items-center.justify-center.gap-1.rounded.bg-neutral-100.p-2
-      ActivityIcon(:size="20")
-      GptStatus(:driver="driverInstance")
-    button.btn-neutral.btn-sm.btn.btn-pressable.rounded(
-      disabled
-      title="Logs (not implemented yet)"
-    )
-      LogsIcon(:size="20")
 </template>

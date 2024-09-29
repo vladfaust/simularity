@@ -8,12 +8,14 @@ import type { TtsConfig } from "@/lib/storage/tts";
 import { clone, tap } from "@/lib/utils";
 import { deepEqual } from "fast-equals";
 import {
+  AsteriskIcon,
   AudioLinesIcon,
   BrainCircuitIcon,
   ClapperboardIcon,
   FeatherIcon,
+  SaveIcon,
 } from "lucide-vue-next";
-import { computed, ref } from "vue";
+import { computed, onUnmounted, ref } from "vue";
 import Director from "./SettingsModal/Director.vue";
 import LlmStatusIcon from "./SettingsModal/LlmAgent/StatusIcon.vue";
 import Voicer from "./SettingsModal/Voicer.vue";
@@ -54,29 +56,54 @@ const tempTtsConfig = ref<TtsConfig>(
 
 const anyChanges = computed(() => {
   return !(
-    deepEqual(writerConfig.value, tempWriterConfig.value) &&
-    deepEqual(directorConfig.value, tempDirectorConfig.value) &&
-    deepEqual(storage.tts.ttsConfig.value, tempTtsConfig.value)
+    deepEqual(clone(writerConfig.value), clone(tempWriterConfig.value)) &&
+    deepEqual(clone(directorConfig.value), clone(tempDirectorConfig.value)) &&
+    deepEqual(clone(storage.tts.ttsConfig.value), clone(tempTtsConfig.value))
   );
 });
 
-function onClose() {
-  writerConfig.value = tempWriterConfig.value;
-  directorConfig.value = tempDirectorConfig.value;
-  storage.tts.ttsConfig.value = clone(tempTtsConfig.value);
+function save() {
+  if (!anyChanges.value) {
+    return;
+  }
 
-  emit("close");
+  writerConfig.value = tempWriterConfig.value;
+  tempWriterConfig.value = clone(writerConfig.value);
+
+  directorConfig.value = tempDirectorConfig.value;
+  tempDirectorConfig.value = clone(directorConfig.value);
+
+  storage.tts.ttsConfig.value = clone(tempTtsConfig.value);
+  tempTtsConfig.value = clone(storage.tts.ttsConfig.value);
 }
+
+onUnmounted(() => {
+  save();
+});
 </script>
 
 <template lang="pug">
 .flex.flex-col
-  .border-b(
-    style="padding-top: calc(0.25rem - 1px); padding-bottom: calc(0.25rem - 1px)"
-  )
-    CustomTitle.p-3(title="AI Settings" :hide-border="true")
-      template(#icon)
-        BrainCircuitIcon(:size="20")
+  CustomTitle.border-b.p-3(:hide-border="!anyChanges")
+    template(#icon)
+      BrainCircuitIcon(:size="20")
+
+    template(#extra)
+      .flex.items-center.gap-1(v-if="anyChanges")
+        button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
+          class="hover:btn-primary hover:border-transparent"
+          @click="save"
+        )
+          SaveIcon(:size="18")
+      .h-7(v-else)
+
+    .flex.items-center
+      span.font-semibold.leading-snug.tracking-wide AI Settings
+      AsteriskIcon.cursor-help.text-primary-500(
+        :size="18"
+        v-if="anyChanges"
+        v-tooltip="'Some changes will be applied after close'"
+      )
 
   .flex.h-full.flex-col.overflow-hidden
     .flex.w-full.divide-x.border-b

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NumberInputWithDefault from "@/components/NumberInputWithDefault.vue";
 import type { Download } from "@/lib/downloads";
 import { downloadManager } from "@/lib/downloads";
 import * as resources from "@/lib/resources";
@@ -12,50 +13,59 @@ import { asyncComputed } from "@vueuse/core";
 import {
   FileIcon,
   FolderOpenIcon,
-  ProportionsIcon,
   RefreshCwIcon,
+  Settings2Icon,
 } from "lucide-vue-next";
 import * as fsExtra from "tauri-plugin-fs-extra-api";
 import type { ShallowRef } from "vue";
-import { computed, onMounted, ref, shallowRef, triggerRef } from "vue";
-import CustomModel from "./Local/CustomModel.vue";
+import { computed, onMounted, ref, shallowRef, triggerRef, watch } from "vue";
 import WellKnownModel, {
   type AvailableModel,
   type WellKnownModelProps,
 } from "./Local/WellKnownModel.vue";
 
-enum Tab {
-  Downloaded,
-  Available,
-}
-
 const props = defineProps<{
   agentId: storage.llm.LlmAgentId;
   recommendedContextSize?: number;
+  advanced?: boolean;
 }>();
+
 const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
   "driverConfig",
 );
+const selectedModel = defineModel<storage.llm.CachedModel | null>(
+  "selectedModel",
+);
+
 const customModelsStorage = storage.llm.useCustomModels(props.agentId);
 const cachedModels = shallowRef<storage.llm.CachedModel[]>([]);
 const uncachedModels = ref<string[]>([]);
+
 const selectedModelPath = ref<string | null>(
   driverConfig.value?.type === "local" ? driverConfig.value.modelPath : null,
 );
-const selectedModel = computed(() =>
-  selectedModelPath.value
-    ? cachedModels.value.find(
-        (cachedModel) => cachedModel.path === selectedModelPath.value,
-      )
-    : undefined,
+
+watch(
+  [selectedModelPath, cachedModels],
+  ([selectedModelPath, cachedModels]) => {
+    if (selectedModelPath) {
+      selectedModel.value = cachedModels.find(
+        (cachedModel) => cachedModel.path === selectedModelPath,
+      );
+    } else {
+      selectedModel.value = null;
+    }
+  },
+  { deep: true },
 );
+
 const latestLocalModelConfig = storage.llm.useLatestLocalModelConfig(
   props.agentId,
 );
+
 const availableModels = asyncComputed<Record<string, AvailableModel>>(() =>
   fetch(`/available_models/${props.agentId}.json`).then((res) => res.json()),
 );
-const tab = ref<Tab>(Tab.Downloaded);
 
 const allModels = computed<
   | {
@@ -98,7 +108,7 @@ const allModels = computed<
         existingRecommended.cachedModelsByQuants[quantId] = {
           model: cachedModel,
           selected: computed(
-            () => selectedModel.value?.path === cachedModel.path,
+            () => selectedModelPath.value === cachedModel.path,
           ),
           removeDeletesFile: cachedModel.path.startsWith(
             modelsDirectoryRef.value,
@@ -256,6 +266,7 @@ async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
   const cachedModel: storage.llm.CachedModel = {
     path: modelPath,
     contextSize: loadedModel.nCtxTrain,
+    batchSize: 0,
     modelHash: {
       xx64: (await xx64HashPromise).xx64Hash,
       sha256: await sha256HashPromise,
@@ -281,6 +292,7 @@ function setDriverConfig(cachedModel: storage.llm.CachedModel) {
     type: "local",
     modelPath: cachedModel.path,
     contextSize,
+    batchSize: cachedModel.batchSize,
   };
 
   console.log("Temp driver config set", props.agentId, {
@@ -414,71 +426,36 @@ onMounted(async () => {
 </script>
 
 <template lang="pug">
-.flex.flex-col
-  .grid.grid-cols-2
-    ._tab.group(:class="{'_tab-selected': tab === Tab.Downloaded}" @click="tab = Tab.Downloaded")
-      span.transition-transform(class="group-active:scale-[0.975]") Downloaded Models ({{ cachedModels.length }})
-    ._tab.group(:class="{'_tab-selected': tab === Tab.Available}" @click="tab = Tab.Available")
-      span.transition-transform(class="group-active:scale-[0.975]") Available Models
+.flex.flex-col.divide-y(v-if="modelsDirectoryRef")
+  //- Actions header.
+  .flex.col-span-full.gap-2.items-center.p-3
+    button.shrink-0.btn-pressable.bg-white.btn.btn-sm.rounded-lg.border(
+      @click="openLocalModelSelectionDialog"
+      title="Add a local model from file"
+    )
+      FileIcon(:size="18")
+      span Add from file
 
-  .grid.gap-2.bg-gray-50.p-2.shadow-inner(v-if="tab === Tab.Downloaded")
-    .flex.col-span-full.gap-2.items-center
-      button.shrink-0.btn-pressable.bg-white.btn.btn-sm.rounded-lg.border(
-        @click="openLocalModelSelectionDialog"
-        title="Add a local model from file"
-      )
-        FileIcon(:size="18")
-        span Add from file
+    button.shrink-0.btn-pressable.bg-white.btn.btn-sm.rounded-lg.border(
+      @click="openModelsDirectory"
+      title="Open the models directory"
+    )
+      FolderOpenIcon(:size="18")
+      span Open directory
 
-      button.shrink-0.btn-pressable.bg-white.btn.btn-sm.rounded-lg.border(
-        @click="openModelsDirectory"
-        title="Open the models directory"
-      )
-        FolderOpenIcon(:size="18")
-        span Open directory
+    .w-full.border-b
 
-      .w-full.border-b
+    button.group.shrink-0.btn.btn-pressable.bg-white.btn-sm.rounded-lg.border(
+      @click="refresh"
+      title="Refresh"
+    )
+      RefreshCwIcon.transition(:size="18")
+      span Refresh
 
-      button.group.shrink-0.btn.btn-pressable.bg-white.btn-sm.rounded-lg.border(
-        @click="refresh"
-        title="Refresh"
-      )
-        RefreshCwIcon.transition(:size="18")
-        span Refresh
-
-    template(v-if="cachedModels.length || uncachedModels.length")
-      CustomModel.rounded-lg.border.bg-white(
-        v-for="modelPath in uncachedModels"
-        :key="modelPath"
-        :model="{ path: modelPath }"
-        :selected="false"
-        @remove="removeModel(modelPath, modelPath.startsWith(modelsDirectoryRef))"
-      )
-      WellKnownModel.rounded-lg.border.bg-white(
-        v-for="(recommended,) in allModels?.wellKnown.filter(wk => Object.keys(wk.cachedModelsByQuants).length || Object.keys(wk.downloadsByQuant.value).length)"
-        :class="{ 'border-primary-500': Object.entries(recommended.cachedModelsByQuants).some(([_, model]) => model.model.path === selectedModelPath) }"
-        v-bind="recommended"
-        :base-path="modelsDirectoryRef"
-        :key="recommended.recommendationModel.name"
-        @select="(quantId) => selectModel(recommended.cachedModelsByQuants[quantId].model)"
-        @remove="(quantId, deleteFile) => removeModel(recommended.cachedModelsByQuants[quantId].model.path, deleteFile)"
-      )
-      CustomModel.rounded-lg.border.bg-white(
-        v-for="(cachedModel) in allModels?.custom"
-        :class="{ 'border-primary-500': selectedModelPath === cachedModel.path }"
-        :key="cachedModel.path"
-        :model="cachedModel"
-        :selected="selectedModelPath === cachedModel.path"
-        @select="selectModel(cachedModel)"
-        @remove="removeModel(cachedModel.path, cachedModel.path.startsWith(modelsDirectoryRef))"
-      )
-    p.border.rounded-lg.bg-white.col-span-full.flex.justify-center.p-2.text-sm(v-else)
-      | No models found. Switch to Available Models tab to download some.
-
-  .grid.gap-2.bg-gray-50.p-2.shadow-inner(v-else-if="tab === Tab.Available")
-    WellKnownModel.rounded-lg.border.bg-white(
+  //- Models grid.
+  .grid.gap-2.p-3(class="lg:grid-cols-2 xl:grid-cols-3")
+    WellKnownModel.rounded-lg.bg-white.shadow-lg(
       v-for="(recommended,) in allModels?.wellKnown"
-      :class="{ 'border-primary-500': Object.entries(recommended.cachedModelsByQuants).some(([_, model]) => model.model.path === selectedModelPath) }"
       v-bind="recommended"
       :base-path="modelsDirectoryRef"
       :key="recommended.recommendationModel.name"
@@ -487,40 +464,38 @@ onMounted(async () => {
       @remove="(quantId, deleteFile) => removeModel(recommended.cachedModelsByQuants[quantId].model.path, deleteFile)"
     )
 
-  .flex.flex-col.gap-2.p-2.border-t(
-    v-if="driverConfig?.type === 'local' && selectedModel"
-  )
-    .flex.items-center.justify-between
-      .flex.shrink-0.items-center.gap-1
-        ProportionsIcon(:size="18" :stroke-width="2.5")
-        span.font-medium Context size
-      .ml-2.w-full.border-b
-      input.input.input-md.shrink-0.rounded.border.px-2.py-1.text-sm(
-        type="number"
-        v-model="driverConfig.contextSize"
-        :max="selectedModel.contextSize"
+  //- Settings.
+  .grid.gap-2.p-3(v-if="driverConfig?.type === 'local' && selectedModel" class="xl:grid-cols-2")
+    //- Context size.
+    .flex.flex-col.gap-2.rounded-lg
+      .flex.items-center.justify-between
+        label.flex.shrink-0.items-center.gap-2(for="context-size")
+          .btn.bg-white.rounded-lg.border(class="p-1")
+            Settings2Icon(:size="16" :stroke-width="2.5")
+          span.font-medium Context size
+        .ml-2.w-full.border-b
+        input.input.input-md.shrink-0.rounded-lg.border.px-2.py-1.text-sm#context-size(
+          type="number"
+          v-model="driverConfig.contextSize"
+          :max="selectedModel.contextSize"
+        )
+      slot(
+        name="context-size-help"
+        :context-size="driverConfig.contextSize"
+        :max-context-size="selectedModel.contextSize"
       )
-    slot(
-      name="context-size-help"
-      :context-size="driverConfig.contextSize"
-      :max-context-size="selectedModel.contextSize"
+
+    //- Batch size.
+    .flex.flex-col.gap-2.rounded-lg(
+      v-if="driverConfig?.type === 'local' && selectedModel"
     )
+      .flex.items-center.justify-between
+        label.flex.shrink-0.items-center.gap-2(for="batch-size")
+          .btn.bg-white.rounded-lg.border(class="p-1")
+            Settings2Icon(:size="16" :stroke-width="2.5")
+          span.font-medium Batch size
+        .ml-2.w-full.border-b
+        NumberInputWithDefault.input.input-md.shrink-0.rounded-lg.border.px-2.py-1.text-sm#batch-size(
+          v-model="driverConfig.batchSize"
+        )
 </template>
-
-<style lang="scss" scoped>
-._tab {
-  @apply flex cursor-pointer items-center justify-center gap-1 border-b-2 p-2;
-
-  & > span {
-    @apply rounded border px-2 py-1 text-sm font-semibold shadow-sm;
-  }
-
-  &:hover {
-    @apply text-primary-500;
-  }
-
-  &-selected {
-    @apply border-primary-500 bg-white   text-primary-500;
-  }
-}
-</style>

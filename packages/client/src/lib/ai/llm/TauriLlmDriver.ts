@@ -42,6 +42,8 @@ export type TauriLlmDriverConfig = {
   // TODO: In that case, use RoPE.
   contextSize: number;
 
+  batchSize?: number;
+
   completionOptions?: Omit<CompletionOptions, "grammar" | "stopSequences">;
 };
 
@@ -156,6 +158,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
     console.log("Initializing TauriLlmDriver...", {
       modelPath: this.config.modelPath,
       contextSize: this.config.contextSize,
+      batchSize: this.config.batchSize,
     });
 
     try {
@@ -178,7 +181,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
       const result = await tauri.gpt.create({
         modelId,
         contextSize: this.config.contextSize,
-        batchSize: 512, // TODO: Make configurable.
+        batchSize: this.config.batchSize,
         initialPrompt: this._initializationParams.value.initialPrompt,
         progressCallback: (e) => (this.progress.value = e.progress),
         dumpSession: this._initializationParams.value.dumpSession,
@@ -249,7 +252,8 @@ export class TauriLlmDriver implements BaseLlmDriver {
   compareConfig(other: TauriLlmDriverConfig): boolean {
     return (
       other.modelPath === this.config.modelPath &&
-      other.contextSize === this.config.contextSize
+      other.contextSize === this.config.contextSize &&
+      other.batchSize === this.config.batchSize
     );
   }
 

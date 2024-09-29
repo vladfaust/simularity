@@ -4,6 +4,7 @@ import InteractiveHelper from "@/components/InteractiveHelper.vue";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { SigmaSquareIcon } from "lucide-vue-next";
+import { ref } from "vue";
 import LlmAgentModel from "./LlmAgent/LlmAgentModel.vue";
 
 defineProps<{
@@ -13,6 +14,8 @@ defineProps<{
 const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
   "driverConfig",
 );
+
+const selectedModel = ref<storage.llm.CachedModel | null>();
 </script>
 
 <template lang="pug">
@@ -39,12 +42,16 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
       agent-id="writer"
       :driver-instance="simulation?.writer.llmDriver.value ?? undefined"
       v-model:driver-config="driverConfig"
+      v-model:selected-model="selectedModel"
       :recommended-context-size="simulation?.scenario.content.contextWindowSize"
     )
       template(#context-size-help="{ contextSize, maxContextSize }")
-        Alert(type="warn" v-if="contextSize > maxContextSize")
+        //- Trained context size alert.
+        Alert.bg-white(type="warn" v-if="contextSize > maxContextSize")
           | Model is trained on up to {{ maxContextSize }} tokens. Consider reducing the context size to avoid performance degradation.
-        Alert(
+
+        //- Scenario context size alert.
+        Alert.bg-white(
           type="warn"
           v-if="simulation && contextSize < simulation.scenario.content.contextWindowSize"
         )

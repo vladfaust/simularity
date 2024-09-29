@@ -38,7 +38,7 @@ const statusText = computed<string | undefined>(() => {
 <template lang="pug">
 OctagonAlert.text-error-500(
   v-if="status === undefined"
-  v-tooltip="'Simulation needs setup'"
+  v-tooltip="'Needs setup'"
   :size="18"
 )
 .h-2.w-2.rounded-full(

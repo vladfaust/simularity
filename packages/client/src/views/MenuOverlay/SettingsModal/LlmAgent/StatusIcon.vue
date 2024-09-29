@@ -27,7 +27,7 @@ const status = computed<Status | undefined>(() => {
 .flex.items-center.gap-2
   OctagonAlertIcon.text-error-500(
     v-if="required && status === undefined"
-    v-tooltip="'Agent needs setup'"
+    v-tooltip="'Needs setup'"
     :size="18"
   )
   .h-2.w-2.rounded-full(

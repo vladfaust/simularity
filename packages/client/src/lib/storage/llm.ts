@@ -26,6 +26,7 @@ export type CachedModel = {
   modifiedAt: number;
 
   contextSize: number;
+  batchSize?: number;
   nParams: number;
   ramSize: number;
 };
