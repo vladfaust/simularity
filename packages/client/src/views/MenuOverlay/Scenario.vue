@@ -163,7 +163,7 @@ onMounted(async () => {
 </template>
 
 <style lang="scss" scoped>
-$breakpoint: 1024px;
+$breakpoint: 1280px; // xl
 
 @media (max-width: #{$breakpoint - 1}) {
   ._main {
