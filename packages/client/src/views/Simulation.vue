@@ -16,7 +16,7 @@ import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { asyncComputed, watchImmediate } from "@vueuse/core";
 import prettyBytes from "pretty-bytes";
 import { onMounted, onUnmounted, ref, shallowRef } from "vue";
-import MenuOverlay from "./MenuOverlay.vue";
+import MenuOverlay, { type Tab as MainMenuTab } from "./MenuOverlay.vue";
 import DevConsole from "./Simulation/DevConsole.vue";
 import GameConsole from "./Simulation/GameConsole.vue";
 import { nonNullable } from "@/lib/utils";
@@ -31,6 +31,7 @@ let scene: DefaultScene;
 const canvasFade = ref(false);
 const fullFade = ref(true);
 const mainMenu = ref(false);
+const mainMenuTab = ref<MainMenuTab | undefined>();
 const loadProgress = ref(0);
 
 const showDevModal = ref(false);
@@ -204,7 +205,12 @@ onUnmounted(() => {
       :open="mainMenu"
       @close="mainMenu = false; selectedScenarioId = nonNullable(simulation?.scenarioId)"
     )
-      MenuOverlay.h-full.w-full(:simulation)
+      MenuOverlay.h-full.w-full(
+        :simulation
+        :tab="mainMenuTab"
+        @back-to-game="mainMenu = false"
+        @tab-change="mainMenuTab = $event"
+      )
 
   DevConsole(
     v-if="simulation"

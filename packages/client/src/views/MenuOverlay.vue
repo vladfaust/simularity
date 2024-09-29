@@ -1,6 +1,17 @@
+<script lang="ts">
+export enum Tab {
+  Scenario,
+  LoadGame,
+  Account,
+  Settings,
+  Library,
+}
+</script>
+
 <script setup lang="ts">
 import FooterVue from "@/components/Footer.vue";
 import TransitionImage from "@/components/TransitionImage.vue";
+import type { Simulation } from "@/lib/simulation";
 import { selectedScenarioId } from "@/lib/storage";
 import { useScenarioQuery } from "@/queries";
 import router, { routeLocation } from "@/router";
@@ -13,27 +24,25 @@ import {
   DoorOpenIcon,
   HistoryIcon,
   SparkleIcon,
+  Undo2Icon,
   User2Icon,
 } from "lucide-vue-next";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import Account from "./MenuOverlay/Account.vue";
 import Library from "./MenuOverlay/Library.vue";
 import NewGameModal from "./MenuOverlay/NewGameModal.vue";
 import Scenario from "./MenuOverlay/Scenario.vue";
 import SettingsModal from "./MenuOverlay/SettingsModal.vue";
-import type { Simulation } from "@/lib/simulation";
 import GpuStatus from "./Simulation/GpuStatus.vue";
 
-enum Tab {
-  Scenario,
-  LoadGame,
-  Account,
-  Settings,
-  Library,
-}
-
-defineProps<{
+const props = defineProps<{
   simulation?: Simulation;
+  tab?: Tab;
+}>();
+
+const emit = defineEmits<{
+  (event: "backToGame"): void;
+  (event: "tabChange", tab: Tab): void;
 }>();
 
 const { data: scenario } = useScenarioQuery(selectedScenarioId);
@@ -44,7 +53,8 @@ const scenarioLogo = asyncComputed(() =>
     : null,
 );
 
-const tab = ref(Tab.Scenario);
+const tab = ref(props.tab ?? Tab.Scenario);
+watch(tab, (newTab) => emit("tabChange", newTab));
 
 /**
  * String means an episode ID.
@@ -93,8 +103,13 @@ async function exit() {
       span.text-nowrap.text-lg.font-bold(v-else) {{ scenarioTitle }}
 
     .flex.flex-col.items-center.gap-2
+      //- Back to simulation button.
+      button._btn(v-if="simulation" @click="$emit('backToGame')")
+        Undo2Icon(:size="20")
+        | Back to game
+
       //- New game button.
-      button._btn(@click="newGameRequest = null")
+      button._btn(v-else @click="newGameRequest = null")
         SparkleIcon(:size="20")
         | New game
 
