@@ -654,7 +654,7 @@ export class BaseScenario {
   ) {}
 
   async resourceUrl(path: string) {
-    return join(this.basePath, path).then(convertFileSrc);
+    return join(this.basePath, path).then(resolve).then(convertFileSrc);
   }
 
   async getThumbnailUrl() {
@@ -731,7 +731,7 @@ export class ImmersiveScenario {
   ) {}
 
   async resourceUrl(path: string) {
-    return join(this.basePath, path).then(convertFileSrc);
+    return join(this.basePath, path).then(resolve).then(convertFileSrc);
   }
 
   async getThumbnailUrl() {
