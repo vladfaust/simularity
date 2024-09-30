@@ -718,7 +718,7 @@ onUnmounted(() => {
   )
 </template>
 
-<style lang="scss" scoped>
+<style lang="postcss" scoped>
 ._button {
   @apply btn-shadow grid place-items-center rounded-lg bg-white shadow transition pressable;
   @apply disabled:cursor-not-allowed disabled:opacity-50;

@@ -26,7 +26,7 @@ Transition(:name="name ?? 'fade'")
   img(v-bind="$attrs" v-show="loaded" :key="src" :src @load="loaded = true")
 </template>
 
-<style lang="scss">
+<style lang="postcss">
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.4s ease-in-out;

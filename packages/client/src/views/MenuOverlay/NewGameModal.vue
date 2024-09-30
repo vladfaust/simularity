@@ -144,7 +144,7 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
       | Start game
 </template>
 
-<style lang="scss" scoped>
+<style lang="postcss" scoped>
 ._mode-button {
   @apply btn btn-sm w-full p-2;
 

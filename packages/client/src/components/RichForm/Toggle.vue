@@ -27,5 +27,3 @@ const toggle = defineModel<boolean>();
     ></div>
   </label>
 </template>
-
-<style lang="scss" scoped></style>

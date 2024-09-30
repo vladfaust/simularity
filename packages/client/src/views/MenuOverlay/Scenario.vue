@@ -162,10 +162,10 @@ onMounted(async () => {
           | Play now
 </template>
 
-<style lang="scss" scoped>
-$breakpoint: 1280px; // xl
+<style lang="postcss" scoped>
+$breakpoint: 1280px;
 
-@media (max-width: #{$breakpoint - 1}) {
+@media (max-width: $breakpoint) {
   ._main {
     grid-template-areas: "side" "content";
     @apply overflow-y-scroll;

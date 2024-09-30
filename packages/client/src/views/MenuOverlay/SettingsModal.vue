@@ -175,7 +175,7 @@ onUnmounted(() => {
       )
 </template>
 
-<style lang="scss" scoped>
+<style lang="postcss" scoped>
 ._tab {
   @apply flex w-full cursor-pointer items-center justify-center gap-2 p-2;
 

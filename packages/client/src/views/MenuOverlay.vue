@@ -200,7 +200,7 @@ async function exit() {
   )
 </template>
 
-<style lang="scss" scoped>
+<style lang="postcss" scoped>
 ._btn {
   @apply btn btn-md rounded-lg bg-black/5 transition-transform pressable;
 
