@@ -1,6 +1,8 @@
 #pragma once
 
+#include <codecvt>
 #include <filesystem>
+#include <locale>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -137,12 +139,17 @@ int simularity_gpt_create(
     bool file_exists  = false;
 
     if (state_file_path != NULL) {
+      // Convert the path to wide string for Windows.
+      // OPTIMIZE: Ifdef WIN32.
+      std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+      const auto wpath = converter.from_bytes(state_file_path);
+
       // TODO: Add metadata to the path, depending on model, params, etc.
       spdlog::debug("Checking state file: {}", state_file_path);
-      file_exists = std::filesystem::exists(state_file_path);
+      file_exists = std::filesystem::exists(wpath);
 
       if (file_exists) {
-        auto file_size = std::filesystem::file_size(state_file_path);
+        auto file_size = std::filesystem::file_size(wpath);
         spdlog::debug(
             "Loading session state from file: {} ({} bytes)",
             state_file_path,
@@ -218,7 +225,12 @@ int simularity_gpt_create(
         );
 
         if (saved) {
-          auto file_size = std::filesystem::file_size(state_file_path);
+          // Convert the path to wide string for Windows.
+          // OPTIMIZE: Ditto.
+          std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+          const auto wpath = converter.from_bytes(state_file_path);
+
+          auto file_size = std::filesystem::file_size(wpath);
           spdlog::info(
               "Saved session state to file: {} ({} bytes)",
               state_file_path,
