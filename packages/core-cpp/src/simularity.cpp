@@ -51,7 +51,7 @@ extern "C" int simularity_model_load(
   llama_model_params params          = llama_model_default_params();
   params.progress_callback           = progress_callback;
   params.progress_callback_user_data = progress_callback_user_data;
-  // params.n_gpu_layers                = 32;
+  params.n_gpu_layers                = 9999; // Always offload to GPU.
 
   // Load the model.
   struct llama_model *model = llama_load_model_from_file(model_path, params);
