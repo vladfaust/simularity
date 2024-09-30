@@ -103,7 +103,9 @@ try_locking_session(unsigned session_id) {
 
   @param session The session.
   @param batch The batch to decode.
-  @param n_tokens The number of tokens expected to be decoded.
+  @param batch_index The index of this batch in the sequence of batches.
+  @param n_tokens The total number of tokens expected to be decoded accross all
+  batches.
   @param progress_callback The progress callback.
 
   @return The result of the `llama_decode` call.
@@ -111,25 +113,36 @@ try_locking_session(unsigned session_id) {
 static int decode_with_progress(
     Session *session,
     llama_batch &batch,
+    unsigned batch_index,
     unsigned n_tokens,
     void(progress_callback)(float, void *),
     void *progress_callback_user_data
 ) {
-  spdlog::info(
-      "Decoding {} tokens in a batch of size {}", n_tokens, batch.n_tokens
-  );
-
+  const auto batch_size = llama_n_batch(session->context);
   unsigned current_call = 0;
-  unsigned max_calls = n_tokens * 2 | 1; // Two calls per token (Key + Value).
+  unsigned max_calls = batch_size * 2 | 1; // Two calls per token (Key + Value).
+  const unsigned n_batches = ceil((float)n_tokens / batch_size);
+
+  spdlog::debug(
+      "Decoding batch of size {} ({} tokens) ({}/{})",
+      batch_size,
+      batch.n_tokens,
+      batch_index + 1,
+      n_batches
+  );
 
   // Set the session's decode progress callback.
   if (progress_callback != NULL) {
     session->decode_progress_callback = [&current_call,
                                          progress_callback,
                                          max_calls,
+                                         batch_index,
+                                         n_batches,
                                          progress_callback_user_data]() {
       progress_callback(
-          (float)++current_call / max_calls, progress_callback_user_data
+          (float)batch_index / n_batches +
+              ((float)++current_call / max_calls) / n_batches,
+          progress_callback_user_data
       );
     };
   } else {

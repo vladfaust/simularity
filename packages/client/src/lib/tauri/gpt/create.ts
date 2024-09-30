@@ -19,25 +19,27 @@ const PROGRESS_EVENT_NAME = "app://gpt/progress";
  * Create a new GPT instance.
  * May take time to decode the initial prompt.
  */
-export async function create(
-  modelId: string,
-  contextSize: number,
-  initialPrompt?: string,
-  progressCallback?: (event: ProgressEventPayload) => void,
-  dumpSession?: boolean,
-): Promise<Response> {
-  const unlisten = progressCallback
+export async function create(args: {
+  modelId: string;
+  contextSize: number;
+  batchSize?: number;
+  initialPrompt?: string;
+  progressCallback?: (event: ProgressEventPayload) => void;
+  cacheDir?: string;
+}): Promise<Response> {
+  const unlisten = args.progressCallback
     ? await listen(PROGRESS_EVENT_NAME, (event) => {
-        progressCallback(event.payload as ProgressEventPayload);
+        args.progressCallback!(event.payload as ProgressEventPayload);
       })
     : undefined;
 
   const result = (await invoke(COMMAND_NAME, {
-    modelId,
-    contextSize,
-    initialPrompt,
-    progressEventName: progressCallback ? PROGRESS_EVENT_NAME : undefined,
-    dumpSession,
+    modelId: args.modelId,
+    contextSize: args.contextSize,
+    batchSize: args.batchSize,
+    initialPrompt: args.initialPrompt,
+    progressEventName: args.progressCallback ? PROGRESS_EVENT_NAME : undefined,
+    cacheDir: args.cacheDir,
   })) as Response;
 
   unlisten?.();

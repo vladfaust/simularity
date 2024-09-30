@@ -10,16 +10,11 @@ const router = useRouter();
 
 let unlisten: UnlistenFn | undefined;
 
-async function cleanup() {
-  // TODO: Unload the GPTs somehow?
-}
-
 onMounted(async () => {
   appWindow
     .onCloseRequested(async (_) => {
       console.log("Close requested");
       router.push(routeLocation({ name: "Shutdown" }));
-      await cleanup();
     })
     .then((unlistenFn) => {
       console.debug("onCloseRequested listener registered");

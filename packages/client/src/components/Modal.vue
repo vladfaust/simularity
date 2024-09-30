@@ -13,7 +13,7 @@ defineOptions({
 
 defineProps<{
   open: boolean;
-  title: string;
+  title?: string;
 }>();
 
 const emit = defineEmits<{
@@ -38,18 +38,17 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
       leave-from="opacity-100"
       leave-to="opacity-0"
     )
-      DialogPanel.flex.flex-col.overflow-y-hidden.bg-white.shadow-lg(
-        v-bind="$attrs"
-      )
-        .flex.items-center.justify-between.gap-2.border-b.p-3
-          h1.flex.shrink-0.items-center.gap-1
-            slot(name="icon")
-            span.text-lg.font-semibold.leading-tight.tracking-wide {{ title }}
-          .h-0.w-full.shrink.border-b
-          button.btn-pressable.btn-neutral.btn.aspect-square.rounded.p-1(
-            @click="emit('close')"
-          )
-            XIcon(:size="20")
+      DialogPanel.flex.flex-col.overflow-y-hidden(v-bind="$attrs")
+        slot(name="header" v-if="title")
+          .flex.items-center.justify-between.gap-2.border-b.p-3
+            h1.flex.shrink-0.items-center.gap-1
+              slot(name="icon")
+              span.text-lg.font-semibold.leading-tight.tracking-wide {{ title }}
+            .h-0.w-full.shrink.border-b
+            button.btn-pressable.btn-neutral.btn.aspect-square.rounded.p-1(
+              @click="emit('close')"
+            )
+              XIcon(:size="20")
 
         slot(name="default")
 </template>

@@ -50,6 +50,10 @@
       "path": {
         "all": true
       },
+      "process": {
+        "exit": true,
+        "relaunch": true
+      },
       "protocol": {
         "asset": true,
         "assetScope": [
@@ -128,7 +132,9 @@
         "height": 600,
         "resizable": true,
         "title": "Simularity",
-        "width": 800
+        "width": 800,
+        "minHeight": 600,
+        "minWidth": 800
       }
     ]
   }

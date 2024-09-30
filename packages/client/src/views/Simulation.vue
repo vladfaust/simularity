@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import router, { routeLocation } from "@/router";
+import Modal from "@/components/Modal.vue";
 import { Mode, Simulation } from "@/lib/simulation";
 import { DefaultScene } from "@/lib/simulation/phaser/defaultScene";
 import { Game } from "@/lib/simulation/phaser/game";
-import { ambientVolumeStorage } from "@/lib/storage";
+import type { ImmersiveScenario } from "@/lib/simulation/scenario";
+import { ambientVolumeStorage, selectedScenarioId } from "@/lib/storage";
 import { TransitionRoot } from "@headlessui/vue";
 import {
   BaseDirectory,
@@ -15,9 +16,10 @@ import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { asyncComputed, watchImmediate } from "@vueuse/core";
 import prettyBytes from "pretty-bytes";
 import { onMounted, onUnmounted, ref, shallowRef } from "vue";
+import MenuOverlay, { type Tab as MainMenuTab } from "./MenuOverlay.vue";
 import DevConsole from "./Simulation/DevConsole.vue";
 import GameConsole from "./Simulation/GameConsole.vue";
-import type { ImmersiveScenario } from "@/lib/simulation/scenario";
+import { nonNullable } from "@/lib/utils";
 
 const props = defineProps<{ simulationId: string }>();
 const simulationId = Number(props.simulationId);
@@ -28,6 +30,8 @@ let scene: DefaultScene;
 
 const canvasFade = ref(false);
 const fullFade = ref(true);
+const mainMenu = ref(false);
+const mainMenuTab = ref<MainMenuTab | undefined>();
 const loadProgress = ref(0);
 
 const showDevModal = ref(false);
@@ -35,10 +39,14 @@ const scenarioCoverUrl = asyncComputed(() =>
   simulation.value?.scenario.getCoverImageUrl(),
 );
 
-function consoleEventListener(event: KeyboardEvent) {
+function keypressEventListener(event: KeyboardEvent) {
   // Detect tilda key press on different keyboard layouts.
   // FIXME: Enable [, disable when input fields is focused.
-  if (["~", "§", "`", ">"].includes(event.key)) {
+  if (
+    !mainMenu.value &&
+    simulation.value?.mode === Mode.Immersive &&
+    ["~", "§", "`", ">"].includes(event.key)
+  ) {
     showDevModal.value = !showDevModal.value;
     event.preventDefault();
   }
@@ -92,10 +100,6 @@ async function screenshot(
   return { path, size };
 }
 
-function toMainMenu() {
-  router.push(routeLocation({ name: "Home" }));
-}
-
 onMounted(async () => {
   simulation.value = await Simulation.load(simulationId);
 
@@ -131,17 +135,16 @@ onMounted(async () => {
         scene.ambientVolume = ambientVolume / 100;
       },
     );
-
-    // Register a console event listener.
-    window.addEventListener("keypress", consoleEventListener);
   } else {
     fullFade.value = false;
   }
+
+  window.addEventListener("keypress", keypressEventListener);
 });
 
 onUnmounted(() => {
   if (simulation.value?.mode === Mode.Immersive) {
-    window.removeEventListener("keypress", consoleEventListener);
+    window.removeEventListener("keypress", keypressEventListener);
     gameInstance.destroy();
   }
 
@@ -193,8 +196,20 @@ onUnmounted(() => {
         :simulation
         :fade-canvas
         :screenshot
-        @main-menu="toMainMenu"
+        :inactive="canvasFade || mainMenu"
+        @main-menu="mainMenu = true"
         @screenshot="screenshot"
+      )
+
+    Modal.h-full.w-full.rounded-lg.shadow-lg(
+      :open="mainMenu"
+      @close="mainMenu = false; selectedScenarioId = nonNullable(simulation?.scenarioId)"
+    )
+      MenuOverlay.h-full.w-full(
+        :simulation
+        :tab="mainMenuTab"
+        @back-to-game="mainMenu = false"
+        @tab-change="mainMenuTab = $event"
       )
 
   DevConsole(

@@ -6,8 +6,8 @@ import {
   NARRATOR,
   type PredictionOptions,
 } from "@/lib/simulation/agents/writer";
+import { writerNEval } from "@/lib/storage/llm";
 import { accountBalanceQueryKey } from "@/queries";
-import SettingsModal from "@/views/SettingsModal.vue";
 import { TransitionRoot } from "@headlessui/vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { StorageSerializers, useLocalStorage } from "@vueuse/core";
@@ -16,15 +16,14 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   Loader2Icon,
+  MenuIcon,
   RedoDotIcon,
   SendHorizontalIcon,
-  SettingsIcon,
   SparklesIcon,
-  SquarePowerIcon,
   SquareSigmaIcon,
   UndoDotIcon,
 } from "lucide-vue-next";
-import { computed, ref, triggerRef } from "vue";
+import { computed, onMounted, onUnmounted, ref, triggerRef, watch } from "vue";
 import { toast } from "vue3-toastify";
 import PredictionOptionsPanel from "./GameConsole/PredictionOptionsPanel.vue";
 import ProgressBar from "./GameConsole/ProgressBar.vue";
@@ -32,8 +31,6 @@ import VisualizeModal from "./GameConsole/VisualizeModal.vue";
 import GpuStatus from "./GpuStatus.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
-import { onMounted } from "vue";
-import { onUnmounted } from "vue";
 
 enum SendButtonState {
   Busy,
@@ -42,13 +39,20 @@ enum SendButtonState {
   WillPredict,
 }
 
-const N_EVAL = 100;
-
-const { simulation, fadeCanvas, screenshot } = defineProps<{
+const props = defineProps<{
   simulation: Simulation;
   fadeCanvas: (callback: () => Promise<void>) => Promise<void>;
   screenshot: (rewrite: boolean) => Promise<any>;
+  inactive: boolean;
 }>();
+
+const { simulation, fadeCanvas, screenshot } = props;
+const inactive = ref(props.inactive);
+
+watch(
+  () => props.inactive,
+  (value) => (inactive.value = value),
+);
 
 const emit = defineEmits<{
   (event: "mainMenu"): void;
@@ -108,8 +112,6 @@ const sendButtonState = computed<SendButtonState>(() => {
     }
   }
 });
-
-const showSettingsModal = ref(false);
 
 const enabledCharacterIds = useLocalStorage<Set<string>>(
   `simulation:${simulation.id}:enabledCharacterIds`,
@@ -175,7 +177,7 @@ async function sendMessage() {
     );
 
     await simulation.predictUpdate(
-      N_EVAL,
+      writerNEval.value,
       predictionOptions.value,
       modelSettings.value,
       inferenceAbortController.value!.signal,
@@ -224,7 +226,7 @@ async function advance() {
         inferenceAbortController.value = new AbortController();
 
         await simulation.predictUpdate(
-          N_EVAL,
+          writerNEval.value,
           predictionOptions.value,
           modelSettings.value,
           inferenceAbortController.value!.signal,
@@ -309,7 +311,7 @@ async function regenerateUpdate(updateIndex: number) {
     }
 
     await simulation.predictCurrentUpdateVariant(
-      N_EVAL,
+      writerNEval.value,
       predictionOptions.value,
       modelSettings.value,
       inferenceAbortController.value!.signal,
@@ -366,7 +368,7 @@ function enableOnlyCharacter(characterId: string) {
 }
 
 function onKeypress(event: KeyboardEvent) {
-  if (isEditing.value) {
+  if (inactive.value || isEditing.value) {
     return;
   }
 
@@ -392,9 +394,12 @@ function onKeypress(event: KeyboardEvent) {
       userInputElement.value?.focus();
     }
   } else if (event.key === "Escape") {
-    // Unfocus the input.
     if (document.activeElement === userInputElement.value) {
+      // Unfocus the input.
       userInputElement.value?.blur();
+    } else {
+      // Call the main menu handler.
+      emit("mainMenu");
     }
   } else {
     if (document.activeElement !== userInputElement.value) {
@@ -428,7 +433,7 @@ function onKeypress(event: KeyboardEvent) {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (isEditing.value) {
+  if (inactive.value || isEditing.value) {
     return;
   }
 
@@ -467,7 +472,9 @@ onUnmounted(() => {
 </script>
 
 <template lang="pug">
-.flex.h-full.w-full.flex-col.items-center.justify-between.gap-2.overflow-hidden
+.flex.h-full.w-full.flex-col.items-center.justify-between.gap-2.overflow-hidden(
+  :class="{ grayscale: inactive }"
+)
   //- Enable or disable characters.
   PredictionOptionsPanel.max-w-xl(
     :simulation
@@ -587,12 +594,12 @@ onUnmounted(() => {
           ProgressBar.h-full.w-full(:job="simulation.currentJob.value")
 
         //- User input otherwise.
-        input.h-full.w-full.rounded-lg.px-3.opacity-90.transition-opacity(
+        input.h-full.w-full.rounded-lg.px-3.transition-opacity(
           ref="userInputElement"
           v-model="userInput"
           :placeholder="userInputEnabled ? inputPlaceholder : ''"
           :disabled="!userInputEnabled"
-          class="!disabled:opacity-50 hover:opacity-100 focus:opacity-100"
+          :class="{ '!opacity-50': !userInputEnabled }"
           @keydown.enter.exact="userInput ? sendMessage() : advance()"
         )
 
@@ -664,24 +671,12 @@ onUnmounted(() => {
     .flex.w-full.justify-between
       .flex.w-full.items-center.gap-2
         //- Quit to main menu button.
-        button._status-button.group(
+        button.btn-shadow.group.flex.items-center.gap-1.rounded.bg-white.p-1.pr-2.shadow.transition.pressable(
           @click="emit('mainMenu')"
           title="Quit to main menu"
-          class="hover:text-red-500"
         )
-          SquarePowerIcon.transition(:size="20" class="group-hover:animate-pulse")
-
-        //- Show setting button.
-        button.btn-shadow.group.flex.items-center.gap-1.rounded.bg-white.p-1.pr-2.shadow.transition.pressable(
-          @click="showSettingsModal = true"
-          title="Settings"
-        )
-          SettingsIcon(
-            :size="20"
-            class="group-hover:animate-spin"
-            :class="{ 'animate-spin': simulation.busy.value }"
-          )
-          GpuStatus(:simulation="simulation")
+          MenuIcon.transition(:size="20" class="group-hover:animate-pulse")
+          GpuStatus(:simulation)
 
         //- Context gauge.
         .flex.w-full.items-center.gap-2
@@ -715,13 +710,6 @@ onUnmounted(() => {
               class="group-hover:animate-pulse group-hover:text-ai-500"
             )
 
-  SettingsModal(
-    v-if="simulation"
-    :open="showSettingsModal"
-    :simulation
-    @close="showSettingsModal = false"
-  )
-
   VisualizeModal(
     v-if="simulation"
     :open="showVisualizeModal"
@@ -730,7 +718,7 @@ onUnmounted(() => {
   )
 </template>
 
-<style lang="scss" scoped>
+<style lang="postcss" scoped>
 ._button {
   @apply btn-shadow grid place-items-center rounded-lg bg-white shadow transition pressable;
   @apply disabled:cursor-not-allowed disabled:opacity-50;

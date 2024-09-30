@@ -27,14 +27,13 @@ struct UnknownDecodeError : public std::runtime_error {
 };
 
 /**
+ * Decode a prompt in batches of default context size, reusing and updating the
+ * session's KV cache.
  * @param prompt The *full* prompt to decode.
- * @param batch_size The returned batch size.
- * @return The decoded {@link Batch} instance.
  */
-static std::unique_ptr<Batch> simularity_gpt_decode_internal(
+static void simularity_gpt_decode_internal(
     Session *session,
     std::vector<llama_token> prompt,
-    size_t batch_size,
     void(progress_callback)(float, void *),
     void *progress_callback_user_data
 );
@@ -57,11 +56,7 @@ int simularity_gpt_decode(
   // Decode the prompt.
   try {
     simularity_gpt_decode_internal(
-        session,
-        prompt_tokens,
-        prompt_tokens.size(),
-        progress_callback,
-        progress_callback_user_data
+        session, prompt_tokens, progress_callback, progress_callback_user_data
     );
 
     // Return the new context size.
@@ -75,22 +70,23 @@ int simularity_gpt_decode(
   }
 }
 
-static std::unique_ptr<Batch> simularity_gpt_decode_internal(
+static void simularity_gpt_decode_internal(
     Session *session,
     std::vector<llama_token> prompt,
-    size_t batch_size,
     void(progress_callback)(float, void *),
     void *progress_callback_user_data
 ) {
+  auto batch_size = llama_n_batch(session->context);
+
   auto n_prompt = prompt.size();
-  if (n_prompt > llama_n_batch(session->context)) {
+  if (n_prompt > llama_n_ctx(session->context)) {
     spdlog::error(
         "Prompt is too long ({} tokens, max {})",
         n_prompt,
-        llama_n_batch(session->context)
+        llama_n_ctx(session->context)
     );
 
-    throw ContextOverflowError(llama_n_batch(session->context), n_prompt);
+    throw ContextOverflowError(llama_n_ctx(session->context), n_prompt);
   }
 
   auto n_session = session->prompt.size();
@@ -112,72 +108,78 @@ static std::unique_ptr<Batch> simularity_gpt_decode_internal(
   // Clear the KV cache starting from the first non-matching token.
   session->clear_cache(n_match);
 
-  auto batch = std::make_unique<Batch>(batch_size);
+  auto batch = Batch(batch_size);
 
   if (n_match == n_prompt) {
-    spdlog::debug("Prompt is already fully decoded");
-    n_match--;
+    spdlog::info("Prompt is already fully decoded");
   } else if (n_match > 0) {
     if (n_match < n_session) {
-      // Add the latest matching token.
-      //
-
-      spdlog::debug(
+      spdlog::info(
           "Will reuse session KV cache until token #{}¹ (⌘{}), inclusive",
           n_match,
           prompt[n_match - 1]
       );
-
-      batch->add(prompt[n_match - 1], n_match - 1, false);
     } else if (n_match == n_session) {
-      // Add the latest token from the session.
-      //
-
-      spdlog::debug(
+      spdlog::info(
           "Will reuse session KV cache until token #{}¹ (⌘{}), inclusive",
           n_session,
           session->prompt.back()
       );
-
-      batch->add(session->prompt.back(), n_session - 1, false);
     } else {
       spdlog::error("n_match > n_session ({} > {})", n_match, n_session);
       throw std::runtime_error("n_match > n_session");
     }
-
   } else {
-    spdlog::debug("Session KV cache is not reused");
+    spdlog::info("Session KV cache is not reused");
   }
 
-  // Add the new prompt tokens.
-  for (auto j = n_match; j < n_prompt; j++) {
-    batch->add(
-        prompt[j],
-        j,
+  const int n_batches = ceil((float)(n_prompt - n_match) / batch_size);
 
-        // The latest token will become the new head.
-        j == n_prompt - 1
+  if (n_batches > 0) {
+    spdlog::info(
+        "Will decode {} tokens in {} batch(es) of size {}",
+        n_prompt - n_match,
+        n_batches,
+        batch_size
     );
   }
 
-  // Decode the batch, KV-caching the new head logits.
-  int err = decode_with_progress(
-      session,
-      batch->batch,
-      n_prompt - n_match, // Expected number of tokens to decode.
-      progress_callback,
-      progress_callback_user_data
-  );
-  if (err == 1)
-    throw ContextOverflowError(llama_n_batch(session->context), n_prompt);
-  else if (err) throw UnknownDecodeError(err);
+  for (int i = 0; i < n_batches; i++) {
+    const auto from = i * batch_size + n_match;
+    const auto to   = std::min(from + batch_size, n_prompt);
+    spdlog::debug("Decoding batch #{}¹ (tokens {}¹-{}¹)", i + 1, from + 1, to);
+
+    // Add the new prompt tokens.
+    for (auto j = from; j < to; j++) {
+      batch.add(
+          prompt[j],
+          j,
+
+          // Calculate the logits for the last token.
+          j == (to - 1)
+      );
+    }
+
+    // Decode the batch, KV-caching the new head logits.
+    int err = decode_with_progress(
+        session,
+        batch.batch,
+        i,
+        n_prompt - n_match,
+        progress_callback,
+        progress_callback_user_data
+    );
+    if (err == 1)
+      throw ContextOverflowError(llama_n_batch(session->context), n_prompt);
+    else if (err) throw UnknownDecodeError(err);
+
+    // Clear the batch.
+    batch.batch.n_tokens = 0;
+  }
 
   // Update the session's prompt.
   session->prompt = prompt;
 
   // Prolong the session expiration time.
   session->touch();
-
-  // Return the decoded batch.
-  return batch;
 }

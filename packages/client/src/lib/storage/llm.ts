@@ -6,7 +6,15 @@ import { type Ref } from "vue";
 export type LlmDriverConfig = TauriLlmDriverConfig | RemoteLlmDriverConfig;
 export type LlmAgentId = "writer" | "director";
 
-// Model cache.
+//#region Per-agent storage
+//
+
+export const writerNEval = useLocalStorage<number>("llm:writer:nEval", 100);
+
+//
+//#endregion
+
+//#region Model cache
 //
 
 /**
@@ -26,6 +34,7 @@ export type CachedModel = {
   modifiedAt: number;
 
   contextSize: number;
+  batchSize?: number;
   nParams: number;
   ramSize: number;
 };
@@ -49,7 +58,10 @@ export function setCachedModel(modelPath: string, value: CachedModel) {
   );
 }
 
-// Custom models.
+//
+//#endregion
+
+//#region Custom models
 //
 
 function _useCustomModels(agent: LlmAgentId) {
@@ -68,7 +80,10 @@ export function useCustomModels(agent: LlmAgentId): Ref<string[]> {
   }
 }
 
-// Latest session ID.
+//
+//#endregion
+
+//#region Latest session ID
 //
 
 export type LatestSession = {
@@ -99,7 +114,10 @@ export function useLatestSession(agent: LlmAgentId): Ref<LatestSession | null> {
   }
 }
 
-// Driver config storage.
+//
+//#endregion
+
+//#region Driver config storage
 //
 
 function _useDriverConfig(agent: LlmAgentId) {
@@ -122,7 +140,10 @@ export function useDriverConfig(
   }
 }
 
-// Local model config storage.
+//
+//#endregion
+
+//#region Local model config storage
 //
 
 type LocalModelConfig = {
@@ -151,7 +172,10 @@ export function useLatestLocalModelConfig(
   }
 }
 
-// Remote model config storage.
+//
+//#endregion
+
+//#region Remote model config storage
 //
 
 type RemoteModelConfig = {
@@ -184,3 +208,6 @@ export const directorTeacherMode = useLocalStorage<boolean>(
   "llm:director:teacherMode",
   false,
 );
+
+//
+//#endregion

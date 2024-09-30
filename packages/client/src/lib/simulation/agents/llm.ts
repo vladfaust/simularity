@@ -16,18 +16,18 @@ import type { ShallowRef, WatchStopHandle } from "vue";
  * @returns A watch stop handle.
  */
 export function hookLlmAgentToDriverRef(
-  agent: LlmAgentId,
+  agentId: LlmAgentId,
   driverRef: ShallowRef<BaseLlmDriver | null>,
   initialPromptBuilder: () => string,
   contextSizeModifier?: (contextSize: number) => number,
 ): WatchStopHandle {
-  const driverConfig = storage.llm.useDriverConfig(agent);
-  const latestSession = storage.llm.useLatestSession(agent);
+  const driverConfig = storage.llm.useDriverConfig(agentId);
+  const latestSession = storage.llm.useLatestSession(agentId);
 
   return watchImmediate(
     () => driverConfig.value,
     async (driverConfig) => {
-      console.debug("Driver config watch trigger", agent, driverConfig);
+      console.debug("Driver config watch trigger", agentId, driverConfig);
 
       if (contextSizeModifier && driverConfig?.type === "local") {
         // Clone the driver config to a local variable.
@@ -40,19 +40,19 @@ export function hookLlmAgentToDriverRef(
 
       if (driverConfig) {
         if (driverRef.value) {
-          console.debug("Comparing driver configs.", agent, {
+          console.debug("Comparing driver configs.", agentId, {
             other: driverConfig,
           });
           if (!driverRef.value.compareConfig(driverConfig)) {
             console.log(
               "Driver config is different, destroying the driver.",
-              agent,
+              agentId,
             );
             driverRef.value.destroy();
             driverRef.value = null;
             latestSession.value = null;
           } else {
-            console.debug("Driver config is the same.", agent);
+            console.debug("Driver config is the same.", agentId);
             return;
           }
         }
@@ -63,17 +63,19 @@ export function hookLlmAgentToDriverRef(
 
             if (latestSession.value?.driver === "local") {
               driver = await TauriLlmDriver.find(
+                agentId,
                 latestSession.value.id,
                 driverConfig,
               );
             }
 
             if (!driver) {
-              console.log("Creating new TauriLlmDriver", agent, driverConfig);
+              console.log("Creating new TauriLlmDriver", agentId, driverConfig);
 
               const initialPrompt = initialPromptBuilder();
 
               driver = TauriLlmDriver.create(
+                agentId,
                 driverConfig,
                 {
                   initialPrompt,
@@ -89,7 +91,7 @@ export function hookLlmAgentToDriverRef(
               );
             } else {
               console.log(`Restored TauriLlmDriver`, {
-                agent,
+                agent: agentId,
                 latestSession: latestSession.value,
                 driverConfig,
               });
@@ -101,7 +103,7 @@ export function hookLlmAgentToDriverRef(
 
           case "remote": {
             console.log("Creating new RemoteLlmDriver", {
-              agent,
+              agent: agentId,
               driverConfig,
               latestSession: latestSession.value,
             });

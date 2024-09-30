@@ -389,9 +389,17 @@ export class Download {
       handler.abortController.abort(),
     );
 
+    console.debug("Waiting for download handlers to return...");
+    await Promise.all(
+      [...this.downloadHandlers.value.values()].map((h) => h.onReturn),
+    );
+
     for (const file of this.files) {
       if (file.tempPath.value && !file.completed.value) {
-        console.log(`Removing incomplete temporary file: ${file.tempPath}`);
+        console.log(
+          `Removing incomplete temporary file: ${file.tempPath.value}`,
+        );
+
         await fs.removeFile(file.tempPath.value);
       }
     }

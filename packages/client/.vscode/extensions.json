@@ -3,6 +3,7 @@
     "Vue.volar",
     "esbenp.prettier-vscode",
     "bradlc.vscode-tailwindcss",
-    "ducfilan.pug-formatter"
+    "ducfilan.pug-formatter",
+    "cpylua.language-postcss"
   ]
 }

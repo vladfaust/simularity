@@ -1,75 +1,73 @@
 import { d } from "@/lib/drizzle";
-import { ensureScenario, readAllScenarios } from "@/lib/simulation/scenario";
-import type { QueryOptions } from "@/queries";
+import { useScenariosQuery, type QueryOptions } from "@/queries";
 import { useQuery } from "@tanstack/vue-query";
 import { get } from "@vueuse/core";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { computed, type MaybeRef } from "vue";
 
-export function useScenariosQuery(
-  queryOptions: QueryOptions = {
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-  },
+export function useSimulationQuery(
+  simulationId: MaybeRef<number>,
+  queryOptions: QueryOptions = {},
 ) {
-  return useQuery({
-    queryKey: scenariosQueryKey(),
-    queryFn: () => readAllScenarios(),
+  const query = useQuery({
+    queryKey: computed(() => simulationQueryKey(get(simulationId))),
+    queryFn: () =>
+      d.db.query.simulations.findFirst({
+        where: eq(d.simulations.id, get(simulationId)),
+      }),
     ...queryOptions,
   });
+
+  return {
+    query,
+    data: computed(() => query.data.value),
+  };
 }
 
-export function scenariosQueryKey() {
-  return ["scenarios"];
-}
-
-export function useScenarioQuery(
-  scenarioId: MaybeRef<string | undefined>,
-  queryOptions: QueryOptions = {
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-  },
-) {
-  return useQuery({
-    queryKey: scenarioQueryKey(get(scenarioId)!),
-    queryFn: () => ensureScenario(get(scenarioId)!),
-    enabled: computed(() => !!get(scenarioId)),
-    ...queryOptions,
-  });
-}
-
-export function scenarioQueryKey(scenarioId: string) {
-  return ["scenarios", scenarioId];
+export function simulationQueryKey(simulationId: number) {
+  return ["simulations", simulationId];
 }
 
 export function useSavesQuery(
-  scenarioId: string | undefined,
+  scenarioId: MaybeRef<string>,
   queryOptions: QueryOptions = {
-    // FIXME: Doesn't actually updates on focus etc.
-    // staleTime: Infinity,
-    // refetchOnWindowFocus: true,
-    // refetchOnMount: true,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
   },
 ) {
-  return useQuery({
-    queryKey: savesQueryKey(scenarioId),
-    queryFn: () => {
-      const conditions = [isNull(d.simulations.deletedAt)];
+  const { data: scenarios } = useScenariosQuery();
 
-      if (scenarioId) {
-        conditions.push(eq(d.simulations.scenarioId, scenarioId));
-      }
-
-      return d.db.query.simulations.findMany({
-        columns: { id: true, scenarioId: true },
+  const query = useQuery({
+    queryKey: computed(() => savesQueryKey(get(scenarioId))),
+    queryFn: () =>
+      d.db.query.simulations.findMany({
+        columns: {
+          id: true,
+          scenarioId: true,
+          updatedAt: true,
+          createdAt: true,
+        },
         orderBy: desc(d.simulations.updatedAt),
-        where: and(...conditions),
-      });
-    },
+        where: and(
+          isNull(d.simulations.deletedAt),
+          eq(d.simulations.scenarioId, get(scenarioId)!),
+        ),
+      }),
+    enabled: computed(() => scenarios.value !== undefined),
     ...queryOptions,
   });
+
+  return {
+    query,
+    data: computed(() => query.data.value),
+  };
 }
 
-export function savesQueryKey(scenarioId: string | undefined) {
+export function allSavesQueryKey() {
+  return ["saves"];
+}
+
+export function savesQueryKey(scenarioId: string) {
   return ["saves", scenarioId];
 }

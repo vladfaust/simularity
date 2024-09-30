@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { Mode, Simulation } from "@/lib/simulation";
 import { Update } from "@/lib/simulation/update";
+import { showUpdateIds } from "@/lib/storage";
 import { nonNullable } from "@/lib/utils";
-import { computed } from "vue";
+import { TransitionRoot } from "@headlessui/vue";
+import { computed, onMounted } from "vue";
 import InProgressUpdateVariant from "./Update/InProgressUpdateVariant.vue";
 import UpdateVariant from "./Update/UpdateVariant.vue";
 import VariantNavigation from "./Update/VariantNavigation.vue";
-import { TransitionRoot } from "@headlessui/vue";
-import { onMounted } from "vue";
 
 const props = defineProps<{
   simulation: Simulation;
@@ -92,7 +92,7 @@ onMounted(() => {
     @stop-edit="emit('stopEdit')"
   )
     template(#extra)
-      span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
+      span.text-sm.leading-none.opacity-40(v-if="showUpdateIds") \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
     template(
       #variant-navigation
       v-if="showVariantNavigation && !update.chosenVariant.writerUpdate.episodeId"
@@ -126,7 +126,7 @@ onMounted(() => {
       :class="{ 'absolute left-0 top-0 p-3': !update.inProgressVariant.value }"
     )
       template(#extra)
-        span.text-sm.leading-none.opacity-40 \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
+        span.text-sm.leading-none.opacity-40(v-if="showUpdateIds") \#{{ updateIndex }}({{ isHistorical ? "H" : isFuture ? "F" : "R" }})
       template(#variant-navigation)
         VariantNavigation(
           :can-go-previous="false"

@@ -1,5 +1,11 @@
 <script lang="ts" setup>
 import { LoaderIcon } from "lucide-vue-next";
+import { onMounted } from "vue";
+import { exit } from "@tauri-apps/api/process";
+
+onMounted(() => {
+  exit();
+});
 </script>
 
 <template lang="pug">

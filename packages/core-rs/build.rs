@@ -5,6 +5,7 @@ fn main() {
     let dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
     println!("cargo:rerun-if-changed=../core-cpp/src");
+    println!("cargo:rerun-if-changed=../core-cpp/vendor");
 
     #[cfg(feature = "cuda")]
     {

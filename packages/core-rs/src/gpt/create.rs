@@ -17,6 +17,7 @@ pub enum Error {
 ///
 /// * `model_id` - The model ID, after calling `model_load`.
 /// * `context_size` - Context size, or `None` for default by the model.
+/// * `batch_size` - Batch size, or `None` for default.
 /// * `initial_prompt` - Initial prompt to start the session.
 /// * `state_file_path` - Path to the session state file to load from or save to.
 /// * `progress_callback` - Progress callback on either session loading or decoding.
@@ -29,6 +30,7 @@ pub enum Error {
 pub fn create(
     model_id: &str,
     context_size: Option<u32>,
+    batch_size: Option<u32>,
     initial_prompt: Option<&str>,
     state_file_path: Option<&str>,
     mut progress_callback: Option<impl FnMut(f32) -> bool>,
@@ -48,6 +50,7 @@ pub fn create(
         ffi::simularity_gpt_create(
             model_id.as_ptr(),
             context_size.unwrap_or(0),
+            batch_size.unwrap_or(0),
             initial_prompt
                 .as_ref()
                 .map_or(std::ptr::null(), |p| p.as_ptr()),

@@ -53,7 +53,7 @@ function onCharacterClick(event: MouseEvent, characterId: string) {
       )
 </template>
 
-<style lang="scss" scoped>
+<style lang="postcss" scoped>
 ._index {
   @apply absolute flex items-center justify-center border bg-white;
 

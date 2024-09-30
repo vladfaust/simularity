@@ -3,8 +3,10 @@ import CharacterPfp from "@/components/CharacterPfp.vue";
 import { Simulation } from "@/lib/simulation";
 import { Update } from "@/lib/simulation/update";
 // import { minutesToClock, tap } from "@/lib/utils";
+import * as api from "@/lib/api";
 import {
   AudioLinesIcon,
+  BotIcon,
   CheckIcon,
   Edit3Icon,
   Loader2Icon,
@@ -13,11 +15,9 @@ import {
   Volume2Icon,
   XIcon,
 } from "lucide-vue-next";
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { toast } from "vue3-toastify";
 import RichText from "./RichText.vue";
-import { onMounted } from "vue";
-import * as api from "@/lib/api";
 
 const props = defineProps<{
   simulation: Simulation;
@@ -175,7 +175,7 @@ onMounted(() => {
 <template lang="pug">
 .flex.flex-col
   //- Top row.
-  .flex.items-center.justify-between.gap-2
+  .flex.items-center.justify-between.gap-3
     //- Character.
     .flex.items-center.gap-1
       template(v-if="character")
@@ -185,11 +185,13 @@ onMounted(() => {
         )
         span.font-semibold.leading-none(:style="{ color: character.color }") {{ character.name }}
       template(v-else-if="character === null")
+        .grid.aspect-square.h-5.place-items-center.rounded.border
+          BotIcon(:size="16")
         span.font-semibold.leading-none Narrator
       //- span.leading-none {{ clock }}
 
-      //- ADHOC: Consolidation indicator.
-      span.leading-none(v-if="variant.writerUpdate.didConsolidate") [C]
+      //- //- ADHOC: Consolidation indicator.
+      //- span.leading-none(v-if="variant.writerUpdate.didConsolidate") [C]
 
     //- Buttons.
     .flex.items-center.gap-2

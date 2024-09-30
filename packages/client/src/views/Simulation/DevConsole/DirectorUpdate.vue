@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import CustomTitle from "@/components/CustomTitle.vue";
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { Simulation, State } from "@/lib/simulation";
 import { compareStateDeltas } from "@/lib/simulation/state";
 import { Update } from "@/lib/simulation/update";
@@ -87,7 +87,7 @@ function removeCommand(index: number) {
 
 <template lang="pug">
 .flex.flex-col.gap-2
-  CustomTitle
+  RichTitle
     span.font-semibold.leading-snug.tracking-wide.text-white State delta
     AsteriskIcon.text-yellow-500.drop-shadow(
       v-if="modified"

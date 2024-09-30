@@ -2,6 +2,7 @@ import { type MaybeRef } from "vue";
 
 export * from "./queries/account";
 export * from "./queries/models";
+export * from "./queries/scenarios";
 export * from "./queries/simulations";
 
 export type QueryOptions = {

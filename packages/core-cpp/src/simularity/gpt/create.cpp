@@ -25,16 +25,19 @@ static bool llama_universal_cb_eval(ggml_tensor *, bool, void *user_data) {
 int simularity_gpt_create(
     const char *model_id,
     unsigned n_ctx,
+    unsigned n_batch,
     const char *initial_prompt,
     const char *state_file_path,
     void(progress_callback)(float, void *),
     void *progress_callback_user_data
 ) {
   spdlog::debug(
-      "simularity_gpt_create(model_id: {}, n_ctx: {}, initial_prompt: {}, "
+      "simularity_gpt_create(model_id: {}, n_ctx: {}, n_batch: {}, "
+      "initial_prompt: {}, "
       "state_file_path: {}, progress_callback: {})",
       model_id,
       n_ctx,
+      n_batch,
       initial_prompt ? "<Some>" : "<None>",
       state_file_path,
       progress_callback ? "<Some>" : "<None>"
@@ -86,16 +89,13 @@ int simularity_gpt_create(
   // Create new llama context.
   //
 
-  // The batch size is the context size or the training context size.
-  unsigned n_batch = n_ctx | llama_n_ctx_train(LLAMA_MODELS[model_id]->model);
-
   llama_context_params params = llama_context_default_params();
   params.n_ctx                = n_ctx;
-  params.n_batch              = n_batch;
-  params.cb_eval              = llama_universal_cb_eval;
+  if (n_batch > 0) params.n_batch = n_batch; // NOTE: Affects state loading.
+  params.cb_eval           = llama_universal_cb_eval;
   // Cast the session ID to void * and pass it as user data.
-  params.cb_eval_user_data    = static_cast<void *>(new unsigned(session_id));
-  params.flash_attn           = true; // NOTE: Affects state loading.
+  params.cb_eval_user_data = static_cast<void *>(new unsigned(session_id));
+  params.flash_attn        = true; // NOTE: Affects state loading.
   // params.rope_freq_base       = 100000;
   // params.rope_freq_scale      = 1;
 
@@ -197,7 +197,6 @@ int simularity_gpt_create(
         simularity_gpt_decode_internal(
             session.get(),
             tokens_list,
-            tokens_list.size(),
             progress_callback,
             progress_callback_user_data
         );

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RichTitle from "@/components/RichForm/RichTitle.vue";
 import * as api from "@/lib/api";
 import { confirm_ } from "@/lib/resources";
 import { remoteServerJwt } from "@/lib/storage";
@@ -12,7 +13,6 @@ import {
   MailIcon,
 } from "lucide-vue-next";
 import { computed } from "vue";
-import CustomTitle from "./CustomTitle.vue";
 
 const accountQuery = useAccountQuery();
 const accountBalanceQuery = useAccountBalanceQuery();
@@ -55,14 +55,14 @@ async function gotoPatreonCampaign() {
 
 <template lang="pug">
 .flex.flex-col
-  CustomTitle(title="E-mail")
+  RichTitle(title="E-mail")
     template(#icon)
       MailIcon(:size="20")
     template(#extra)
       Loader2Icon.animate-spin(:size="20" v-if="accountQuery.isLoading.value")
       .font-mono(v-else) {{ accountQuery.data.value?.email }}
 
-  CustomTitle(title="Credits")
+  RichTitle(title="Credits")
     template(#icon)
       CircleDollarSignIcon(:size="20")
     template(#extra)
@@ -72,7 +72,7 @@ async function gotoPatreonCampaign() {
       )
       .font-mono(v-else) ¢{{ accountBalanceQuery.data.value?.credit ?? 0 }}
 
-  CustomTitle(title="Patreon")
+  RichTitle(title="Patreon")
     template(#icon)
       img.h-5(src="/img/patreon.svg" alt="Patreon")
     template(#extra)

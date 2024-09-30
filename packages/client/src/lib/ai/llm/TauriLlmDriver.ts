@@ -1,4 +1,5 @@
 import { d } from "@/lib/drizzle";
+import type { LlmAgentId } from "@/lib/storage/llm";
 import * as tauri from "@/lib/tauri";
 import { Bug, sleep } from "@/lib/utils";
 import { eq } from "drizzle-orm";
@@ -42,6 +43,8 @@ export type TauriLlmDriverConfig = {
   // TODO: In that case, use RoPE.
   contextSize: number;
 
+  batchSize?: number;
+
   completionOptions?: Omit<CompletionOptions, "grammar" | "stopSequences">;
 };
 
@@ -55,6 +58,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
    * @param config Configuration of the driver, to validate against the session.
    */
   static async find(
+    agentId: LlmAgentId,
     latestSessionDatabaseId: number,
     config: TauriLlmDriverConfig,
   ): Promise<TauriLlmDriver | null> {
@@ -115,7 +119,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
         return null;
       }
 
-      return new TauriLlmDriver(config, {
+      return new TauriLlmDriver(agentId, config, {
         internalSessionId: dbSession.internalId,
         databaseSessionId: latestSessionDatabaseId,
       });
@@ -135,6 +139,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
    * yet initialization params are required to be passed now.
    */
   static create(
+    agentId: LlmAgentId,
     config: TauriLlmDriverConfig,
     initializationParams: {
       initialPrompt: string;
@@ -143,7 +148,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
     },
     initializeNow: boolean,
   ): TauriLlmDriver {
-    const driver = new TauriLlmDriver(config, initializationParams);
+    const driver = new TauriLlmDriver(agentId, config, initializationParams);
     if (initializeNow) driver._init();
     return driver;
   }
@@ -156,6 +161,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
     console.log("Initializing TauriLlmDriver...", {
       modelPath: this.config.modelPath,
       contextSize: this.config.contextSize,
+      batchSize: this.config.batchSize,
     });
 
     try {
@@ -175,13 +181,16 @@ export class TauriLlmDriver implements BaseLlmDriver {
       const modelHashPromise = tauri.gpt.getModelHashById(modelId);
 
       this.progress.value = 0;
-      const result = await tauri.gpt.create(
+      const result = await tauri.gpt.create({
         modelId,
-        this.config.contextSize,
-        this._initializationParams.value.initialPrompt,
-        (e) => (this.progress.value = e.progress),
-        this._initializationParams.value.dumpSession,
-      );
+        contextSize: this.config.contextSize,
+        batchSize: this.config.batchSize,
+        initialPrompt: this._initializationParams.value.initialPrompt,
+        progressCallback: (e) => (this.progress.value = e.progress),
+        cacheDir: this._initializationParams.value.dumpSession
+          ? this.agentId
+          : undefined,
+      });
       this.progress.value = 1;
 
       const internalSessionId = result.sessionId;
@@ -230,6 +239,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
   }
 
   private constructor(
+    readonly agentId: LlmAgentId,
     readonly config: TauriLlmDriverConfig,
     _initializationParams:
       | {
@@ -248,7 +258,8 @@ export class TauriLlmDriver implements BaseLlmDriver {
   compareConfig(other: TauriLlmDriverConfig): boolean {
     return (
       other.modelPath === this.config.modelPath &&
-      other.contextSize === this.config.contextSize
+      other.contextSize === this.config.contextSize &&
+      other.batchSize === this.config.batchSize
     );
   }
 
