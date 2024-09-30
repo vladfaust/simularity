@@ -545,16 +545,18 @@ export class DownloadManager {
    */
   async init() {
     await Promise.all([
-      // Writer models.
-      path
-        .join(await path.appLocalDataDir(), "models", "writer" as LlmAgentId)
-        .then((dir) => this.readDir(dir)),
-
-      // Director models.
-      path
-        .join(await path.appLocalDataDir(), "models", "director" as LlmAgentId)
-        .then((dir) => this.readDir(dir)),
+      this.initLlmAgentDir("writer"),
+      this.initLlmAgentDir("director"),
     ]);
+  }
+
+  private async initLlmAgentDir(agentId: LlmAgentId) {
+    return path
+      .join(await path.appLocalDataDir(), "models", agentId)
+      .then(async (dir) => {
+        await fs.createDir(dir, { recursive: true });
+        return this.readDir(dir);
+      });
   }
 }
 
