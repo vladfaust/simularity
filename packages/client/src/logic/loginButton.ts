@@ -46,7 +46,7 @@ export async function onLoginButtonClick(
         }
 
         if (redirectOnLogin) {
-          router.push(routeLocation({ name: "User" })).then(maybeShowToast);
+          router.push(routeLocation({ name: "Home" })).then(maybeShowToast);
         } else {
           maybeShowToast();
         }
