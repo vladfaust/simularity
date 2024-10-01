@@ -5,11 +5,7 @@ import RichInput from "@/components/RichForm/RichInput.vue";
 import RichToggle from "@/components/RichForm/RichToggle.vue";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
-import {
-  MessageSquareTextIcon,
-  Settings2Icon,
-  SigmaSquareIcon,
-} from "lucide-vue-next";
+import { MessageSquareTextIcon, Settings2Icon } from "lucide-vue-next";
 import { ref } from "vue";
 import LlmAgentModel from "./LlmAgent/LlmAgentModel.vue";
 
@@ -34,14 +30,6 @@ const selectedModel = ref<storage.llm.CachedModel | null>();
         b required
         |
         | for the simulation to function. It has to be a capable model trained for roleplay. Bigger context size allows to go on with the story for longer without the need to consolidate.
-
-    Alert.bg-white(type="info")
-      | Upon approaching the context size limit, press the consolidate button to free up the context.
-      template(#icon)
-        .btn.btn-shadow.aspect-square.h-max.rounded.border.bg-white.p-1.transition(
-          class="hover:animate-pulse hover:text-ai-500"
-        )
-          SigmaSquareIcon(:size="18")
 
   .flex.flex-col.gap-2.p-3
     .flex.flex-col.gap-2.rounded-lg.bg-white.p-3.shadow-lg

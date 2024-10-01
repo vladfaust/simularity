@@ -10,6 +10,7 @@ enum Status {
 
 const { simulation } = defineProps<{
   simulation: Simulation;
+  hideWhenOk?: boolean;
 }>();
 
 const status = computed<Status | undefined>(() => {
@@ -42,7 +43,7 @@ OctagonAlert.text-error-500(
   :size="18"
 )
 .h-2.w-2.rounded-full(
-  v-else
+  v-else-if="!hideWhenOk"
   :size="16"
   :stroke-width="2.5"
   :class="{ 'bg-green-500': status === Status.Idle, 'bg-yellow-500': status === Status.Busy, 'bg-neutral-500': status === undefined, 'animate-pulse': status === Status.Busy }"

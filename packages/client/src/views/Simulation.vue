@@ -198,6 +198,7 @@ onUnmounted(() => {
         :screenshot
         :inactive="canvasFade || mainMenu"
         @main-menu="mainMenu = true"
+        @dev-console="showDevModal = true"
         @screenshot="screenshot"
       )
 

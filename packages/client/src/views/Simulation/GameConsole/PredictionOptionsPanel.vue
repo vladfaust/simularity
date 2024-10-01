@@ -25,8 +25,8 @@ function onCharacterClick(event: MouseEvent, characterId: string) {
 
 <template lang="pug">
 .flex.justify-center
-  .flex.h-full.justify-center.gap-1.rounded-lg.p-2(class="bg-black/10")
-    //- Narrator
+  .flex.h-max.justify-center.gap-1.rounded-lg.p-2(class="bg-black/10")
+    //- Narrator.
     .relative
       ._index.-bottom-1.-left-1.z-10.h-4.w-4.rounded.shadow-lg
         span.text-xs 1

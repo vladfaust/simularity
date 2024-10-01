@@ -216,6 +216,13 @@ export class Simulation {
   });
 
   /**
+   * Whether the simulation needs consolidation.
+   */
+  readonly needsConsolidation = computed(
+    () => this._writer.needsConsolidation.value,
+  );
+
+  /**
    * The writer instance.
    */
   get writer() {
@@ -601,6 +608,8 @@ export class Simulation {
 
   /**
    * Predict the next update.
+   * Would consolidate the simulation if necessary.
+   *
    * @assert There is no current episode.
    * @assert Can not go forward.
    */
@@ -636,6 +645,11 @@ export class Simulation {
 
     this._busy.value = true;
     try {
+      if (this.needsConsolidation.value) {
+        console.log("Simulation needs consolidation");
+        await this.consolidate(false);
+      }
+
       if (this.mode === Mode.Immersive) {
         await this._commitCurrentState();
         this._dumpCurrentState();
@@ -856,14 +870,12 @@ export class Simulation {
   }
 
   /**
-   * If the consoldation is not possible, returns a `Error` instance.
-   *
-   * @assert The simulation is not busy.
-   * @assert There is a current update.
-   * @assert There is no active episode.
-   * @assert There are no future updates.
+   * Consolidate the simulation at the current update.
    */
-  readonly consolidationPreliminaryError = computed(() => {
+  async consolidate(
+    throwOnAlreadyConsolidated: boolean,
+    inferenceAbortSignal?: AbortSignal,
+  ) {
     if (this.busy.value) {
       return new Error("Simulation is busy");
     }
@@ -878,38 +890,16 @@ export class Simulation {
 
     const writerUpdate = this.currentUpdate.value?.chosenVariant?.writerUpdate;
     if (!writerUpdate) {
-      return new Error("No current update");
+      throw new Error("No current update");
     }
 
     if (writerUpdate.didConsolidate) {
-      return new Error("Update is already consolidated");
-    }
-  });
-
-  /**
-   * Whether the simulation can be consolidated.
-   * @see {@link consolidationPreliminaryError}.
-   */
-  readonly canConsolidate = computed(
-    () => !this.consolidationPreliminaryError.value,
-  );
-
-  /**
-   * Consolidate the simulation at the current update.
-   * @throws If {@link canConsolidate} is false.
-   */
-  async consolidate(inferenceAbortSignal?: AbortSignal) {
-    if (this.consolidationPreliminaryError.value) {
-      throw this.consolidationPreliminaryError.value;
-    }
-
-    if (!this.writer.ready.value) {
-      return new Error("Writer is not ready");
-    }
-
-    const writerUpdate = this.currentUpdate.value?.chosenVariant?.writerUpdate;
-    if (!writerUpdate) {
-      throw new Error("No current update");
+      if (throwOnAlreadyConsolidated) {
+        return new Error("Update is already consolidated");
+      } else {
+        console.log("Update is already consolidated");
+        return;
+      }
     }
 
     this._busy.value = true;

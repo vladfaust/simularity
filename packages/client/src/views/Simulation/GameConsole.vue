@@ -12,15 +12,14 @@ import { TransitionRoot } from "@headlessui/vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { StorageSerializers, useLocalStorage } from "@vueuse/core";
 import {
-  // CameraIcon,
-  ChevronDownIcon,
+  CameraIcon,
   ChevronUpIcon,
   Loader2Icon,
   MenuIcon,
   RedoDotIcon,
   SendHorizontalIcon,
+  ShapesIcon,
   SparklesIcon,
-  SquareSigmaIcon,
   UndoDotIcon,
 } from "lucide-vue-next";
 import { computed, onMounted, onUnmounted, ref, triggerRef, watch } from "vue";
@@ -56,6 +55,7 @@ watch(
 
 const emit = defineEmits<{
   (event: "mainMenu"): void;
+  (event: "devConsole"): void;
 }>();
 
 const modelSettings = ref<CompletionOptions>({
@@ -122,13 +122,6 @@ const enabledCharacterIds = useLocalStorage<Set<string>>(
 );
 
 const showVisualizeModal = ref(false);
-
-const contextGaugeCssVar = computed(() => {
-  const contextLength = simulation.contextLength.value;
-  const contextSize = simulation.writer.contextSize.value;
-  if (!contextLength || !contextSize) return 0;
-  return (contextLength / contextSize) * 100 + "%";
-});
 
 const inputPlaceholder = computed(
   () => `Speak as ${simulation.scenario.defaultCharacter.name}`,
@@ -475,19 +468,38 @@ onUnmounted(() => {
 .flex.h-full.w-full.flex-col.items-center.justify-between.gap-2.overflow-hidden(
   :class="{ grayscale: inactive }"
 )
-  //- Enable or disable characters.
-  PredictionOptionsPanel.max-w-xl(
-    :simulation
-    :enabled-character-ids="Array.from(enabledCharacterIds)"
-    @switch-enabled-character="switchEnabledCharacter"
-    @enable-only-character="enableOnlyCharacter"
-  )
+  .grid.w-full.gap-2(style="grid-template-columns: 1fr auto 1fr")
+    .flex.items-start.justify-start.gap-2
+      //- Main menu button.
+      button._menu-button.group(
+        @click="emit('mainMenu')"
+        title="Main menu (Esc)"
+      )
+        MenuIcon.transition(:size="20" class="group-hover:animate-pulse")
+        GpuStatus(:simulation :hide-when-ok="true")
 
-  .flex.max-h-full.w-full.max-w-xl.flex-col.gap-2.overflow-hidden.rounded-lg.p-2.shadow-lg(
+    //- Enable or disable characters.
+    PredictionOptionsPanel.max-w-xl(
+      :simulation
+      :enabled-character-ids="Array.from(enabledCharacterIds)"
+      @switch-enabled-character="switchEnabledCharacter"
+      @enable-only-character="enableOnlyCharacter"
+    )
+
+    .flex.items-start.justify-end
+      //- Sandbox button.
+      button._menu-button.group(
+        v-if="simulation.mode === Mode.Immersive"
+        @click="emit('devConsole')"
+        title="Dev console (`)"
+      )
+        ShapesIcon.transition(:size="20" class="group-hover:animate-pulse")
+
+  .flex.max-h-full.w-full.max-w-xl.flex-col.gap-2.overflow-hidden.rounded-lg.p-2(
     class="bg-black/10"
   )
     //- Top row.
-    .flex.gap-2.overflow-hidden(:class="updatesFullscreen ? 'h-full' : 'h-36'")
+    .flex.gap-2.overflow-hidden
       //- History of updates.
       UpdatesHistory.w-full(
         v-if="updatesFullscreen"
@@ -526,40 +538,28 @@ onUnmounted(() => {
         @stop-edit="isEditing = false"
       )
 
-      .flex.h-full.w-8.shrink-0.flex-col.justify-between.gap-1
+      .flex.h-full.w-8.shrink-0.flex-col.justify-between.gap-2
         //- Expand updates button.
         button._button.relative.aspect-square.w-full(
           title="Expand (h)"
           @click="switchUpdatesFullscreen"
         )
-          TransitionRoot.absolute(
-            :show="updatesFullscreen"
-            enter="duration-100 ease-out"
-            enter-from="scale-0 opacity-0"
-            enter-to="scale-100 opacity-100"
-            leave="duration-100 ease-in"
-            leave-from="scale-100 opacity-100"
-            leave-to="scale-0 opacity-0"
+          ChevronUpIcon.transition-transform(
+            :size="20"
+            :class="{ 'rotate-180': updatesFullscreen }"
           )
-            ChevronDownIcon(:size="20")
-          TransitionRoot.absolute(
-            :show="!updatesFullscreen"
-            enter="duration-100 ease-out"
-            enter-from="scale-0 opacity-0"
-            enter-to="scale-100 opacity-100"
-            leave="duration-100 ease-in"
-            leave-from="scale-100 opacity-100"
-            leave-to="scale-0 opacity-0"
-          )
-            ChevronUpIcon(:size="20")
 
-        .flex.flex-col.gap-1
-          //- //- Visualization button.
+        .flex.flex-col.gap-2
+          //- Visualization button.
+          button._button.aspect-square.w-full(title="Go back" disabled)
+            CameraIcon(:size="20")
+
           //- button._button.aspect-square.w-full(
-          //-   title="Go back"
-          //-   @click="showVisualizeModal = true"
+          //-   @click="emit('mainMenu')"
+          //-   title="Open menu"
           //- )
-          //-   CameraIcon(:size="20")
+          //-   MenuIcon.transition(:size="20" class="group-hover:animate-pulse")
+          //-   GpuStatus(:simulation :hide-when-ok="true")
 
           button._button.aspect-square.w-full(
             title="Go back (⬆️)"
@@ -667,49 +667,6 @@ onUnmounted(() => {
             class="group-hover:animate-pulse group-hover:text-ai-500"
           )
 
-    //- Status.
-    .flex.w-full.justify-between
-      .flex.w-full.items-center.gap-2
-        //- Quit to main menu button.
-        button.btn-shadow.group.flex.items-center.gap-1.rounded.bg-white.p-1.pr-2.shadow.transition.pressable(
-          @click="emit('mainMenu')"
-          title="Quit to main menu"
-        )
-          MenuIcon.transition(:size="20" class="group-hover:animate-pulse")
-          GpuStatus(:simulation)
-
-        //- Context gauge.
-        .flex.w-full.items-center.gap-2
-          .relative.flex.w-full.items-center.justify-center.shadow-lg(
-            :class="{ 'animate-pulse': simulation.consolidationInProgress.value }"
-          )
-            progress._ctx-progress.h-6.w-full(
-              :value="simulation.contextLength.value"
-              :max="simulation.writer.contextSize.value"
-              title="Context length"
-            )
-            span._ctx-progress-text.pointer-events-none.absolute.w-full.select-none.text-center.text-xs.font-medium(
-              :style="`--value: ${contextGaugeCssVar}`"
-            )
-              | {{ simulation.contextLength.value ?? "?" }}/{{ simulation.writer.contextSize.value }}
-
-          //- Summarize button.
-          button._status-button.group(
-            @click="simulation.consolidate()"
-            class="disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="!simulation.canConsolidate.value"
-            :title="simulation.consolidationPreliminaryError.value?.message ?? 'Consolidate'"
-          )
-            Loader2Icon.animate-spin(
-              v-if="simulation.consolidationInProgress.value"
-              :size="20"
-            )
-            SquareSigmaIcon(
-              v-else
-              :size="20"
-              class="group-hover:animate-pulse group-hover:text-ai-500"
-            )
-
   VisualizeModal(
     v-if="simulation"
     :open="showVisualizeModal"
@@ -724,25 +681,7 @@ onUnmounted(() => {
   @apply disabled:cursor-not-allowed disabled:opacity-50;
 }
 
-._status-button {
-  @apply btn-shadow aspect-square rounded bg-white p-1 shadow transition pressable;
-}
-
-._ctx-progress {
-  @apply opacity-90 transition-opacity hover:opacity-100 focus:opacity-100;
-
-  &::-webkit-progress-value {
-    @apply bg-gradient-to-t from-ai-600 to-ai-500;
-  }
-
-  &::-webkit-progress-bar {
-    @apply overflow-hidden rounded bg-white;
-  }
-}
-
-._ctx-progress-text {
-  background: linear-gradient(to right, white var(--value, 50%), black 0);
-  background-clip: text;
-  color: transparent;
+._menu-button {
+  @apply btn-shadow rounded bg-black/10 p-1.5 text-white transition pressable;
 }
 </style>

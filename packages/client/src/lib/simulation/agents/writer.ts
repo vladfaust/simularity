@@ -4,7 +4,6 @@ import {
   type BaseLlmDriver,
   type CompletionOptions,
 } from "@/lib/ai/llm/BaseLlmDriver";
-import { TauriLlmDriver } from "@/lib/ai/llm/TauriLlmDriver";
 import { d } from "@/lib/drizzle";
 import * as storage from "@/lib/storage";
 import { clockToMinutes, minutesToClock, trimEndAny } from "@/lib/utils";
@@ -43,34 +42,43 @@ export type VisualizationOptions = {
 type Checkpoint = Pick<typeof d.checkpoints.$inferSelect, "summary" | "state">;
 
 export class Writer {
-  readonly contextSize = computed(() =>
-    this.llmDriver.value?.contextSize
-      ? this.llmDriver.value?.contextSize -
-        (this.llmDriver.value instanceof TauriLlmDriver
-          ? this.hiddenContextSizeBuffer
-          : 0)
-      : undefined,
-  );
+  /**
+   * Context size required for the tasks.
+   */
+  static readonly TASK_BUFFER_SIZE = 1024;
+
+  /**
+   * Visible context size (w/o task buffer).
+   */
+  readonly contextSize = computed(() => this.llmDriver.value?.contextSize);
+
   readonly contextLength = ref<number | undefined>();
   readonly llmDriver: ShallowRef<BaseLlmDriver | null>;
   readonly ready = computed(() => this.llmDriver.value?.ready.value);
   private readonly _driverConfigWatchStopHandle: () => void;
 
   /**
-   * @param hiddenContextSizeBuffer Additional context size for tasks
-   * (only applicable to local models).
+   * Whether the context needs consolidation.
    */
-  constructor(
-    private scenario: Scenario,
-    private readonly hiddenContextSizeBuffer = 1024,
-  ) {
+  readonly needsConsolidation = computed(() =>
+    this.llmDriver.value && this.contextLength.value
+      ? this.contextLength.value >=
+        this.llmDriver.value.contextSize - Writer.TASK_BUFFER_SIZE
+      : undefined,
+  );
+
+  constructor(private scenario: Scenario) {
     this.llmDriver = shallowRef(null);
 
     this._driverConfigWatchStopHandle = hookLlmAgentToDriverRef(
       "writer",
       this.llmDriver,
       () => Writer.buildStaticPrompt(scenario),
-      (contextSize) => contextSize + hiddenContextSizeBuffer,
+      (driverContextSize) =>
+        Math.max(
+          driverContextSize,
+          this.scenario.content.contextWindowSize + Writer.TASK_BUFFER_SIZE,
+        ),
     );
   }
 

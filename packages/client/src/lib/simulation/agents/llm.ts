@@ -10,8 +10,8 @@ import type { ShallowRef, WatchStopHandle } from "vue";
 /**
  * Hooks an LLM agent to a driver reference.
  *
- * @param contextSizeModifier A function to modify the context size
- * (only for local drivers).
+ * @param localContextSizeModifier A function to modify
+ * the context size of a local driver.
  *
  * @returns A watch stop handle.
  */
@@ -19,7 +19,7 @@ export function hookLlmAgentToDriverRef(
   agentId: LlmAgentId,
   driverRef: ShallowRef<BaseLlmDriver | null>,
   initialPromptBuilder: () => string,
-  contextSizeModifier?: (contextSize: number) => number,
+  localContextSizeModifier?: (driverContextSize: number) => number,
 ): WatchStopHandle {
   const driverConfig = storage.llm.useDriverConfig(agentId);
   const latestSession = storage.llm.useLatestSession(agentId);
@@ -29,11 +29,11 @@ export function hookLlmAgentToDriverRef(
     async (driverConfig) => {
       console.debug("Driver config watch trigger", agentId, driverConfig);
 
-      if (contextSizeModifier && driverConfig?.type === "local") {
+      if (localContextSizeModifier && driverConfig?.type === "local") {
         // Clone the driver config to a local variable.
         driverConfig = clone(driverConfig);
 
-        driverConfig.contextSize = contextSizeModifier(
+        driverConfig.contextSize = localContextSizeModifier(
           driverConfig.contextSize,
         );
       }
