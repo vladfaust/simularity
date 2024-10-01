@@ -21,6 +21,7 @@ import { d, parseSelectResult, sqlite, type Transaction } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
 import { SQL_NOW } from "./drizzle/schema/_common";
 import * as resources from "./resources";
+import { ImmersiveScenario, ensureScenario, type Scenario } from "./scenario";
 import { Director } from "./simulation/agents/director";
 import { Voicer } from "./simulation/agents/voicer";
 import {
@@ -29,11 +30,6 @@ import {
   type PredictionOptions as WriterPredictionOptions,
 } from "./simulation/agents/writer";
 import { PredictUpdateVariantJob } from "./simulation/jobs/predictUpdateVariant";
-import {
-  ImmersiveScenario,
-  ensureScenario,
-  type Scenario,
-} from "./simulation/scenario";
 import { type StageRenderer } from "./simulation/stageRenderer";
 import {
   State,

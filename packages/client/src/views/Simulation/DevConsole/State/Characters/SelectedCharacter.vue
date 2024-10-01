@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import CharacterAvatar from "@/components/CharacterAvatar.vue";
 import CharacterPfp from "@/components/CharacterPfp.vue";
+import type { ImmersiveScenario } from "@/lib/scenario";
 import { Simulation } from "@/lib/simulation";
-import type { ImmersiveScenario } from "@/lib/simulation/scenario";
 import { asyncComputed } from "@vueuse/core";
 import { Grid2x2Icon, Grid2x2XIcon } from "lucide-vue-next";
 import { computed, ref } from "vue";

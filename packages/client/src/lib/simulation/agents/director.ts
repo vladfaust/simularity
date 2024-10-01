@@ -5,12 +5,12 @@ import {
 } from "@/lib/ai/llm/BaseLlmDriver";
 import { jsonSchemaToGnbf } from "@/lib/ai/llm/gnbf";
 import type { d } from "@/lib/drizzle";
+import { ImmersiveScenario } from "@/lib/scenario";
 import * as storage from "@/lib/storage";
 import { clone, safeParseJson, tap, trimEndAny } from "@/lib/utils";
 import { formatIssues, v } from "@/lib/valibot";
 import { toJSONSchema } from "@gcornut/valibot-json-schema";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
-import { ImmersiveScenario } from "../scenario";
 import { State, type StateDto } from "../state";
 import { type StateCommand } from "../state/commands";
 import { hookLlmAgentToDriverRef } from "./llm";

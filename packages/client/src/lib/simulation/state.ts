@@ -1,7 +1,7 @@
+import type { ImmersiveScenario } from "@/lib/scenario";
 import { deepEqual } from "fast-equals";
 import { readonly, ref, type Ref } from "vue";
 import { clone, unreachable } from "../utils";
-import type { ImmersiveScenario } from "./scenario";
 import { type StageRenderer } from "./stageRenderer";
 import { type StateCommand } from "./state/commands";
 

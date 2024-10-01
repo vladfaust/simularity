@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import type { ImmersiveScenario } from "@/lib/simulation/scenario";
+import type { ImmersiveScenario } from "@/lib/scenario";
 
 const { scenario, character } = defineProps<{
   scenario: ImmersiveScenario;

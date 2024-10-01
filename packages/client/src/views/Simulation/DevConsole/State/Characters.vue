@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Simulation } from "@/lib/simulation";
-import type { ImmersiveScenario } from "@/lib/simulation/scenario";
+import type { ImmersiveScenario } from "@/lib/scenario";
 import { nonNullable } from "@/lib/utils";
 import { useSessionStorage } from "@vueuse/core";
 import { CircleOffIcon, DramaIcon } from "lucide-vue-next";

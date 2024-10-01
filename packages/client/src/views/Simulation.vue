@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import Modal from "@/components/Modal.vue";
+import type { ImmersiveScenario } from "@/lib/scenario";
 import { Mode, Simulation } from "@/lib/simulation";
 import { DefaultScene } from "@/lib/simulation/phaser/defaultScene";
 import { Game } from "@/lib/simulation/phaser/game";
-import type { ImmersiveScenario } from "@/lib/simulation/scenario";
 import { ambientVolumeStorage, selectedScenarioId } from "@/lib/storage";
 import { nonNullable } from "@/lib/utils";
 import { TransitionRoot } from "@headlessui/vue";

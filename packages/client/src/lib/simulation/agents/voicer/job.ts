@@ -1,9 +1,9 @@
 import type { TtsParams } from "@/lib/ai/tts/BaseTtsDriver";
 import { TTS_SPEAKER } from "@/lib/api/v1/tts/create";
+import type { Scenario } from "@/lib/scenario";
 import { Deferred, sleep } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 import { ref } from "vue";
-import type { Scenario } from "../../scenario";
 import type { Voicer } from "../voicer";
 
 class MissingSpeakerError extends Error {

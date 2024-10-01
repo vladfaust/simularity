@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import RichTitle from "@/components/RichForm/RichTitle.vue";
-import type { Scenario } from "@/lib/simulation";
-import { BaseScenarioSchema } from "@/lib/simulation/scenario";
+import { BaseScenarioSchema, type Scenario } from "@/lib/scenario";
 import { v } from "@/lib/valibot";
 import { asyncComputed } from "@vueuse/core";
 import { TrophyIcon } from "lucide-vue-next";

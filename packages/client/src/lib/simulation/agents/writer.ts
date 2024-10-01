@@ -5,10 +5,10 @@ import {
   type CompletionOptions,
 } from "@/lib/ai/llm/BaseLlmDriver";
 import { d } from "@/lib/drizzle";
+import { type Scenario } from "@/lib/scenario";
 import * as storage from "@/lib/storage";
 import { clockToMinutes, minutesToClock, trimEndAny } from "@/lib/utils";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
-import { type Scenario } from "../scenario";
 import type { StateDto } from "../state";
 import { Update } from "../update";
 import { hookLlmAgentToDriverRef } from "./llm";

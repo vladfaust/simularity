@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ImmersiveScenario } from "@/lib/simulation/scenario";
+import type { ImmersiveScenario } from "@/lib/scenario";
 import { asyncComputed } from "@vueuse/core";
 
 const { scenario, scene } = defineProps<{

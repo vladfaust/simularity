@@ -1,8 +1,8 @@
+import { ImmersiveScenario } from "@/lib/scenario";
 import { sleep } from "@/lib/utils";
 import pRetry from "p-retry";
 import Phaser from "phaser";
 import { type DeepReadonly } from "vue";
-import { ImmersiveScenario } from "../scenario";
 import { type StageRenderer } from "../stageRenderer";
 import { type Stage } from "../state";
 

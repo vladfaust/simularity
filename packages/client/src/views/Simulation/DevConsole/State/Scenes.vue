@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Simulation } from "@/lib/simulation";
-import type { ImmersiveScenario } from "@/lib/simulation/scenario";
+import type { ImmersiveScenario } from "@/lib/scenario";
 import { ImageIcon, ImageOffIcon } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import OnStageMark from "./OnStageMark.vue";

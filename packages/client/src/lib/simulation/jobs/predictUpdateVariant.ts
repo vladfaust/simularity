@@ -1,6 +1,7 @@
 import * as baseLlmDriver from "@/lib/ai/llm/BaseLlmDriver";
 import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
+import type { Scenario } from "@/lib/scenario";
 import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { directorTeacherMode } from "@/lib/storage/llm";
@@ -11,7 +12,6 @@ import { markRaw, readonly, ref } from "vue";
 import * as director from "../agents/director";
 import * as voicer from "../agents/voicer";
 import * as writer from "../agents/writer";
-import type { Scenario } from "../scenario";
 import * as state from "../state";
 import type { Update } from "../update";
 

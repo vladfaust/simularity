@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Scenario } from "@/lib/simulation";
-import { ImmersiveScenario } from "@/lib/simulation/scenario";
+import { ImmersiveScenario } from "@/lib/scenario";
 import { prettyNumber } from "@/lib/utils";
 import {
   DramaIcon,

@@ -1,4 +1,4 @@
-import { ensureScenario, readAllScenarios } from "@/lib/simulation/scenario";
+import { ensureScenario, readAllScenarios } from "@/lib/scenario";
 import type { QueryOptions } from "@/queries";
 import { useQuery } from "@tanstack/vue-query";
 import { get } from "@vueuse/core";

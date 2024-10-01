@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import { type Scenario } from "@/lib/simulation/scenario";
+import { type Scenario } from "@/lib/scenario";
 import { CrownIcon } from "lucide-vue-next";
 import { computed } from "vue";
 

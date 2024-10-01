@@ -6,7 +6,7 @@ import RichTitle from "@/components/RichForm/RichTitle.vue";
 import ScenarioCard from "@/components/ScenarioCard.vue";
 import ScenarioDetails from "@/components/ScenarioDetails.vue";
 import { d } from "@/lib/drizzle";
-import { ImmersiveScenario } from "@/lib/simulation/scenario";
+import { ImmersiveScenario } from "@/lib/scenario";
 import * as tauri from "@/lib/tauri";
 import { useScenarioQuery } from "@/queries";
 import { and, desc, eq, isNull } from "drizzle-orm";

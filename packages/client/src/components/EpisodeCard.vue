@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type Scenario } from "@/lib/simulation/scenario";
+import { type Scenario } from "@/lib/scenario";
 import { asyncComputed } from "@vueuse/core";
 import { computed } from "vue";
 import Placeholder from "./Placeholder.vue";

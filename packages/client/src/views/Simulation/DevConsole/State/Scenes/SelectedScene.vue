@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import type { ImmersiveScenario } from "@/lib/scenario";
 import { Simulation } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
 import { Grid2X2Icon } from "lucide-vue-next";
 import { computed } from "vue";
 import OnStageMark from "../OnStageMark.vue";
-import type { ImmersiveScenario } from "@/lib/simulation/scenario";
 
 const { simulation, sceneId, scene } = defineProps<{
   simulation: Simulation;
