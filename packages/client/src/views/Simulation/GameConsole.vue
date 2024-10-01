@@ -465,9 +465,7 @@ onUnmounted(() => {
 </script>
 
 <template lang="pug">
-.flex.h-full.w-full.flex-col.items-center.justify-between.gap-2.overflow-hidden(
-  :class="{ grayscale: inactive }"
-)
+.flex.h-full.w-full.flex-col.items-center.justify-between.gap-2.overflow-hidden
   .grid.w-full.gap-2(style="grid-template-columns: 1fr auto 1fr")
     .flex.items-start.justify-start.gap-2
       //- Main menu button.

@@ -72,12 +72,12 @@ watchImmediate(newGameRequest, (episodeId) => {
 });
 
 const transition = {
-  enter: "duration-200 ease-out",
-  enterFrom: "opacity-0 transform scale-95 -translate-x-full",
-  enterTo: "opacity-100 transform scale-100 translate-x-0",
-  leave: "duration-200 ease-in",
-  leaveFrom: "opacity-100 transform scale-100 translate-x-0",
-  leaveTo: "opacity-0 transform scale-95 -translate-x-full",
+  enter: "duration-[200ms] ease-out",
+  enterFrom: "opacity-0 scale-95 -translate-x-1/3",
+  enterTo: "opacity-100 scale-100 translate-x-0",
+  leave: "duration-[200ms] ease-in",
+  leaveFrom: "opacity-100 scale-100 translate-x-0",
+  leaveTo: "opacity-0 scale-95 -translate-x-1/3",
 };
 
 async function exit() {
