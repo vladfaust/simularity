@@ -5,6 +5,7 @@ import { DefaultScene } from "@/lib/simulation/phaser/defaultScene";
 import { Game } from "@/lib/simulation/phaser/game";
 import type { ImmersiveScenario } from "@/lib/simulation/scenario";
 import { ambientVolumeStorage, selectedScenarioId } from "@/lib/storage";
+import { nonNullable } from "@/lib/utils";
 import { TransitionRoot } from "@headlessui/vue";
 import {
   BaseDirectory,
@@ -15,18 +16,17 @@ import {
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { asyncComputed, watchImmediate } from "@vueuse/core";
 import prettyBytes from "pretty-bytes";
-import { onMounted, onUnmounted, ref, shallowRef } from "vue";
+import { onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import MenuOverlay, { type Tab as MainMenuTab } from "./MenuOverlay.vue";
 import DevConsole from "./Simulation/DevConsole.vue";
 import GameConsole from "./Simulation/GameConsole.vue";
-import { nonNullable } from "@/lib/utils";
 
 const props = defineProps<{ simulationId: string }>();
 const simulationId = Number(props.simulationId);
 
 let simulation = shallowRef<Simulation | undefined>();
 let gameInstance: Game;
-let scene: DefaultScene;
+let scene: DefaultScene | undefined;
 
 const canvasFade = ref(false);
 const fullFade = ref(true);
@@ -132,6 +132,7 @@ onMounted(async () => {
     watchImmediate(
       () => ambientVolumeStorage.value,
       (ambientVolume) => {
+        if (!scene || mainMenu.value) return;
         scene.ambientVolume = ambientVolume / 100;
       },
     );
@@ -140,6 +141,16 @@ onMounted(async () => {
   }
 
   window.addEventListener("keypress", keypressEventListener);
+});
+
+watch(mainMenu, (value) => {
+  if (!scene) return;
+
+  if (value) {
+    scene.ambientVolume = 0;
+  } else {
+    scene.ambientVolume = ambientVolumeStorage.value / 100;
+  }
 });
 
 onUnmounted(() => {
