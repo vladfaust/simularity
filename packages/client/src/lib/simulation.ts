@@ -114,6 +114,11 @@ export class Simulation {
   readonly mode: Mode;
 
   /**
+   * Whether the simulation is in the sandbox mode.
+   */
+  readonly sandbox: boolean;
+
+  /**
    * The scenario.
    */
   readonly scenario: Scenario;
@@ -316,7 +321,12 @@ export class Simulation {
   /**
    * Create a new simulation.
    */
-  static async create(scenarioId: string, mode: Mode, episodeId?: string) {
+  static async create(
+    scenarioId: string,
+    mode: Mode,
+    sandbox: boolean,
+    episodeId?: string,
+  ) {
     const scenario = await ensureScenario(scenarioId);
     episodeId ||= scenario.defaultEpisodeId;
 
@@ -339,6 +349,7 @@ export class Simulation {
           .values({
             scenarioId,
             mode,
+            sandbox,
             starterEpisodeId: episodeId,
           })
           .returning({ id: d.simulations.id })
@@ -425,6 +436,7 @@ export class Simulation {
       simulationId,
       simulation.scenarioId,
       simulation.mode,
+      simulation.sandbox,
       scenario,
     );
 
@@ -1722,6 +1734,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     id: number,
     scenarioId: string,
     mode: Mode,
+    sandbox: boolean,
     scenario: Scenario,
   ) {
     if (mode === Mode.Immersive && !(scenario instanceof ImmersiveScenario)) {
@@ -1731,6 +1744,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     this.id = id;
     this.scenarioId = scenarioId;
     this.mode = mode;
+    this.sandbox = sandbox;
     this.scenario = scenario;
 
     this.state =

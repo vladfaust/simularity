@@ -8,6 +8,10 @@ import UpdateVue from "./Update.vue";
 
 const { simulation } = defineProps<{
   simulation: Simulation;
+  canRegenerate: boolean;
+  canEdit: boolean;
+  showVariantNavigation: boolean;
+  hidePreference?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -155,9 +159,10 @@ onMounted(() => {
     UpdateVue(
       :simulation
       :update
-      :can-regenerate="true"
-      :can-edit="true"
-      :show-variant-navigation="true"
+      :can-regenerate
+      :can-edit
+      :show-variant-navigation
+      :hide-preference
       :is-single="false"
       :selected="simulation.updates.value.length - 1 - i === simulation.currentUpdateIndex.value"
       :update-index="simulation.updates.value.length - 1 - i"

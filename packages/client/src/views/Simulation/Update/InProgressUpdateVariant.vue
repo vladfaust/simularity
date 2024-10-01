@@ -1,14 +1,12 @@
 <script lang="ts" setup>
-import type { Update } from "@/lib/simulation/update";
-import RichText from "./RichText.vue";
-import { computed } from "vue";
-import type { Simulation } from "@/lib/simulation";
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import { PREDICTION_REGEX, NARRATOR } from "@/lib/simulation/agents/writer";
-import { ref } from "vue";
-import { watch } from "vue";
-import { ThumbsDownIcon } from "lucide-vue-next";
+import type { Simulation } from "@/lib/simulation";
+import { NARRATOR, PREDICTION_REGEX } from "@/lib/simulation/agents/writer";
+import type { Update } from "@/lib/simulation/update";
 import { TransitionRoot } from "@headlessui/vue";
+import { BotIcon, ThumbsDownIcon } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import RichText from "./RichText.vue";
 
 const props = defineProps<{
   variant?: NonNullable<Update["inProgressVariant"]["value"]>;
@@ -16,6 +14,7 @@ const props = defineProps<{
   live: boolean;
   simulation: Simulation;
   translucent: boolean;
+  phonyPreferenceButton: boolean;
 }>();
 
 const match = computed(() =>
@@ -79,7 +78,7 @@ const character = computed(() => {
 <template lang="pug">
 .flex.flex-col
   //- Top row.
-  .flex.items-center.justify-between.gap-2
+  .flex.items-center.justify-between.gap-3
     div
       TransitionRoot(
         :show="character !== undefined"
@@ -101,6 +100,8 @@ const character = computed(() => {
               :style="{ color: character.color }"
             ) {{ character.name }}
           template(v-else-if="character === null")
+            .grid.aspect-square.h-5.place-items-center.rounded.border
+              BotIcon(:size="16")
             span.font-semibold.leading-none Narrator
 
           //- span.leading-none {{ bufferedClock }}
@@ -108,7 +109,11 @@ const character = computed(() => {
     //- Buttons.
     .flex.items-center.gap-2
       //- ADHOC: To even the heights with the Update.
-      ThumbsDownIcon.opacity-0(:size="18" style="margin-top: 0.3rem")
+      ThumbsDownIcon.opacity-0(
+        v-if="phonyPreferenceButton"
+        :size="18"
+        style="margin-top: 0.3rem"
+      )
 
       slot(name="extra")
       slot(name="variant-navigation")
@@ -117,6 +122,7 @@ const character = computed(() => {
   .overflow-y-scroll(
     ref="textContainer"
     :class="{ 'h-full overflow-y-scroll': isSingle }"
+    class="mt-0.5"
   )
     p
       RichText(

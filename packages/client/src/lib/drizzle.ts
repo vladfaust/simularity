@@ -159,6 +159,9 @@ export async function migrate(
     new (
       await import("./drizzle/migrations/008_set_checkpoints_state_nullabe.js")
     ).default(),
+    new (
+      await import("./drizzle/migrations/009_add_sandbox_to_simulations.js")
+    ).default(),
   ];
 
   return migrate_(

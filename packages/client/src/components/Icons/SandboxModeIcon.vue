@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { WallpaperIcon } from "lucide-vue-next";
+import { ShapesIcon } from "lucide-vue-next";
 </script>
 
 <template lang="pug">
-WallpaperIcon
+ShapesIcon
 </template>

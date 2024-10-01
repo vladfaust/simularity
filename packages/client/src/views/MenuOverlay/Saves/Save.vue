@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ChatModeIcon from "@/components/Icons/ChatModeIcon.vue";
 import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
+import SandboxModeIcon from "@/components/Icons/SandboxModeIcon.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { d } from "@/lib/drizzle";
@@ -84,6 +85,11 @@ const latestMessage = computed<SimpleMessage | null>(() => {
         span.text-xs.leading-tight.text-gray-500 Upd. {{ simulation.updatedAt.toLocaleString() }}
       template(#extra)
         .flex.gap-1
+          SandboxModeIcon.cursor-help(
+            v-if="simulation.sandbox"
+            :size="16"
+            v-tooltip="'This simulation runs in a sandbox mode'"
+          )
           ImmersiveModeIcon.cursor-help(
             v-if="simulation?.mode === Mode.Immersive"
             :size="16"

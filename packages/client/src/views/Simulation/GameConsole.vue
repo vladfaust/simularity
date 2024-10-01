@@ -503,6 +503,10 @@ onUnmounted(() => {
         v-if="updatesFullscreen"
         :simulation
         :fullscreen="true"
+        :hide-preference="true"
+        :can-regenerate="simulation.sandbox"
+        :can-edit="simulation.sandbox"
+        :show-variant-navigation="simulation.sandbox"
         @trigger-edit-handler="triggerEditHandler = $event"
         @trigger-previous-variant-handler="triggerPreviousVariantHandler = $event"
         @trigger-next-variant-handler="triggerNextVariantHandler = $event"
@@ -521,10 +525,11 @@ onUnmounted(() => {
         :simulation
         :update="simulation.currentUpdate.value"
         :key="simulation.currentUpdate.value.parentId || 'root'"
-        :can-regenerate="true"
-        :can-edit="true"
+        :can-regenerate="simulation.sandbox"
+        :can-edit="simulation.sandbox"
         :is-single="true"
-        :show-variant-navigation="true"
+        :show-variant-navigation="simulation.sandbox"
+        :hide-preference="true"
         :update-index="simulation.currentUpdateIndex.value"
         @trigger-edit-handler="triggerEditHandler = $event"
         @trigger-previous-variant-handler="triggerPreviousVariantHandler = $event"
@@ -549,15 +554,11 @@ onUnmounted(() => {
 
         .flex.flex-col.gap-2
           //- Visualization button.
-          button._button.aspect-square.w-full(title="Go back" disabled)
+          button._button.aspect-square.w-full(
+            title="Neural screenshot (soon)"
+            disabled
+          )
             CameraIcon(:size="20")
-
-          //- button._button.aspect-square.w-full(
-          //-   @click="emit('mainMenu')"
-          //-   title="Open menu"
-          //- )
-          //-   MenuIcon.transition(:size="20" class="group-hover:animate-pulse")
-          //-   GpuStatus(:simulation :hide-when-ok="true")
 
           button._button.aspect-square.w-full(
             title="Go back (⬆️)"

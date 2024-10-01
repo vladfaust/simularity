@@ -16,6 +16,7 @@ export const simulations = sqliteTable(
      * {@link import("../../simulation").Mode}
      */
     mode: integer("mode", { mode: "number" }).notNull(),
+    sandbox: integer("sandbox", { mode: "boolean" }).notNull(),
 
     starterEpisodeId: text("starter_episode_id"),
     currentUpdateId: integer("current_writer_update_id"),

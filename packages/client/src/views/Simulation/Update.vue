@@ -123,6 +123,7 @@ onMounted(() => {
       :live="true"
       :translucent="simulation.mode === Mode.Immersive"
       :simulation
+      :phony-preference-button="!hidePreference"
       :class="{ 'absolute left-0 top-0 p-3': !update.inProgressVariant.value }"
     )
       template(#extra)

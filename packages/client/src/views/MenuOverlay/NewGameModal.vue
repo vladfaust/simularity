@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import EpisodeCard from "@/components/EpisodeCard.vue";
-import ChatModeIcon from "@/components/Icons/ChatModeIcon.vue";
 import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
+import SandboxModeIcon from "@/components/Icons/SandboxModeIcon.vue";
 import Modal from "@/components/Modal.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
+import RichToggle from "@/components/RichForm/RichToggle.vue";
 import ScenarioCard from "@/components/ScenarioCard.vue";
 import { Mode, Simulation, type Scenario } from "@/lib/simulation";
 import { ImmersiveScenario } from "@/lib/simulation/scenario";
+import { allSavesQueryKey } from "@/queries";
 import router, { routeLocation } from "@/router";
+import { useQueryClient } from "@tanstack/vue-query";
 import { asyncComputed, useElementSize } from "@vueuse/core";
 import { SparkleIcon } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
+
+const queryClient = useQueryClient();
 
 const props = defineProps<{
   open: boolean;
@@ -38,9 +43,8 @@ const selectedEpisodeImageUrl = asyncComputed(() =>
     : null,
 );
 
-const mode = ref(
-  props.scenario instanceof ImmersiveScenario ? Mode.Immersive : Mode.Chat,
-);
+const immersiveMode = ref(props.scenario instanceof ImmersiveScenario);
+const sandboxMode = ref(false);
 
 const detailsRef = ref<HTMLElement | null>(null);
 const detailsSize = useElementSize(detailsRef);
@@ -50,9 +54,12 @@ const helperSize = useElementSize(helperRef);
 async function play(episodeId?: string | null) {
   const simulationId = await Simulation.create(
     props.scenario.id,
-    mode.value,
+    immersiveMode.value ? Mode.Immersive : Mode.Chat,
+    sandboxMode.value,
     episodeId ?? undefined,
   );
+
+  queryClient.invalidateQueries({ queryKey: allSavesQueryKey() });
 
   router.push(
     routeLocation({
@@ -78,7 +85,7 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
     SparkleIcon(:size="22")
 
   .relative.max-h-full.overflow-hidden(
-    :style="{ height: 'calc(' + detailsSize.height.value + 'px + 1.5rem)' }"
+    :style="{ height: 'calc(' + detailsSize.height.value + 'px)' }"
   )
     .pointer-events-none.absolute.h-full.w-full(ref="helperRef")
     .grid.max-h-full.grid-cols-5.divide-x.overflow-y-hidden(
@@ -104,37 +111,38 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
           )
 
       //- Episode details.
-      .col-span-3.h-full.overflow-y-scroll.p-3
-        .flex.h-max.flex-col.gap-2(ref="detailsRef")
-          img.aspect-video.rounded-lg.border-4.border-white.object-cover.shadow-lg(
-            v-if="selectedEpisodeImageUrl"
-            :src="selectedEpisodeImageUrl"
-          )
-          Placeholder.aspect-video.w-full.rounded-lg.border-4.bg-white.shadow-lg.shadow-lg(
-            v-else
-          )
+      .col-span-3.h-full.overflow-y-scroll
+        .flex.h-max.flex-col.divide-y(ref="detailsRef")
+          .flex.flex-col.gap-2.p-3
+            img.aspect-video.rounded-lg.border-4.border-white.object-cover.shadow-lg(
+              v-if="selectedEpisodeImageUrl"
+              :src="selectedEpisodeImageUrl"
+            )
+            Placeholder.aspect-video.w-full.rounded-lg.border-4.bg-white.shadow-lg.shadow-lg(
+              v-else
+            )
 
-          .my-1.px-1
-            RichTitle(:title="selectedEpisode.name" :hide-border="true")
-            p.leading-snug {{ selectedEpisode.about }}
+            .mt-1.px-1
+              RichTitle(:title="selectedEpisode.name" :hide-border="true")
+              p.leading-snug {{ selectedEpisode.about }}
 
-          .flex.divide-x.overflow-hidden.rounded-lg.border.bg-white
-            .w-full
-              button._mode-button(
-                @click="mode = Mode.Chat"
-                :class="{ _selected: mode === Mode.Chat }"
-              )
-                ChatModeIcon(:size="20")
-                | Chat mode
-
-            .w-full
-              button._mode-button(
-                @click="mode = Mode.Immersive"
-                :class="{ _selected: mode === Mode.Immersive }"
-                :disabled="!(scenario instanceof ImmersiveScenario)"
-              )
+          .flex.flex-col.gap-2.p-3
+            RichToggle#immersive(
+              title="Immersive mode"
+              help="In immersive mode, you can play the simulation as a visual novel."
+              v-model="immersiveMode"
+              :disabled="!(scenario instanceof ImmersiveScenario)"
+            )
+              template(#icon)
                 ImmersiveModeIcon(:size="20")
-                | Immersive mode
+
+            RichToggle#sandbox(
+              title="Sandbox mode"
+              help="In sandbox mode, you get full control over the simulation."
+              v-model="sandboxMode"
+            )
+              template(#icon)
+                SandboxModeIcon(:size="20")
 
   .col-span-full.border-t.p-3
     button.btn.btn-pressable-sm.btn-primary.btn-md.w-full.rounded-lg(
@@ -149,7 +157,7 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
   @apply btn btn-sm w-full p-2;
 
   &._selected {
-    @apply text-primary-500;
+    @apply btn-primary;
   }
 }
 </style>

@@ -261,7 +261,7 @@ onMounted(() => {
       slot(v-if="!editInProgress" name="variant-navigation")
 
   //- Text.
-  div(:class="{ 'h-full overflow-y-scroll': isSingle }")
+  div(:class="{ 'h-full overflow-y-scroll': isSingle }" class="mt-0.5")
     textarea.mt-1.h-full.w-full.rounded-lg.bg-neutral-100.px-2.py-1.font-mono.text-sm.leading-snug(
       v-if="editInProgress"
       ref="editTextarea"
