@@ -1,9 +1,9 @@
 import * as api from "@/lib/api";
 import { d } from "@/lib/drizzle";
 import { type LatestSession } from "@/lib/storage/llm";
-import { Bug, mergeAbortSignals, omit, timeoutSignal } from "@/lib/utils";
+import { Bug, Deferred, unreachable } from "@/lib/utils";
+import { type Text2TextCompletionEpilogue } from "@simularity/api/lib/schema";
 import { eq } from "drizzle-orm";
-import { toMilliseconds } from "duration-fns";
 import { ref, type Ref } from "vue";
 import {
   LlmGrammarLang,
@@ -31,7 +31,6 @@ export class RemoteLlmDriver implements BaseLlmDriver {
   static async create(
     config: RemoteLlmDriverConfig,
     latestSession: Ref<LatestSession | null>,
-    jwt: Readonly<Ref<string | null>>,
   ) {
     let databaseSession;
     outer: if (latestSession.value) {
@@ -77,7 +76,7 @@ export class RemoteLlmDriver implements BaseLlmDriver {
       }
     }
 
-    const models = await api.v1.models.index(config.baseUrl);
+    const models = await api.trpc.commandsClient.models.index.query();
     const model = models.find(
       (model) => model.type === "llm" && model.id === config.modelId,
     );
@@ -87,7 +86,6 @@ export class RemoteLlmDriver implements BaseLlmDriver {
     return new RemoteLlmDriver(
       config,
       model.contextSize,
-      jwt,
       latestSession,
       databaseSession?.externalId,
     );
@@ -105,7 +103,6 @@ export class RemoteLlmDriver implements BaseLlmDriver {
   private constructor(
     readonly config: RemoteLlmDriverConfig,
     readonly contextSize: number,
-    readonly jwt: Readonly<Ref<string | null>>,
     private _latestSession: Ref<LatestSession | null>,
     private _externalSessionId: string | undefined,
   ) {}
@@ -117,74 +114,117 @@ export class RemoteLlmDriver implements BaseLlmDriver {
     );
   }
 
-  // TODO: Support streaming progress events.
   async createCompletion(
     prompt: string,
     nEval: number,
     inferenceOptions: CompletionOptions,
     _decodeCallback?: (event: DecodeProgressEventPayload) => void,
-    _completionCallback?: (event: CompletionProgressEventPayload) => void,
+    completionCallback?: (event: CompletionProgressEventPayload) => void,
     abortSignal?: AbortSignal,
   ): Promise<CompletionResult> {
-    if (!this.jwt.value) {
-      throw new Error("JWT token not set");
-    }
-
     const startedAt = Date.now();
+
     try {
       this.busy.value = true;
       this.status.value = LlmStatus.Inferring;
 
-      const fetchTimeout = timeoutSignal(toMilliseconds({ minutes: 10 }));
-      let signal;
-      if (abortSignal) {
-        signal = mergeAbortSignals(abortSignal, fetchTimeout);
-      } else {
-        signal = fetchTimeout;
+      let deferred = new Deferred<void>();
+      let output = "";
+      let epilogue: Text2TextCompletionEpilogue | undefined;
+
+      const subscription =
+        api.trpc.subscriptionsClient.text2Text.createCompletion.subscribe(
+          {
+            model: this.config.modelId,
+            prompt: prompt,
+            sessionId: this._externalSessionId,
+            temperature: inferenceOptions.temp,
+
+            guided_regex:
+              inferenceOptions.grammar?.lang === LlmGrammarLang.Regex
+                ? inferenceOptions.grammar?.content
+                : undefined,
+
+            guided_json:
+              inferenceOptions.grammar?.lang === LlmGrammarLang.JsonSchema
+                ? inferenceOptions.grammar?.content
+                : undefined,
+
+            max_tokens: nEval,
+            min_p: inferenceOptions.minP,
+            presence_penalty: inferenceOptions.penalty?.present,
+            repetition_penalty: inferenceOptions.penalty?.repeat,
+            stop: inferenceOptions.stopSequences,
+            top_k: inferenceOptions.topK,
+            top_p: inferenceOptions.topP,
+          },
+          {
+            onData: (data) => {
+              console.debug("Subscription data", data);
+
+              switch (data.type) {
+                case "inference":
+                  output += data.tokens.join("");
+
+                  completionCallback?.({
+                    content: data.tokens.join(""),
+                  });
+
+                  break;
+
+                case "epilogue":
+                  epilogue = data;
+                  break;
+
+                default:
+                  throw unreachable(data);
+              }
+            },
+
+            onError: (e) => {
+              console.error("Subscription error", e);
+              deferred.reject(e);
+            },
+
+            onComplete: () => {
+              console.debug("Subscription completed");
+              deferred.resolve();
+            },
+
+            onStarted: () => {
+              console.debug("Subscription started");
+            },
+
+            onStopped: () => {
+              console.debug("Subscription stopped");
+              deferred.resolve();
+            },
+          },
+        );
+
+      abortSignal?.addEventListener("abort", () => {
+        console.debug("Aborting inference");
+        subscription.unsubscribe();
+      });
+
+      await deferred.promise;
+
+      if (!epilogue) {
+        throw new Error("Epilogue not received");
       }
 
-      const response = await api.v1.completions.create(
-        this.config.baseUrl,
-        this.jwt.value,
-        this._externalSessionId,
-        {
-          model: this.config.modelId,
-          prompt: prompt,
-          temperature: inferenceOptions.temp,
-
-          guided_regex:
-            inferenceOptions.grammar?.lang === LlmGrammarLang.Regex
-              ? inferenceOptions.grammar?.content
-              : undefined,
-
-          guided_json:
-            inferenceOptions.grammar?.lang === LlmGrammarLang.JsonSchema
-              ? inferenceOptions.grammar?.content
-              : undefined,
-
-          max_tokens: nEval,
-          min_p: inferenceOptions.minP,
-          presence_penalty: inferenceOptions.penalty?.present,
-          repetition_penalty: inferenceOptions.penalty?.repeat,
-          stop: inferenceOptions.stopSequences,
-          top_k: inferenceOptions.topK,
-          top_p: inferenceOptions.topP,
-        },
-        signal,
-      );
-
-      console.debug("Response", omit(response, ["output"]));
+      console.debug("Epilogue", epilogue);
 
       // If the response contains a new session ID, store it in the database.
       // The old session seems to be invalidated after a while.
-      if (response.sessionId !== this._externalSessionId) {
+      if (epilogue.sessionId !== this._externalSessionId) {
         this._latestSession.value = {
           driver: "remote",
           id: (
             await d.db
               .insert(d.llmRemoteSessions)
               .values({
-                externalId: response.sessionId,
+                externalId: epilogue.sessionId,
                 baseUrl: this.config.baseUrl,
                 modelId: this.config.modelId,
                 contextSize: this.contextSize,
@@ -196,7 +236,7 @@ export class RemoteLlmDriver implements BaseLlmDriver {
         };
       }
 
-      this._externalSessionId = response.sessionId;
+      this._externalSessionId = epilogue.sessionId;
       if (!(this._latestSession.value?.driver === "remote")) {
         throw new Error("[BUG] Latest session value is not set");
       }
@@ -208,15 +248,15 @@ export class RemoteLlmDriver implements BaseLlmDriver {
             remoteSessionId: this._latestSession.value.id,
             options: inferenceOptions,
             input: prompt,
-            inputLength: response.usage.promptTokens,
-            output: response.output,
-            outputLength: response.usage.completionTokens,
+            inputLength: epilogue.usage.promptTokens,
+            output,
+            outputLength: epilogue.usage.completionTokens,
             error: abortSignal?.aborted ? "Aborted" : undefined,
-            delayTime: response.usage.delayTime,
-            executionTime: response.usage.executionTime,
+            delayTime: epilogue.usage.delayTime,
+            executionTime: epilogue.usage.executionTime,
             realTime: Date.now() - startedAt,
-            creditCost: response.usage.creditCost
-              ? Math.round(parseFloat(response.usage.creditCost) * 100)
+            creditCost: epilogue.usage.creditCost
+              ? Math.round(parseFloat(epilogue.usage.creditCost) * 100)
               : undefined,
           })
           .returning()

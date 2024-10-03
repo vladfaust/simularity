@@ -2,8 +2,8 @@
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import * as api from "@/lib/api";
 import { confirm_ } from "@/lib/resources";
-import { remoteServerJwt } from "@/lib/storage";
-import { onLoginButtonClick } from "@/logic/loginButton";
+import * as storage from "@/lib/storage";
+import { sleep } from "@/lib/utils";
 import {
   accountBalanceQueryKey,
   accountQueryKey,
@@ -12,6 +12,7 @@ import {
 } from "@/queries";
 import { useQueryClient } from "@tanstack/vue-query";
 import { shell } from "@tauri-apps/api";
+import { toMilliseconds } from "duration-fns";
 import {
   CircleDollarSignIcon,
   ExternalLinkIcon,
@@ -20,7 +21,11 @@ import {
   MailIcon,
   User2Icon,
 } from "lucide-vue-next";
+import { nanoid } from "nanoid";
 import { computed, ref } from "vue";
+import { toast } from "vue3-toastify";
+
+const LOGIN_TIMEOUT = toMilliseconds({ minutes: 5 });
 
 const accountQuery = useAccountQuery();
 const accountBalanceQuery = useAccountBalanceQuery();
@@ -30,9 +35,52 @@ const patreon = computed(() => accountQuery.data.value?.oAuthAccounts.patreon);
 const loginInProgress = ref(false);
 
 async function login() {
-  await onLoginButtonClick(loginInProgress, false, true);
-  await queryClient.invalidateQueries({ queryKey: accountQueryKey() });
-  await queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
+  try {
+    loginInProgress.value = true;
+
+    const nonce = nanoid();
+    const url = import.meta.env.VITE_WEB_BASE_URL + "/login?nonce=" + nonce;
+    console.log("Opening login page", url);
+    await shell.open(url);
+
+    const start = Date.now();
+    while (true) {
+      const response = await api.trpc.commandsClient.auth.nonce.check.query({
+        nonce,
+      });
+
+      if (!response) {
+        console.log("Still waiting for login...");
+
+        if (Date.now() - start > LOGIN_TIMEOUT) {
+          throw new Error("Login timed out");
+        }
+
+        await sleep(1000);
+        continue;
+      }
+
+      console.log("Logged in", response);
+
+      toast("Successfully logged in", {
+        theme: "auto",
+        type: "success",
+        position: "bottom-right",
+        pauseOnHover: false,
+      });
+
+      storage.user.save(response.userId, response.cookieMaxAge);
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: accountQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() }),
+      ]);
+
+      break;
+    }
+  } finally {
+    loginInProgress.value = false;
+  }
 }
 
 async function logout() {
@@ -45,15 +93,22 @@ async function logout() {
     return;
   }
 
-  remoteServerJwt.value = null;
+  await api.trpc.commandsClient.auth.delete.mutate();
+  storage.user.clear();
 
-  await queryClient.invalidateQueries({ queryKey: accountQueryKey() });
-  await queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: accountQueryKey() }),
+    queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() }),
+  ]);
 }
 
 // TODO: Make it display the progress.
 async function linkPatreon() {
-  const { url } = await api.v1.auth.oauth.create("patreon", "link");
+  const { url } = await api.trpc.commandsClient.auth.oauth.create.mutate({
+    providerId: "patreon",
+    reason: "link",
+  });
+
   await shell.open(url);
 }
 
@@ -81,7 +136,9 @@ async function gotoPatreonCampaign() {
       )
         LogOutIcon(:size="18")
 
-  .flex.w-full.flex-col.p-3(v-if="accountQuery.data.value")
+  .flex.w-full.flex-col.p-3(
+    v-if="storage.user.id.value && accountQuery.data.value"
+  )
     RichTitle(title="E-mail")
       template(#icon)
         MailIcon(:size="20")
@@ -109,7 +166,7 @@ async function gotoPatreonCampaign() {
         .flex.flex-col.items-end(v-if="patreon")
           span(v-if="patreon.tier")
             span.font-semibold {{ patreon.tier.name }}
-            | &nbsp;until {{ patreon.tier.activeUntil.toLocaleDateString() }}
+            | &nbsp;until {{ new Date(patreon.tier.activeUntil).toLocaleDateString() }}
           button.btn.link.gap-1(v-else @click="gotoPatreonCampaign")
             | See tiers
             ExternalLinkIcon(:size="16")

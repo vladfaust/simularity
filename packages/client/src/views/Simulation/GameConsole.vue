@@ -252,8 +252,6 @@ async function advance() {
  */
 function chooseUpdateVariant(updateIndex: number, variantIndex: number) {
   fadeCanvas(async () => {
-    simulation.voicer.stopTts();
-
     if (updateIndex !== simulation.currentUpdateIndex.value) {
       await simulation.jumpToIndex(updateIndex);
     }
@@ -520,7 +518,7 @@ onUnmounted(() => {
 
       //- Single update.
       //- FIXME: `can-edit-user-update` shall be true only in specific cases.
-      UpdateVue.h-full(
+      UpdateVue.h-full.contain-size(
         v-else-if="simulation.currentUpdate.value"
         :simulation
         :update="simulation.currentUpdate.value"
@@ -531,6 +529,7 @@ onUnmounted(() => {
         :show-variant-navigation="simulation.sandbox"
         :hide-preference="true"
         :update-index="simulation.currentUpdateIndex.value"
+        :may-change-tts-on-mount="true"
         @trigger-edit-handler="triggerEditHandler = $event"
         @trigger-previous-variant-handler="triggerPreviousVariantHandler = $event"
         @trigger-next-variant-handler="triggerNextVariantHandler = $event"

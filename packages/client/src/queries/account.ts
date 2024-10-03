@@ -7,12 +7,8 @@ import { computed } from "vue";
 export function useAccountQuery(queryOptions: QueryOptions = {}) {
   return useQuery({
     queryKey: accountQueryKey(),
-    queryFn: () =>
-      api.v1.account.get(
-        import.meta.env.VITE_API_BASE_URL,
-        storage.remoteServerJwt.value!,
-      ),
-    enabled: computed(() => !!storage.remoteServerJwt.value),
+    queryFn: () => api.trpc.commandsClient.account.get.query(),
+    enabled: computed(() => !!storage.user.id.value),
     ...queryOptions,
   });
 }
@@ -24,12 +20,8 @@ export function accountQueryKey() {
 export function useAccountBalanceQuery(queryOptions: QueryOptions = {}) {
   return useQuery({
     queryKey: accountBalanceQueryKey(),
-    queryFn: () =>
-      api.v1.account.getBalance(
-        import.meta.env.VITE_API_BASE_URL,
-        storage.remoteServerJwt.value!,
-      ),
-    enabled: computed(() => !!storage.remoteServerJwt.value),
+    queryFn: () => api.trpc.commandsClient.account.balance.query(),
+    enabled: computed(() => !!storage.user.id.value),
     ...queryOptions,
   });
 }

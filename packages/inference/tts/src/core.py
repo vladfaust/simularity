@@ -70,6 +70,14 @@ class StreamingInputs(TTSInputs):
     stream_chunk_size: int = 100
 
 
+class StreamingPrologue(BaseModel):
+    inference_id: str
+
+
+class StreamingEpilogue(BaseModel):
+    usage: TTSOutputsUsage
+
+
 class Core:
     @staticmethod
     def postprocess(wav):
@@ -156,7 +164,11 @@ class Core:
             "speaker_embedding": speaker_embedding.cpu().squeeze().half().tolist(),
         }
 
-    def predict_streaming_generator(self, parsed_input: StreamingInputs):
+    async def predict_streaming_generator(self, parsed_input: StreamingInputs, encode_base64: bool, envelope: bool):
+        if envelope and not encode_base64:
+            raise ValueError(
+                "envelope=True requires encode_base64=True to be set")
+
         with self.mutex:
             speaker_embedding = torch.tensor(
                 parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
@@ -181,23 +193,57 @@ class Core:
             )
 
             self.inference_counter += 1
-
             t0 = time.time()
-            # wav_chunks = []
+
+            if envelope:
+                yield StreamingPrologue(
+                    inference_id=f"""{
+                        self.instance_id}-{self.inference_counter}""",
+                ).model_dump()
+
             for i, chunk in enumerate(chunks):
                 if i == 0:
                     print(
-                        f"[@{self.instance_id}][#{self.inference_counter}]         L1C: {round((time.time() - t0)*1000)}ms")
+                        f"""[@{
+                            self.instance_id
+                        }][#{
+                            self.inference_counter
+                        }] L1C: {
+                            round((time.time() - t0)*1000)
+                        }ms""")
 
                 chunk = Core.postprocess(chunk)
 
                 if i == 0 and parsed_input.add_wav_header:
-                    yield Core.encode_audio_common(b"", encode_base64=False)
-                    yield chunk.tobytes()
-                else:
-                    yield chunk.tobytes()
+                    header = Core.encode_audio_common(
+                        b"", encode_base64=encode_base64)
 
-                # wav_chunks.append(chunk)
+                    if envelope:
+                        yield {"wav_base_64": header}
+                    else:
+                        yield header
+
+                    if encode_base64:
+                        wavBase64 = base64.b64encode(
+                            chunk.tobytes()).decode("utf-8")
+
+                        if envelope:
+                            yield {"wav_base_64": wavBase64}
+                        else:
+                            yield wavBase64
+                    else:
+                        yield chunk.tobytes()
+                else:
+                    if encode_base64:
+                        wavBase64 = base64.b64encode(
+                            chunk.tobytes()).decode("utf-8")
+
+                        if envelope:
+                            yield {"wav_base_64": wavBase64}
+                        else:
+                            yield wavBase64
+                    else:
+                        yield chunk.tobytes()
 
             inference_time = time.time() - t0
             print(
@@ -205,10 +251,12 @@ class Core:
                 f"TTI: {round(inference_time * 1000)}ms"
             )
 
-            # FIXME: TypeError: expected Tensor as element 0 in argument 0, but got numpy.ndarray
-            # wav = torch.cat(wav_chunks, dim=0)
-            # real_time_factor = (time.time() - t0) / wav.shape[0] * 24000
-            # print(f"Real-time factor (RTF): {real_time_factor}")
+            execution_time = round((time.time() - t0) * 1000)
+
+            if envelope:
+                yield StreamingEpilogue(
+                    usage=TTSOutputsUsage(execution_time=execution_time),
+                ).model_dump()
 
     def predict_speech(self, parsed_input: TTSInputs, encode_base64: bool):
         with self.mutex:

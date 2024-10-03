@@ -1,10 +1,15 @@
 import type { TtsParams } from "@/lib/ai/tts/BaseTtsDriver";
-import { TTS_SPEAKER } from "@/lib/api/v1/tts/create";
 import type { Scenario } from "@/lib/scenario";
+import { enableTextSplitting } from "@/lib/storage/tts";
 import { Deferred, sleep } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 import { ref } from "vue";
 import type { Voicer } from "../voicer";
+
+const TTS_SPEAKER = v.object({
+  gpt_cond_latent: v.array(v.array(v.number())),
+  speaker_embedding: v.array(v.number()),
+});
 
 class MissingSpeakerError extends Error {
   constructor(characterId: string | null) {
@@ -73,6 +78,39 @@ export class VoicerJob {
         await sleep(500);
       }
 
+      const mediaSource = new MediaSource();
+
+      // Wait until the audio stops playing.
+      // TODO: Smoother transition (wait for the first chunk).
+      await this.agent.playTtsFromMediaSource(mediaSource);
+
+      const sourceBufferDef = new Deferred<SourceBuffer>();
+      mediaSource.addEventListener("sourceopen", () => {
+        sourceBufferDef.resolve(mediaSource.addSourceBuffer("audio/mp3"));
+      });
+      const sourceBuffer = await sourceBufferDef.promise;
+
+      const chunks: Uint8Array[] = [];
+      let wroteToBuffer = false;
+      let doneInferring = false;
+
+      (async () => {
+        while (!doneInferring || chunks.length) {
+          // See https://stackoverflow.com/questions/20042087/could-not-append-segments-by-media-source-api-get-invalidstateerror-an-attem.
+          if (!sourceBuffer.updating && chunks.length) {
+            sourceBuffer.appendBuffer(chunks.shift()!);
+          }
+
+          await sleep(10);
+        }
+
+        mediaSource.endOfStream();
+
+        console.debug(
+          `Finished streaming TTS for ${this.characterId ?? "narrator"}`,
+        );
+      })();
+
       this.status.value = VoicerJobStatus.Inferring;
       console.debug(`Creating TTS for ${this.characterId ?? "narrator"}...`);
       this.result.resolve(
@@ -83,9 +121,22 @@ export class VoicerJob {
           },
           this.text,
           this.scenario.content.language,
-          params,
+          (chunk) => {
+            if (wroteToBuffer) {
+              chunks.push(new Uint8Array(chunk));
+            } else {
+              wroteToBuffer = true;
+              sourceBuffer.appendBuffer(chunk);
+            }
+          },
+          {
+            ...params,
+            enableTextSplitting: enableTextSplitting.value,
+          },
         ),
       );
+
+      doneInferring = true;
       this.status.value = VoicerJobStatus.Succees;
     } catch (error: any) {
       this.status.value = VoicerJobStatus.Error;

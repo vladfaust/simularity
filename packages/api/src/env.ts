@@ -1,6 +1,7 @@
 import { v } from "@/lib/valibot.js";
 import * as dotenv from "dotenv";
-import { OAuthProviderIdSchema, OAuthProviderSchema } from "./lib/oauth.js";
+import { OAuthProviderSchema } from "./lib/oauth.js";
+import { OAuthProviderIdSchema } from "./lib/schema.js";
 
 /**
  * `"1"`, `"true"` is true, `"0"`, `"false"` is false, case insensitive.
@@ -55,6 +56,11 @@ const parseResult = v.safeParse(
       v.string(),
       v.transform((x) => parseInt(x, 10)),
       v.check((x) => x > 0 && x < 65536, "must be between 0 and 65536"),
+    ),
+    HTTP_CORS_ORIGINS: v.pipe(
+      v.string(),
+      v.transform((x) => JSON.parse(x)),
+      v.array(v.pipe(v.string(), v.url())),
     ),
 
     JWT_SECRET: v.pipe(

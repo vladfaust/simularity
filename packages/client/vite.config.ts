@@ -12,19 +12,12 @@ export default defineConfig({
   },
   optimizeDeps: {
     // NOTE: When changing any of these, the Vite server must be restarted.
-    include: [
-      "@simularity/api-sdk/v1/auth/nonce/get",
-      "@simularity/api-sdk/v1/completions/create",
-      "@simularity/api-sdk/v1/models/index",
-      "@simularity/api-sdk/v1/tts/create",
-      "@simularity/api-sdk/v1/account/balance",
-      "@simularity/api-sdk/v1/account",
-    ],
+    include: ["@simularity/api/lib/schema"],
     force: true,
   },
   build: {
     commonjsOptions: {
-      include: [/@simularity\/api-sdk/, /node_modules/],
+      include: [/@simularity\/api/, /node_modules/],
     },
   },
   esbuild: {

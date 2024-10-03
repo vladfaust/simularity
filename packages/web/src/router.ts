@@ -4,13 +4,14 @@ import {
   createRouter,
   createWebHistory,
 } from "vue-router";
-import { ProviderId as OAuthProviderId } from "./lib/api/auth/oauth";
-import { jwt } from "./store";
+import { OAuthProviderIdSchema } from "@simularity/api/lib/schema";
+import { userId } from "./store";
 
 import Account from "./views/Account.vue";
 import Home from "./views/Home.vue";
 import Login from "./views/Login.vue";
 import OAuthCallback from "./views/OAuthCallback.vue";
+import { v } from "./lib/valibot";
 
 export type RouteName = "Account" | "Home" | "Login" | "OAuthCallback";
 
@@ -19,7 +20,10 @@ export function routeLocation(
     | { name: "Account" }
     | { name: "Home" }
     | { name: "Login" }
-    | { name: "OAuthCallback"; params: { providerId: OAuthProviderId } },
+    | {
+        name: "OAuthCallback";
+        params: { providerId: v.InferInput<typeof OAuthProviderIdSchema> };
+      },
 ): RouteLocationNamedRaw & { name: RouteName } {
   return args;
 }
@@ -58,9 +62,9 @@ const router = createRouter({
 });
 
 router.beforeEach((to) => {
-  if (to.meta.redirectIfAuthed && jwt.value) {
+  if (to.meta.redirectIfAuthed && userId.value) {
     return routeLocation({ name: "Home" });
-  } else if (to.meta.requiresAuth && !jwt.value) {
+  } else if (to.meta.requiresAuth && !userId.value) {
     return routeLocation({ name: "Login" });
   }
 });

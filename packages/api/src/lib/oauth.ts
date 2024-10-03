@@ -1,10 +1,10 @@
 import { ResponseOkError } from "./errors.js";
 import { konsole } from "./konsole.js";
 import * as patreon from "./patreon.js";
+import { OAuthProviderIdSchema } from "./schema.js";
 import { unreachable } from "./utils.js";
 import { v } from "./valibot.js";
 
-export const OAuthProviderIdSchema = v.picklist(["patreon"]);
 export type OAuthProviderId = v.InferOutput<typeof OAuthProviderIdSchema>;
 
 export const OAuthProviderSchema = v.object({

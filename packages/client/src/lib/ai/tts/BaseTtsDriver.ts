@@ -14,6 +14,8 @@ export const TtsParamsSchema = v.object({
   lengthPenalty: v.optional(v.number()),
   repetitionPenalty: v.optional(v.number()),
   speed: v.optional(v.number()),
+  streamChunkSize: v.optional(v.number()),
+  enableTextSplitting: v.optional(v.boolean()),
 });
 
 export type TtsParams = v.InferOutput<typeof TtsParamsSchema>;
@@ -46,6 +48,7 @@ export interface BaseTtsDriver {
     },
     text: string,
     language: string,
+    onChunk?: (chunk: ArrayBuffer) => void,
     params?: TtsParams,
     abortSignal?: AbortSignal,
   ): Promise<ArrayBuffer>;

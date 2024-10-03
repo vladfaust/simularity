@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import * as api from "@/lib/api";
 import { routeLocation } from "@/router";
-import { jwt } from "@/store";
+import { saveUser } from "@/store";
 import { useNProgress } from "@vueuse/integrations/useNProgress";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -33,16 +33,15 @@ onMounted(async () => {
   isLoading.value = true;
 
   try {
-    const result = await api.auth.oauth.callback(
-      code as string,
-      state as string,
+    const result = await api.trpc.commandsClient.auth.oauth.callback.mutate({
+      code: code as string,
+      state: state as string,
       reason,
-    );
+    });
 
     switch (reason) {
       case "login": {
-        jwt.value = result.jwt;
-
+        saveUser(result.userId!, result.cookieMaxAge!);
         break;
       }
     }

@@ -2,6 +2,10 @@
 
 ## History 📜
 
+### October 2024
+
+- [x] epic: migrate to tRPC (Thu 3)
+
 ### September 2024
 
 - [x] feat: credits (Tue 3)

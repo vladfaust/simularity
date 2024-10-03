@@ -111,7 +111,6 @@ export function hookLlmAgentToDriverRef(
             driverRef.value = await RemoteLlmDriver.create(
               driverConfig,
               latestSession,
-              storage.remoteServerJwt,
             );
 
             break;

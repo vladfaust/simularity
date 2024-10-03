@@ -11,8 +11,8 @@ export function useAccountQuery(
 ) {
   return useQuery({
     queryKey: accountQueryKey(),
-    queryFn: () => api.account.get(),
-    enabled: computed(() => !!storage.jwt.value),
+    queryFn: () => api.trpc.commandsClient.account.get.query(),
+    enabled: computed(() => !!storage.userId.value),
     ...queryOptions,
   });
 }
@@ -24,8 +24,8 @@ export function accountQueryKey() {
 export function useAccountBalanceQuery(queryOptions: QueryOptions = {}) {
   return useQuery({
     queryKey: accountBalanceQueryKey(),
-    queryFn: () => api.account.getBalance(),
-    enabled: computed(() => !!storage.jwt.value),
+    queryFn: () => api.trpc.commandsClient.account.balance.query(),
+    enabled: computed(() => !!storage.userId.value),
     ...queryOptions,
   });
 }

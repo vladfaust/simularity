@@ -1,4 +1,4 @@
-import { OAuthProviderIdSchema } from "@/lib/oauth.js";
+import { OAuthProviderIdSchema } from "@/lib/schema.js";
 import { relations } from "drizzle-orm";
 import {
   pgTable,

@@ -13,6 +13,7 @@ import {
   DramaIcon,
   GlobeIcon,
   HardDriveIcon,
+  Settings2Icon,
   SpeechIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
@@ -95,6 +96,15 @@ const selectedModelId = computed<string | undefined>({
       )
         template(#icon)
           CrownIcon(:size="16")
+
+      //- Switch text splitting.
+      RichToggle#enable-text-splitting(
+        title="Text splitting"
+        v-model="storage.tts.enableTextSplitting.value"
+        help="Split text into sentences for improved stability"
+      )
+        template(#icon)
+          Settings2Icon(:size="16")
 
     //- Model selection.
     .flex.flex-col(

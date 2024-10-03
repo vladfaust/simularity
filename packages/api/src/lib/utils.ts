@@ -65,3 +65,54 @@ export function unreachable(arg: never) {
 export function filterWhitespaceStrings(strings: string[]): string[] {
   return strings.filter((s) => s.trim().length);
 }
+
+/**
+ * Sleep for the given number of milliseconds.
+ */
+export async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type JSONValue =
+  | string
+  | number
+  | boolean
+  | { [x: string]: JSONValue }
+  | JSONValue[];
+
+function truncateLongJsonValueStrings(
+  value: JSONValue,
+  maxLength: number,
+): JSONValue {
+  if (typeof value === "string") {
+    return value.length > maxLength
+      ? value.slice(0, maxLength) + "[...]"
+      : value;
+  } else if (Array.isArray(value)) {
+    return value.map((item) => truncateLongJsonValueStrings(item, maxLength));
+  } else if (typeof value === "object" && value !== null) {
+    const trimmedObj: { [key: string]: JSONValue } = {};
+
+    for (const key in value) {
+      if (value.hasOwnProperty(key)) {
+        trimmedObj[key] = truncateLongJsonValueStrings(value[key], maxLength);
+      }
+    }
+
+    return trimmedObj;
+  } else {
+    return value;
+  }
+}
+
+/**
+ * Stringify a object, truncating long strings to the given length.
+ */
+export function stringifyTrimmed(
+  jsonObj: JSONValue,
+  maxLength: number = 32,
+  spacing: number = 2,
+): string {
+  const truncatedObj = truncateLongJsonValueStrings(jsonObj, maxLength);
+  return JSON.stringify(truncatedObj, null, spacing);
+}

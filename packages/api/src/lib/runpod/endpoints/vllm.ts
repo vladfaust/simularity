@@ -2,12 +2,16 @@ import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
 import { RunpodEndpoint } from "@/lib/runpod.js";
+import {
+  LlmCompletionParamsSchema,
+  MultiCurrencyCostSchema,
+} from "@/lib/schema.js";
+import { sleep } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
-import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
-import { LlmCompletionParamsSchema } from "@simularity/api-sdk/v1/completions/create";
 import assert from "assert";
 import { eq, sql } from "drizzle-orm";
 import { toMilliseconds } from "duration-fns";
+import pRetry from "p-retry";
 import runpodSdk from "runpod-sdk";
 
 export const VllmEndpointInputSchema = v.object({
@@ -69,10 +73,14 @@ export class VllmEndpoint {
     }
   }
 
+  /**
+   * Run the vLLM endpoint asynchronously, streaming the output.
+   */
   async run(
     sessionId: string,
     input: v.InferOutput<typeof VllmEndpointInputSchema>,
-  ): Promise<typeof d.llmCompletions.$inferSelect> {
+    onInference: (tokens: string[]) => void,
+  ) {
     const completionParams: v.InferOutput<typeof LlmCompletionParamsSchema> = {
       ...input.sampling_params,
       guided_grammar: input.guided_options_request?.guided_grammar,
@@ -80,139 +88,153 @@ export class VllmEndpoint {
       guided_json: input.guided_options_request?.guided_json,
     };
 
+    const timeout = toMilliseconds({ minutes: 1 });
+
     try {
-      const runResult = await this.endpoint.runSync(
-        {
-          input,
-          policy: {
-            executionTimeout: toMilliseconds({
-              // May need some time to warm up.
-              minutes: 5,
-            }),
-          },
-        },
-        toMilliseconds({ minutes: 10 }),
+      const incompleteOutput = await pRetry(
+        () =>
+          this.endpoint.run(
+            {
+              input: {
+                ...input,
+                stream: true,
+              },
+              policy: {
+                executionTimeout: toMilliseconds({
+                  // May need some time to warm up.
+                  minutes: 5,
+                }),
+              },
+            },
+            timeout,
+          ),
+        { retries: 3 },
       );
 
-      konsole.debug(
-        "Runpod result",
-        runResult,
-        JSON.stringify(runResult.output),
-      );
+      konsole.debug(incompleteOutput);
 
-      if (runResult.status === "COMPLETED") {
-        let estimatedCost:
-          | v.InferOutput<typeof MultiCurrencyCostSchema>
-          | undefined;
+      const requestId = incompleteOutput.id;
+      let status = incompleteOutput.status;
 
-        switch (this.worker.providerPricing?.type) {
-          case "perSecond": {
-            estimatedCost = {
-              [this.worker.providerPricing.currency]:
-                (runResult.executionTime * this.worker.providerPricing.price) /
-                1000,
-            };
-          }
+      loop: while (status === "IN_QUEUE") {
+        const status = (
+          await pRetry(() => this.endpoint.status(requestId, timeout), {
+            retries: 3,
+          })
+        ).status;
+
+        switch (status) {
+          case "IN_QUEUE":
+            await sleep(100);
+            continue;
+          case "COMPLETED":
+          case "IN_PROGRESS":
+            break loop;
+          default:
+            throw new Error(`Unhandled Runpod status: ${status}`);
         }
+      }
 
-        const parsedOutput = v.safeParse(
-          VllmEndpointOutputSchema,
-          runResult.output,
+      let usage:
+        | {
+            input: number;
+            output: number;
+          }
+        | undefined;
+      let outputText: string | undefined;
+
+      for await (const rawOutput of await pRetry(
+        () => this.endpoint.stream(requestId, timeout),
+        { retries: 3 },
+      )) {
+        konsole.debug(JSON.stringify(rawOutput.output));
+
+        const output = v.safeParse(
+          VllmEndpointOutputSchema.item,
+          rawOutput.output,
         );
 
-        if (!parsedOutput.success) {
-          // Invalid Runpod result output.
-          konsole.error("Invalid Runpod result output", {
-            issues: v.flatten(parsedOutput.issues),
+        if (!output.success) {
+          konsole.error("Invalid Runpod output", {
+            issues: JSON.stringify(v.flatten(output.issues)),
           });
 
-          return (
-            await d.db
-              .insert(d.llmCompletions)
-              .values({
-                sessionId,
-                workerId: this.worker.id,
-                params: completionParams,
-                input: input.prompt,
-                providerExternalId: runResult.id,
-                delayTimeMs: runResult.delayTime,
-                executionTimeMs: runResult.executionTime,
-                error: `Invalid Runpod result output: ${JSON.stringify(v.flatten(parsedOutput.issues))}`,
-                estimatedCost,
-              })
-              .returning()
-          )[0];
+          throw new Error("Invalid Runpod output");
         }
 
-        const creditCost = this.worker.model.creditPrice
+        const tokens = output.output.choices[0].tokens;
+        onInference(tokens);
+
+        outputText ||= "";
+        outputText += tokens.join("");
+
+        usage = output.output.usage;
+      }
+
+      const finalStatus = await pRetry(
+        () => this.endpoint.status(requestId, timeout),
+        { retries: 3 },
+      );
+
+      const executionTime = (finalStatus as any).executionTime;
+
+      let estimatedCost:
+        | v.InferOutput<typeof MultiCurrencyCostSchema>
+        | undefined;
+
+      switch (this.worker.providerPricing?.type) {
+        case "perSecond": {
+          estimatedCost = {
+            [this.worker.providerPricing.currency]:
+              (executionTime * this.worker.providerPricing.price) / 1000,
+          };
+        }
+      }
+
+      const creditCost =
+        usage && this.worker.model.creditPrice
           ? (
               (parseFloat(this.worker.model.creditPrice) *
-                (parsedOutput.output[0].usage.input +
-                  parsedOutput.output[0].usage.output)) /
+                (usage.input + usage.output)) /
               1024
             ).toFixed(2)
           : undefined;
 
-        if (creditCost) {
-          konsole.log("Charging user for LLM", {
-            userId: this.userId,
-            creditCost,
-          });
-
-          await d.db
-            .update(d.users)
-            .set({
-              creditBalance: sql`${d.users.creditBalance} - ${creditCost}`,
-            })
-            .where(eq(d.users.id, this.userId));
-        }
-
-        // Success.
-        return (
-          await d.db
-            .insert(d.llmCompletions)
-            .values({
-              sessionId,
-              workerId: this.worker.id,
-              params: completionParams,
-              input: input.prompt,
-              providerExternalId: runResult.id,
-              delayTimeMs: runResult.delayTime,
-              executionTimeMs: runResult.executionTime,
-              output: parsedOutput.output[0].choices[0].tokens[0],
-              promptTokens: parsedOutput.output[0].usage.input,
-              completionTokens: parsedOutput.output[0].usage.output,
-              estimatedCost,
-              creditCost: creditCost?.toString(),
-            })
-            .returning()
-        )[0];
-      } else {
-        // TODO: Handle "IN_QUEUE", possibly by polling.
-        //
-
-        konsole.error("Invalid Runpod result status", {
-          status: runResult.status,
+      if (creditCost) {
+        konsole.log("Charging user for text2text", {
+          userId: this.userId,
+          creditCost,
         });
 
-        return (
-          await d.db
-            .insert(d.llmCompletions)
-            .values({
-              sessionId,
-              workerId: this.worker.id,
-              params: completionParams,
-              input: input.prompt,
-              providerExternalId: runResult.id,
-              delayTimeMs: runResult.delayTime,
-              executionTimeMs: runResult.executionTime,
-              error: `Invalid Runpod result status: ${runResult.status}`,
-            })
-            .returning()
-        )[0];
+        await d.db
+          .update(d.users)
+          .set({
+            creditBalance: sql`${d.users.creditBalance} - ${creditCost}`,
+          })
+          .where(eq(d.users.id, this.userId));
       }
+
+      return (
+        await d.db
+          .insert(d.llmCompletions)
+          .values({
+            sessionId,
+            workerId: this.worker.id,
+            params: completionParams,
+            input: input.prompt,
+            providerExternalId: requestId,
+            delayTimeMs: finalStatus.delayTime,
+            executionTimeMs: executionTime,
+            output: outputText,
+            promptTokens: usage?.input,
+            completionTokens: usage?.output,
+            estimatedCost,
+            creditCost: creditCost?.toString(),
+          })
+          .returning()
+      )[0];
     } catch (e: any) {
-      console.error(e);
+      konsole.error(e);
 
       // Unexpected error (e.g. network error).
       return (

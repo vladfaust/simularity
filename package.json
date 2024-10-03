@@ -6,7 +6,6 @@
   "license": "UNLICENSED",
   "private": true,
   "workspaces": [
-    "packages/api-sdk",
     "packages/api",
     "packages/web"
   ]

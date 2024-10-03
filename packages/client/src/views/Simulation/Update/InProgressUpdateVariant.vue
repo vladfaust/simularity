@@ -99,10 +99,14 @@ const character = computed(() => {
             span.font-semibold.leading-none(
               :style="{ color: character.color }"
             ) {{ character.name }}
-          template(v-else-if="character === null")
-            .grid.aspect-square.h-5.place-items-center.rounded.border
+          template(v-else)
+            .grid.aspect-square.h-5.place-items-center.rounded.border(
+              :class="{ 'opacity-0': character === undefined }"
+            )
               BotIcon(:size="16")
-            span.font-semibold.leading-none Narrator
+            span.font-semibold.leading-none(
+              :class="{ 'opacity-0': character === undefined }"
+            ) Narrator
 
           //- span.leading-none {{ bufferedClock }}
 

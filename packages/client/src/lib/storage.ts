@@ -1,13 +1,9 @@
 import { env } from "@/env";
 import { useLocalStorage } from "@vueuse/core";
-export * as tts from "./storage/tts";
-
-export const remoteServerJwt = useLocalStorage<string | null>(
-  "remoteServerJwt",
-  null,
-);
 
 export * as llm from "./storage/llm";
+export * as tts from "./storage/tts";
+export * as user from "./storage/user";
 
 /**
  * Ambient volume storage, from 0 to 100.

@@ -1,36 +1,36 @@
 import os
-from typing import List
 
 from pydantic import ValidationError
 import runpod
-from runpod.serverless.utils.rp_validator import validate
 
-from .core import Core, TTSInputs
+from .core import Core, StreamingInputs
 
 model_name = os.getenv("MODEL_NAME")
 if model_name is None:
     raise ValueError("MODEL_NAME environment variable is not set")
 
 
+# TODO: Multiple core instances.
 core_instance = Core("1", model_name)
 
 
-def handler(job):
+async def handler(job):
     try:
-        parsed_input = TTSInputs.model_validate(job["input"])
+        parsed_input = StreamingInputs.model_validate(job["input"])
 
-        result = core_instance.predict_speech(parsed_input, True)
-        if not isinstance(result.wav, str):
-            raise ValueError("Expected output.wav to be a string")
+        generator = core_instance.predict_streaming_generator(
+            parsed_input, True, True)
 
-        return {
-            "wav_base64": result.wav,
-            "wav_duration": result.wav_duration,
-        }
+        async for batch in generator:
+            yield batch
+
     except ValidationError as e:
-        return {"error": e.errors()}
+        yield {"error": e.errors()}
+
     except Exception as e:
-        return {"error": str(e)}
+        yield {"error": str(e)}
 
 
-runpod.serverless.start({"handler": handler})
+runpod.serverless.start({
+    "handler": handler,
+})

@@ -66,10 +66,7 @@ export class Voicer {
                 driverConfig,
               });
 
-              this.ttsDriver.value = new RemoteTtsDriver(
-                driverConfig,
-                storage.remoteServerJwt,
-              );
+              this.ttsDriver.value = new RemoteTtsDriver(driverConfig);
 
               break;
             }
@@ -123,29 +120,60 @@ export class Voicer {
    *
    * @param filePath Path to the audio file.
    */
-  async playTts(filePath: string) {
+  async playTtsFromFile(filePath: string) {
+    console.debug("playTtsFromFile()");
     let tweenPromise: Promise<void> | undefined;
 
     if (this._currentTtsFilePath.value === filePath) {
       return this._startAudioGracefully();
     } else {
       tweenPromise = this._stopAudioGracefully();
-      this._currentTtsFilePath.value = filePath;
     }
 
-    const fileUrl = convertFileSrc(filePath);
-    const wav = await fetch(fileUrl).then((res) => res.arrayBuffer());
     if (tweenPromise) await tweenPromise;
 
-    this._audioElement.src = URL.createObjectURL(
-      new Blob([wav], { type: "audio/wav" }),
-    );
+    console.log("Playing TTS audio from", filePath);
+    this._currentTtsFilePath.value = filePath;
+
+    const fileUrl = convertFileSrc(filePath);
+    this._audioElement.src = fileUrl;
 
     this._audioElement.onpause = () => {
       this._audioPlaying.value = false;
+      this._audioElement.currentTime = 0;
     };
 
     return this._startAudioGracefully();
+  }
+
+  /**
+   * Play a TTS audio from a MediaSource, always stopping the current audio.
+   */
+  async playTtsFromMediaSource(mediaSource: MediaSource, filePath?: string) {
+    console.debug("playTtsFromMediaSource()");
+    let tweenPromise: Promise<void> | undefined;
+
+    tweenPromise = this._stopAudioGracefully();
+    await tweenPromise;
+
+    this._currentTtsFilePath.value = filePath ?? "_mediaSource";
+    this._audioElement.src = URL.createObjectURL(mediaSource);
+
+    mediaSource.onsourceended = () => {
+      console.debug("Media source ended");
+
+      this._audioElement.onpause = () => {
+        console.debug("Audio paused");
+        this._audioPlaying.value = false;
+        this._audioElement.currentTime = 0;
+      };
+
+      this._audioElement.onended = () => {
+        console.debug("Audio ended");
+      };
+    };
+
+    this._startAudioGracefully();
   }
 
   /**
@@ -153,6 +181,8 @@ export class Voicer {
    * @param filePath If provided, only pause the audio if it's the same file.
    */
   stopTts(filePath?: string) {
+    console.debug("stopTts", filePath);
+
     if (filePath) {
       if (this._currentTtsFilePath.value === filePath) {
         console.log("Stopping TTS audio", filePath);
@@ -180,6 +210,14 @@ export class Voicer {
   }
 
   /**
+   * Use to set the current TTS file path explicitly (may break things).
+   */
+  _setCurrentTtsFilePath(filePath: string | null) {
+    console.debug("Setting current TTS file path explicitly", filePath);
+    this._currentTtsFilePath.value = filePath;
+  }
+
+  /**
    * Fade the volume of the audio element.
    */
   private async _tweenVolume(
@@ -193,7 +231,7 @@ export class Voicer {
 
     let volume = from;
     for (let i = 0; i < steps; i++) {
-      volume += step;
+      volume += step * (to > from ? 1 : -1);
       this._audioElement.volume = volume / 100;
       await sleep(interval);
     }
@@ -215,12 +253,13 @@ export class Voicer {
     });
   }
 
-  private async _startAudioGracefully(duration = 250) {
-    if (!this._audioElement.paused) return;
-
+  private async _startAudioGracefully(duration = 500) {
     this._audioElement.volume = 0;
+    this._audioElement.currentTime = 0;
+    console.debug("Waiting for audio to play");
     await this._audioElement.play();
     this._audioPlaying.value = true;
+    console.debug("Set audio playing to true");
     return this._tweenVolume(0, storage.speechVolumeStorage.value, duration);
   }
 }

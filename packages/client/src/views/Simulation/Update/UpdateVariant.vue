@@ -28,6 +28,7 @@ const props = defineProps<{
   hidePreference?: boolean;
   preferenceFunction: (preference: boolean | null) => Promise<void>;
   applyEditFunction: (newContent: string) => Promise<void>;
+  mayChangeTtsOnMount?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -112,12 +113,12 @@ function switchPlayTts() {
   if (ttsPlaying.value) {
     props.simulation.voicer.stopTts(props.variant.ttsPath.value);
   } else {
-    props.simulation.voicer.playTts(props.variant.ttsPath.value);
+    props.simulation.voicer.playTtsFromFile(props.variant.ttsPath.value);
   }
 }
 
 async function createTts() {
-  ttsJob = props.simulation.inferTts(props.variant);
+  ttsJob = await props.simulation.inferTts(props.variant);
   if (!ttsJob) return;
 
   ttsCreationInProgress.value = true;
@@ -169,6 +170,17 @@ watch(
 
 onMounted(() => {
   emit("triggerEditHandler", startEdit);
+
+  if (
+    props.mayChangeTtsOnMount &&
+    props.simulation.voicer.playingTts.value &&
+    props.variant.ttsPath.value &&
+    props.simulation.voicer.playingTts.value !== props.variant.ttsPath.value
+  ) {
+    // Switch to current TTS if voicer is playing anything.
+    console.debug("Switching to current TTS");
+    props.simulation.voicer.playTtsFromFile(props.variant.ttsPath.value);
+  }
 });
 </script>
 

@@ -33,11 +33,11 @@ async function login() {
 
   isLoading.value = true;
   try {
-    const { url } = await api.auth.oauth.create(
+    const { url } = await api.trpc.commandsClient.auth.oauth.create.mutate({
       providerId,
-      "login",
-      window.location.href,
-    );
+      reason: "login",
+      returnUrl: window.location.href,
+    });
 
     progress.value = 0.8; // Pareto principle.
 

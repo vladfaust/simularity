@@ -1,5 +1,5 @@
+import { MultiLangTextSchema } from "@/lib/schema.js";
 import { v } from "@/lib/valibot.js";
-import { MultiLangTextSchema } from "@simularity/api-sdk/common";
 import {
   boolean,
   decimal,

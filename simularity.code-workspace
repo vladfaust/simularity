@@ -25,10 +25,6 @@
       "path": "packages/api"
     },
     {
-      "name": "api-sdk",
-      "path": "packages/api-sdk"
-    },
-    {
       "name": "web",
       "path": "packages/web"
     },

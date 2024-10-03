@@ -1,5 +1,5 @@
+import { MultiLangTextSchema } from "@/lib/schema.js";
 import { v } from "@/lib/valibot.js";
-import { MultiLangTextSchema } from "@simularity/api-sdk/common";
 import {
   boolean,
   decimal,
@@ -19,7 +19,7 @@ export const ttsModels = pgTable(
       json("description").$type<v.InferOutput<typeof MultiLangTextSchema>>(),
 
     /**
-     * Model price per minute of generated audio, in credits.
+     * Model price per 1000 characters, in credits.
      */
     creditPrice: decimal("credit_price", { precision: 10, scale: 2 }),
   },

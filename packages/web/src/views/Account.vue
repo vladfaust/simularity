@@ -8,7 +8,7 @@ import {
   useAccountQuery,
 } from "@/lib/queries";
 import router, { routeLocation } from "@/router";
-import { jwt } from "@/store";
+import { clearUser } from "@/store";
 import { useQueryClient } from "@tanstack/vue-query";
 import { computed } from "vue";
 
@@ -21,7 +21,11 @@ const patreon = computed(() => accountQuery.data.value?.oAuthAccounts.patreon);
 const patreonCampaignUrl = import.meta.env.VITE_PATREON_CAMPAIGN_URL;
 
 async function linkPatreon() {
-  const { url } = await api.auth.oauth.create("patreon", "link");
+  const { url } = await api.trpc.commandsClient.auth.oauth.create.mutate({
+    providerId: "patreon",
+    reason: "link",
+  });
+
   window.location.href = url;
 }
 
@@ -30,7 +34,7 @@ function logout() {
     return;
   }
 
-  jwt.value = null;
+  clearUser();
 
   queryClient.invalidateQueries({ queryKey: accountQueryKey() });
   queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
@@ -58,7 +62,7 @@ function logout() {
           | Linked&nbsp;
           span(v-if="patreon.tier") ({{ patreon.tier.name }})
           a.dz-link(v-else :href="patreonCampaignUrl" target="_blank") See tiers
-        span.text-sm.italic.leading-tight(v-if="patreon.tier") until {{ patreon.tier.activeUntil.toLocaleDateString() }}
+        span.text-sm.italic.leading-tight(v-if="patreon.tier") until {{ new Date(patreon.tier.activeUntil).toLocaleDateString() }}
       button.dz-link.dz-link-primary(v-else @click="linkPatreon") Link
 
     button.dz-btn.dz-btn-md.w-full(@click="logout" class="hover:dz-btn-error") Logout

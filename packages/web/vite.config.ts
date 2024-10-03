@@ -10,12 +10,4 @@ export default defineConfig({
     },
     preserveSymlinks: true,
   },
-  optimizeDeps: {
-    // NOTE: When changing any of these, the Vite server must be restarted.
-    include: [
-      "@simularity/api-sdk/v1/account/balance",
-      "@simularity/api-sdk/v1/account",
-    ],
-    force: true,
-  },
 });

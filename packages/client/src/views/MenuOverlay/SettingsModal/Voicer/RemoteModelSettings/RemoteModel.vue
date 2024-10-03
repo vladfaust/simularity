@@ -4,7 +4,9 @@ import { CircleDollarSignIcon } from "lucide-vue-next";
 
 defineProps<{
   model: Extract<
-    Awaited<ReturnType<typeof api.v1.models.index>>[number],
+    Awaited<
+      ReturnType<typeof api.trpc.commandsClient.models.index.query>
+    >[number],
     { type: "tts" }
   >;
   selected: boolean;
@@ -25,7 +27,7 @@ defineEmits<{
       span.self-baseline
         span.font-semibold Price:&nbsp;
         span.font-mono.font-medium.text-secondary-500 {{ model.creditPrice }}¢
-        span.cursor-help(title="Per speech minute") &nbsp;/min.
+        span &nbsp;/ 1000 chars
 
   //- Buttons
   button.btn.btn-sm.w-full.rounded.transition-transform.pressable-sm(

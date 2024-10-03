@@ -201,8 +201,11 @@ export class PredictUpdateVariantJob {
             this.simulationId,
             writerUpdate.id,
             result,
-            ".wav",
+            ".mp3",
           );
+
+          // ADHOC: Only at this point we know the TTS path.
+          this.agents.voicer._setCurrentTtsFilePath(ttsPath);
         }
       }
 
@@ -222,7 +225,6 @@ export class PredictUpdateVariantJob {
       });
 
       this.update.setChosenVariantToLast();
-      if (ttsPath) this.agents.voicer.playTts(ttsPath);
 
       return writerResponse;
     } finally {

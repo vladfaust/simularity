@@ -1393,13 +1393,13 @@ export class Simulation {
    * Infer TTS for an update variant.
    * @returns The TTS job, or null if the TTS audio already exists.
    */
-  inferTts(
+  async inferTts(
     variant: Update["ensureChosenVariant"],
     force: boolean = false,
-  ): {
+  ): Promise<{
     promise: Promise<string>;
     cancel: () => void;
-  } | null {
+  } | null> {
     if (variant.ttsPath.value && !force) {
       console.warn("TTS audio element already exists");
       return null;
@@ -1439,7 +1439,7 @@ export class Simulation {
         this.id,
         variant.writerUpdate.id,
         result,
-        ".wav",
+        ".mp3",
       );
 
       deferred.resolve(variant.ttsPath.value);
@@ -1632,7 +1632,7 @@ export class Simulation {
         const ttsPath: string = await resources.tts.audioFilePath(
           this.id,
           writerUpdate.id,
-          ".wav",
+          ".mp3",
         );
 
         return {

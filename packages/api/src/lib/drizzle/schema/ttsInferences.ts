@@ -1,6 +1,5 @@
-import { TtsParamsSchema } from "@/lib/runpod/endpoints/tts.js";
+import { MultiCurrencyCostSchema, TtsParamsSchema } from "@/lib/schema.js";
 import { v } from "@/lib/valibot.js";
-import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
 import {
   decimal,
   index,

@@ -1,6 +1,8 @@
+import {
+  LlmCompletionParamsSchema,
+  MultiCurrencyCostSchema,
+} from "@/lib/schema.js";
 import { v } from "@/lib/valibot.js";
-import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
-import { LlmCompletionParamsSchema } from "@simularity/api-sdk/v1/completions/create";
 import {
   decimal,
   index,

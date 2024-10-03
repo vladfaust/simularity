@@ -2,28 +2,15 @@ import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
 import { RunpodEndpoint } from "@/lib/runpod.js";
-import { omit } from "@/lib/utils.js";
+import { MultiCurrencyCostSchema, TtsParamsSchema } from "@/lib/schema.js";
+import { omit, sleep } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
-import { MultiCurrencyCostSchema } from "@simularity/api-sdk/common";
 import assert from "assert";
 import { eq, sql } from "drizzle-orm";
 import { toMilliseconds } from "duration-fns";
+import pRetry from "p-retry";
 import runpodSdk from "runpod-sdk";
 import { LocalRunpodEndpoint } from "../localEndpoint.js";
-
-export const TtsParamsSchema = v.strictObject({
-  text: v.string(),
-  language: v.string(),
-  overlap_wav_len: v.optional(v.number()),
-  temperature: v.optional(v.number()),
-  length_penalty: v.optional(v.number()),
-  repetition_penalty: v.optional(v.number()),
-  top_k: v.optional(v.number()),
-  top_p: v.optional(v.number()),
-  do_sample: v.optional(v.boolean()),
-  speed: v.optional(v.number()),
-  enable_text_splitting: v.optional(v.boolean()),
-});
 
 export const TtsEndpointInputSchema = v.object({
   ...TtsParamsSchema.entries,
@@ -31,16 +18,18 @@ export const TtsEndpointInputSchema = v.object({
   gpt_cond_latent: v.array(v.array(v.number())),
 });
 
-const TtsEndpointOutputSchema = v.object({
-  /**
-   * Base64-encoded WAV audio.
-   */
-  wav_base64: v.string(),
+const TtsStreamingPrologueSchema = v.object({
+  inference_id: v.string(),
+});
 
-  /**
-   * Duration of the generated audio in milliseconds.
-   */
-  wav_duration: v.number(),
+const TtsStreamingChunkSchema = v.object({
+  wav_base_64: v.string(),
+});
+
+const TtsStreamingEpilogueSchema = v.object({
+  usage: v.object({
+    execution_time: v.number(),
+  }),
 });
 
 export class TtsEndpoint {
@@ -72,159 +61,193 @@ export class TtsEndpoint {
     }
   }
 
-  async run(input: v.InferOutput<typeof TtsEndpointInputSchema>): Promise<
-    {
-      inference: typeof d.ttsInferences.$inferSelect;
-    } & ({ wavBase64: string; wavDuration: number } | {})
-  > {
-    const inferenceParams: v.InferOutput<typeof TtsParamsSchema> = omit(input, [
-      "speaker_embedding",
-      "gpt_cond_latent",
-    ]);
+  /**
+   * Run the TTS endpoint asynchronously, streaming the output in WAV format.
+   *
+   * @param targetFormat The format to place in the database.
+   */
+  async run(
+    input: v.InferOutput<typeof TtsEndpointInputSchema>,
+    onInference: (wavBase64: string) => Promise<void>,
+  ) {
+    const inferenceParams: v.InferOutput<typeof TtsParamsSchema> = {
+      ...omit(input, ["speaker_embedding", "gpt_cond_latent"]),
+    };
+
+    const timeout = toMilliseconds({ minutes: 1 });
 
     try {
-      const runResult = await this.endpoint.runSync(
-        {
-          input,
-          policy: {
-            executionTimeout: toMilliseconds({
-              // May need some time to warm up.
-              minutes: 5,
-            }),
-          },
-        },
-        toMilliseconds({ minutes: 10 }),
+      const incompleteOutput = await pRetry(
+        () =>
+          this.endpoint.run(
+            {
+              input: {
+                ...input,
+              },
+              policy: {
+                executionTimeout: toMilliseconds({
+                  // May need some time to warm up.
+                  minutes: 5,
+                }),
+              },
+            },
+            timeout,
+          ),
+        { retries: 3 },
       );
 
-      konsole.debug("Runpod result", omit(runResult, ["output"]));
+      konsole.debug(incompleteOutput);
+      const requestId = incompleteOutput.id;
+      let status = incompleteOutput.status;
 
-      if (runResult.status === "COMPLETED") {
-        let estimatedCost:
-          | v.InferOutput<typeof MultiCurrencyCostSchema>
-          | undefined;
+      loop: while (status === "IN_QUEUE") {
+        status = (
+          await pRetry(() => this.endpoint.status(requestId, timeout), {
+            retries: 3,
+          })
+        ).status;
 
-        switch (this.worker.providerPricing?.type) {
-          case "perSecond": {
-            estimatedCost = {
-              [this.worker.providerPricing.currency]:
-                (runResult.executionTime * this.worker.providerPricing.price) /
-                1000,
-            };
-          }
+        switch (status) {
+          case "IN_QUEUE":
+            await sleep(100);
+            continue;
+          case "COMPLETED":
+          case "IN_PROGRESS":
+            break loop;
+          // TODO: Handle CANCELLED status.
+          default:
+            throw new Error(`Unhandled Runpod status: ${status}`);
         }
+      }
 
-        const parsedOutput = v.safeParse(
-          TtsEndpointOutputSchema,
-          runResult.output,
-        );
+      let inferenceId: string | undefined;
+      let usage: { execution_time: number } | undefined;
 
-        if (!parsedOutput.success) {
-          // Invalid Runpod result output.
-          konsole.error("Invalid Runpod result output", {
-            issues: v.flatten(parsedOutput.issues),
-          });
+      for await (const rawOutput of await pRetry(
+        () => this.endpoint.stream(requestId, timeout),
+        { retries: 3 },
+      )) {
+        if ("inference_id" in rawOutput.output) {
+          const prologue = v.safeParse(
+            TtsStreamingPrologueSchema,
+            rawOutput.output,
+          );
 
-          return {
-            inference: (
-              await d.db
-                .insert(d.ttsInferences)
-                .values({
-                  workerId: this.worker.id,
-                  params: inferenceParams,
-                  providerExternalId: runResult.id,
-                  delayTimeMs: runResult.delayTime,
-                  executionTimeMs: runResult.executionTime,
-                  error: `Invalid Runpod result output: ${JSON.stringify(v.flatten(parsedOutput.issues))}`,
-                  estimatedCost,
-                })
-                .returning()
-            )[0],
+          if (!prologue.success) {
+            konsole.error("Invalid Runpod prologue", {
+              issues: JSON.stringify(v.flatten(prologue.issues)),
+            });
+
+            throw new Error("Invalid Runpod prologue");
+          }
+
+          inferenceId = prologue.output.inference_id;
+        } else if ("wav_base_64" in rawOutput.output) {
+          const chunk = v.safeParse(TtsStreamingChunkSchema, rawOutput.output);
+
+          if (!chunk.success) {
+            konsole.error("Invalid Runpod chunk", {
+              issues: JSON.stringify(v.flatten(chunk.issues)),
+            });
+
+            throw new Error("Invalid Runpod chunk");
+          }
+
+          await onInference(chunk.output.wav_base_64);
+        } else if ("usage" in rawOutput.output) {
+          const epilogue = v.safeParse(
+            TtsStreamingEpilogueSchema,
+            rawOutput.output,
+          );
+
+          if (!epilogue.success) {
+            konsole.error("Invalid Runpod epilogue", {
+              issues: JSON.stringify(v.flatten(epilogue.issues)),
+            });
+
+            throw new Error("Invalid Runpod epilogue");
+          }
+
+          usage = {
+            execution_time: epilogue.output.usage.execution_time,
+          };
+        } else {
+          konsole.error("Unknown Runpod output", rawOutput.output);
+          throw new Error("Unknown Runpod output");
+        }
+      }
+
+      const finalStatus =
+        this.endpoint instanceof LocalRunpodEndpoint
+          ? { delayTime: 0 }
+          : await pRetry(() => this.endpoint.status(requestId, timeout), {
+              retries: 3,
+            });
+
+      console.debug("TTS final status", finalStatus);
+
+      const executionTime = usage!.execution_time;
+
+      let estimatedCost:
+        | v.InferOutput<typeof MultiCurrencyCostSchema>
+        | undefined;
+
+      switch (this.worker.providerPricing?.type) {
+        case "perSecond": {
+          estimatedCost = {
+            [this.worker.providerPricing.currency]:
+              (executionTime * this.worker.providerPricing.price) / 1000,
           };
         }
+      }
 
-        const creditCost = this.worker.model.creditPrice
-          ? (
-              (parseFloat(this.worker.model.creditPrice) *
-                parsedOutput.output.wav_duration) /
-              1000 /
-              60
-            ).toFixed(2)
-          : undefined;
+      const creditCost = this.worker.model.creditPrice
+        ? (parseFloat(this.worker.model.creditPrice) * input.text.length) / 1000
+        : undefined;
 
-        if (creditCost) {
-          konsole.log("Charging user for TTS", {
-            userId: this.userId,
-            creditCost,
-          });
-
-          await d.db
-            .update(d.users)
-            .set({
-              creditBalance: sql`${d.users.creditBalance} - ${creditCost}`,
-            })
-            .where(eq(d.users.id, this.userId));
-        }
-
-        // Success.
-        return {
-          inference: (
-            await d.db
-              .insert(d.ttsInferences)
-              .values({
-                workerId: this.worker.id,
-                params: inferenceParams,
-                providerExternalId: runResult.id,
-                delayTimeMs: runResult.delayTime,
-                executionTimeMs: runResult.executionTime,
-                durationMs: parsedOutput.output.wav_duration,
-                estimatedCost,
-                creditCost: creditCost?.toString(),
-              })
-              .returning()
-          )[0],
-          wavBase64: parsedOutput.output.wav_base64,
-          wavDuration: parsedOutput.output.wav_duration,
-        };
-      } else {
-        // TODO: Handle "IN_QUEUE", possibly by polling.
-        //
-
-        konsole.error("Invalid Runpod result status", {
-          status: runResult.status,
+      if (creditCost && creditCost > 0) {
+        konsole.log("Charging user for TTS", {
+          userId: this.userId,
+          characters: input.text.length,
+          creditCost,
         });
 
-        return {
-          inference: (
-            await d.db
-              .insert(d.ttsInferences)
-              .values({
-                workerId: this.worker.id,
-                params: inferenceParams,
-                providerExternalId: runResult.id,
-                delayTimeMs: runResult.delayTime,
-                executionTimeMs: runResult.executionTime,
-                error: `Invalid Runpod result status: ${runResult.status}`,
-              })
-              .returning()
-          )[0],
-        };
+        await d.db
+          .update(d.users)
+          .set({
+            creditBalance: sql` ${d.users.creditBalance} - ${creditCost} `,
+          })
+          .where(eq(d.users.id, this.userId));
       }
+
+      return (
+        await d.db
+          .insert(d.ttsInferences)
+          .values({
+            workerId: this.worker.id,
+            params: inferenceParams,
+            providerExternalId: requestId,
+            delayTimeMs: finalStatus.delayTime,
+            executionTimeMs: executionTime,
+            estimatedCost,
+            creditCost: creditCost?.toString(),
+          })
+          .returning()
+      )[0];
     } catch (e: any) {
-      console.error(e);
+      konsole.error(e);
 
       // Unexpected error (e.g. network error).
-      return {
-        inference: (
-          await d.db
-            .insert(d.ttsInferences)
-            .values({
-              workerId: this.worker.id,
-              params: inferenceParams,
-              error: e.message,
-            })
-            .returning()
-        )[0],
-      };
+      return (
+        await d.db
+          .insert(d.ttsInferences)
+          .values({
+            workerId: this.worker.id,
+            params: inferenceParams,
+            error: e.message,
+          })
+          .returning()
+      )[0];
     }
   }
 

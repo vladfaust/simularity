@@ -5,7 +5,9 @@ import { CircleDollarSignIcon, ProportionsIcon } from "lucide-vue-next";
 
 defineProps<{
   model: Extract<
-    Awaited<ReturnType<typeof api.v1.models.index>>[number],
+    Awaited<
+      ReturnType<typeof api.trpc.commandsClient.models.index.query>
+    >[number],
     { type: "llm" }
   >;
   selected: boolean;

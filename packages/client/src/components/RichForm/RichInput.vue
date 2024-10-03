@@ -19,7 +19,7 @@ defineProps<{
       .btn.rounded-lg.border.bg-white.p-1
         slot(name="icon")
       span {{ title }}
-    btn.cursor-help.select-none.opacity-50(v-if="help" v-tooltip="help")
+    .btn.cursor-help.select-none.opacity-50(v-if="help" v-tooltip="help")
       CircleHelpIcon(:size="18")
   .w-full.border-b
   slot(name="default")

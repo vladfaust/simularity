@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import * as api from "@/lib/api";
-import { jwt } from "@/store";
+import { saveUser } from "@/store";
 import * as v from "valibot";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -32,7 +32,11 @@ async function sendCode() {
   inProgress.value = true;
 
   try {
-    await api.auth.email.sendCode(email.value, nonce);
+    await api.trpc.commandsClient.auth.email.sendCode.mutate({
+      email: email.value,
+      nonce,
+    });
+
     codeSent.value = true;
     emit("sendCode", email.value);
   } finally {
@@ -45,8 +49,13 @@ async function login(code: string) {
   inProgress.value = true;
 
   try {
-    const response = await api.auth.email.loginWithCode(email.value, code);
-    jwt.value = response.jwt;
+    const response =
+      await api.trpc.commandsClient.auth.email.loginWithCode.mutate({
+        email: email.value,
+        code,
+      });
+
+    saveUser(response.userId, response.cookieMaxAge);
     emit("login", false);
   } catch (e: any) {
     error.value = e.message;
@@ -108,12 +117,12 @@ const { t } = useI18n({
       @keydown.enter="login(code)"
     )
 
-    button.dz-btn.dz-btn-md.dz-btn-primary(
+    button.dz-btn.dz-btn-primary.dz-btn-md(
       @click="login(code)"
       :disabled="!codeValid"
     ) {{ t("login.email.logIn") }}
 
-    button.dz-btn.dz-btn-sm.dz-btn-base(
+    button.dz-btn-base.dz-btn.dz-btn-sm(
       @click="email = ''; code = ''; codeSent = false; emit('cancel')"
     )
       span.text-sm {{ t("login.email.cancel") }}

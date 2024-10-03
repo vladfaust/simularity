@@ -10,4 +10,4 @@ set -e
 
 test_input=$(cat test/runpod_test_input.json)
 MODEL_NAME="tts_models/multilingual/multi-dataset/xtts_v2" \
-  pipenv run python -m src.runpod_handler --test_input "$test_input"
+  pipenv run python -m src.runpod_handler --test_input "$test_input" --rp_api_concurrency 2

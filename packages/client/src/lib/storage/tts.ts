@@ -12,3 +12,8 @@ export type TtsConfig = {
 export const ttsConfig = useLocalStorage<TtsConfig | null>("ttsConfig", null, {
   serializer: StorageSerializers.object,
 });
+
+export const enableTextSplitting = useLocalStorage<boolean>(
+  "tts:enableTextSplitting",
+  true,
+);

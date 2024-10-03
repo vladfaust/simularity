@@ -2,7 +2,7 @@
 import Login from "@/components/Login.vue";
 import * as api from "@/lib/api";
 import { routeLocation } from "@/router";
-import { jwt } from "@/store";
+import { userId } from "@/store";
 import { onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
@@ -12,12 +12,12 @@ const route = useRoute();
 const nonce = route.query.nonce as string | undefined;
 
 onMounted(async () => {
-  if (jwt.value) {
+  if (userId.value) {
     console.log("Already logged in");
 
     if (nonce) {
       console.log("Authorizing nonce", nonce);
-      await api.auth.nonce.authorize(nonce);
+      await api.trpc.commandsClient.auth.nonce.authorize.mutate({ nonce });
     }
 
     await router.push(routeLocation({ name: "Home" }));

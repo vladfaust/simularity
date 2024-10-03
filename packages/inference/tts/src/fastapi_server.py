@@ -43,7 +43,8 @@ def create_speaker(file: UploadFile):
 @app.post("/v1/tts_stream")
 def create_tts_stream(parsed_input: StreamingInputs):
     return StreamingResponse(
-        core.predict_streaming_generator(parsed_input),
+        core.predict_streaming_generator(
+            parsed_input, False, False),  # type: ignore
         media_type="audio/wav",
     )
 

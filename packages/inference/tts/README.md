@@ -56,7 +56,7 @@ node ./test/gen2.mjs \
 # In the API's Runpod `tts_worker`, set `provider_external_id`
 # to NULL or empty string, and set Runpod base URL to `http://localhost:8000`.
 MODEL_NAME="tts_models/multilingual/multi-dataset/xtts_v2" \
-  pipenv run python src/runpod_handler.py --rp_serve_api
+  pipenv run python -m src.runpod_handler --rp_serve_api
 ```
 
 ```sh
