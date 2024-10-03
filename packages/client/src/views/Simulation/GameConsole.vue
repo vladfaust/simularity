@@ -403,6 +403,8 @@ function onKeypress(event: KeyboardEvent) {
           } else {
             switchEnabledCharacter(NARRATOR);
           }
+
+          event.preventDefault();
         } else {
           const characterId = Object.keys(
             simulation.scenario.content.characters,
@@ -414,6 +416,8 @@ function onKeypress(event: KeyboardEvent) {
             } else {
               switchEnabledCharacter(characterId);
             }
+
+            event.preventDefault();
           } else {
             console.warn("Character not found at index", int);
           }
