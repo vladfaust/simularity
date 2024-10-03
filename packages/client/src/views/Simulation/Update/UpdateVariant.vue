@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import CharacterPfp from "@/components/CharacterPfp.vue";
 import { Simulation } from "@/lib/simulation";
-import { Update } from "@/lib/simulation/update";
+import { type UpdateVariant } from "@/lib/simulation/update";
 // import { minutesToClock, tap } from "@/lib/utils";
 import * as api from "@/lib/api";
+import { confirm_ } from "@/lib/resources";
+import { Writer } from "@/lib/simulation/agents/writer";
 import {
   AudioLinesIcon,
   BotIcon,
   CheckIcon,
   Edit3Icon,
   Loader2Icon,
+  SigmaSquareIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
+  TriangleAlertIcon,
   Volume2Icon,
   XIcon,
 } from "lucide-vue-next";
@@ -21,7 +25,7 @@ import RichText from "./RichText.vue";
 
 const props = defineProps<{
   simulation: Simulation;
-  variant: Update["ensureChosenVariant"];
+  variant: UpdateVariant;
   isSingle: boolean;
   canEdit: boolean;
   hideTts?: boolean;
@@ -70,6 +74,19 @@ const character = computed(() => {
 // });
 
 const editTextarea = ref<HTMLTextAreaElement | null>(null);
+
+const consolidationThreshold = computed(() => {
+  if (!props.simulation.writer.contextSize.value) return undefined;
+  return props.simulation.writer.contextSize.value - Writer.TASK_BUFFER_SIZE;
+});
+
+const consolidationWarning = computed(() => {
+  if (!props.variant.completionLength || !consolidationThreshold.value) {
+    return undefined;
+  }
+
+  return props.variant.completionLength >= consolidationThreshold.value;
+});
 
 async function onEditCommitClick() {
   if (!anyEditChanges.value) {
@@ -154,6 +171,35 @@ function startEdit() {
   setTimeout(() => {
     editTextarea.value?.focus();
   }, 10);
+}
+
+async function onConsolidateClick() {
+  if (props.variant.writerUpdate.didConsolidate) {
+    console.log("Already summarized");
+    return;
+  }
+
+  if (
+    !(await confirm_(
+      "Do you want to tell the writer agent to summarize? It would take some time. Otherwise, the summarization is automatic.",
+      {
+        title: "Summarize",
+        okLabel: "Summarize",
+        type: "info",
+      },
+    ))
+  ) {
+    console.log("Summarization cancelled");
+    return;
+  }
+
+  try {
+    await props.simulation.consolidate(true);
+  } catch (e: any) {
+    console.error("Error summarizing", e);
+    toast.error("Failed to summarize");
+    throw e;
+  }
 }
 
 watch(
@@ -273,7 +319,10 @@ onMounted(() => {
       slot(v-if="!editInProgress" name="variant-navigation")
 
   //- Text.
-  div(:class="{ 'h-full overflow-y-scroll': isSingle }" class="mt-0.5")
+  .flex.flex-col.justify-between.gap-1(
+    :class="{ 'h-full overflow-y-scroll': isSingle }"
+    class="mt-0.5"
+  )
     textarea.mt-1.h-full.w-full.rounded-lg.bg-neutral-100.px-2.py-1.font-mono.text-sm.leading-snug(
       v-if="editInProgress"
       ref="editTextarea"
@@ -282,5 +331,21 @@ onMounted(() => {
       @keydown.escape="editInProgress = false"
     )
 
-    RichText(v-else :text="variant.writerUpdate.text" as="p")
+    RichText.leading-snug(v-else :text="variant.writerUpdate.text" as="p")
+
+    .flex.w-full.items-center.justify-end(class="mt-0.5")
+      button.btn.relative.opacity-50(
+        v-if="variant.writerUpdate.completion"
+        v-tooltip="`Context length: ${variant.completionLength || '?'}/${simulation.writer.contextSize.value ?? '?'} (${variant.writerUpdate.didConsolidate ? 'already summarized' : 'click to summarize'})`"
+        class="gap-0.5 hover:opacity-100"
+        @click="onConsolidateClick"
+        :class="{ 'cursor-pointer btn-pressable': !variant.writerUpdate.didConsolidate, 'cursor-help': variant.writerUpdate.didConsolidate }"
+      )
+        span.text-xs.font-medium(v-if="variant.completionLength") {{ simulation.writer.contextSize.value ? Math.round((variant.completionLength / simulation.writer.contextSize.value) * 100) : 0 }}%
+        TriangleAlertIcon.text-warn-500(v-if="consolidationWarning" :size="16")
+        SigmaSquareIcon(
+          v-else
+          :size="16"
+          :class="{ 'text-primary-500': variant.writerUpdate.didConsolidate }"
+        )
 </template>

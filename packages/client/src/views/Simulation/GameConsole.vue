@@ -97,7 +97,7 @@ const predictionOptions = computed<PredictionOptions>(() => ({
 }));
 
 const sendButtonState = computed<SendButtonState>(() => {
-  if (inferenceAbortController.value) {
+  if (simulation.busy.value) {
     return SendButtonState.Busy;
   } else {
     if (userInput.value) {

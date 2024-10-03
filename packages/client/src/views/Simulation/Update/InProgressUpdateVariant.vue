@@ -128,7 +128,7 @@ const character = computed(() => {
     :class="{ 'h-full overflow-y-scroll': isSingle }"
     class="mt-0.5"
   )
-    p
+    p.leading-snug
       RichText(
         v-if="live && bufferedText"
         :text="bufferedText"

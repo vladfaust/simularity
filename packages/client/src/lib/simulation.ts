@@ -38,7 +38,7 @@ import {
   type StateDto,
 } from "./simulation/state";
 import { type StateCommand } from "./simulation/state/commands";
-import { Update } from "./simulation/update";
+import { Update, UpdateVariant } from "./simulation/update";
 import * as storage from "./storage";
 import { directorTeacherMode } from "./storage/llm";
 import { Bug, Deferred, assert, assertCallback } from "./utils";
@@ -219,8 +219,10 @@ export class Simulation {
   /**
    * Whether the simulation needs consolidation.
    */
-  readonly needsConsolidation = computed(
-    () => this._writer.needsConsolidation.value,
+  readonly needsConsolidation = computed(() =>
+    this._writer.consolidationThreshold.value && this.contextLength.value
+      ? this.contextLength.value >= this._writer.consolidationThreshold.value
+      : undefined,
   );
 
   /**
@@ -506,16 +508,16 @@ export class Simulation {
 
       // Add the new episode update to the recent updates.
       const episodeUpdate = markRaw(
-        new Update(
-          parentUpdateId,
-          shallowRef([
-            {
-              ...incoming,
-              state: this.state?.serialize(),
-              ttsPath: ref(null),
-            },
-          ]),
-        ),
+        new Update(parentUpdateId, [
+          markRaw(
+            new UpdateVariant(
+              incoming.writerUpdate,
+              incoming.directorUpdate,
+              this.state?.serialize(),
+              null,
+            ),
+          ),
+        ]),
       );
 
       this._recentUpdates.value.push(episodeUpdate);
@@ -579,11 +581,16 @@ export class Simulation {
       if (this._futureUpdates.value.length) {
         // Add a new variant to the existing next update.
         const update = this._futureUpdates.value.shift()!;
-        update.variants.value.push({
-          ...saved,
-          state: this.state?.serialize(),
-          ttsPath: ref(null),
-        });
+        update.variants.value.push(
+          markRaw(
+            new UpdateVariant(
+              saved.writerUpdate,
+              saved.directorUpdate,
+              this.state?.serialize(),
+              null,
+            ),
+          ),
+        );
         update.setChosenVariantToLast();
 
         // Shift the future update to the recent updates.
@@ -594,16 +601,16 @@ export class Simulation {
       } else {
         // Create a new update object.
         const update = markRaw(
-          new Update(
-            parentUpdateId,
-            shallowRef([
-              {
-                ...saved,
-                state: this.state?.serialize(),
-                ttsPath: ref(null),
-              },
-            ]),
-          ),
+          new Update(parentUpdateId, [
+            markRaw(
+              new UpdateVariant(
+                saved.writerUpdate,
+                saved.directorUpdate,
+                this.state?.serialize(),
+                null,
+              ),
+            ),
+          ]),
         );
 
         // Add the new update to the recent updates.
@@ -655,7 +662,8 @@ export class Simulation {
     try {
       if (this.needsConsolidation.value) {
         console.log("Simulation needs consolidation");
-        await this.consolidate(false);
+        await this.consolidate(false, undefined, true);
+        console.debug("Consolidation done");
       }
 
       if (this.mode === Mode.Immersive) {
@@ -669,6 +677,7 @@ export class Simulation {
 
       this._recentUpdates.value.push(update);
 
+      console.debug("Predicting the next update...");
       await this._inferUpdateVariantImpl(
         update,
         this._recentUpdates.value.slice(0, -1), // Skip the just created update.
@@ -790,16 +799,16 @@ export class Simulation {
 
       // Synchronize the state with the chosen variant.
       this.state.setState(this._previousState.value!);
-      if (newVariant.directorUpdate === undefined) {
+      if (newVariant.directorUpdate.value === undefined) {
         console.debug(
           "Fetching applied director update for the chosen variant",
         );
-        newVariant.directorUpdate =
+        newVariant.directorUpdate.value =
           await Simulation._fetchAppliedDirectorUpdate(
             newVariant.writerUpdate.id,
           );
       }
-      const code = newVariant.directorUpdate?.code;
+      const code = newVariant.directorUpdate.value?.code;
       if (code) {
         console.debug("Applying director update code", code);
         this.state.apply(code);
@@ -880,29 +889,38 @@ export class Simulation {
   /**
    * Consolidate the simulation at the current update.
    */
+  // TODO: Consolidate at any update.
   async consolidate(
     throwOnAlreadyConsolidated: boolean,
     inferenceAbortSignal?: AbortSignal,
+    allowBusy?: boolean,
   ) {
-    if (this.busy.value) {
+    console.debug("consolidate()", { throwOnAlreadyConsolidated, allowBusy });
+
+    if (this.busy.value && !allowBusy) {
+      console.debug("Simulation is busy");
       return new Error("Simulation is busy");
     }
 
     if (!this.writer.ready.value) {
+      console.debug("Writer is not ready");
       return new Error("Writer is not ready");
     }
 
     if (this.shallAdvanceEpisode.value) {
+      console.debug("Cannot consolidate during an episode");
       return new Error("Cannot consolidate during an episode");
     }
 
     const writerUpdate = this.currentUpdate.value?.chosenVariant?.writerUpdate;
     if (!writerUpdate) {
+      console.debug("No current update");
       throw new Error("No current update");
     }
 
     if (writerUpdate.didConsolidate) {
       if (throwOnAlreadyConsolidated) {
+        console.debug("Update is already consolidated");
         return new Error("Update is already consolidated");
       } else {
         console.log("Update is already consolidated");
@@ -913,6 +931,8 @@ export class Simulation {
     this._busy.value = true;
     this._consolidationInProgress.value = true;
     try {
+      console.log("Consolidating the simulation...");
+
       const summarizationResult = await this.writer.summarize(
         this._checkpoint.value!,
         this._historicalUpdates.value,
@@ -1240,18 +1260,17 @@ export class Simulation {
         throw new Bug("State is not initialized (goForward)");
       }
 
-      if (variant.directorUpdate === undefined) {
+      if (variant.directorUpdate.value === undefined) {
         console.debug(
           "Fetching missing director update for",
           variant.writerUpdate.id,
         );
 
-        variant.directorUpdate = await Simulation._fetchAppliedDirectorUpdate(
-          variant.writerUpdate.id,
-        );
+        variant.directorUpdate.value =
+          await Simulation._fetchAppliedDirectorUpdate(variant.writerUpdate.id);
       }
 
-      const directorUpdate = variant.directorUpdate;
+      const directorUpdate = variant.directorUpdate.value;
       if (directorUpdate) {
         console.debug("Applying stage code", directorUpdate.code);
         this.state.apply(directorUpdate.code);
@@ -1314,7 +1333,7 @@ export class Simulation {
    * Prefer, disprefer or remove preference from a director update.
    */
   async preferDirectorUpdate(update: Update, preference: boolean | null) {
-    const directorUpdate = update.ensureChosenVariant.directorUpdate;
+    const directorUpdate = update.ensureChosenVariant.directorUpdate.value;
     if (!directorUpdate) throw new Error("BUG: No update to prefer");
 
     if (directorUpdate.preference === preference) {
@@ -1362,8 +1381,8 @@ export class Simulation {
       )[0];
     });
 
-    update.ensureChosenVariant.directorUpdate = directorUpdate;
-    update.ensureChosenVariant.state = undefined;
+    update.ensureChosenVariant.directorUpdate.value = directorUpdate;
+    update.ensureChosenVariant.state.value = undefined;
 
     triggerRef(update.variants);
   }
@@ -1635,16 +1654,18 @@ export class Simulation {
           ".mp3",
         );
 
-        return {
-          writerUpdate,
-          ttsPath: ref((await fs.exists(ttsPath)) ? ttsPath : null),
-        };
+        return markRaw(
+          new UpdateVariant(
+            writerUpdate,
+            undefined, // Director update is fetched later.
+            undefined, // State is fetched later.
+            (await fs.exists(ttsPath)) ? ttsPath : null,
+          ),
+        );
       }),
     );
 
-    const update = markRaw(
-      new Update(writerUpdate.parentUpdateId, shallowRef(variants)),
-    );
+    const update = markRaw(new Update(writerUpdate.parentUpdateId, variants));
 
     update.chosenVariantIndex.value = assertCallback(
       update.variants.value.findIndex(
@@ -1655,7 +1676,7 @@ export class Simulation {
     );
 
     if (this.mode === Mode.Immersive) {
-      update.ensureChosenVariant.directorUpdate = directorUpdate;
+      update.ensureChosenVariant.directorUpdate.value = directorUpdate;
     }
 
     return update;
@@ -1910,7 +1931,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
 
       const update = this._recentUpdates.value[i];
       // console.debug("Applying update", update.chosenVariant?.writerUpdate.text);
-      const directorUpdate = update.chosenVariant?.directorUpdate;
+      const directorUpdate = update.chosenVariant?.directorUpdate.value;
 
       if (directorUpdate) {
         console.debug("Applying stage code", directorUpdate.code);
@@ -1957,14 +1978,14 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         previousState: this.previousState.value,
         state: this.state.serialize(),
         actualDelta,
-        directorUpdate: update.chosenVariant?.directorUpdate?.code,
+        directorUpdate: update.chosenVariant?.directorUpdate.value?.code,
       });
 
-      const deltasEqual = update.chosenVariant?.directorUpdate
+      const deltasEqual = update.chosenVariant?.directorUpdate.value
         ? compareStateDeltas(
             this.state.serialize(),
             actualDelta,
-            update.chosenVariant.directorUpdate.code,
+            update.chosenVariant.directorUpdate.value.code,
           )
         : actualDelta.length === 0;
       console.log("Deltas equal?", deltasEqual);
@@ -1986,8 +2007,8 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
             .returning()
         )[0];
 
-        update.ensureChosenVariant.directorUpdate = directorUpdate;
-        update.ensureChosenVariant.state = this.state.serialize();
+        update.ensureChosenVariant.directorUpdate.value = directorUpdate;
+        update.ensureChosenVariant.state.value = this.state.serialize();
       }
     }
   }

@@ -13,7 +13,7 @@ import * as director from "../agents/director";
 import * as voicer from "../agents/voicer";
 import * as writer from "../agents/writer";
 import * as state from "../state";
-import type { Update } from "../update";
+import { UpdateVariant, type Update } from "../update";
 
 export class PredictUpdateVariantJob {
   private readonly _writerDone = ref<boolean>(false);
@@ -214,15 +214,19 @@ export class PredictUpdateVariantJob {
         this.state!.apply(directorUpdate.code);
       }
 
-      this.update.variants.value.push({
-        writerUpdate: {
-          ...writerUpdate,
-          completion: writerResponse.completion,
-        },
-        directorUpdate,
-        state: this.state?.serialize(),
-        ttsPath: ref(ttsPath),
-      });
+      this.update.variants.value.push(
+        markRaw(
+          new UpdateVariant(
+            {
+              ...writerUpdate,
+              completion: writerResponse.completion,
+            },
+            directorUpdate,
+            this.state?.serialize(),
+            ttsPath,
+          ),
+        ),
+      );
 
       this.update.setChosenVariantToLast();
 
@@ -322,36 +326,36 @@ export class PredictUpdateVariantJob {
     }
 
     for (const update of updates) {
-      if (update.ensureChosenVariant.state) {
+      if (update.ensureChosenVariant.state.value) {
         console.debug("State already ensured for", {
           writerUpdateId: update.ensureChosenVariant.writerUpdate.id,
           text: update.ensureChosenVariant.writerUpdate.text,
         });
 
-        currentState = clone(update.ensureChosenVariant.state);
+        currentState = clone(update.ensureChosenVariant.state.value);
         continue;
       }
 
-      if (update.ensureChosenVariant.directorUpdate === undefined) {
+      if (update.ensureChosenVariant.directorUpdate.value === undefined) {
         console.debug(
           "Fetching missing director update for",
           update.ensureChosenVariant.writerUpdate.id,
         );
 
-        update.ensureChosenVariant.directorUpdate =
+        update.ensureChosenVariant.directorUpdate.value =
           await Simulation._fetchAppliedDirectorUpdate(
             update.ensureChosenVariant.writerUpdate.id,
           );
       }
 
-      if (update.ensureChosenVariant.directorUpdate) {
+      if (update.ensureChosenVariant.directorUpdate.value) {
         state.applyCommandsToStateDtoUnsafe(
           currentState,
-          update.ensureChosenVariant.directorUpdate.code,
+          update.ensureChosenVariant.directorUpdate.value.code,
         );
       }
 
-      update.ensureChosenVariant.state = clone(currentState);
+      update.ensureChosenVariant.state.value = clone(currentState);
 
       console.debug("Ensured state for", {
         writerUpdateId: update.ensureChosenVariant.writerUpdate.id,
@@ -395,15 +399,14 @@ export class PredictUpdateVariantJob {
     for (const candidate of candidates.reverse()) {
       const variant = candidate.ensureChosenVariant;
 
-      if (variant.directorUpdate === undefined) {
+      if (variant.directorUpdate.value === undefined) {
         console.debug(
           "Fetching missing director update for",
           variant.writerUpdate.id,
         );
 
-        variant.directorUpdate = await Simulation._fetchAppliedDirectorUpdate(
-          variant.writerUpdate.id,
-        );
+        variant.directorUpdate.value =
+          await Simulation._fetchAppliedDirectorUpdate(variant.writerUpdate.id);
       }
 
       if (directorHistoricalUpdates.length) {
@@ -437,8 +440,8 @@ export class PredictUpdateVariantJob {
           text: variant.writerUpdate.text,
 
           // That's what all that fuss was about.
-          state: variant.directorUpdate?.code.length
-            ? variant.state
+          state: variant.directorUpdate.value?.code.length
+            ? variant.state.value
             : undefined,
         };
       }),

@@ -8,7 +8,7 @@ import { d } from "@/lib/drizzle";
 import { type Scenario } from "@/lib/scenario";
 import * as storage from "@/lib/storage";
 import { clockToMinutes, minutesToClock, trimEndAny } from "@/lib/utils";
-import { computed, ref, shallowRef, type ShallowRef } from "vue";
+import { computed, shallowRef, type ShallowRef } from "vue";
 import type { StateDto } from "../state";
 import { Update } from "../update";
 import { hookLlmAgentToDriverRef } from "./llm";
@@ -48,22 +48,20 @@ export class Writer {
   static readonly TASK_BUFFER_SIZE = 1024;
 
   /**
-   * Visible context size (w/o task buffer).
+   * Actual driver context size.
    */
   readonly contextSize = computed(() => this.llmDriver.value?.contextSize);
 
-  readonly contextLength = ref<number | undefined>();
   readonly llmDriver: ShallowRef<BaseLlmDriver | null>;
   readonly ready = computed(() => this.llmDriver.value?.ready.value);
   private readonly _driverConfigWatchStopHandle: () => void;
 
   /**
-   * Whether the context needs consolidation.
+   * The threshold for consolidation.
    */
-  readonly needsConsolidation = computed(() =>
-    this.llmDriver.value && this.contextLength.value
-      ? this.contextLength.value >=
-        this.llmDriver.value.contextSize - Writer.TASK_BUFFER_SIZE
+  readonly consolidationThreshold = computed(() =>
+    this.llmDriver.value
+      ? this.llmDriver.value.contextSize - Writer.TASK_BUFFER_SIZE
       : undefined,
   );
 
@@ -197,10 +195,6 @@ export class Writer {
       this.scenario,
       predictionOptions,
     );
-
-    this.contextLength.value =
-      inferenceResult.completion.inputLength! +
-      inferenceResult.completion.outputLength!;
 
     return {
       completion: inferenceResult.completion,

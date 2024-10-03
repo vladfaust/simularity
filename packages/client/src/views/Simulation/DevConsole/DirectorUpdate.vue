@@ -18,7 +18,7 @@ const props = defineProps<{
 }>();
 
 const directorUpdate = computed(
-  () => props.update.ensureChosenVariant.directorUpdate,
+  () => props.update.ensureChosenVariant.directorUpdate.value,
 );
 
 const delta = computed(() => {
