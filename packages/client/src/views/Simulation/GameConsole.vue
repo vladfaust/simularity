@@ -370,8 +370,12 @@ function onKeypress(event: KeyboardEvent) {
     }
   } else if (event.key === "e") {
     if (document.activeElement !== userInputElement.value) {
-      event.preventDefault();
-      triggerEditHandler?.();
+      if (simulation.sandbox) {
+        event.preventDefault();
+        triggerEditHandler?.();
+      } else {
+        console.warn("Editing is disabled in non-sandbox mode");
+      }
     }
   } else if (event.key === "h") {
     if (document.activeElement !== userInputElement.value) {
@@ -445,11 +449,17 @@ function onKeydown(event: KeyboardEvent) {
         else advance();
       }
     } else if (event.key === "ArrowLeft") {
-      console.log("ArrowLeft");
-      triggerPreviousVariantHandler?.();
+      if (simulation.sandbox) {
+        triggerPreviousVariantHandler?.();
+      } else {
+        console.warn("Swiping is disabled in non-sandbox mode");
+      }
     } else if (event.key === "ArrowRight") {
-      console.log("ArrowRight");
-      triggerNextVariantHandler?.();
+      if (simulation.sandbox) {
+        triggerNextVariantHandler?.();
+      } else {
+        console.warn("Swiping is disabled in non-sandbox mode");
+      }
     }
   }
 }
