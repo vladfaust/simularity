@@ -88,6 +88,24 @@ const consolidationWarning = computed(() => {
   return props.variant.completionLength >= consolidationThreshold.value;
 });
 
+const consolidationTooltip = computed(() => {
+  return `Context length: ${props.variant.completionLength || "?"}/${
+    props.simulation.writer.contextSize.value ?? "?"
+  } (${
+    props.simulation.writer.contextSize.value && props.variant.completionLength
+      ? Math.round(
+          (props.variant.completionLength /
+            props.simulation.writer.contextSize.value) *
+            100,
+        )
+      : 0
+  }%) [${
+    props.variant.writerUpdate.didConsolidate
+      ? "already summarized"
+      : "click to summarize"
+  }]`;
+});
+
 async function onEditCommitClick() {
   if (!anyEditChanges.value) {
     console.log("No changes");
@@ -252,8 +270,23 @@ onMounted(() => {
       //- span.leading-none(v-if="variant.writerUpdate.didConsolidate") [C]
 
     //- Buttons.
-    .flex.items-center.gap-2
+    .flex.items-center.opacity-80(class="gap-1.5 hover:opacity-100")
       slot(name="extra")
+
+      //- Consolidate.
+      button.btn.group.relative.gap-1.rounded.bg-white(
+        v-if="variant.writerUpdate.completion && !editInProgress"
+        v-tooltip="consolidationTooltip"
+        @click="onConsolidateClick"
+        :class="{ 'cursor-pointer btn-pressable': !variant.writerUpdate.didConsolidate, 'cursor-help': variant.writerUpdate.didConsolidate }"
+        class="hover:animate-pulse hover:text-ai-500"
+      )
+        TriangleAlertIcon.text-warn-500(v-if="consolidationWarning" :size="18")
+        SigmaSquareIcon(
+          v-else
+          :size="18"
+          :class="{ 'text-primary-500': variant.writerUpdate.didConsolidate }"
+        )
 
       //- TTS.
       template(
@@ -261,22 +294,23 @@ onMounted(() => {
       )
         //- Play TTS.
         //- Press again to stop.
-        button.btn-pressable(
+        button.btn-pressable.rounded.bg-white(
           v-if="variant.ttsPath.value"
           @click.stop="switchPlayTts"
+          title="Play saved TTS"
         )
-          Volume2Icon(:size="20" :class="{ 'text-primary-500': ttsPlaying }")
+          Volume2Icon(:size="18" :class="{ 'text-primary-500': ttsPlaying }")
 
         //- Create TTS.
-        button.btn.btn-pressable.transition(
+        button.btn.btn-pressable.rounded.bg-white.transition(
           v-else
           @click.stop="createTts"
           :disabled="ttsCreationInProgress || !simulation.voicer.enabled.value"
           :class="{ 'hover:text-ai-500 hover:animate-pulse': !ttsCreationInProgress }"
-          :title="simulation.voicer.enabled.value ? 'Create TTS' : 'Voicer is disabled'"
+          :title="simulation.voicer.enabled.value ? 'Predict TTS' : 'Voicer is disabled'"
         )
-          Loader2Icon.animate-spin(:size="20" v-if="ttsCreationInProgress")
-          AudioLinesIcon(:size="20" v-else)
+          Loader2Icon.animate-spin(:size="18" v-if="ttsCreationInProgress")
+          AudioLinesIcon(:size="18" v-else)
 
       //- Preference.
       .flex.items-center.gap-1(
@@ -298,22 +332,26 @@ onMounted(() => {
 
       //- Edit.
       .flex(v-if="canEdit && !variant.writerUpdate.episodeId")
-        button(v-if="!editInProgress" @click.stop="startEdit" title="Edit (e)")
-          Edit3Icon(:size="20")
+        button.rounded.bg-white(
+          v-if="!editInProgress"
+          @click.stop="startEdit"
+          title="Edit (e)"
+        )
+          Edit3Icon(:size="18")
 
         template(v-else)
-          button.btn-pressable(
+          button.btn-pressable.rounded.bg-white(
             @click.stop="onEditCommitClick"
             :disabled="applyingEditInProgress"
           )
-            Loader2Icon.animate-spin(:size="20" v-if="applyingEditInProgress")
-            CheckIcon(v-else :size="20")
+            Loader2Icon.animate-spin(:size="18" v-if="applyingEditInProgress")
+            CheckIcon(v-else :size="18")
 
-          button(
+          button.rounded.bg-white(
             @click.stop="editInProgress = false"
             :disabled="applyingEditInProgress"
           )
-            XIcon(:size="20")
+            XIcon(:size="18")
 
       //- Variant navigation.
       slot(v-if="!editInProgress" name="variant-navigation")
@@ -328,24 +366,8 @@ onMounted(() => {
       ref="editTextarea"
       v-model="editText"
       @keydown.enter.prevent="onEditCommitClick"
-      @keydown.escape="editInProgress = false"
+      @keydown.escape.prevent="editInProgress = false"
     )
 
     RichText.leading-snug(v-else :text="variant.writerUpdate.text" as="p")
-
-    .flex.w-full.items-center.justify-end(class="mt-0.5")
-      button.btn.relative.opacity-50(
-        v-if="variant.writerUpdate.completion"
-        v-tooltip="`Context length: ${variant.completionLength || '?'}/${simulation.writer.contextSize.value ?? '?'} (${variant.writerUpdate.didConsolidate ? 'already summarized' : 'click to summarize'})`"
-        class="gap-0.5 hover:opacity-100"
-        @click="onConsolidateClick"
-        :class="{ 'cursor-pointer btn-pressable': !variant.writerUpdate.didConsolidate, 'cursor-help': variant.writerUpdate.didConsolidate }"
-      )
-        span.text-xs.font-medium(v-if="variant.completionLength") {{ simulation.writer.contextSize.value ? Math.round((variant.completionLength / simulation.writer.contextSize.value) * 100) : 0 }}%
-        TriangleAlertIcon.text-warn-500(v-if="consolidationWarning" :size="16")
-        SigmaSquareIcon(
-          v-else
-          :size="16"
-          :class="{ 'text-primary-500': variant.writerUpdate.didConsolidate }"
-        )
 </template>

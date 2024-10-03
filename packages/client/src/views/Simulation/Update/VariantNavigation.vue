@@ -25,7 +25,7 @@ defineEmits<{
   )
     CircleChevronLeftIcon(:size="18")
 
-  span.leading-none {{ currentIndex + 1 }} / {{ totalVariants }}
+  span.text-sm.font-medium.leading-none {{ currentIndex + 1 }} / {{ totalVariants }}
 
   button.btn.transition-transform.pressable(
     @click.stop="$emit('next')"
