@@ -11,6 +11,7 @@
 - [x] feat: credits (Tue 3)
 - [x] MVP release! (Tue 10) 🚀
 - [x] feat: download models (Wed 18)
+- [x] feat: new UI (click to choose scenario) (Thu 26)
 
 ### August 2024
 
