@@ -7,7 +7,7 @@ import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { d } from "@/lib/drizzle";
 import { Mode } from "@/lib/simulation";
 import { nonNullable } from "@/lib/utils";
-import { useScenarioQuery, useSimulationQuery } from "@/queries";
+import { useLocalScenarioQuery, useSimulationQuery } from "@/queries";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { asyncComputed } from "@vueuse/core";
@@ -21,7 +21,7 @@ const { simulationId } = defineProps<{
 
 const { data: simulation } = useSimulationQuery(simulationId);
 
-const { data: scenario } = useScenarioQuery(
+const { data: scenario } = useLocalScenarioQuery(
   computed(() => simulation.value?.scenarioId),
 );
 

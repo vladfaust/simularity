@@ -59,6 +59,11 @@
   .btn {
     @apply flex items-center justify-center;
     @apply disabled:cursor-not-allowed disabled:opacity-50;
+    @apply select-none whitespace-nowrap;
+
+    > * {
+      @apply pointer-events-none;
+    }
   }
 
   .btn-shadow {
@@ -81,12 +86,16 @@
     @apply gap-1 px-4 py-2 font-semibold;
   }
 
+  .btn-md-square {
+    @apply aspect-square shrink-0 gap-1 p-2 font-semibold;
+  }
+
   .btn-sm {
     @apply gap-1 px-2 py-1 text-sm font-semibold;
   }
 
   .btn-sm-square {
-    @apply gap-1 p-1 text-sm font-semibold;
+    @apply aspect-square shrink-0 gap-1 p-1 text-sm font-semibold;
   }
 
   .btn-neutral {

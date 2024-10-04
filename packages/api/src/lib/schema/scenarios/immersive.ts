@@ -1,6 +1,11 @@
-import { StateCommandSchema } from "@/lib/simulation/state/commands";
-import { v } from "@/lib/valibot";
-import { BaseScenarioSchema, IdSchema } from "./base";
+import * as v from "valibot";
+import { StateCommandSchema } from "../commands.js";
+import {
+  AssetSchema,
+  baseScenarioAssets,
+  BaseScenarioSchema,
+  IdSchema,
+} from "./base.js";
 
 const SpriteTransformSchema = v.object({
   /**
@@ -19,6 +24,7 @@ const SpriteTransformSchema = v.object({
   scale: v.optional(v.number()),
 });
 
+// NOTE: Don't forget to update `immersiveScenarioAssets` when adding new assets.
 export const ImmersiveScenarioSchema = v.object({
   ...BaseScenarioSchema.entries,
 
@@ -73,7 +79,7 @@ export const ImmersiveScenarioSchema = v.object({
         /**
          * Body sprite files.
          */
-        bodies: v.array(v.string()),
+        bodies: v.array(AssetSchema),
 
         /**
          * Character expression sprites.
@@ -88,9 +94,9 @@ export const ImmersiveScenarioSchema = v.object({
             bodyId: v.number(),
 
             /**
-             * Expression sprite file.
+             * Expression sprite.
              */
-            file: v.string(),
+            asset: AssetSchema,
           }),
         ),
 
@@ -102,9 +108,9 @@ export const ImmersiveScenarioSchema = v.object({
           IdSchema,
           v.object({
             /**
-             * Outfit sprite files, with index matching the body's.
+             * Outfit sprite assets, with index matching the body's.
              */
-            files: v.array(v.string()),
+            assets: v.array(AssetSchema),
           }),
         ),
       }),
@@ -130,14 +136,14 @@ export const ImmersiveScenarioSchema = v.object({
       prompt: v.string(),
 
       /**
-       * Scene background image URL.
+       * Scene background image.
        */
-      bg: v.string(),
+      bg: AssetSchema,
 
       /**
        * Scene ambient sound paths in different formats.
        */
-      ambienceSoundPaths: v.optional(v.array(v.string())),
+      ambienceSounds: v.optional(v.array(AssetSchema)),
 
       visualization: v.optional(
         v.object({
@@ -202,3 +208,68 @@ export const ImmersiveScenarioSchema = v.object({
     }),
   ),
 });
+
+/**
+ * Iterate over all assets in the immersive scenario.
+ */
+export function* immersiveScenarioAssets(
+  manifest: v.InferOutput<typeof ImmersiveScenarioSchema>,
+): Generator<{
+  jsonpath: string;
+  public?: boolean;
+  asset: v.InferOutput<typeof AssetSchema>;
+}> {
+  for (const entry of baseScenarioAssets(manifest)) {
+    yield entry;
+  }
+
+  for (const [characterId, character] of Object.entries(manifest.characters)) {
+    if (character.layeredSpritesAvatar) {
+      for (const [
+        index,
+        asset,
+      ] of character.layeredSpritesAvatar.bodies.entries()) {
+        yield {
+          jsonpath: `$.characters.${characterId}.layeredSpritesAvatar.bodies[${index}]`,
+          asset,
+        };
+      }
+
+      for (const [expressionId, expression] of Object.entries(
+        character.layeredSpritesAvatar.expressions,
+      )) {
+        yield {
+          jsonpath: `$.characters.${characterId}.layeredSpritesAvatar.expressions.${expressionId}.asset`,
+          asset: expression.asset,
+        };
+      }
+
+      for (const [outfitId, outfit] of Object.entries(
+        character.layeredSpritesAvatar.outfits,
+      )) {
+        for (const [index, asset] of outfit.assets.entries()) {
+          yield {
+            jsonpath: `$.characters.${characterId}.layeredSpritesAvatar.outfits.${outfitId}.assets[${index}]`,
+            asset,
+          };
+        }
+      }
+    }
+  }
+
+  for (const [sceneId, scene] of Object.entries(manifest.scenes)) {
+    yield {
+      jsonpath: `$.scenes.${sceneId}.bg`,
+      asset: scene.bg,
+    };
+
+    if (scene.ambienceSounds) {
+      for (const [index, asset] of scene.ambienceSounds.entries()) {
+        yield {
+          jsonpath: `$.scenes.${sceneId}.ambienceSounds[${index}]`,
+          asset,
+        };
+      }
+    }
+  }
+}

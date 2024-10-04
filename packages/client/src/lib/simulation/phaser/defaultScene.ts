@@ -1,4 +1,4 @@
-import { ImmersiveScenario } from "@/lib/scenario";
+import { LocalImmersiveScenario } from "@/lib/scenario";
 import { sleep } from "@/lib/utils";
 import pRetry from "p-retry";
 import Phaser from "phaser";
@@ -70,7 +70,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
   }
 
   constructor(
-    readonly scenario: ImmersiveScenario,
+    readonly scenario: LocalImmersiveScenario,
     private readonly initialState: DeepReadonly<Stage> | null = null,
     private readonly onPreloadProgress?: (progress: number) => void,
     private readonly onCreate?: () => void,
@@ -106,15 +106,15 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
     )) {
       this.load.image(
         this._sceneTextureKey(sceneId),
-        await this.scenario.resourceUrl(scene.bg),
+        await this.scenario.resourceUrl(scene.bg.path),
       );
 
-      if (scene.ambienceSoundPaths) {
+      if (scene.ambienceSounds) {
         this.load.audio(
           this._sceneAmbienceKey(sceneId),
           await Promise.all(
-            scene.ambienceSoundPaths.map((path) =>
-              this.scenario.resourceUrl(path),
+            scene.ambienceSounds.map((asset) =>
+              this.scenario.resourceUrl(asset.path),
             ),
           ),
         );
@@ -125,10 +125,10 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       this.scenario.content.characters,
     )) {
       let bodyId = 0;
-      for (const file of character.layeredSpritesAvatar.bodies) {
+      for (const asset of character.layeredSpritesAvatar.bodies) {
         this.load.image(
           this._characterBodyTextureKey(characterId, bodyId++),
-          await this.scenario.resourceUrl(file),
+          await this.scenario.resourceUrl(asset.path),
         );
       }
 
@@ -136,10 +136,10 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
         character.layeredSpritesAvatar.outfits,
       )) {
         bodyId = 0;
-        for (const file of outfit.files) {
+        for (const asset of outfit.assets) {
           this.load.image(
             this._characterOutfitTextureKey(characterId, outfitId, bodyId++),
-            await this.scenario.resourceUrl(file),
+            await this.scenario.resourceUrl(asset.path),
           );
         }
       }
@@ -149,7 +149,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       )) {
         this.load.image(
           this._characterExpressionTextureKey(characterId, expressionId),
-          await this.scenario.resourceUrl(expression.file),
+          await this.scenario.resourceUrl(expression.asset.path),
         );
       }
     }
@@ -253,7 +253,7 @@ export class DefaultScene extends Phaser.Scene implements StageRenderer {
       });
     }
 
-    if (scene.ambienceSoundPaths) {
+    if (scene.ambienceSounds) {
       // Sometimes the sound is not loaded yet.
       this._setAmbienceWithRetry(sceneId);
     }

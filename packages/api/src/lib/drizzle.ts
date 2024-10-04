@@ -12,6 +12,7 @@ export const d = {
     "llmWorkers",
     "oauthAccounts",
     "patreonPledges",
+    "scenarios",
     "ttsInferences",
     "ttsModels",
     "ttsWorkers",

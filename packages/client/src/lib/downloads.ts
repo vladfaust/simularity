@@ -12,6 +12,7 @@ import {
   type Ref,
   type ShallowRef,
 } from "vue";
+import { SCENARIOS_DIR } from "./scenario";
 import type { LlmAgentId } from "./storage/llm";
 import { download, fileSha256 } from "./tauri/utils";
 import type { Response as DownloadResponse } from "./tauri/utils/download";
@@ -196,6 +197,11 @@ export class Download {
   });
 
   /**
+   * Whether all downloads are completed.
+   */
+  readonly completed = ref(false);
+
+  /**
    * Get a new random temporary path.
    */
   static async tempPath() {
@@ -209,7 +215,7 @@ export class Download {
   /**
    * Create a new `Download` instance for a list of files.
    *
-   * @param metaPath - Path to the `.download` meta file.
+   * @param metaPath - Path to the `<id>.download` meta file.
    * @param files - List of files to download.
    * @param paused - Whether the download should start paused (default: `false`).
    */
@@ -222,9 +228,12 @@ export class Download {
       hashes?: {
         sha256?: string;
       };
+      size?: number;
     }[],
     paused = false,
   ): Promise<Download> {
+    console.debug(`Download.create()`, { metaPath, files, paused });
+
     if (await fs.exists(metaPath)) {
       throw new Error(`Download already exists at ${metaPath}`);
     }
@@ -236,7 +245,7 @@ export class Download {
         ...file,
         completed: ref(false),
         error: ref(undefined),
-        contentLength: ref(undefined),
+        contentLength: ref(file.size),
         tempPath: ref(file.tempPath),
       })),
       paused,
@@ -248,7 +257,7 @@ export class Download {
   }
 
   /**
-   * Create new `Download` from an existing `.download` meta file.
+   * Create new `Download` from an existing `<id>.download` meta file.
    *
    * SAFETY: There must be no other `Download` instance for the same meta file.
    */
@@ -257,24 +266,26 @@ export class Download {
     const data = JSON.parse(contents);
     const { files, paused } = v.parse(DownloadFileSchema, data);
 
-    return new Download(
-      (await path.basename(metaPath)).replace(/\.download$/, ""),
-      metaPath,
-      await Promise.all(
-        files.map(async (file) => ({
-          ...file,
-          completed: ref(file.completed),
-          error: ref(file.error),
-          contentLength: ref(file.contentLength),
-          tempPath: ref(file.tempPath),
-          initialFileSize: file.tempPath
-            ? (await fsExtra.exists(file.tempPath))
-              ? (await fsExtra.metadata(file.tempPath)).size
-              : undefined
-            : undefined,
-        })),
+    return markRaw(
+      new Download(
+        (await path.basename(metaPath)).replace(/\.download$/, ""),
+        metaPath,
+        await Promise.all(
+          files.map(async (file) => ({
+            ...file,
+            completed: ref(file.completed),
+            error: ref(file.error),
+            contentLength: ref(file.contentLength),
+            tempPath: ref(file.tempPath),
+            initialFileSize: file.tempPath
+              ? (await fsExtra.exists(file.tempPath))
+                ? (await fsExtra.metadata(file.tempPath)).size
+                : undefined
+              : undefined,
+          })),
+        ),
+        paused,
       ),
-      paused,
     );
   }
 
@@ -312,7 +323,7 @@ export class Download {
       }
 
       const tempPath = (file.tempPath.value ||= await Download.tempPath());
-      console.log(`Downloading from ${file.url} to ${tempPath}`);
+      // console.debug(`Downloading from ${file.url} to ${tempPath}`);
 
       const handler = Download.createDownloadHandler(file.url, tempPath, file);
       this.downloadHandlers.value.set(tempPath, handler);
@@ -324,11 +335,11 @@ export class Download {
         file.contentLength.value = result.targetContentLength;
 
         if (!result.aborted) {
-          console.log(`Download completed: ${tempPath}`);
+          // console.log(`Download completed: ${tempPath}`);
           file.completed.value = true;
 
           if (file.hashes?.sha256) {
-            console.log(`Verifying SHA-256 hash for ${tempPath}`);
+            // console.log(`Verifying SHA-256 hash for ${tempPath}`);
             const sha256 = await fileSha256(tempPath);
 
             if (sha256 !== file.hashes.sha256) {
@@ -339,13 +350,30 @@ export class Download {
             }
           }
 
-          console.log(`Moving ${tempPath} to ${file.targetPath}`);
-          await fs.renameFile(tempPath, file.targetPath);
-
-          if (this.files.every((f) => f.completed)) {
+          if (
+            !this.completed.value &&
+            this.files.every((f) => f.completed.value)
+          ) {
             console.log("All downloads completed");
+            this.completed.value = true;
+
+            for (const file of this.files) {
+              if (file.tempPath.value) {
+                // console.log(
+                //   `Moving ${file.tempPath.value} to ${file.targetPath}`,
+                // );
+
+                await fs.createDir(await path.dirname(file.targetPath), {
+                  recursive: true,
+                });
+
+                await fs.renameFile(file.tempPath.value, file.targetPath);
+              }
+            }
+
             await this.destroy();
             for (const cb of this._onCompleteCallbacks) cb();
+
             return;
           }
         }
@@ -381,6 +409,7 @@ export class Download {
 
   /**
    * Destroy the `Download` instance, cleaning up resources and removing the meta file.
+   * If the download is completed, the temporary files are moved to their target paths.
    */
   async destroy() {
     console.log(`Destroying download: ${this.metaPath}`);
@@ -439,6 +468,7 @@ export class Download {
       url,
       path,
       (event) => {
+        console.debug({ event });
         currentFileSize.value = event.currentFileSize;
         contentLength.value = event.targetContentLength;
         file.contentLength.value = event.targetContentLength;
@@ -482,14 +512,14 @@ export class Download {
 
 export class DownloadManager {
   /**
-   * Map of all known downloads, indexed by their unique ID.
+   * Map of all known downloads, indexed by their path.
    */
   readonly downloads: Map<string, Download> = new Map();
 
   /**
    * Create a new download.
    *
-   * @param metaPath - Path to the `.download` meta file.
+   * @param metaPath - Path to the `<id>.download` meta file.
    * @param files - List of files to download.
    * @param paused - Whether the download should start paused (default: `false`).
    */
@@ -502,6 +532,7 @@ export class DownloadManager {
       hashes?: {
         sha256?: string;
       };
+      size?: number;
     }[],
     paused = false,
   ): Promise<Download> {
@@ -511,7 +542,7 @@ export class DownloadManager {
   }
 
   /**
-   * Iterate over files in a directory to find `.download` files.
+   * Iterate over files in a directory to find `<id>.download` files.
    * Returns a list of downloads, already created or newly found.
    */
   async readDir(dir: string) {
@@ -533,7 +564,7 @@ export class DownloadManager {
 
       console.log(`Found new .download file: ${entry.path}`);
       download = markRaw(await Download.read(entry.path));
-      this.downloads.set(download.id, download);
+      this.downloads.set(entry.path, download);
       downloads.push(download);
     }
 
@@ -547,6 +578,12 @@ export class DownloadManager {
     await Promise.all([
       this.initLlmAgentDir("writer"),
       this.initLlmAgentDir("director"),
+      path
+        .join(await path.appLocalDataDir(), SCENARIOS_DIR)
+        .then(async (dir) => {
+          await fs.createDir(dir, { recursive: true });
+          return this.readDir(dir);
+        }),
     ]);
   }
 

@@ -5,14 +5,13 @@ import {
 } from "@/lib/ai/llm/BaseLlmDriver";
 import { jsonSchemaToGnbf } from "@/lib/ai/llm/gnbf";
 import type { d } from "@/lib/drizzle";
-import { ImmersiveScenario } from "@/lib/scenario";
+import { LocalImmersiveScenario } from "@/lib/scenario";
 import * as storage from "@/lib/storage";
 import { clone, safeParseJson, tap, trimEndAny } from "@/lib/utils";
 import { formatIssues, v } from "@/lib/valibot";
 import { toJSONSchema } from "@gcornut/valibot-json-schema";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
-import { State, type StateDto } from "../state";
-import { type StateCommand } from "../state/commands";
+import { State, type StateCommand, type StateDto } from "../state";
 import { hookLlmAgentToDriverRef } from "./llm";
 import { NARRATOR } from "./writer";
 
@@ -48,7 +47,7 @@ export class Director {
   readonly ready = computed(() => this.llmDriver.value?.ready.value);
   private readonly _driverConfigWatchStopHandle: () => void;
 
-  constructor(private scenario: ImmersiveScenario) {
+  constructor(private scenario: LocalImmersiveScenario) {
     this.llmDriver = shallowRef(null);
     this._driverConfigWatchStopHandle = hookLlmAgentToDriverRef(
       "director",
@@ -218,7 +217,7 @@ export class Director {
   /**
    * Build a static prompt for the director agent.
    */
-  static buildStaticPrompt(scenario: ImmersiveScenario): string {
+  static buildStaticPrompt(scenario: LocalImmersiveScenario): string {
     const setup = {
       locations: Object.fromEntries(
         Object.values(scenario.content.locations).map((location) => [
@@ -340,7 +339,7 @@ ${JSON.stringify(setup)}
   }
 
   private static _buildGrammar(
-    scenario: ImmersiveScenario,
+    scenario: LocalImmersiveScenario,
     supportedLangs: Set<LlmGrammarLang>,
     characters: { id: string; required: boolean }[],
   ): {

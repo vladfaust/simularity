@@ -1,36 +1,69 @@
 import type { v } from "@/lib/valibot";
+import * as schema from "@simularity/api/lib/schema";
 import { join, resolve } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
-import type { BaseScenarioSchema } from "../schemas/base";
 
-export class BaseScenario {
+export class LocalBaseScenario {
   constructor(
     readonly builtin: boolean,
     readonly id: string,
     readonly basePath: string,
-    readonly content: v.InferOutput<typeof BaseScenarioSchema>,
+    readonly content: v.InferOutput<typeof schema.scenarios.BaseScenarioSchema>,
   ) {}
+
+  get manifest() {
+    return this.content;
+  }
+
+  get version() {
+    return this.content.version;
+  }
+
+  get name() {
+    return this.content.name;
+  }
+
+  get nsfw() {
+    return this.content.nsfw;
+  }
+
+  get immersive() {
+    return false;
+  }
+
+  get teaser() {
+    return this.content.teaser;
+  }
+
+  get about() {
+    return this.content.about;
+  }
+
+  get tags() {
+    return this.content.tags;
+  }
 
   async resourceUrl(path: string) {
     return join(this.basePath, path).then(resolve).then(convertFileSrc);
   }
 
+  async getLogoUrl() {
+    if (!this.content.logo) return undefined;
+    return this.resourceUrl(this.content.logo.path);
+  }
+
   async getThumbnailUrl() {
-    if (!this.content.thumbnailPath) return undefined;
-    return this.resourceUrl(this.content.thumbnailPath);
+    if (!this.content.thumbnail) return undefined;
+    return this.resourceUrl(this.content.thumbnail.path);
   }
 
   async getCoverImageUrl() {
-    if (!this.content.coverImagePath) return undefined;
-    return this.resourceUrl(this.content.coverImagePath);
+    if (!this.content.coverImage) return undefined;
+    return this.resourceUrl(this.content.coverImage.path);
   }
 
-  async getMediaUrls() {
-    return this.content.media
-      ? Promise.all(
-          this.content.media?.map((media) => this.resourceUrl(media.path)),
-        )
-      : [];
+  get characters() {
+    return this.content.characters;
   }
 
   get defaultCharacterId() {
@@ -43,8 +76,8 @@ export class BaseScenario {
 
   async getCharacterPfpUrl(characterId: string) {
     const character = this.ensureCharacter(characterId);
-    if (!character.pfpPath) return undefined;
-    return this.resourceUrl(character.pfpPath);
+    if (!character.pfp) return undefined;
+    return this.resourceUrl(character.pfp.path);
   }
 
   findCharacter(characterId: string) {
@@ -57,6 +90,10 @@ export class BaseScenario {
     const found = this.findCharacter(characterId);
     if (!found) throw new Error(`Character not found: ${characterId}`);
     return found;
+  }
+
+  get episodes() {
+    return this.content.episodes;
   }
 
   findEpisode(episodeId: string) {
@@ -77,5 +114,9 @@ export class BaseScenario {
 
   get defaultEpisode() {
     return this.content.episodes[this.defaultEpisodeId];
+  }
+
+  get achievements() {
+    return this.content.achievements;
   }
 }

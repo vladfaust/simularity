@@ -1,4 +1,8 @@
 import * as v from "valibot";
+export { safeParseScenarioManifest } from "./schema/scenarios.js";
+
+export * as commands from "./schema/commands.js";
+export * as scenarios from "./schema/scenarios.js";
 
 export const LangSchema = v.union([v.literal("en")]);
 export const MultiLangTextSchema = v.record(LangSchema, v.string());
@@ -66,3 +70,8 @@ export type Text2SpeechCompletionEpilogue = {
     creditCost: string | null;
   };
 };
+
+export const PatreonTier = v.object({
+  id: v.string(),
+  name: v.string(),
+});

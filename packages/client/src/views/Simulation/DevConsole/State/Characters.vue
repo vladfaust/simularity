@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import type { LocalImmersiveScenario } from "@/lib/scenario";
 import { Simulation } from "@/lib/simulation";
-import type { ImmersiveScenario } from "@/lib/scenario";
 import { nonNullable } from "@/lib/utils";
 import { useSessionStorage } from "@vueuse/core";
 import { CircleOffIcon, DramaIcon } from "lucide-vue-next";
@@ -16,7 +16,7 @@ const { simulation } = defineProps<{
 const scenario = computed(
   () =>
     // Because DevConsole is only shown in immersive mode.
-    simulation.scenario as ImmersiveScenario,
+    simulation.scenario as LocalImmersiveScenario,
 );
 
 const selectedCharacterId = useSessionStorage<string | undefined>(

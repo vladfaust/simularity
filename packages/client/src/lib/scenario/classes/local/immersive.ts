@@ -1,50 +1,25 @@
 import type { v } from "@/lib/valibot";
-import { join, resolve } from "@tauri-apps/api/path";
-import { convertFileSrc } from "@tauri-apps/api/tauri";
-import type { ImmersiveScenarioSchema } from "../schemas/immersive";
+import * as schema from "@simularity/api/lib/schema";
+import { LocalBaseScenario } from "./base";
 
-export class ImmersiveScenario {
+export class LocalImmersiveScenario extends LocalBaseScenario {
   constructor(
     readonly builtin: boolean,
     readonly id: string,
     readonly basePath: string,
-    readonly content: v.InferOutput<typeof ImmersiveScenarioSchema>,
-  ) {}
-
-  async resourceUrl(path: string) {
-    return join(this.basePath, path).then(resolve).then(convertFileSrc);
+    readonly content: v.InferOutput<
+      typeof schema.scenarios.ImmersiveScenarioSchema
+    >,
+  ) {
+    super(builtin, id, basePath, content);
   }
 
-  async getThumbnailUrl() {
-    if (!this.content.thumbnailPath) return undefined;
-    return this.resourceUrl(this.content.thumbnailPath);
+  get immersive() {
+    return true;
   }
 
-  async getCoverImageUrl() {
-    if (!this.content.coverImagePath) return undefined;
-    return this.resourceUrl(this.content.coverImagePath);
-  }
-
-  async getMediaUrls() {
-    return this.content.media
-      ? Promise.all(
-          this.content.media?.map((media) => this.resourceUrl(media.path)),
-        )
-      : [];
-  }
-
-  get defaultCharacterId() {
-    return Object.keys(this.content.characters)[0];
-  }
-
-  get defaultCharacter() {
-    return this.content.characters[this.defaultCharacterId];
-  }
-
-  async getCharacterPfpUrl(characterId: string) {
-    const character = this.ensureCharacter(characterId);
-    if (!character.pfpPath) return undefined;
-    return this.resourceUrl(character.pfpPath);
+  get characters() {
+    return this.content.characters;
   }
 
   findCharacter(characterId: string) {
@@ -112,6 +87,10 @@ export class ImmersiveScenario {
     const found = this.findScene(sceneId);
     if (!found) throw new Error(`Scene not found: ${sceneId}`);
     return found;
+  }
+
+  get episodes() {
+    return this.content.episodes;
   }
 
   findEpisode(episodeId: string) {

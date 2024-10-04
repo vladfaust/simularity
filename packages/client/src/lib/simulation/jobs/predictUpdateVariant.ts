@@ -1,7 +1,7 @@
 import * as baseLlmDriver from "@/lib/ai/llm/BaseLlmDriver";
 import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
-import type { Scenario } from "@/lib/scenario";
+import type { LocalScenario } from "@/lib/scenario";
 import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { directorTeacherMode } from "@/lib/storage/llm";
@@ -30,7 +30,7 @@ export class PredictUpdateVariantJob {
 
   constructor(
     readonly simulationId: number,
-    readonly scenario: Scenario,
+    readonly scenario: LocalScenario,
     readonly mode: Mode,
     readonly agents: {
       writer: writer.Writer;

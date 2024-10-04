@@ -582,8 +582,8 @@ onUnmounted(() => {
 
           button._button.aspect-square.w-full(
             title="Go forward (⬇)"
-            :disabled="!simulation.canGoForward.value"
-            @click="simulation.goForward()"
+            :disabled="!simulation.canGoForward.value && !simulation.shallAdvanceEpisode.value"
+            @click="simulation.canGoForward.value ? simulation.goForward() : advance()"
           )
             RedoDotIcon(:size="20")
 

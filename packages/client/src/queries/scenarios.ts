@@ -1,51 +1,23 @@
-import { ensureScenario, readAllScenarios } from "@/lib/scenario";
-import type { QueryOptions } from "@/queries";
-import { useQuery } from "@tanstack/vue-query";
-import { get } from "@vueuse/core";
+import { type QueryOptions } from "@/queries";
 import { computed, type MaybeRef } from "vue";
+import { useLocalScenarioQuery, useRemoteScenarioQuery } from "./scenarios";
 
-export function useScenariosQuery(
-  queryOptions: QueryOptions = {
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-  },
-) {
-  const query = useQuery({
-    queryKey: scenariosQueryKey(),
-    queryFn: () => readAllScenarios(),
-    ...queryOptions,
-  });
-
-  return {
-    query,
-    data: computed(() => query.data.value),
-  };
-}
-
-export function scenariosQueryKey() {
-  return ["scenarios"];
-}
+export * from "./scenarios/local";
+export * from "./scenarios/remote";
 
 export function useScenarioQuery(
-  scenarioId: MaybeRef<string | undefined>,
-  queryOptions: QueryOptions = {
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-  },
+  scenarioId: MaybeRef<string | null | undefined>,
+  queryOptions: QueryOptions = {},
 ) {
-  const query = useQuery({
-    queryKey: computed(() => scenarioQueryKey(get(scenarioId)!)),
-    queryFn: () => ensureScenario(get(scenarioId)!),
-    enabled: computed(() => !!get(scenarioId)),
-    ...queryOptions,
-  });
+  const { data: localScenario } = useLocalScenarioQuery(
+    scenarioId,
+    queryOptions,
+  );
 
-  return {
-    query,
-    data: computed(() => query.data.value),
-  };
-}
+  const { data: remoteScenario } = useRemoteScenarioQuery(
+    scenarioId,
+    queryOptions,
+  );
 
-export function scenarioQueryKey(scenarioId: string) {
-  return ["scenarios", scenarioId];
+  return computed(() => localScenario.value ?? remoteScenario.value);
 }

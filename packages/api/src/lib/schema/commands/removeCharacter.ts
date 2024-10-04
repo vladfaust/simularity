@@ -1,4 +1,4 @@
-import { v } from "@/lib/valibot";
+import * as v from "valibot";
 
 /**
  * Remove a character from the stage.

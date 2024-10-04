@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import CharacterAvatar from "@/components/CharacterAvatar.vue";
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import type { ImmersiveScenario } from "@/lib/scenario";
+import type { LocalImmersiveScenario } from "@/lib/scenario";
 import { Simulation } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
 import { Grid2x2Icon, Grid2x2XIcon } from "lucide-vue-next";
@@ -11,13 +11,13 @@ import OnStageMark from "../OnStageMark.vue";
 const { simulation, characterId, character } = defineProps<{
   simulation: Simulation;
   characterId: string;
-  character: ImmersiveScenario["content"]["characters"][string];
+  character: LocalImmersiveScenario["content"]["characters"][string];
 }>();
 
 const scenario = computed(
   () =>
     // Because DevConsole is only shown in immersive mode.
-    simulation.scenario as ImmersiveScenario,
+    simulation.scenario as LocalImmersiveScenario,
 );
 
 const onStageCharacter = computed(() =>
@@ -38,7 +38,7 @@ const selectedExpressionId = ref<string>(
 );
 const sceneBgUrl = asyncComputed(() =>
   scenario.value.resourceUrl(
-    scenario.value.ensureScene(simulation.state!.stage.value.sceneId).bg,
+    scenario.value.ensureScene(simulation.state!.stage.value.sceneId).bg.path,
   ),
 );
 

@@ -1,9 +1,13 @@
-import type { ImmersiveScenario } from "@/lib/scenario";
+import type { LocalImmersiveScenario } from "@/lib/scenario";
+import { clone, unreachable } from "@/lib/utils";
+import type { v } from "@/lib/valibot";
+import * as schema from "@simularity/api/lib/schema";
 import { deepEqual } from "fast-equals";
 import { readonly, ref, type Ref } from "vue";
-import { clone, unreachable } from "../utils";
 import { type StageRenderer } from "./stageRenderer";
-import { type StateCommand } from "./state/commands";
+
+export const StateCommandSchema = schema.commands.StateCommandSchema;
+export type StateCommand = v.InferOutput<typeof StateCommandSchema>;
 
 /**
  * When state encounters a logical error, such as
@@ -54,7 +58,7 @@ export class State {
   private _connectedRenderer?: StageRenderer;
 
   constructor(
-    readonly scenario: ImmersiveScenario,
+    readonly scenario: LocalImmersiveScenario,
     dto?: StateDto,
   ) {
     if (dto) {

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import { type Scenario } from "@/lib/scenario";
+import type { Scenario } from "@/lib/scenario";
 import { CrownIcon } from "lucide-vue-next";
 import { computed } from "vue";
 
 const props = defineProps<{
   scenario: Scenario;
   characterId: string;
-  character: Scenario["content"]["characters"][string];
+  character: Scenario["characters"][string];
 }>();
 
 const isMainCharacter = computed(
@@ -16,10 +16,10 @@ const isMainCharacter = computed(
 </script>
 
 <template lang="pug">
-.flex.w-full.divide-x
-  CharacterPfp.h-24(:character :scenario class="hover:brightness-105")
+.flex.w-full
+  CharacterPfp.h-28.rounded-lg(:character :scenario class="hover:brightness-105")
 
-  .flex.w-full.flex-col.p-2
+  .flex.w-full.flex-col.px-3.py-2
     .flex.items-center.gap-1
       span.font-semibold.leading-tight(:style="{ color: character.color }") {{ character.name }}
       CrownIcon.fill-primary-500.text-primary-500(

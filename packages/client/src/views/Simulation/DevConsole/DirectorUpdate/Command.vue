@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type StateCommand } from "@/lib/simulation/state/commands";
+import { type StateCommand } from "@/lib/simulation/state";
 import { CircleMinusIcon } from "lucide-vue-next";
 import { computed } from "vue";
 

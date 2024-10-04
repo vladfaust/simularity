@@ -1,12 +1,12 @@
 <script setup lang="ts">
+import type { LocalImmersiveScenario } from "@/lib/scenario";
 import { Simulation } from "@/lib/simulation";
-import type { ImmersiveScenario } from "@/lib/scenario";
+import { nonNullable } from "@/lib/utils";
 import { ImageIcon, ImageOffIcon } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import OnStageMark from "./OnStageMark.vue";
 import Scene from "./Scenes/Scene.vue";
 import SelectedScene from "./Scenes/SelectedScene.vue";
-import { nonNullable } from "@/lib/utils";
 
 const { simulation } = defineProps<{
   simulation: Simulation;
@@ -15,7 +15,7 @@ const { simulation } = defineProps<{
 const scenario = computed(
   () =>
     // Because DevConsole is only shown in immersive mode.
-    simulation.scenario as ImmersiveScenario,
+    simulation.scenario as LocalImmersiveScenario,
 );
 
 const selectedSceneId = ref<string | undefined>(

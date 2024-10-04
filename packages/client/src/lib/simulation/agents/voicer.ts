@@ -1,6 +1,6 @@
 import type { BaseTtsDriver } from "@/lib/ai/tts/BaseTtsDriver";
 import { RemoteTtsDriver } from "@/lib/ai/tts/RemoteTtsDriver";
-import type { Scenario } from "@/lib/scenario";
+import type { LocalScenario } from "@/lib/scenario";
 import * as storage from "@/lib/storage";
 import { sleep, unreachable } from "@/lib/utils";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
@@ -29,7 +29,7 @@ export class Voicer {
   private readonly _audioWatchStopHandle: () => void;
   private readonly _audioPlaying = ref(false);
 
-  constructor(private scenario: Scenario) {
+  constructor(private scenario: LocalScenario) {
     this.ttsDriver = shallowRef(null);
 
     const agent = "voicer";

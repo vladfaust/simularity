@@ -426,7 +426,6 @@ async function openModelsDirectory() {
  * If model is in the models directory, its file is deleted.
  * Otherwise, the model entry is removed from the storage.
  */
-// FIXME: After removal, the "100%" download remains.
 async function removeModel(modelPath: string, deleteFile: boolean) {
   if (
     !(await resources.confirm_(

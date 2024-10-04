@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import type { ImmersiveScenario } from "@/lib/scenario";
+import type { LocalImmersiveScenario } from "@/lib/scenario";
 import { asyncComputed } from "@vueuse/core";
 
 const { scenario, scene } = defineProps<{
-  scenario: ImmersiveScenario;
-  scene: ImmersiveScenario["content"]["scenes"][string];
+  scenario: LocalImmersiveScenario;
+  scene: LocalImmersiveScenario["content"]["scenes"][string];
   selected?: boolean;
 }>();
 
-const bgUrl = asyncComputed(() => scenario.resourceUrl(scene.bg));
+const bgUrl = asyncComputed(() => scenario.resourceUrl(scene.bg.path));
 </script>
 
 <template lang="pug">

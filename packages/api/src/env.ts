@@ -1,7 +1,7 @@
 import { v } from "@/lib/valibot.js";
 import * as dotenv from "dotenv";
 import { OAuthProviderSchema } from "./lib/oauth.js";
-import { OAuthProviderIdSchema } from "./lib/schema.js";
+import { OAuthProviderIdSchema, PatreonTier } from "./lib/schema.js";
 
 /**
  * `"1"`, `"true"` is true, `"0"`, `"false"` is false, case insensitive.
@@ -105,13 +105,14 @@ const parseResult = v.safeParse(
     PATREON_TIERS: v.pipe(
       v.optional(v.string(), "[]"),
       v.transform((x) => JSON.parse(x)),
-      v.array(
-        v.object({
-          id: v.string(),
-          name: v.string(),
-        }),
-      ),
+      v.array(PatreonTier),
     ),
+
+    S3_ACCESS_KEY_ID: v.string(),
+    S3_SECRET_ACCESS_KEY: v.string(),
+    S3_ENDPOINT: v.pipe(v.string(), v.url()),
+    S3_REGION: v.string(),
+    S3_BUCKET: v.string(),
   }),
   process.env,
 );

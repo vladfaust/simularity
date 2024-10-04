@@ -16,14 +16,18 @@
     "dev": "nodemon",
     "db:get": "node dist/scripts/db/get.js",
     "db:migrate": "node dist/scripts/db/migrate.js",
-    "db:drop": "node dist/scripts/db/drop.js"
+    "db:drop": "node dist/scripts/db/drop.js",
+    "scenarios:check": "node dist/scripts/scenarios/check.js",
+    "scenarios:upload": "node dist/scripts/scenarios/upload.js"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/cookie": "^0.6.0",
     "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.17",
+    "@types/deep-diff": "^1.0.5",
     "@types/express": "^4.17.21",
+    "@types/jsonpath": "^0.2.4",
     "@types/morgan": "^1.9.9",
     "@types/nodemailer": "^6.4.15",
     "@types/ws": "^8.5.12",
@@ -37,6 +41,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.663.0",
     "@simularity/api-sdk": "../api-sdk",
     "@trpc/server": "^10.45.2",
     "@types/node": "^20.14.2",
@@ -48,12 +53,14 @@
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "date-fns": "^3.6.0",
+    "deep-diff": "^1.0.2",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.31.2",
     "duration-fns": "^3.0.2",
     "express": "^5.0.0-beta.3",
     "ioredis": "^5.4.1",
     "jose": "^5.6.3",
+    "jsonpath": "^1.1.1",
     "morgan": "^1.10.0",
     "nanoid": "^5.0.7",
     "nodemailer": "^6.9.14",

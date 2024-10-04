@@ -3,23 +3,53 @@ import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
 import NsfwIcon from "@/components/NsfwIcon.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
-import { ImmersiveScenario, type Scenario } from "@/lib/scenario";
+import { Download, downloadManager } from "@/lib/downloads";
+import {
+  LocalImmersiveScenario,
+  RemoteScenario,
+  type Scenario,
+} from "@/lib/scenario";
 import { TransitionRoot } from "@headlessui/vue";
 import { asyncComputed, useElementHover } from "@vueuse/core";
-import { MonitorIcon } from "lucide-vue-next";
-import { ref } from "vue";
+import {
+  CheckIcon,
+  DownloadIcon,
+  Loader2Icon,
+  MonitorIcon,
+} from "lucide-vue-next";
+import prettyBytes from "pretty-bytes";
+import { onMounted, ref, shallowRef } from "vue";
 
 const card = ref<HTMLElement | null>(null);
 const isHovered = useElementHover(card);
 
 const props = defineProps<{
-  scenario: Scenario;
   layout: "grid" | "list";
   narrowPadding?: boolean;
   alwaysHideDetails?: boolean;
+  scenario: Scenario;
 }>();
 
-const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
+const thumbnailUrl = asyncComputed(() => {
+  return props.scenario.getThumbnailUrl();
+});
+
+const download = shallowRef<Download | null>(null);
+
+onMounted(async () => {
+  const regex = RegExp(`^(?<version>\\d+).${props.scenario.id}.scenario$`);
+
+  for (const instance of downloadManager.downloads.values()) {
+    const match = instance.id.match(regex);
+
+    if (match) {
+      const version = parseInt(match.groups!.version);
+      console.log("Found download for scenario", { version });
+      download.value = instance;
+      break;
+    }
+  }
+});
 </script>
 
 <template lang="pug">
@@ -47,34 +77,35 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
     leave-to="translate-y-full opacity-0"
   )
     .flex.h-max.w-full.flex-col.justify-between.gap-1.bg-white(
+      v-if="scenario"
       :class="{ 'p-3': !narrowPadding, 'px-2 py-3': narrowPadding }"
     )
       //- Top.
       .flex.flex-col
-        RichTitle(:title="scenario.content.name")
+        RichTitle(:title="scenario.name")
           template(#extra)
             .flex.gap-1
               NsfwIcon.cursor-help.text-pink-500(
-                v-if="scenario.content.nsfw"
+                v-if="scenario.nsfw"
                 :size="18"
                 v-tooltip="'This scenario is NSFW'"
               )
               MonitorIcon.cursor-help(
-                v-if="scenario instanceof ImmersiveScenario && true"
+                v-if="scenario instanceof LocalImmersiveScenario && true"
                 :size="18"
                 v-tooltip="'This scenario supports visual novel mode'"
               )
-        p.text-sm.leading-snug {{ scenario.content.teaser }}
+        p.text-sm.leading-snug {{ scenario.teaser }}
 
       //- Bottom.
       ul.flex.flex-wrap.gap-1
-        li.rounded-lg.border.px-1.text-xs(v-for="tag of scenario.content.tags") \#{{ tag }}
+        li.rounded-lg.border.px-1.text-xs(v-for="tag of scenario.tags") \#{{ tag }}
 
 //- List layout.
-.group.flex(v-else class="@container")
+.group.flex.bg-white(v-else class="@container")
   //- Thumbnail.
   .hidden.aspect-square.w-32.overflow-hidden(class="@xs:block")
-    img.h-full.w-full.select-none.object-cover.transition(
+    img.h-full.w-full.select-none.rounded-lg.object-cover.transition(
       class="group-hover:blur-none group-hover:brightness-105"
       v-if="thumbnailUrl"
       :src="thumbnailUrl"
@@ -82,25 +113,44 @@ const thumbnailUrl = asyncComputed(() => props.scenario.getThumbnailUrl());
     Placeholder.h-full.w-full(v-else)
 
   //- Details.
-  .flex.w-full.flex-col.justify-between.gap-1.p-3
+  .flex.w-full.flex-col.justify-between.gap-1.px-3.py-2(v-if="scenario")
     //- Top.
     .flex.flex-col
-      RichTitle(:title="scenario.content.name")
+      RichTitle(:title="scenario.name")
         template(#extra)
           .flex.gap-1
             NsfwIcon.cursor-help.text-pink-500(
-              v-if="scenario.content.nsfw"
+              v-if="scenario.nsfw"
               :size="18"
               v-tooltip="'This scenario is NSFW'"
             )
             ImmersiveModeIcon.cursor-help(
-              v-if="scenario instanceof ImmersiveScenario && true"
+              v-if="scenario.immersive"
               :size="18"
               v-tooltip="'This scenario supports immersive mode'"
             )
-      p.text-sm.leading-snug {{ scenario.content.teaser }}
+      p.text-sm.leading-snug {{ scenario.teaser }}
 
     //- Bottom.
-    ul.flex.flex-wrap.gap-1
-      li.rounded-lg.border.px-1.text-xs(v-for="tag of scenario.content.tags") \#{{ tag }}
+    .flex.items-center.justify-between
+      ul.flex.flex-wrap.gap-1
+        li.rounded-lg.border.px-1.text-xs(v-for="tag of scenario.tags") \#{{ tag }}
+
+      .hidden.shrink-0(class="@xs:block")
+        .flex.items-center.gap-1(v-if="download")
+          Loader2Icon(
+            :size="16"
+            :class="{ 'animate-spin': !download.paused.value }"
+          )
+          span.text-xs.font-medium {{ prettyBytes(download.totalFileSize.value) }} ({{ Math.round(download.progress.value * 100) }}%)
+
+        .flex.items-center.gap-1(
+          v-else-if="scenario instanceof RemoteScenario && true"
+        )
+          DownloadIcon(:size="16")
+          span.text-xs.font-medium {{ prettyBytes(scenario.downloadSize) }}
+
+        .flex.items-center.gap-1(v-else)
+          CheckIcon.text-success-500(:size="16")
+          span.text-xs.font-medium In library
 </template>

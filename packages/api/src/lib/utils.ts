@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
+
 /**
  * @author https://stackoverflow.com/a/56592365/3645337
  */
@@ -31,24 +34,15 @@ export function timeoutSignal(timeout: number) {
   return controller.signal;
 }
 
-/**
- * Return a hash digest of the given data.
- */
-export async function digest(
-  data: string,
-  algorithm: AlgorithmIdentifier,
-): Promise<Buffer> {
-  const buffer = new TextEncoder().encode(data);
-  return Buffer.from(await crypto.subtle.digest(algorithm, buffer));
-}
+export async function sha256File(filepath: string): Promise<string> {
+  const hash = createHash("sha256");
+  const stream = createReadStream(filepath);
 
-/**
- * Return a hex string representation of a buffer (without leading `0x`).
- */
-export function bufferToHex(buffer: Uint8Array): string {
-  return Array.prototype.map
-    .call(buffer, (x) => x.toString(16).padStart(2, "0"))
-    .join("");
+  return new Promise((resolve, reject) => {
+    stream.on("data", (data) => hash.update(data));
+    stream.on("end", () => resolve(hash.digest("hex")));
+    stream.on("error", reject);
+  });
 }
 
 /**

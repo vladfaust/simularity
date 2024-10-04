@@ -1,5 +1,5 @@
 import type { TtsParams } from "@/lib/ai/tts/BaseTtsDriver";
-import type { Scenario } from "@/lib/scenario";
+import type { LocalScenario } from "@/lib/scenario";
 import { enableTextSplitting } from "@/lib/storage/tts";
 import { Deferred, sleep } from "@/lib/utils";
 import { v } from "@/lib/valibot";
@@ -34,7 +34,7 @@ export class VoicerJob {
     readonly characterId: string | null,
     readonly text: string,
     private agent: Voicer,
-    private scenario: Scenario,
+    private scenario: LocalScenario,
   ) {
     this.run();
   }
@@ -52,16 +52,16 @@ export class VoicerJob {
 
         params = character.voices.xttsV2.params;
         embeddingsUrl = await this.scenario.resourceUrl(
-          character.voices.xttsV2.embeddingPath,
+          character.voices.xttsV2.embedding.path,
         );
       } else {
-        if (!this.scenario.content.narratorVoices?.xttsV2?.embeddingPath) {
+        if (!this.scenario.content.narratorVoices?.xttsV2?.embedding.path) {
           throw new MissingSpeakerError(null);
         }
 
         params = this.scenario.content.narratorVoices.xttsV2.params;
         embeddingsUrl = await this.scenario.resourceUrl(
-          this.scenario.content.narratorVoices.xttsV2.embeddingPath,
+          this.scenario.content.narratorVoices.xttsV2.embedding.path,
         );
       }
 

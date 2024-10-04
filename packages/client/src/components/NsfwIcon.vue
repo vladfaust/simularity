@@ -4,5 +4,5 @@ import { pepperChilli } from "@lucide/lab";
 </script>
 
 <template lang="pug">
-Icon.text-pink-500(:iconNode="pepperChilli" name="NSFW")
+Icon(:iconNode="pepperChilli" name="NSFW")
 </template>

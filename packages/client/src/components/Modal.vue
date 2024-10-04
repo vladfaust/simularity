@@ -55,7 +55,7 @@ Dialog.relative.z-50.w-screen.overflow-hidden(
                 slot(name="icon")
                 span.text-lg.font-semibold.leading-tight.tracking-wide {{ title }}
               .h-0.w-full.shrink.border-b
-              button.btn-pressable.btn-neutral.btn.aspect-square.rounded.p-1(
+              button.btn-pressable.btn.aspect-square.rounded-lg.border.p-1(
                 @click="emit('close')"
               )
                 XIcon(:size="20")

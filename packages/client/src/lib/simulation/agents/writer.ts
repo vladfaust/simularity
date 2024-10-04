@@ -5,7 +5,7 @@ import {
   type CompletionOptions,
 } from "@/lib/ai/llm/BaseLlmDriver";
 import { d } from "@/lib/drizzle";
-import { type Scenario } from "@/lib/scenario";
+import { type LocalScenario } from "@/lib/scenario";
 import * as storage from "@/lib/storage";
 import { clockToMinutes, minutesToClock, trimEndAny } from "@/lib/utils";
 import { computed, shallowRef, type ShallowRef } from "vue";
@@ -65,7 +65,7 @@ export class Writer {
       : undefined,
   );
 
-  constructor(private scenario: Scenario) {
+  constructor(private scenario: LocalScenario) {
     this.llmDriver = shallowRef(null);
 
     this._driverConfigWatchStopHandle = hookLlmAgentToDriverRef(
@@ -300,7 +300,7 @@ Stable diffusion prompt: `;
   /**
    * A static prompt is re-used throughout the simulation.
    */
-  static buildStaticPrompt(scenario: Scenario): string {
+  static buildStaticPrompt(scenario: LocalScenario): string {
     const setup = {
       excerpt: scenario.content.excerpt,
       globalScenario: scenario.content.globalScenario,
@@ -407,7 +407,7 @@ Simulation setup complete. Have fun!
    */
   // TODO: Add events in time, such as stage updates.
   private static _buildDynamicPrompt(
-    _scenario: Scenario,
+    _scenario: LocalScenario,
     checkpoint: Checkpoint,
     historicalUpdate: Update[],
     recentUpdates: Update[],
@@ -435,7 +435,7 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}`;
    * A literal sum of {@link buildStaticPrompt} and {@link _buildDynamicPrompt}.
    */
   private static _buildFullPrompt(
-    scenario: Scenario,
+    scenario: LocalScenario,
     checkpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
@@ -461,7 +461,7 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}`;
    * @param recentUpdates From oldest to newest.
    */
   private static _buildSummarizationPrompt(
-    scenario: Scenario,
+    scenario: LocalScenario,
     previousCheckpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
@@ -523,7 +523,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
    * Build a grammar for the prediction model.
    */
   private static _buildChatGrammar(
-    scenario: Scenario,
+    scenario: LocalScenario,
     options: PredictionOptions | undefined,
     supportedLangs: Set<LlmGrammarLang>,
   ): {
@@ -572,7 +572,7 @@ characterId ::= ${characterIdRule}
    */
   private static _parsePrediction(
     response: string,
-    scenario: Scenario,
+    scenario: LocalScenario,
     options?: PredictionOptions,
   ): {
     characterId: string | null;

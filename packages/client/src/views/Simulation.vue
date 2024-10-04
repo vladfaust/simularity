@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Modal from "@/components/Modal.vue";
-import type { ImmersiveScenario } from "@/lib/scenario";
+import type { LocalImmersiveScenario } from "@/lib/scenario";
 import { Mode, Simulation } from "@/lib/simulation";
 import { DefaultScene } from "@/lib/simulation/phaser/defaultScene";
 import { Game } from "@/lib/simulation/phaser/game";
@@ -107,7 +107,7 @@ onMounted(async () => {
     // REFACTOR: Scene creation shall be incapsulated.
     gameInstance = new Game();
     scene = new DefaultScene(
-      simulation.value.scenario as ImmersiveScenario,
+      simulation.value.scenario as LocalImmersiveScenario,
       simulation.value.state!.stage.value,
       (progress) => {
         loadProgress.value = progress;

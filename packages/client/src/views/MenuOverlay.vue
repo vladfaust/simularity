@@ -11,6 +11,7 @@ export enum Tab {
 <script setup lang="ts">
 import FooterVue from "@/components/Footer.vue";
 import TransitionImage from "@/components/TransitionImage.vue";
+import { LocalBaseScenario, LocalImmersiveScenario } from "@/lib/scenario";
 import type { Simulation } from "@/lib/simulation";
 import { selectedScenarioId } from "@/lib/storage";
 import { useScenarioQuery } from "@/queries";
@@ -45,15 +46,14 @@ const emit = defineEmits<{
   (event: "tabChange", tab: Tab): void;
 }>();
 
-const { data: scenario } = useScenarioQuery(selectedScenarioId);
-const scenarioTitle = asyncComputed(() => scenario.value?.content.name);
-const scenarioLogo = asyncComputed(() =>
-  scenario.value?.content.logoPath
-    ? scenario.value.resourceUrl(scenario.value.content.logoPath)
-    : null,
+const scenario = useScenarioQuery(selectedScenarioId);
+const scenarioTitle = asyncComputed(() => scenario.value?.name);
+const scenarioLogo = asyncComputed(() => scenario.value?.getLogoUrl());
+
+const tab = ref(
+  props.tab ?? selectedScenarioId.value ? Tab.Scenario : Tab.Library,
 );
 
-const tab = ref(props.tab ?? Tab.Scenario);
 watch(tab, (newTab) => emit("tabChange", newTab));
 
 /**
@@ -99,16 +99,18 @@ async function exit() {
 .grid.grid-cols-4.overflow-hidden.backdrop-blur(class="xl:grid-cols-6")
   .flex.flex-col.items-center.justify-between.gap-2.border-r.p-3(class="bg-white/90")
     //- Logo button.
-    button.btn.aspect-video.w-full.max-w-56.gap-2.overflow-hidden.rounded-lg.p-3.transition.pressable-sm(
+    button.btn.aspect-video.w-full.max-w-56.gap-2.overflow-hidden.rounded-lg.border.p-3.transition.pressable-sm(
       @click="tab === Tab.Scenario ? (tab = Tab.Library) : (tab = Tab.Scenario)"
       class="hover:bg-white"
+      :title="tab === Tab.Scenario ? 'Change scenario' : 'Back to scenario'"
     )
       .w-full(v-if="scenarioLogo")
         TransitionImage.pointer-events-none.select-none.object-contain(
           :src="scenarioLogo"
           alt="Scenario logo"
         )
-      span.text-nowrap.text-lg.font-bold(v-else) {{ scenarioTitle }}
+      span.text-nowrap.text-lg.font-bold(v-else-if="scenarioTitle") {{ scenarioTitle }}
+      span.font-bold(v-else) Choose scenario
 
     .flex.flex-col.items-center.gap-2
       //- Back to simulation button.
@@ -117,12 +119,16 @@ async function exit() {
         | Back to game
 
       //- New game button.
-      button._btn(v-else @click="newGameRequest = null")
+      button._btn(
+        v-else-if="(scenario instanceof LocalBaseScenario || scenario instanceof LocalImmersiveScenario) && true"
+        @click="newGameRequest = null"
+      )
         SparkleIcon(:size="20")
         | New game
 
       //- Load game button.
       button._btn(
+        v-if="(scenario instanceof LocalBaseScenario || scenario instanceof LocalImmersiveScenario) && true"
         @click="tab = Tab.LoadGame"
         :class="{ _selected: tab === Tab.LoadGame }"
       )
@@ -161,6 +167,7 @@ async function exit() {
       v-bind="transition"
     )
       Scenario.h-full(
+        v-if="selectedScenarioId !== null"
         :scenario-id="selectedScenarioId"
         @back="tab = Tab.Library"
         @new-game="(e) => (newGameRequest = e ?? null)"
@@ -170,7 +177,10 @@ async function exit() {
       :show="tab === Tab.LoadGame"
       v-bind="transition"
     )
-      SavesVue.h-full(:scenario-id="selectedScenarioId")
+      SavesVue.h-full(
+        v-if="selectedScenarioId !== null"
+        :scenario-id="selectedScenarioId"
+      )
 
     TransitionRoot.absolute.h-full.w-full(
       :show="tab === Tab.Account"
@@ -192,6 +202,7 @@ async function exit() {
 
   NewGameModal(
     v-if="scenario"
+    :key="scenario.id"
     :open="newGameRequest !== undefined"
     :scenario
     :episode-id="newGameRequestEpisodeId ?? undefined"

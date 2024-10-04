@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { ImmersiveScenario } from "@/lib/scenario";
+import type { LocalImmersiveScenario } from "@/lib/scenario";
 import { asyncComputed } from "@vueuse/core";
 import { computed } from "vue";
 
 const props = defineProps<{
-  scenario: ImmersiveScenario;
+  scenario: LocalImmersiveScenario;
   characterId: string;
   outfitId?: string;
   expressionId?: string;
@@ -34,19 +34,19 @@ const bodyId = computed(() => expressionAvatar.value.bodyId);
 
 const bodySrc = asyncComputed(() =>
   props.scenario.resourceUrl(
-    character.value.layeredSpritesAvatar.bodies[bodyId.value],
+    character.value.layeredSpritesAvatar.bodies[bodyId.value].path,
   ),
 );
 
 const expressionSrc = asyncComputed(() =>
-  props.scenario.resourceUrl(expressionAvatar.value.file),
+  props.scenario.resourceUrl(expressionAvatar.value.asset.path),
 );
 
 const outfitSrc = asyncComputed(() =>
   props.scenario.resourceUrl(
-    character.value.layeredSpritesAvatar.outfits[outfitId.value].files[
+    character.value.layeredSpritesAvatar.outfits[outfitId.value].assets[
       bodyId.value
-    ],
+    ].path,
   ),
 );
 

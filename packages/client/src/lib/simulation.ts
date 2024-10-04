@@ -2,7 +2,6 @@ import { env } from "@/env";
 import { fs } from "@tauri-apps/api";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
-import { toMinutes } from "duration-fns";
 import {
   computed,
   markRaw,
@@ -21,7 +20,11 @@ import { d, parseSelectResult, sqlite, type Transaction } from "./drizzle";
 import { writerUpdatesTableName } from "./drizzle/schema";
 import { SQL_NOW } from "./drizzle/schema/_common";
 import * as resources from "./resources";
-import { ImmersiveScenario, ensureScenario, type Scenario } from "./scenario";
+import {
+  LocalImmersiveScenario,
+  ensureLocalScenario,
+  type LocalScenario,
+} from "./scenario";
 import { Director } from "./simulation/agents/director";
 import { Voicer } from "./simulation/agents/voicer";
 import {
@@ -35,15 +38,15 @@ import {
   State,
   compareStateDeltas,
   emptyState,
+  type StateCommand,
   type StateDto,
 } from "./simulation/state";
-import { type StateCommand } from "./simulation/state/commands";
 import { Update, UpdateVariant } from "./simulation/update";
 import * as storage from "./storage";
 import { directorTeacherMode } from "./storage/llm";
-import { Bug, Deferred, assert, assertCallback } from "./utils";
+import { Bug, Deferred, assert, assertCallback, clockToMinutes } from "./utils";
 
-export { State, type Scenario };
+export { State };
 
 export enum Mode {
   Immersive = 0,
@@ -51,7 +54,7 @@ export enum Mode {
 }
 
 type ImmersiveScenarioEpisodeChunk =
-  ImmersiveScenario["content"]["episodes"][string]["chunks"][number];
+  LocalImmersiveScenario["content"]["episodes"][string]["chunks"][number];
 
 export class Simulation {
   //#region Private fields
@@ -117,7 +120,7 @@ export class Simulation {
   /**
    * The scenario.
    */
-  readonly scenario: Scenario;
+  readonly scenario: LocalScenario;
 
   readonly historicalUpdatesLength = computed(
     () => this._historicalUpdates.value.length,
@@ -325,7 +328,7 @@ export class Simulation {
     sandbox: boolean,
     episodeId?: string,
   ) {
-    const scenario = await ensureScenario(scenarioId);
+    const scenario = await ensureLocalScenario(scenarioId);
     episodeId ||= scenario.defaultEpisodeId;
 
     const startingEpisode = scenario.findEpisode(episodeId);
@@ -360,9 +363,9 @@ export class Simulation {
             simulationId: simulation.id,
             summary: startingEpisode.initialCheckpoint.summary,
             state:
-              scenario instanceof ImmersiveScenario
+              scenario instanceof LocalImmersiveScenario
                 ? (
-                    startingEpisode as ImmersiveScenario["content"]["episodes"][string]
+                    startingEpisode as LocalImmersiveScenario["content"]["episodes"][string]
                   ).initialCheckpoint.state
                 : undefined,
           })
@@ -379,17 +382,17 @@ export class Simulation {
             text: chunk.writerUpdate.text,
             episodeId,
             episodeChunkIndex: 0,
-            simulationDayClock: toMinutes({
-              hours: chunk.writerUpdate.clock.hours,
-              minutes: chunk.writerUpdate.clock.minutes,
-            }),
+            simulationDayClock: clockToMinutes(chunk.writerUpdate.clock),
           })
           .returning({
             id: d.writerUpdates.id,
           })
       )[0];
 
-      if (scenario instanceof ImmersiveScenario && mode === Mode.Immersive) {
+      if (
+        scenario instanceof LocalImmersiveScenario &&
+        mode === Mode.Immersive
+      ) {
         const directorUpdate = (chunk as ImmersiveScenarioEpisodeChunk)
           .directorUpdate;
 
@@ -428,7 +431,7 @@ export class Simulation {
       console.debug("Found simulation", simulation);
     }
 
-    const scenario = await ensureScenario(simulation.scenarioId);
+    const scenario = await ensureLocalScenario(simulation.scenarioId);
 
     const instance = new Simulation(
       simulationId,
@@ -490,10 +493,7 @@ export class Simulation {
           parentUpdateId,
           checkpointId: this._checkpoint.value!.id,
           characterId: chunk.writerUpdate.characterId,
-          simulationDayClock: toMinutes({
-            hours: chunk.writerUpdate.clock.hours,
-            minutes: chunk.writerUpdate.clock.minutes,
-          }),
+          simulationDayClock: clockToMinutes(chunk.writerUpdate.clock),
           text: chunk.writerUpdate.text,
           episodeId: currentWriterUpdate.episodeId!,
           episodeChunkIndex: currentWriterUpdate.episodeChunkIndex! + 1,
@@ -1752,9 +1752,12 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     scenarioId: string,
     mode: Mode,
     sandbox: boolean,
-    scenario: Scenario,
+    scenario: LocalScenario,
   ) {
-    if (mode === Mode.Immersive && !(scenario instanceof ImmersiveScenario)) {
+    if (
+      mode === Mode.Immersive &&
+      !(scenario instanceof LocalImmersiveScenario)
+    ) {
       throw new Error("Immersive mode requires an immersive scenario");
     }
 
@@ -1766,14 +1769,14 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
 
     this.state =
       mode === Mode.Immersive
-        ? new State(scenario as ImmersiveScenario)
+        ? new State(scenario as LocalImmersiveScenario)
         : undefined;
 
     this._writer = new Writer(this.scenario);
 
     this._director =
       mode === Mode.Immersive
-        ? new Director(this.scenario as ImmersiveScenario)
+        ? new Director(this.scenario as LocalImmersiveScenario)
         : undefined;
 
     this._voicer = new Voicer(this.scenario);

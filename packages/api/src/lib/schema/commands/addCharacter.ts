@@ -1,4 +1,4 @@
-import { v } from "@/lib/valibot";
+import * as v from "valibot";
 
 /**
  * Add a character to the stage.

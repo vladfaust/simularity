@@ -1,4 +1,4 @@
-import { type StateCommand } from "@/lib/simulation/state/commands";
+import type { StateCommand } from "@/lib/simulation/state";
 import { sortByKey } from "@/lib/utils";
 import { relations } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";

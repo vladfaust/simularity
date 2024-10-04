@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ImmersiveScenario } from "@/lib/scenario";
+import type { LocalImmersiveScenario } from "@/lib/scenario";
 import { Simulation } from "@/lib/simulation";
 import { asyncComputed } from "@vueuse/core";
 import { Grid2X2Icon } from "lucide-vue-next";
@@ -9,10 +9,12 @@ import OnStageMark from "../OnStageMark.vue";
 const { simulation, sceneId, scene } = defineProps<{
   simulation: Simulation;
   sceneId: string;
-  scene: ImmersiveScenario["content"]["scenes"][string];
+  scene: LocalImmersiveScenario["content"]["scenes"][string];
 }>();
 
-const bgUrl = asyncComputed(() => simulation.scenario.resourceUrl(scene.bg));
+const bgUrl = asyncComputed(() =>
+  simulation.scenario.resourceUrl(scene.bg.path),
+);
 const isSet = computed(() => simulation.state!.stage.value.sceneId == sceneId);
 
 function set() {

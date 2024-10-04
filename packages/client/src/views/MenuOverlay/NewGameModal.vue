@@ -7,8 +7,12 @@ import Placeholder from "@/components/Placeholder.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import RichToggle from "@/components/RichForm/RichToggle.vue";
 import ScenarioCard from "@/components/ScenarioCard.vue";
-import { ImmersiveScenario } from "@/lib/scenario";
-import { Mode, Simulation, type Scenario } from "@/lib/simulation";
+import {
+  LocalImmersiveScenario,
+  RemoteScenario,
+  type Scenario,
+} from "@/lib/scenario";
+import { Mode, Simulation } from "@/lib/simulation";
 import { allSavesQueryKey } from "@/queries";
 import router, { routeLocation } from "@/router";
 import { useQueryClient } from "@tanstack/vue-query";
@@ -34,16 +38,16 @@ const selectedEpisodeId = ref<string>(
 );
 
 const selectedEpisode = computed(
-  () => props.scenario.content.episodes[selectedEpisodeId.value],
+  () => props.scenario.episodes[selectedEpisodeId.value],
 );
 
 const selectedEpisodeImageUrl = asyncComputed(() =>
-  selectedEpisode.value?.imagePath
-    ? props.scenario.resourceUrl(selectedEpisode.value.imagePath)
+  selectedEpisode.value?.image
+    ? props.scenario.resourceUrl(selectedEpisode.value.image.path)
     : null,
 );
 
-const immersiveMode = ref(props.scenario instanceof ImmersiveScenario);
+const immersiveMode = ref(props.scenario instanceof LocalImmersiveScenario);
 const sandboxMode = ref(false);
 
 const detailsRef = ref<HTMLElement | null>(null);
@@ -102,7 +106,7 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
 
         .grid.max-h-full.grid-cols-2.gap-2.p-3
           EpisodeCard.h-max.cursor-pointer.rounded-lg.border-4.bg-white.shadow-lg(
-            v-for="episodeId in Object.keys(scenario.content.episodes)"
+            v-for="episodeId in Object.keys(scenario.episodes)"
             :scenario
             :episode-id
             :selected="selectedEpisodeId === episodeId"
@@ -126,12 +130,14 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
               RichTitle(:title="selectedEpisode.name" :hide-border="true")
               p.leading-snug {{ selectedEpisode.about }}
 
-          .flex.flex-col.gap-2.p-3
+          .flex.flex-col.gap-2.p-3(
+            v-if="!(scenario instanceof RemoteScenario)"
+          )
             RichToggle#immersive(
               title="Immersive mode"
               help="In immersive mode, you can play the simulation as a visual novel."
               v-model="immersiveMode"
-              :disabled="!(scenario instanceof ImmersiveScenario)"
+              :disabled="!(scenario instanceof LocalImmersiveScenario)"
             )
               template(#icon)
                 ImmersiveModeIcon(:size="20")
@@ -145,7 +151,12 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
                 SandboxModeIcon(:size="20")
 
   .col-span-full.border-t.p-3
+    .btn.btn-md.w-full.rounded-lg.border.border-dashed(
+      v-if="scenario instanceof RemoteScenario && true"
+    )
+      | Download scenario to play
     button.btn.btn-pressable-sm.btn-primary.btn-md.w-full.rounded-lg(
+      v-else
       :disabled="!selectedEpisodeId"
       @click="play(selectedEpisodeId)"
     )

@@ -1,22 +1,20 @@
 <script setup lang="ts">
-import { type Scenario } from "@/lib/scenario";
+import { RemoteScenario, type LocalScenario } from "@/lib/scenario";
 import { asyncComputed } from "@vueuse/core";
 import { computed } from "vue";
 import Placeholder from "./Placeholder.vue";
 
 const props = defineProps<{
-  scenario: Scenario;
+  scenario: LocalScenario | RemoteScenario;
   episodeId: string;
   selected?: boolean;
 }>();
 
-const episode = computed(
-  () => props.scenario.content.episodes[props.episodeId],
-);
+const episode = computed(() => props.scenario.episodes[props.episodeId]);
 
 const episodeImageUrl = asyncComputed(() =>
-  episode.value.imagePath
-    ? props.scenario.resourceUrl(episode.value.imagePath)
+  episode.value.image
+    ? props.scenario.resourceUrl(episode.value.image.path)
     : null,
 );
 </script>

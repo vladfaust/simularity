@@ -1,16 +1,42 @@
-import { v } from "@/lib/valibot";
-import { TtsParamsSchema } from "../../ai/tts/BaseTtsDriver";
+import { v } from "@/lib/valibot.js";
 
-export const IdSchema = v.pipe(
-  v.string(),
-  v.regex(/^[a-zA-Z_][a-zA-Z0-9_-]*$/),
-);
+const TtsParamsSchema = v.object({
+  speed: v.optional(v.number()),
+});
 
+export const IdSchema = v.pipe(v.string(), v.regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/));
+
+export const AssetSchema = v.object({
+  /**
+   * Asset file path (normalized, relative to manifest).
+   */
+  path: v.string(),
+
+  /**
+   * Asset SHA-256 hash (hex w/o leading `0x`).
+   * Unset when uploading new assets.
+   */
+  hash: v.optional(v.string()),
+
+  /**
+   * S3 version ID.
+   * Unset when uploading new assets.
+   */
+  versionId: v.optional(v.string()),
+
+  /**
+   * Asset size in bytes.
+   * Unset when uploading new assets.
+   */
+  size: v.optional(v.number()),
+});
+
+// NOTE: Don't forget to update `baseScenarioAssets` when adding new assets.
 export const BaseScenarioSchema = v.object({
   /**
-   * Scenario protocol version.
+   * Scenario version (for updates).
    */
-  proto: v.string(),
+  version: v.number(),
 
   /**
    * Scenario name.
@@ -27,32 +53,20 @@ export const BaseScenarioSchema = v.object({
    */
   tags: v.optional(v.array(v.string())),
 
-  iconPath: v.optional(v.string()),
-  logoPath: v.optional(v.string()),
+  icon: v.optional(AssetSchema),
+  logo: v.optional(AssetSchema),
 
   /**
-   * Scenario thumbnail image path.
+   * Scenario thumbnail image.
    * Recommended aspect ratio: 2:3.
    */
-  thumbnailPath: v.optional(v.string()),
+  thumbnail: v.optional(AssetSchema),
 
   /**
-   * Scenario cover image path.
+   * Scenario cover image.
    * Recommended aspect ratio: 16:9.
    */
-  coverImagePath: v.optional(v.string()),
-
-  /**
-   * Scenario media files for preview.
-   */
-  media: v.optional(
-    v.array(
-      v.object({
-        type: v.literal("image"),
-        path: v.string(),
-      }),
-    ),
-  ),
+  coverImage: v.optional(AssetSchema),
 
   /**
    * What language the scenario is defined in.
@@ -107,9 +121,9 @@ export const BaseScenarioSchema = v.object({
       xttsV2: v.optional(
         v.object({
           /**
-           * Voice embedding path.
+           * Voice embedding.
            */
-          embeddingPath: v.string(),
+          embedding: AssetSchema,
 
           /**
            * XTTSv2 voice model parameters.
@@ -143,9 +157,9 @@ export const BaseScenarioSchema = v.object({
       about: v.string(),
 
       /**
-       * Character profile picture path.
+       * Character profile picture.
        */
-      pfpPath: v.optional(v.string()),
+      pfp: v.optional(AssetSchema),
 
       /**
        * The full name of the character, if any.
@@ -300,9 +314,9 @@ export const BaseScenarioSchema = v.object({
           xttsV2: v.optional(
             v.object({
               /**
-               * Voice embedding path.
+               * Voice embedding.
                */
-              embeddingPath: v.string(),
+              embedding: AssetSchema,
 
               /**
                * XTTSv2 voice model parameters.
@@ -351,10 +365,10 @@ export const BaseScenarioSchema = v.object({
       about: v.string(),
 
       /**
-       * Episode image path.
+       * Episode image.
        * Recommended aspect ratio: 16:9.
        */
-      imagePath: v.optional(v.string()),
+      image: v.optional(AssetSchema),
 
       /**
        * If the scenario begins from this episode,
@@ -387,10 +401,6 @@ export const BaseScenarioSchema = v.object({
                 const minutes = parseInt(input.slice(3, 5));
                 return minutes >= 0 && minutes <= 60;
               }, "Minutes must be between 0 and 60"),
-              v.transform((input) => ({
-                hours: parseInt(input.slice(0, 2)),
-                minutes: parseInt(input.slice(3, 5)),
-              })),
             ),
 
             text: v.pipe(v.string(), v.trim(), v.nonEmpty()),
@@ -409,13 +419,84 @@ export const BaseScenarioSchema = v.object({
    * List of achievements in the scenario.
    */
   achievements: v.optional(
-    v.array(
+    v.record(
+      IdSchema,
       v.object({
         title: v.string(),
         description: v.string(),
-        iconPath: v.optional(v.string()),
+        icon: v.optional(AssetSchema),
         points: v.number(),
       }),
     ),
   ),
 });
+
+/**
+ * Iterate over all assets in a base scenario manifest.
+ */
+export function* baseScenarioAssets(
+  manifest: v.InferOutput<typeof BaseScenarioSchema>,
+): Generator<{
+  jsonpath: string;
+  public?: boolean;
+  asset: v.InferOutput<typeof AssetSchema>;
+}> {
+  if (manifest.icon)
+    yield { jsonpath: "$.icon", public: true, asset: manifest.icon };
+
+  if (manifest.logo)
+    yield { jsonpath: "$.logo", public: true, asset: manifest.logo };
+
+  if (manifest.thumbnail)
+    yield { jsonpath: "$.thumbnail", public: true, asset: manifest.thumbnail };
+
+  if (manifest.coverImage)
+    yield {
+      jsonpath: "$.coverImage",
+      public: true,
+      asset: manifest.coverImage,
+    };
+
+  if (manifest.narratorVoices?.xttsV2?.embedding)
+    yield {
+      jsonpath: "$.narratorVoices.xttsV2.embedding",
+      asset: manifest.narratorVoices?.xttsV2?.embedding,
+    };
+
+  for (const [characterId, character] of Object.entries(manifest.characters)) {
+    if (character.pfp)
+      yield {
+        jsonpath: `$.characters.${characterId}.pfp`,
+        public: true,
+        asset: character.pfp,
+      };
+
+    if (character.voices?.xttsV2?.embedding)
+      yield {
+        jsonpath: `$.characters.${characterId}.voices.xttsV2.embedding`,
+        asset: character.voices?.xttsV2?.embedding,
+      };
+  }
+
+  for (const [episodeId, episode] of Object.entries(manifest.episodes)) {
+    if (episode.image)
+      yield {
+        jsonpath: `$.episodes.${episodeId}.image`,
+        public: true,
+        asset: episode.image,
+      };
+  }
+
+  if (manifest.achievements) {
+    for (const [achievementId, achievement] of Object.entries(
+      manifest.achievements,
+    )) {
+      if (achievement.icon)
+        yield {
+          jsonpath: `$.achievements.${achievementId}.icon`,
+          public: true,
+          asset: achievement.icon,
+        };
+    }
+  }
+}

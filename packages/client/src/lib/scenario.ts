@@ -1,15 +1,9 @@
-import { BaseScenario } from "./scenario/classes/base";
-import { ImmersiveScenario } from "./scenario/classes/immersive";
-import { BaseScenarioSchema } from "./scenario/schemas/base";
-import { ImmersiveScenarioSchema } from "./scenario/schemas/immersive";
+import { LocalBaseScenario } from "./scenario/classes/local/base";
+import { LocalImmersiveScenario } from "./scenario/classes/local/immersive";
+import { RemoteScenario } from "./scenario/classes/remote";
 
-export {
-  BaseScenario,
-  BaseScenarioSchema,
-  ImmersiveScenario,
-  ImmersiveScenarioSchema,
-};
-
-export type Scenario = BaseScenario | ImmersiveScenario;
+export { LocalBaseScenario, LocalImmersiveScenario, RemoteScenario };
+export type LocalScenario = LocalBaseScenario | LocalImmersiveScenario;
+export type Scenario = LocalScenario | RemoteScenario;
 
 export * from "./scenario/readers";

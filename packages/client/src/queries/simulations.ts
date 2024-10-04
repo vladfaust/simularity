@@ -1,5 +1,5 @@
 import { d } from "@/lib/drizzle";
-import { useScenariosQuery, type QueryOptions } from "@/queries";
+import { useLocalScenariosQuery, type QueryOptions } from "@/queries";
 import { useQuery } from "@tanstack/vue-query";
 import { get } from "@vueuse/core";
 import { and, desc, eq, isNull } from "drizzle-orm";
@@ -36,7 +36,7 @@ export function useSavesQuery(
     refetchOnMount: true,
   },
 ) {
-  const { data: scenarios } = useScenariosQuery();
+  const { data: scenarios } = useLocalScenariosQuery();
 
   const query = useQuery({
     queryKey: computed(() => savesQueryKey(get(scenarioId))),
