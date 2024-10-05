@@ -14,7 +14,6 @@ steps:
       \$env:VITE_API_BASE_URL = "https://api.simularity.ai"
       \$env:VITE_WEB_BASE_URL = "https://simularity.ai"
       \$env:VITE_PATREON_CAMPAIGN_URL = "https://www.patreon.com/SimularityAI"
-      \$env:VITE_PRODUCT_ID = "neurosummer"
       npm run build
 
   - wait
