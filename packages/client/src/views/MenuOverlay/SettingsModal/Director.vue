@@ -3,7 +3,6 @@ import Alert from "@/components/Alert.vue";
 import InteractiveHelper from "@/components/InteractiveHelper.vue";
 import RichRange from "@/components/RichForm/RichRange.vue";
 import RichToggle from "@/components/RichForm/RichToggle.vue";
-import { env } from "@/env";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { directorTeacherMode } from "@/lib/storage/llm";
@@ -40,7 +39,6 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
           TreesIcon(:size="16")
 
       RichToggle#teacher-mode(
-        v-if="env.VITE_EXPERIMENTAL_FEATURES"
         title="Teacher Mode"
         v-model="directorTeacherMode"
       )
@@ -52,7 +50,7 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
       :driver-instance="simulation?.director?.llmDriver.value ?? undefined"
       v-model:driver-config="driverConfig"
       :recommended-context-size="simulation ? simulation.scenario.content.contextWindowSize * CONTEXT_SIZE_MULTIPLIER : undefined"
-      :class="{ 'opacity-50 pointer-events-none': env.VITE_EXPERIMENTAL_FEATURES && directorTeacherMode }"
+      :class="{ 'opacity-50 pointer-events-none': directorTeacherMode }"
     )
       template(#context-size-help="{ contextSize, maxContextSize }")
         Alert(type="warn" v-if="contextSize > maxContextSize")

@@ -7,6 +7,7 @@ import Placeholder from "@/components/Placeholder.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import RichToggle from "@/components/RichForm/RichToggle.vue";
 import ScenarioCard from "@/components/ScenarioCard.vue";
+import { env } from "@/env";
 import { trackEvent } from "@/lib/plausible";
 import {
   LocalImmersiveScenario,
@@ -48,7 +49,11 @@ const selectedEpisodeImageUrl = asyncComputed(() =>
     : null,
 );
 
-const immersiveMode = ref(props.scenario instanceof LocalImmersiveScenario);
+const immersiveMode = ref(
+  env.VITE_EXPERIMENTAL_IMMERSIVE_MODE
+    ? props.scenario instanceof LocalImmersiveScenario
+    : false,
+);
 const sandboxMode = ref(false);
 
 const detailsRef = ref<HTMLElement | null>(null);
@@ -151,7 +156,7 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
               p.leading-snug {{ selectedEpisode.about }}
 
           .flex.flex-col.gap-2.p-3(
-            v-if="!(scenario instanceof RemoteScenario)"
+            v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && !(scenario instanceof RemoteScenario)"
           )
             RichToggle#immersive(
               title="Immersive mode"

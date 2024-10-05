@@ -1,4 +1,5 @@
 import { d } from "@/lib/drizzle";
+import { Mode } from "@/lib/simulation";
 import { useLocalScenariosQuery, type QueryOptions } from "@/queries";
 import { useQuery } from "@tanstack/vue-query";
 import { get } from "@vueuse/core";
@@ -30,6 +31,7 @@ export function simulationQueryKey(simulationId: number) {
 
 export function useSavesQuery(
   scenarioId: MaybeRef<string>,
+  filterByImmersion?: MaybeRef<boolean | undefined>,
   queryOptions: QueryOptions = {
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -39,9 +41,25 @@ export function useSavesQuery(
   const { data: scenarios } = useLocalScenariosQuery();
 
   const query = useQuery({
-    queryKey: computed(() => savesQueryKey(get(scenarioId))),
-    queryFn: () =>
-      d.db.query.simulations.findMany({
+    queryKey: computed(() =>
+      savesQueryKey(get(scenarioId), get(filterByImmersion)),
+    ),
+    queryFn: () => {
+      const conditions = [
+        isNull(d.simulations.deletedAt),
+        eq(d.simulations.scenarioId, get(scenarioId)!),
+      ];
+
+      if (get(filterByImmersion) !== undefined) {
+        conditions.push(
+          eq(
+            d.simulations.mode,
+            get(filterByImmersion)! ? Mode.Immersive : Mode.Chat,
+          ),
+        );
+      }
+
+      return d.db.query.simulations.findMany({
         columns: {
           id: true,
           scenarioId: true,
@@ -49,11 +67,9 @@ export function useSavesQuery(
           createdAt: true,
         },
         orderBy: desc(d.simulations.updatedAt),
-        where: and(
-          isNull(d.simulations.deletedAt),
-          eq(d.simulations.scenarioId, get(scenarioId)!),
-        ),
-      }),
+        where: and(...conditions),
+      });
+    },
     enabled: computed(() => scenarios.value !== undefined),
     ...queryOptions,
   });
@@ -68,6 +84,6 @@ export function allSavesQueryKey() {
   return ["saves"];
 }
 
-export function savesQueryKey(scenarioId: string) {
-  return ["saves", scenarioId];
+export function savesQueryKey(scenarioId: string, filterByImmersion?: boolean) {
+  return ["saves", { scenarioId, filterByImmersion }];
 }

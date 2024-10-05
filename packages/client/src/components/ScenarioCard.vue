@@ -3,6 +3,7 @@ import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
 import NsfwIcon from "@/components/NsfwIcon.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
+import { env } from "@/env";
 import { Download, downloadManager } from "@/lib/downloads";
 import {
   LocalImmersiveScenario,
@@ -125,7 +126,7 @@ onMounted(async () => {
               v-tooltip="'This scenario is NSFW'"
             )
             ImmersiveModeIcon.cursor-help(
-              v-if="scenario.immersive"
+              v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && scenario.immersive"
               :size="18"
               v-tooltip="'This scenario supports immersive mode'"
             )

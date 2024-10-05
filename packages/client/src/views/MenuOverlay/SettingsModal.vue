@@ -129,6 +129,7 @@ onUnmounted(() => {
 
       //- Director agent tab.
       ._tab(
+        v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE"
         :class="{ _selected: tab === Tab.Director }"
         @click="tab = Tab.Director"
       )
@@ -139,7 +140,7 @@ onUnmounted(() => {
         LlmStatusIcon(
           v-if="simulation"
           :driver="simulation.director?.llmDriver.value"
-          :required="simulation.mode === Mode.Immersive && (!env.VITE_EXPERIMENTAL_FEATURES || !directorTeacherMode)"
+          :required="simulation.mode === Mode.Immersive && !directorTeacherMode"
         )
 
       //- Voicer agent tab.

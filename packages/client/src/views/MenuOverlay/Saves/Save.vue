@@ -4,6 +4,7 @@ import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
 import SandboxModeIcon from "@/components/Icons/SandboxModeIcon.vue";
 import Placeholder from "@/components/Placeholder.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
+import { env } from "@/env";
 import { d } from "@/lib/drizzle";
 import { Mode } from "@/lib/simulation";
 import { nonNullable } from "@/lib/utils";
@@ -86,17 +87,17 @@ const latestMessage = computed<SimpleMessage | null>(() => {
       template(#extra)
         .flex.gap-1
           SandboxModeIcon.cursor-help(
-            v-if="simulation.sandbox"
+            v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && simulation.sandbox"
             :size="16"
             v-tooltip="'This simulation runs in a sandbox mode'"
           )
           ImmersiveModeIcon.cursor-help(
-            v-if="simulation?.mode === Mode.Immersive"
+            v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && simulation?.mode === Mode.Immersive"
             :size="16"
             v-tooltip="'This simulation runs in immersive mode'"
           )
           ChatModeIcon.cursor-help(
-            v-else
+            v-else-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE"
             :size="16"
             v-tooltip="'This simulation runs in chat mode'"
           )

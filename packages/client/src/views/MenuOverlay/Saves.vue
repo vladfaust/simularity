@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import RichTitle from "@/components/RichForm/RichTitle.vue";
+import { env } from "@/env";
 import { d } from "@/lib/drizzle";
 import { trackPageview } from "@/lib/plausible";
 import { allSavesQueryKey, useSavesQuery } from "@/queries";
@@ -26,7 +27,10 @@ const { scenarioId } = defineProps<{
 }>();
 
 const queryClient = useQueryClient();
-const { data: saves } = useSavesQuery(scenarioId);
+const { data: saves } = useSavesQuery(
+  scenarioId,
+  env.VITE_EXPERIMENTAL_IMMERSIVE_MODE ? undefined : false,
+);
 const selectionMode = ref(false);
 const selectedSaveIds = ref<number[]>([]);
 const deletionInProgress = ref(false);

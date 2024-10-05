@@ -5,6 +5,7 @@ import NsfwIcon from "@/components/NsfwIcon.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import ScenarioCard from "@/components/ScenarioCard.vue";
 import ScenarioDetails from "@/components/ScenarioDetails.vue";
+import { env } from "@/env";
 import * as api from "@/lib/api";
 import { Download, downloadManager } from "@/lib/downloads";
 import { d } from "@/lib/drizzle";
@@ -285,7 +286,7 @@ onMounted(async () => {
           )
 
       template(
-        v-if="scenario.achievements && Object.values(scenario.achievements).length"
+        v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && scenario.achievements && Object.values(scenario.achievements).length"
       )
         //- Achievements.
         RichTitle(title="Achievements")
