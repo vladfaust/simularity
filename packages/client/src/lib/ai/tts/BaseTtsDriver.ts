@@ -21,6 +21,8 @@ export const TtsParamsSchema = v.object({
 export type TtsParams = v.InferOutput<typeof TtsParamsSchema>;
 
 export interface BaseTtsDriver {
+  modelId: string;
+
   /**
    * Whether is the driver ready to accept new requests.
    */

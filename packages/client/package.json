@@ -26,6 +26,7 @@
     "nanoid": "^5.0.7",
     "p-retry": "^6.2.0",
     "phaser": "^3.80.1",
+    "plausible-tracker": "^0.3.9",
     "pretty-bytes": "^6.1.1",
     "tauri-plugin-fs-extra-api": "github:tauri-apps/tauri-plugin-fs-extra#v1",
     "tauri-plugin-store-api": "github:tauri-apps/tauri-plugin-store#v1",

@@ -7,6 +7,7 @@ import Placeholder from "@/components/Placeholder.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import RichToggle from "@/components/RichForm/RichToggle.vue";
 import ScenarioCard from "@/components/ScenarioCard.vue";
+import { trackEvent } from "@/lib/plausible";
 import {
   LocalImmersiveScenario,
   RemoteScenario,
@@ -16,7 +17,7 @@ import { Mode, Simulation } from "@/lib/simulation";
 import { allSavesQueryKey } from "@/queries";
 import router, { routeLocation } from "@/router";
 import { useQueryClient } from "@tanstack/vue-query";
-import { asyncComputed, useElementSize } from "@vueuse/core";
+import { asyncComputed, useElementSize, watchImmediate } from "@vueuse/core";
 import { SparkleIcon } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 
@@ -65,6 +66,15 @@ async function play(episodeId?: string | null) {
 
   queryClient.invalidateQueries({ queryKey: allSavesQueryKey() });
 
+  trackEvent("simulations/create", {
+    props: {
+      scenarioId: props.scenario.id,
+      episodeId: episodeId ?? "",
+      immersive: immersiveMode.value,
+      sandbox: sandboxMode.value,
+    },
+  });
+
   router.push(
     routeLocation({
       name: "Simulation",
@@ -75,6 +85,16 @@ async function play(episodeId?: string | null) {
 
 watch(props, (props) => {
   selectedEpisodeId.value = props.episodeId ?? props.scenario.defaultEpisodeId;
+});
+
+watchImmediate(selectedEpisodeId, (episodeId) => {
+  // Track episode selection.
+  trackEvent("newGameModal", {
+    props: {
+      scenarioId: props.scenario.id,
+      episodeId,
+    },
+  });
 });
 </script>
 

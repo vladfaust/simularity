@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import NsfwIcon from "@/components/NsfwIcon.vue";
 import ScenarioCardById from "@/components/ScenarioCardById.vue";
+import { trackPageview } from "@/lib/plausible";
 import * as resources from "@/lib/resources";
 import * as tauri from "@/lib/tauri";
 import { useLocalScenariosQuery, useRemoteScenariosQuery } from "@/queries";
@@ -12,7 +13,7 @@ import {
   LayoutListIcon,
   LibraryBigIcon,
 } from "lucide-vue-next";
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 defineEmits<{
   (event: "select", scenarioId: string): void;
@@ -51,6 +52,10 @@ const mergedScenarioIds = computed(
 async function openScenariosDir() {
   await tauri.utils.fileManagerOpen(await resources.scenariosDir());
 }
+
+onMounted(() => {
+  trackPageview("/library");
+});
 </script>
 
 <template lang="pug">

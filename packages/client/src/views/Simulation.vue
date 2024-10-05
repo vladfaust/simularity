@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Modal from "@/components/Modal.vue";
+import { trackEvent, trackPageview } from "@/lib/plausible";
 import type { LocalImmersiveScenario } from "@/lib/scenario";
 import { Mode, Simulation } from "@/lib/simulation";
 import { DefaultScene } from "@/lib/simulation/phaser/defaultScene";
@@ -141,6 +142,17 @@ onMounted(async () => {
   }
 
   window.addEventListener("keypress", keypressEventListener);
+
+  trackEvent("simulations/load", {
+    props: {
+      simulationId,
+      scenarioId: simulation.value.scenarioId,
+      immersive: simulation.value.mode === Mode.Immersive,
+      sandbox: simulation.value.sandbox,
+    },
+  });
+
+  trackPageview("/simulation");
 });
 
 watch(mainMenu, (value) => {

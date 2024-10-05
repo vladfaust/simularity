@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { d } from "@/lib/drizzle";
+import { trackPageview } from "@/lib/plausible";
 import { allSavesQueryKey, useSavesQuery } from "@/queries";
 import { routeLocation } from "@/router";
 import { TransitionRoot } from "@headlessui/vue";
@@ -14,7 +15,7 @@ import {
   SquareMousePointerIcon,
   Trash2Icon,
 } from "lucide-vue-next";
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { toast } from "vue3-toastify";
 import Save from "./Saves/Save.vue";
 
@@ -114,6 +115,10 @@ async function switchSelection(simulationId: number) {
     selectedSaveIds.value = [...selectedSaveIds.value, simulationId];
   }
 }
+
+onMounted(() => {
+  trackPageview(`/saves/${scenarioId}`);
+});
 </script>
 
 <template lang="pug">

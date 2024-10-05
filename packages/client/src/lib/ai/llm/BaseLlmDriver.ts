@@ -77,6 +77,7 @@ export enum LlmStatus {
 }
 
 export interface BaseLlmDriver {
+  modelId: string;
   supportedGrammarLangs: Set<LlmGrammarLang>;
   contextSize: number;
   needsWarmup: boolean;

@@ -100,6 +100,10 @@ export class RemoteLlmDriver implements BaseLlmDriver {
   readonly ready = ref(true);
   readonly progress = ref<number | undefined>();
 
+  get modelId() {
+    return this.config.modelId;
+  }
+
   private constructor(
     readonly config: RemoteLlmDriverConfig,
     readonly contextSize: number,

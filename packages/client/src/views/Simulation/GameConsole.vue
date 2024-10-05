@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { type CompletionOptions } from "@/lib/ai/llm/BaseLlmDriver";
 import * as api from "@/lib/api";
+import { trackEvent } from "@/lib/plausible";
 import { Mode, Simulation } from "@/lib/simulation";
 import {
   NARRATOR,
@@ -121,6 +122,10 @@ const enabledCharacterIds = useLocalStorage<Set<string>>(
   },
 );
 
+const enabledCharacterIdsSortedArray = computed(() =>
+  Array.from(enabledCharacterIds.value).sort(),
+);
+
 const showVisualizeModal = ref(false);
 
 const inputPlaceholder = computed(
@@ -175,6 +180,16 @@ async function sendMessage() {
       modelSettings.value,
       inferenceAbortController.value!.signal,
     );
+
+    trackEvent("simulations/sendUserUpdate", {
+      props: {
+        simulationId: simulation.id,
+        scenarioId: simulation.scenario.id,
+        immersive: simulation.mode === Mode.Immersive,
+        sandbox: simulation.sandbox,
+        enabledCharacterIds: Array.from(enabledCharacterIds.value).join(","),
+      },
+    });
   } catch (e) {
     if (wouldRestoreUserInput) {
       userInput.value = userMessage;
@@ -212,6 +227,15 @@ async function advance() {
       !simulation.canGoForward.value
     ) {
       await simulation.advanceCurrentEpisode(enabledCharacterIds);
+
+      trackEvent("simulations/advanceEpisode", {
+        props: {
+          simulationId: simulation.id,
+          scenarioId: simulation.scenario.id,
+          immersive: simulation.mode === Mode.Immersive,
+          sandbox: simulation.sandbox,
+        },
+      });
     } else {
       if (simulation.canGoForward.value) {
         await simulation.goForward();
@@ -224,6 +248,20 @@ async function advance() {
           modelSettings.value,
           inferenceAbortController.value!.signal,
         );
+
+        trackEvent("simulations/generateUpdate", {
+          props: {
+            simulationId: simulation.id,
+            scenarioId: simulation.scenario.id,
+            immersive: simulation.mode === Mode.Immersive,
+            sandbox: simulation.sandbox,
+            enabledCharacterIds: enabledCharacterIdsSortedArray.value.join(","),
+            writerModelId: simulation.writer.llmDriver.value!.modelId,
+            directorModelId:
+              simulation.director?.llmDriver.value!.modelId ?? "",
+            voicerModelId: simulation.voicer.ttsDriver.value?.modelId ?? "",
+          },
+        });
       }
     }
   } catch (e: any) {
@@ -280,6 +318,14 @@ async function onUpdateVariantEdit(
   try {
     await simulation.editUpdateVariant(variant, newText);
     triggerRef(update.variants);
+
+    trackEvent("simulations/editUpdate", {
+      props: {
+        simulationId: simulation.id,
+        scenarioId: simulation.scenario.id,
+        immersive: simulation.mode === Mode.Immersive,
+      },
+    });
   } finally {
     busy.value = false;
   }
@@ -307,6 +353,18 @@ async function regenerateUpdate(updateIndex: number) {
       modelSettings.value,
       inferenceAbortController.value!.signal,
     );
+
+    trackEvent("simulations/regenerateUpdate", {
+      props: {
+        simulationId: simulation.id,
+        scenarioId: simulation.scenario.id,
+        immersive: simulation.mode === Mode.Immersive,
+        enabledCharacterIds: enabledCharacterIdsSortedArray.value.join(","),
+        writerModelId: simulation.writer.llmDriver.value!.modelId,
+        directorModelId: simulation.director?.llmDriver.value!.modelId ?? "",
+        voicerModelId: simulation.voicer.ttsDriver.value?.modelId ?? "",
+      },
+    });
   } catch (e) {
     if (e instanceof api.UnauthorizedError) {
       console.warn(e);

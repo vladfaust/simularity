@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { env } from "@/env";
+import { trackPageview } from "@/lib/plausible";
 import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { directorTeacherMode } from "@/lib/storage/llm";
@@ -15,7 +16,7 @@ import {
   SaveIcon,
   SettingsIcon,
 } from "lucide-vue-next";
-import { computed, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import Director from "./SettingsModal/Director.vue";
 import LlmStatusIcon from "./SettingsModal/LlmAgent/StatusIcon.vue";
 import Voicer from "./SettingsModal/Voicer.vue";
@@ -76,6 +77,10 @@ function save() {
   storage.tts.ttsConfig.value = clone(tempTtsConfig.value);
   tempTtsConfig.value = clone(storage.tts.ttsConfig.value);
 }
+
+onMounted(() => {
+  trackPageview("/settings");
+});
 
 onUnmounted(() => {
   save();

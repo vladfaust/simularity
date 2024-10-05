@@ -121,7 +121,7 @@
       ]
     },
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: asset: https://asset.localhost blob:; media-src blob:; connect-src https://api.simularity.ai ipc: http://ipc.localhost asset: https://asset.localhost tauri://localhost"
+      "csp": "default-src 'self'; img-src 'self' data: asset: https://asset.localhost blob:; media-src blob:; connect-src https://api.simularity.ai https://plausible.simularity.ai ipc: http://ipc.localhost asset: https://asset.localhost tauri://localhost"
     },
     "updater": {
       "active": false

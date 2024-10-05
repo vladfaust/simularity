@@ -238,6 +238,14 @@ export class TauriLlmDriver implements BaseLlmDriver {
     return this.config.contextSize;
   }
 
+  /**
+   * Returns the model file name.
+   */
+  // TODO: It may be a well-known model.
+  get modelId() {
+    return this.config.modelPath.split("/").pop()!;
+  }
+
   private constructor(
     readonly agentId: LlmAgentId,
     readonly config: TauriLlmDriverConfig,

@@ -8,6 +8,7 @@ import ScenarioDetails from "@/components/ScenarioDetails.vue";
 import * as api from "@/lib/api";
 import { Download, downloadManager } from "@/lib/downloads";
 import { d } from "@/lib/drizzle";
+import { trackEvent, trackPageview } from "@/lib/plausible";
 import { defaultScenariosDir, MANIFEST_FILE_NAME } from "@/lib/scenario";
 import * as tauri from "@/lib/tauri";
 import { remoteScenarioAssetUrl } from "@/logic/scenarios";
@@ -67,6 +68,28 @@ async function showInFileManager() {
   }
 
   await tauri.utils.fileManagerOpen(localScenario.value.basePath);
+}
+
+function onDownloadComplete() {
+  console.log("Download completed", { id: download.value!.id });
+
+  trackEvent("scenarios/downloadComplete", {
+    props: {
+      scenarioId: props.scenarioId,
+      scenarioVersion: remoteScenario.value?.version ?? -1,
+    },
+  });
+
+  queryClient.invalidateQueries({
+    queryKey: localScenarioQueryKey(props.scenarioId),
+  });
+
+  queryClient.invalidateQueries({
+    queryKey: localScenariosQueryKey(),
+  });
+
+  downloadManager.downloads.delete(download.value!.metaPath);
+  download.value = null;
 }
 
 async function beginDownload(scenarioVersion?: number) {
@@ -147,23 +170,19 @@ async function beginDownload(scenarioVersion?: number) {
     )),
   ]);
 
-  download.value.onComplete(async () => {
-    console.log("Download completed", { id });
+  download.value.onComplete(onDownloadComplete);
 
-    await queryClient.invalidateQueries({
-      queryKey: localScenarioQueryKey(props.scenarioId),
-    });
-
-    await queryClient.invalidateQueries({
-      queryKey: localScenariosQueryKey(),
-    });
-
-    download.value = null;
-    downloadManager.downloads.delete(download.value!.metaPath);
+  trackEvent("scenarios/downloadStart", {
+    props: {
+      scenarioId: props.scenarioId,
+      scenarioVersion,
+    },
   });
 }
 
 onMounted(async () => {
+  trackPageview(`/scenario/${props.scenarioId}`);
+
   const regex = RegExp(`^(?<version>\\d+).${props.scenarioId}.scenario$`);
 
   for (const instance of await downloadManager.readDir(
@@ -183,20 +202,7 @@ onMounted(async () => {
     console.log("No downloads found for scenario");
     download.value = null;
   } else {
-    download.value.onComplete(async () => {
-      console.log("Download completed", { id: download.value!.id });
-
-      await queryClient.invalidateQueries({
-        queryKey: localScenarioQueryKey(props.scenarioId),
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: localScenariosQueryKey(),
-      });
-
-      downloadManager.downloads.delete(download.value!.metaPath);
-      download.value = null;
-    });
+    download.value.onComplete(onDownloadComplete);
   }
 
   await Promise.all([

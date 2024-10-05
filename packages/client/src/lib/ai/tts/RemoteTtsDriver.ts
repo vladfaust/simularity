@@ -12,6 +12,10 @@ export class RemoteTtsDriver implements BaseTtsDriver {
   readonly ready = ref(true);
   readonly busy = ref(false);
 
+  get modelId() {
+    return this.config.modelId;
+  }
+
   constructor(readonly config: TtsDriverConfig) {}
 
   compareConfig(other: TtsDriverConfig): boolean {
