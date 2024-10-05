@@ -13,6 +13,7 @@
     "@gcornut/valibot-json-schema": "^0.37.0",
     "@headlessui/vue": "^1.7.21",
     "@lucide/lab": "^0.1.2",
+    "@sentry/vue": "^8.33.1",
     "@simularity/api": "../api",
     "@tanstack/vue-query": "^5.53.3",
     "@tauri-apps/api": "^1.5.4",
@@ -39,6 +40,7 @@
   },
   "devDependencies": {
     "@prettier/plugin-pug": "^3.0.0",
+    "@sentry/vite-plugin": "^2.22.5",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tailwindcss/typography": "^0.5.14",
     "@vitejs/plugin-vue": "^5.0.4",
