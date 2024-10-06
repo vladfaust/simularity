@@ -30,7 +30,8 @@ const driverType = ref<storage.llm.LlmDriverConfig["type"]>(
 .flex.flex-col.gap-2
   .flex.flex-col
     .flex.w-full.items-center.justify-between
-      h2.font-semibold.leading-tight.tracking-wide Model
+      slot(name="title")
+        h2.font-semibold.leading-tight.tracking-wide Model
       .ml-2.h-0.w-full.border-t
 
       //- Driver tabs.

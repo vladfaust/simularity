@@ -5,7 +5,11 @@ import RichInput from "@/components/RichForm/RichInput.vue";
 import RichToggle from "@/components/RichForm/RichToggle.vue";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
-import { MessageSquareTextIcon, Settings2Icon } from "lucide-vue-next";
+import {
+  FeatherIcon,
+  MessageSquareTextIcon,
+  Settings2Icon,
+} from "lucide-vue-next";
 import { ref } from "vue";
 import LlmAgentModel from "./LlmAgent/LlmAgentModel.vue";
 
@@ -59,6 +63,12 @@ const selectedModel = ref<storage.llm.CachedModel | null>();
       v-model:selected-model="selectedModel"
       :recommended-context-size="simulation?.scenario.content.contextWindowSize"
     )
+      template(#title)
+        .flex.shrink-0.items-center(class="gap-1.5")
+          .btn.rounded-lg.border.bg-white.p-1
+            FeatherIcon(:size="18")
+          h2.shrink-0.font-semibold.leading-tight.tracking-wide Writer Model
+
       template(#context-size-help="{ contextSize, maxContextSize }")
         //- Trained context size alert.
         Alert.bg-white(type="warn" v-if="contextSize > maxContextSize")

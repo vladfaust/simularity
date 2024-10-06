@@ -6,7 +6,11 @@ import RichToggle from "@/components/RichForm/RichToggle.vue";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { directorTeacherMode } from "@/lib/storage/llm";
-import { GraduationCapIcon, TreesIcon } from "lucide-vue-next";
+import {
+  ClapperboardIcon,
+  GraduationCapIcon,
+  TreesIcon,
+} from "lucide-vue-next";
 import LlmAgentModel from "./LlmAgent/LlmAgentModel.vue";
 
 const CONTEXT_SIZE_MULTIPLIER = 1.25;
@@ -53,6 +57,12 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
       :recommended-context-size="simulation ? simulation.scenario.content.contextWindowSize * CONTEXT_SIZE_MULTIPLIER : undefined"
       :class="{ 'opacity-50 pointer-events-none': directorTeacherMode }"
     )
+      template(#title)
+        .flex.shrink-0.items-center(class="gap-1.5")
+          .btn.rounded-lg.border.bg-white.p-1
+            ClapperboardIcon(:size="18")
+          h2.shrink-0.font-semibold.leading-tight.tracking-wide Director Model
+
       template(#context-size-help="{ contextSize, maxContextSize }")
         Alert(type="warn" v-if="contextSize > maxContextSize")
           | Model is trained on up to {{ maxContextSize }} tokens. Consider reducing the context size to avoid performance degradation.
