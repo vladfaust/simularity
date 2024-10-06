@@ -468,7 +468,6 @@ export class Download {
       url,
       path,
       (event) => {
-        console.debug({ event });
         currentFileSize.value = event.currentFileSize;
         contentLength.value = event.targetContentLength;
         file.contentLength.value = event.targetContentLength;

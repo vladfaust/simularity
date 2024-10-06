@@ -91,6 +91,7 @@ const props = defineProps<
 const emit = defineEmits<{
   (event: "remove", quantId: string, deleteFile: boolean): void;
   (event: "select", quantId: string): void;
+  (event: "downloadComplete", quantId: string): void;
 }>();
 
 const showAllQuants = ref(false);
@@ -146,6 +147,11 @@ async function createDownload(quantId: string) {
 
   props.downloadsByQuant.value[quantId] = shallowRef(download);
   triggerRef(props.downloadsByQuant);
+
+  download.onComplete(() => {
+    console.log("Download complete for quant", quantId);
+    emit("downloadComplete", quantId);
+  });
 }
 
 /**

@@ -74,13 +74,13 @@ const availableModels = asyncComputed<Record<string, AvailableModel>>(() =>
   fetch(`/available_models/${props.agentId}.json`).then((res) => res.json()),
 );
 
-const allModels = computed<
+const allModels = asyncComputed<
   | {
       custom: storage.llm.CachedModel[];
       wellKnown: WellKnownModelProps[];
     }
   | undefined
->(() => {
+>(async () => {
   if (!availableModels.value) return;
 
   const custom: storage.llm.CachedModel[] = [];
@@ -141,7 +141,10 @@ const allModels = computed<
 
     for (const quantId of Object.keys(availableModel.quants)) {
       const download = downloadManager.downloads.get(
-        `${availableModelId}.${quantId}`,
+        await path.join(
+          await modelsDirectory(),
+          `${availableModelId}.${quantId}.download`,
+        ),
       );
 
       if (download) {
@@ -527,6 +530,7 @@ onMounted(async () => {
       :show-uncached-quants="true"
       @select="(quantId) => selectModel(recommended.cachedModelsByQuants[quantId].model)"
       @remove="(quantId, deleteFile) => removeModel(recommended.cachedModelsByQuants[quantId].model.path, deleteFile)"
+      @download-complete="() => refresh()"
     )
 
   //- Settings.
