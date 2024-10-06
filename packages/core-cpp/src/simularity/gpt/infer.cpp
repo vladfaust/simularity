@@ -160,9 +160,10 @@ int simularity_gpt_infer(
 
       std::string piece;
       try {
-        piece = llama_token_to_piece(session->model(), next, true);
+        piece = llama_token_to_piece(session->model(), next, false);
       } catch (std::exception &e) {
         spdlog::warn("Failed to convert token to piece: ⌘{}", next);
+        sampling_ctx->accept(session->context, next);
         continue;
       }
 
