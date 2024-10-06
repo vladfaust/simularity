@@ -54,6 +54,7 @@ const selectedModel = ref<storage.llm.CachedModel | null>();
     LlmAgentModel(
       agent-id="writer"
       :driver-instance="simulation?.writer.llmDriver.value ?? undefined"
+      :has-cache="true"
       v-model:driver-config="driverConfig"
       v-model:selected-model="selectedModel"
       :recommended-context-size="simulation?.scenario.content.contextWindowSize"

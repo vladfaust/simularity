@@ -33,6 +33,7 @@ const props = defineProps<{
   agentId: storage.llm.LlmAgentId;
   recommendedContextSize?: number;
   advanced?: boolean;
+  hasCache?: boolean;
 }>();
 
 const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
@@ -561,6 +562,7 @@ onMounted(async () => {
 
       //- Cache.
       RichInput#state-cache(
+        v-if="hasCache"
         title="State cache"
       )
         template(#icon)

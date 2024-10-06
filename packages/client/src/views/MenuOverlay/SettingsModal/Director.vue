@@ -48,6 +48,7 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
     LlmAgentModel(
       agent-id="director"
       :driver-instance="simulation?.director?.llmDriver.value ?? undefined"
+      :has-cache="true"
       v-model:driver-config="driverConfig"
       :recommended-context-size="simulation ? simulation.scenario.content.contextWindowSize * CONTEXT_SIZE_MULTIPLIER : undefined"
       :class="{ 'opacity-50 pointer-events-none': directorTeacherMode }"

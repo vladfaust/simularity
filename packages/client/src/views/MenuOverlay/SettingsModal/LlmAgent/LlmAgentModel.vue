@@ -10,6 +10,7 @@ defineProps<{
   agentId: storage.llm.LlmAgentId;
   driverInstance: BaseLlmDriver | undefined;
   recommendedContextSize?: number;
+  hasCache?: boolean;
 }>();
 
 const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
@@ -54,6 +55,7 @@ const driverType = ref<storage.llm.LlmDriverConfig["type"]>(
         v-if="driverType === 'local'"
         :agent-id
         :recommended-context-size
+        :has-cache
         v-model:driver-config="driverConfig"
         v-model:selected-model="selectedModel"
       )
