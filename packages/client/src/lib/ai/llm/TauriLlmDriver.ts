@@ -24,7 +24,7 @@ type InitializationCallback = ({
 
 type InitializationParams =
   | {
-      initialPrompt: string;
+      initialPrompt?: string;
       dumpSession: boolean;
       callback: InitializationCallback;
     }
@@ -142,7 +142,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
     agentId: LlmAgentId,
     config: TauriLlmDriverConfig,
     initializationParams: {
-      initialPrompt: string;
+      initialPrompt?: string;
       dumpSession: boolean;
       callback: InitializationCallback;
     },
@@ -251,7 +251,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
     readonly config: TauriLlmDriverConfig,
     _initializationParams:
       | {
-          initialPrompt: string;
+          initialPrompt?: string;
           dumpSession: boolean;
           callback: InitializationCallback;
         }

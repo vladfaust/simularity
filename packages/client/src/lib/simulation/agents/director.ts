@@ -52,7 +52,9 @@ export class Director {
     this._driverConfigWatchStopHandle = hookLlmAgentToDriverRef(
       "director",
       this.llmDriver,
-      () => Director.buildStaticPrompt(scenario),
+      {
+        initialPromptBuilder: () => Director.buildStaticPrompt(scenario),
+      },
     );
   }
 

@@ -18,8 +18,10 @@ import type { ShallowRef, WatchStopHandle } from "vue";
 export function hookLlmAgentToDriverRef(
   agentId: LlmAgentId,
   driverRef: ShallowRef<BaseLlmDriver | null>,
-  initialPromptBuilder: () => string,
-  localContextSizeModifier?: (driverContextSize: number) => number,
+  options?: {
+    initialPromptBuilder?: () => string;
+    localContextSizeModifier?: (driverContextSize: number) => number;
+  },
 ): WatchStopHandle {
   const driverConfig = storage.llm.useDriverConfig(agentId);
   const latestSession = storage.llm.useLatestSession(agentId);
@@ -29,11 +31,11 @@ export function hookLlmAgentToDriverRef(
     async (driverConfig) => {
       console.debug("Driver config watch trigger", agentId, driverConfig);
 
-      if (localContextSizeModifier && driverConfig?.type === "local") {
+      if (options?.localContextSizeModifier && driverConfig?.type === "local") {
         // Clone the driver config to a local variable.
         driverConfig = clone(driverConfig);
 
-        driverConfig.contextSize = localContextSizeModifier(
+        driverConfig.contextSize = options.localContextSizeModifier(
           driverConfig.contextSize,
         );
       }
@@ -72,14 +74,14 @@ export function hookLlmAgentToDriverRef(
             if (!driver) {
               console.log("Creating new TauriLlmDriver", agentId, driverConfig);
 
-              const initialPrompt = initialPromptBuilder();
+              const initialPrompt = options?.initialPromptBuilder?.();
 
               driver = TauriLlmDriver.create(
                 agentId,
                 driverConfig,
                 {
                   initialPrompt,
-                  dumpSession: true,
+                  dumpSession: !!options?.initialPromptBuilder,
                   callback: ({ databaseSessionId }) => {
                     latestSession.value = {
                       driver: "local",

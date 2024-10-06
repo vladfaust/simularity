@@ -71,12 +71,14 @@ export class Writer {
     this._driverConfigWatchStopHandle = hookLlmAgentToDriverRef(
       "writer",
       this.llmDriver,
-      () => Writer.buildStaticPrompt(scenario),
-      (driverContextSize) =>
-        Math.max(
-          driverContextSize,
-          this.scenario.content.contextWindowSize + Writer.TASK_BUFFER_SIZE,
-        ),
+      {
+        initialPromptBuilder: () => Writer.buildStaticPrompt(scenario),
+        localContextSizeModifier: (driverContextSize) =>
+          Math.max(
+            driverContextSize,
+            this.scenario.content.contextWindowSize + Writer.TASK_BUFFER_SIZE,
+          ),
+      },
     );
   }
 
