@@ -274,13 +274,17 @@ export function nonNullable<T>(value: T): NonNullable<T> {
 }
 
 /**
+ * @example prettyNumber(512) // => "512"
  * @example prettyNumber(8192) // => "8K"
  */
 export function prettyNumber(
-  tokens: number,
+  number_: number,
   options?: { space: boolean },
 ): string {
-  return prettyBytes(tokens, { binary: true, ...options }).slice(0, -2);
+  return prettyBytes(number_, { binary: true, ...options }).slice(
+    0,
+    number_ < 1024 ? -1 : -2,
+  );
 }
 
 /**
