@@ -13,7 +13,7 @@ export class Voicer {
   readonly ttsDriver: ShallowRef<BaseTtsDriver | null>;
   readonly ready = computed(() => this.ttsDriver.value?.ready.value);
   readonly enabled = computed(
-    () => this.ttsDriver.value && storage.tts.ttsConfig.value?.enabled,
+    () => this.ttsDriver.value && storage.tts.ttsEnabled.value,
   );
 
   /**
@@ -43,7 +43,7 @@ export class Voicer {
         console.debug("Driver config watch trigger", agent, ttsConfig);
         const driverConfig = ttsConfig?.driver;
 
-        if (ttsConfig?.enabled && driverConfig) {
+        if (storage.tts.ttsEnabled.value && driverConfig) {
           if (this.ttsDriver.value) {
             console.debug("Comparing driver configs.", agent, {
               other: driverConfig,

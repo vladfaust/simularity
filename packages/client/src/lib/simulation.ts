@@ -1403,7 +1403,7 @@ export class Simulation {
       return null;
     }
 
-    if (!this.voicer.ttsDriver.value || !storage.tts.ttsConfig.value?.enabled) {
+    if (!this.voicer.ttsDriver.value || !storage.tts.ttsEnabled.value) {
       throw new Error("TTS is disabled");
     }
 

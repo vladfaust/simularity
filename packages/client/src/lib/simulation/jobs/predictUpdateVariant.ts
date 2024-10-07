@@ -48,9 +48,7 @@ export class PredictUpdateVariantJob {
       inferenceOptions?: baseLlmDriver.CompletionOptions;
     },
   ) {
-    if (
-      !(agents.voicer.ttsDriver.value && storage.tts.ttsConfig.value?.enabled)
-    ) {
+    if (!(agents.voicer.ttsDriver.value && storage.tts.ttsEnabled.value)) {
       this._voicerJob.value = null;
     }
 
@@ -97,10 +95,7 @@ export class PredictUpdateVariantJob {
       // TODO: Check if abort signal was triggered.
 
       let doTts = false;
-      if (
-        this.agents.voicer.ttsDriver.value &&
-        storage.tts.ttsConfig.value?.enabled
-      ) {
+      if (this.agents.voicer.ttsDriver.value && storage.tts.ttsConfig.value) {
         switch (writerResponse.characterId) {
           // Narrator.
           case null:

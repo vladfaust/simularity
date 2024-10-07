@@ -83,10 +83,7 @@ const directorStatusText = computed<string | undefined>(() =>
 );
 
 const voicerStatus = computed<Status>(() => {
-  if (
-    !storage.tts.ttsConfig.value?.enabled ||
-    !job?.agents.voicer.ttsDriver.value
-  ) {
+  if (!storage.tts.ttsEnabled.value || !job?.agents.voicer.ttsDriver.value) {
     // Voicer is disabled.
     return Status.Disabled;
   } else if (job.voicerJob.value === undefined) {
@@ -113,10 +110,7 @@ const voicerStatus = computed<Status>(() => {
 });
 
 const voicerStatusText = computed<string | undefined>(() => {
-  if (
-    !storage.tts.ttsConfig.value?.enabled ||
-    !job?.agents.voicer.ttsDriver.value
-  ) {
+  if (!storage.tts.ttsEnabled.value || !job?.agents.voicer.ttsDriver.value) {
     // Voicer is disabled.
     return;
   } else if (job.voicerJob.value === undefined) {

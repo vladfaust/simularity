@@ -7,7 +7,6 @@ import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { unreachable } from "@/lib/utils";
 import {
-  AudioLinesIcon,
   BotIcon,
   CloudIcon,
   CpuIcon,
@@ -27,6 +26,13 @@ defineProps<{
 const ttsConfig = defineModel<storage.tts.TtsConfig>("ttsConfig", {
   required: true,
 });
+
+const ttsEnabled = computed(
+  () =>
+    ttsConfig.value?.narrator ||
+    ttsConfig.value?.mainCharacter ||
+    ttsConfig.value?.otherCharacters,
+);
 
 const driverType = ref<"remote">(ttsConfig.value.driver?.type ?? "remote");
 
@@ -116,14 +122,6 @@ const { t } = useI18n({
         template(#icon)
           SpeechIcon(:size="16")
 
-      //- TODO: Replace with "anything is enabled => enable driver" logic.
-      RichToggle#voicer-enabled(
-        :title="t('settings.voicer.enableVoiceGeneration')"
-        v-model="ttsConfig.enabled"
-      )
-        template(#icon)
-          AudioLinesIcon(:size="16")
-
       //- Enable or disable voicing automatically.
       RichToggle#auto-enabled(
         :title="t('settings.voicer.charactersVoiceover')"
@@ -158,9 +156,7 @@ const { t } = useI18n({
           Settings2Icon(:size="16")
 
     //- Model selection.
-    .flex.flex-col(
-      :class="{ 'opacity-50 pointer-events-none': !ttsConfig.enabled }"
-    )
+    .flex.flex-col(:class="{ 'opacity-50 pointer-events-none': !ttsEnabled }")
       .flex.w-full.items-center.justify-between
         h2.font-semibold.leading-tight.tracking-wide {{ t("settings.voicer.model") }}
         .ml-2.h-0.w-full.border-t

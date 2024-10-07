@@ -52,7 +52,6 @@ const tempDirectorConfig = ref(tap(directorConfig.value, clone) ?? null);
 
 const tempTtsConfig = ref<TtsConfig>(
   tap(storage.tts.ttsConfig.value, clone) ?? {
-    enabled: false,
     narrator: true,
     mainCharacter: false,
     otherCharacters: true,
