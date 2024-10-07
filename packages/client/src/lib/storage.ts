@@ -1,3 +1,4 @@
+import { filterLocale } from "@/logic/i18n";
 import { useLocalStorage } from "@vueuse/core";
 
 export * as llm from "./storage/llm";
@@ -24,3 +25,27 @@ export const selectedScenarioId = useLocalStorage<string | null>(
 );
 
 export const showUpdateIds = useLocalStorage("showUpdateIds", false);
+
+export const appLocale = useLocalStorage<Intl.Locale>(
+  "app:locale",
+  filterLocale(new Intl.Locale(window.navigator.language)),
+  {
+    deep: false,
+    serializer: {
+      read: (value) => new Intl.Locale(value),
+      write: (value) => value.toString(),
+    },
+  },
+);
+
+export const chatLocale = useLocalStorage<Intl.Locale>(
+  "app:chatLocale",
+  filterLocale(new Intl.Locale(window.navigator.language)),
+  {
+    deep: false,
+    serializer: {
+      read: (value) => new Intl.Locale(value),
+      write: (value) => value.toString(),
+    },
+  },
+);

@@ -3,8 +3,10 @@ import * as api from "@/lib/api";
 export class RemoteScenario {
   constructor(
     readonly id: string,
-    readonly apiResponse: Awaited<
-      ReturnType<typeof api.trpc.commandsClient.scenarios.getScenario.query>
+    readonly apiResponse: NonNullable<
+      Awaited<
+        ReturnType<typeof api.trpc.commandsClient.scenarios.getScenario.query>
+      >
     >,
   ) {}
 
@@ -17,6 +19,10 @@ export class RemoteScenario {
 
   get version() {
     return this.apiResponse.version;
+  }
+
+  get locales() {
+    return this.apiResponse.locales.map((locale) => new Intl.Locale(locale));
   }
 
   get name() {

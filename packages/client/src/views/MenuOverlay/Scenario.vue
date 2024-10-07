@@ -11,7 +11,9 @@ import { Download, downloadManager } from "@/lib/downloads";
 import { d } from "@/lib/drizzle";
 import { trackEvent, trackPageview } from "@/lib/plausible";
 import { defaultScenariosDir, MANIFEST_FILE_NAME } from "@/lib/scenario";
+import { appLocale } from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
+import { translationWithFallback } from "@/logic/i18n";
 import { remoteScenarioAssetUrl } from "@/logic/scenarios";
 import {
   localScenarioQueryKey,
@@ -20,6 +22,7 @@ import {
   useLocalScenarioQuery,
   useRemoteScenarioQuery,
 } from "@/queries";
+import * as schema from "@simularity/api/lib/schema";
 import { useQueryClient } from "@tanstack/vue-query";
 import { fs, path } from "@tauri-apps/api";
 import { and, desc, eq, isNull } from "drizzle-orm";
@@ -36,7 +39,7 @@ import {
 } from "lucide-vue-next";
 import prettyBytes from "pretty-bytes";
 import { computed, onMounted, shallowRef } from "vue";
-import { scenarioAssets } from "../../../../api/dist/lib/schema/scenarios";
+import { useI18n } from "vue-i18n";
 import Achievement from "./Scenario/Achievement.vue";
 import Character from "./Scenario/Character.vue";
 
@@ -117,7 +120,9 @@ async function beginDownload(scenarioVersion?: number) {
   if (localScenario.value) {
     let localScenarioAssetSize = 0;
 
-    for (const { asset } of scenarioAssets(localScenario.value.manifest)) {
+    for (const { asset } of schema.scenarios.scenarioAssets(
+      localScenario.value.manifest,
+    )) {
       localScenarioAssetSize += asset.size ?? 0;
       if (assetMap[asset.path] && assetMap[asset.path].hash === asset.hash) {
         console.log("Skipping download of asset", asset.path);
@@ -231,31 +236,66 @@ onMounted(async () => {
     ),
   });
 });
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      scenario: {
+        nsfw: "This scenario is NSFW",
+        immersive: "This scenario supports immersive mode",
+        showInFileManager: "Show in file manager",
+        playNow: "Play now",
+        update: "Update",
+        download: "Download",
+        about: "About",
+        episodes: "Episodes",
+        achievements: "Achievements",
+        characters: "Characters",
+      },
+    },
+    "ru-RU": {
+      scenario: {
+        nsfw: "Этот сценарий NSFW",
+        immersive: "Этот сценарий поддерживает режим погружения",
+        showInFileManager: "Показать в файловом менеджере",
+        playNow: "Играть",
+        update: "Обновить",
+        download: "Скачать",
+        about: "Описание",
+        episodes: "Эпизоды",
+        achievements: "Достижения",
+        characters: "Персонажи",
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
 .flex.flex-col
-  RichTitle.border-b.p-3(:title="scenario?.name")
+  RichTitle.border-b.p-3(
+    :title="scenario ? translationWithFallback(scenario.name, appLocale) : 'Loading...'"
+  )
     template(#icon)
       BookIcon(:size="20")
     template(#extra)
       .flex.items-center.gap-1
         .cursor-help.rounded-lg.border.border-dashed.p-1.text-pink-500(
           v-if="scenario?.nsfw"
-          v-tooltip="'This scenario is NSFW'"
+          v-tooltip="t('scenario.nsfw')"
         )
           NsfwIcon.text-pink-500(:size="18")
 
         .cursor-help.rounded-lg.border.border-dashed.p-1(
           v-if="scenario?.immersive"
-          v-tooltip="'This scenario supports immersive mode'"
+          v-tooltip="t('scenario.immersive')"
         )
           ImmersiveModeIcon(:size="18")
 
         button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
           v-if="localScenario && !localScenario?.builtin"
           @click="showInFileManager"
-          v-tooltip="'Show in file manager'"
+          v-tooltip="t('scenario.showInFileManager')"
         )
           FolderIcon(:size="18")
 
@@ -267,7 +307,7 @@ onMounted(async () => {
     )
       template(v-if="Object.keys(scenario.episodes).length > 1")
         //- Episodes.
-        RichTitle(title="Episodes")
+        RichTitle(:title="t('scenario.episodes')")
           template(#icon)
             ScrollTextIcon(:size="18")
           template(#extra)
@@ -289,7 +329,7 @@ onMounted(async () => {
         v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && scenario.achievements && Object.values(scenario.achievements).length"
       )
         //- Achievements.
-        RichTitle(title="Achievements")
+        RichTitle(:title="t('scenario.achievements')")
           template(#icon)
             TrophyIcon(:size="18")
           template(#extra)
@@ -304,7 +344,7 @@ onMounted(async () => {
             )
 
       //- Characters.
-      RichTitle(title="Characters")
+      RichTitle(:title="t('scenario.characters')")
         template(#icon)
           DramaIcon(:size="18")
         template(#extra)
@@ -354,20 +394,20 @@ onMounted(async () => {
           button.btn-pressable.btn.btn-primary.btn-md.rounded-lg(
             @click="$emit('newGame')"
           )
-            | Play now
+            | {{ t("scenario.playNow") }}
 
           button.btn-pressable.btn.btn-sm.rounded-lg.bg-white(
             v-if="remoteScenario && localScenario.version < remoteScenario.version"
             @click="beginDownload()"
           )
-            | Update
+            | {{ t("scenario.update") }}
 
         button.btn-pressable.btn.btn-primary.btn-md.rounded-lg(
           v-else-if="remoteScenario && download !== undefined"
           @click="beginDownload()"
         )
           DownloadIcon(:size="20")
-          span Download ({{ prettyBytes(remoteScenario.downloadSize) }})
+          span {{ t("scenario.download") }} ({{ prettyBytes(remoteScenario.downloadSize) }})
 </template>
 
 <style lang="postcss" scoped>

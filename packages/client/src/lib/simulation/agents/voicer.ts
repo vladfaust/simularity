@@ -29,7 +29,10 @@ export class Voicer {
   private readonly _audioWatchStopHandle: () => void;
   private readonly _audioPlaying = ref(false);
 
-  constructor(private scenario: LocalScenario) {
+  constructor(
+    private scenario: LocalScenario,
+    private locale: Intl.Locale,
+  ) {
     this.ttsDriver = shallowRef(null);
 
     const agent = "voicer";
@@ -107,7 +110,7 @@ export class Voicer {
   createTtsJob(characterId: string | null, text: string) {
     // Remove `*` from the text.
     text = text.replace(/\*/g, "");
-    return new VoicerJob(characterId, text, this, this.scenario);
+    return new VoicerJob(characterId, text, this, this.scenario, this.locale);
   }
 
   /**

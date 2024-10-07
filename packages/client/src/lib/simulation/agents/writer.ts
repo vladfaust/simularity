@@ -8,6 +8,7 @@ import { d } from "@/lib/drizzle";
 import { type LocalScenario } from "@/lib/scenario";
 import * as storage from "@/lib/storage";
 import { clockToMinutes, minutesToClock, trimEndAny } from "@/lib/utils";
+import { translationWithFallback } from "@/logic/i18n";
 import { computed, shallowRef, type ShallowRef } from "vue";
 import type { StateDto } from "../state";
 import { Update } from "../update";
@@ -65,14 +66,17 @@ export class Writer {
       : undefined,
   );
 
-  constructor(private scenario: LocalScenario) {
+  constructor(
+    private scenario: LocalScenario,
+    private locale: Intl.Locale,
+  ) {
     this.llmDriver = shallowRef(null);
 
     this._driverConfigWatchStopHandle = hookLlmAgentToDriverRef(
       "writer",
       this.llmDriver,
       {
-        initialPromptBuilder: () => Writer.buildStaticPrompt(scenario),
+        initialPromptBuilder: () => Writer.buildStaticPrompt(scenario, locale),
         localContextSizeModifier: (driverContextSize) =>
           Math.max(
             driverContextSize,
@@ -100,6 +104,7 @@ export class Writer {
 
     const summarizationPrompt = Writer._buildSummarizationPrompt(
       this.scenario,
+      this.locale,
       oldCheckpoint,
       historicalUpdates,
       recentUpdates,
@@ -161,6 +166,7 @@ export class Writer {
 
     const prompt = Writer._buildFullPrompt(
       this.scenario,
+      this.locale,
       checkpoint,
       historicalUpdates,
       recentUpdates,
@@ -173,6 +179,7 @@ export class Writer {
       stopSequences,
       grammar: Writer._buildChatGrammar(
         this.scenario,
+        this.locale,
         predictionOptions,
         this.llmDriver.value.supportedGrammarLangs,
       ),
@@ -219,6 +226,7 @@ export class Writer {
     const prompt =
       Writer._buildFullPrompt(
         this.scenario,
+        this.locale,
         checkpoint,
         historicalUpdates,
         recentUpdates,
@@ -302,22 +310,30 @@ Stable diffusion prompt: `;
   /**
    * A static prompt is re-used throughout the simulation.
    */
-  static buildStaticPrompt(scenario: LocalScenario): string {
+  static buildStaticPrompt(
+    scenario: LocalScenario,
+    locale: Intl.Locale,
+  ): string {
     const setup = {
-      excerpt: scenario.content.excerpt,
-      globalScenario: scenario.content.globalScenario,
+      globalScenario: scenario.content.globalScenario
+        ? translationWithFallback(scenario.content.globalScenario, locale)
+        : undefined,
       instructions: scenario.content.instructions,
       characters: Object.fromEntries(
         Object.entries(scenario.content.characters).map(
           ([characterId, character]) => [
             characterId,
             {
-              fullName: character.fullName,
+              fullName: character.fullName
+                ? translationWithFallback(character.fullName, locale)
+                : undefined,
               personality: character.personalityPrompt,
               tropes: character.characterTropes,
               appearance: character.appearancePrompt,
               relationships: character.relationships,
-              scenarioPrompt: character.scenarioPrompt,
+              scenarioPrompt: character.scenarioPrompt
+                ? translationWithFallback(character.scenarioPrompt, locale)
+                : undefined,
               wellKnownOutfits: character.outfits
                 ? Object.fromEntries(
                     Object.entries(character.outfits).map(([_, outfit]) => [
@@ -331,7 +347,7 @@ Stable diffusion prompt: `;
       ),
       locations: Object.fromEntries(
         Object.entries(scenario.content.locations).map(([_, location]) => [
-          location.name,
+          translationWithFallback(location.name, locale),
           { description: location.prompt },
         ]),
       ),
@@ -438,13 +454,14 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}`;
    */
   private static _buildFullPrompt(
     scenario: LocalScenario,
+    locale: Intl.Locale,
     checkpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
     currentState: StateDto | undefined,
   ): string {
     return (
-      this.buildStaticPrompt(scenario) +
+      this.buildStaticPrompt(scenario, locale) +
       this._buildDynamicPrompt(
         scenario,
         checkpoint,
@@ -464,6 +481,7 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}`;
    */
   private static _buildSummarizationPrompt(
     scenario: LocalScenario,
+    locale: Intl.Locale,
     previousCheckpoint: Checkpoint,
     historicalUpdates: Update[],
     recentUpdates: Update[],
@@ -473,6 +491,7 @@ ${historicalLines ? historicalLines + "\n" : ""}${recentLines}`;
     return (
       this._buildFullPrompt(
         scenario,
+        locale,
         previousCheckpoint,
         historicalUpdates,
         recentUpdates,
@@ -526,6 +545,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
    */
   private static _buildChatGrammar(
     scenario: LocalScenario,
+    locale: Intl.Locale,
     options: PredictionOptions | undefined,
     supportedLangs: Set<LlmGrammarLang>,
   ): {
@@ -543,10 +563,19 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
         .map((id) => `"${id}"`)
         .join(" | ");
 
+      let textRule: string;
+      switch (locale.language) {
+        case "ru":
+          textRule = `["A-Za-zЁёА-я*] [a-zA-ZЁёА-я0-9: .,!?*"'-]+`;
+          break;
+        default:
+          textRule = `["A-Za-z*] [a-zA-Z0-9: .,!?*"'-]+`;
+      }
+
       return {
         lang: LlmGrammarLang.Gnbf,
         content: `
-root ::= "<" characterId "[" clock "]> " ["A-Za-z*] [a-zA-Z0-9: .,!?*"'-]+ "\n"
+root ::= "<" characterId "[" clock "]> " ${textRule} "\n"
 clock ::= [0-9]{2} ":" [0-9]{2}
 characterId ::= ${characterIdRule}
 `.trim(),
@@ -556,9 +585,18 @@ characterId ::= ${characterIdRule}
         .map((id) => `(${id})`)
         .join("|");
 
+      let textRule: string;
+      switch (locale.language) {
+        case "ru":
+          textRule = `[a-zA-ZЁёА-я0-9: \\.,!?*"'-]+`;
+          break;
+        default:
+          textRule = `[a-zA-Z0-9: \\.,!?*"'-]+`;
+      }
+
       return {
         lang: LlmGrammarLang.Regex,
-        content: `<(${characterIdRule})\\[[0-9]{2}:[0-9]{2}\\]> ([a-zA-Z0-9: \\.,!?*"'-]+)`,
+        content: `<(${characterIdRule})\\[[0-9]{2}:[0-9]{2}\\]> (${textRule})`,
       };
     } else {
       throw new Error(`Unsupported grammar languages: ${supportedLangs}`);

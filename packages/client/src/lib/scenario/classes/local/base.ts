@@ -19,6 +19,10 @@ export class LocalBaseScenario {
     return this.content.version;
   }
 
+  get locales() {
+    return this.content.locales.map((locale) => new Intl.Locale(locale));
+  }
+
   get name() {
     return this.content.name;
   }

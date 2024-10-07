@@ -11,6 +11,7 @@ import {
   Settings2Icon,
 } from "lucide-vue-next";
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import LlmAgentModel from "./LlmAgent/LlmAgentModel.vue";
 
 defineProps<{
@@ -22,30 +23,60 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
 );
 
 const selectedModel = ref<storage.llm.CachedModel | null>();
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      settings: {
+        writer: {
+          writerHelp:
+            "Writer agent is responsible, among other tasks, for generating the story. Writer is required for the simulation to function. It has to be a capable model trained for roleplay. Bigger context size allows to go on with the story for longer without the need to consolidate.",
+          showUpdateIds: "Show update IDs",
+          nEval: "Message length limit in tokens",
+          model: "Model",
+          modelContextSizeAlert:
+            "Model is trained on up to {maxContextSize} tokens. Consider reducing the context size to avoid performance degradation.",
+          scenarioContextSizeAlert:
+            "Scenario requires at least {contextSize} tokens of context. Consider increasing the context size to avoid context overflow.",
+        },
+      },
+    },
+    "ru-RU": {
+      settings: {
+        writer: {
+          writerHelp:
+            "Писатель отвечает, среди прочих задач, за генерацию истории. Он необходим для функционирования симуляции. Писатель должен быть способной моделью, обученной для ролевых игр. Больший размер контекста позволяет продолжать историю дольше без необходимости консолидации.",
+          showUpdateIds: "Показывать ID обновлений",
+          nEval: "Лимит длины сообщения в токенах",
+          model: "Модель",
+          modelContextSizeAlert:
+            "Модель обучена на {maxContextSize} токенов. Уменьшите контекст, чтобы избежать снижения производительности.",
+          scenarioContextSizeAlert:
+            "Сценарий требует как минимум {contextSize} токенов контекста. Увеличьте контекст, чтобы избежать переполнения.",
+        },
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
 .flex.flex-col
   InteractiveHelper.border-b(:show-background="false")
     Alert.bg-white(type="info")
-      p.text-sm.leading-tight
-        | Writer agent is responsible, among other tasks, for generating the story. Writer is
-        |
-        b required
-        |
-        | for the simulation to function. It has to be a capable model trained for roleplay. Bigger context size allows to go on with the story for longer without the need to consolidate.
+      p.text-sm.leading-tight {{ t("settings.writer.writerHelp") }}
 
   .flex.flex-col.gap-2.p-3
     .flex.flex-col.gap-2.rounded-lg.bg-white.p-3.shadow-lg
       //- Show update IDs.
-      RichToggle#auto-enabled(
-        title="Show update IDs"
+      RichToggle#show-update-ids(
+        :title="t('settings.writer.showUpdateIds')"
         v-model="storage.showUpdateIds.value"
       )
         template(#icon)
           Settings2Icon(:size="16")
 
-      RichInput#n-eval(title="Message length limit")
+      RichInput#n-eval(:title="t('settings.writer.nEval')")
         template(#icon)
           MessageSquareTextIcon(:size="16")
         input.rounded-lg.border.px-2.py-1.text-sm(
@@ -67,17 +98,19 @@ const selectedModel = ref<storage.llm.CachedModel | null>();
         .flex.shrink-0.items-center(class="gap-1.5")
           .btn.rounded-lg.border.bg-white.p-1
             FeatherIcon(:size="18")
-          h2.shrink-0.font-semibold.leading-tight.tracking-wide Writer Model
+          h2.shrink-0.font-semibold.leading-tight.tracking-wide {{ t("settings.writer.model") }}
 
       template(#context-size-help="{ contextSize, maxContextSize }")
         //- Trained context size alert.
         Alert.bg-white(type="warn" v-if="contextSize > maxContextSize")
-          | Model is trained on up to {{ maxContextSize }} tokens. Consider reducing the context size to avoid performance degradation.
+          i18n-t(tag="span" keypath="settings.writer.modelContextSizeAlert")
+            template(#maxContextSize) {{ maxContextSize }}
 
         //- Scenario context size alert.
         Alert.bg-white(
           type="warn"
           v-if="simulation && contextSize < simulation.scenario.content.contextWindowSize"
         )
-          | Scenario requires at least {{ simulation.scenario.content.contextWindowSize }} tokens of context. Consider increasing the context size to avoid context overflow.
+          i18n-t(keypath="settings.writer.scenarioContextSizeAlert")
+            template(#contextSize) {{ simulation?.scenario.content.contextWindowSize }}
 </template>

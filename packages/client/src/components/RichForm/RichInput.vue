@@ -11,7 +11,7 @@ defineProps<{
 
 <template lang="pug">
 .flex.items-center.justify-between.gap-2
-  .flex.shrink-0.items-center.gap-2
+  .flex.shrink-0.items-center(class="gap-1.5")
     label.flex.select-none.items-center.gap-2(
       :for="id"
       :class="{ 'cursor-pointer': !disabled, 'opacity-50 cursor-not-allowed': disabled }"

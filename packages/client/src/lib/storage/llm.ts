@@ -1,6 +1,10 @@
 import { type RemoteLlmDriverConfig } from "@/lib/ai/llm/RemoteLlmDriver";
 import { type TauriLlmDriverConfig } from "@/lib/ai/llm/TauriLlmDriver";
-import { StorageSerializers, useLocalStorage } from "@vueuse/core";
+import {
+  StorageSerializers,
+  useLocalStorage,
+  type RemovableRef,
+} from "@vueuse/core";
 import { type Ref } from "vue";
 
 export type LlmDriverConfig = TauriLlmDriverConfig | RemoteLlmDriverConfig;
@@ -131,7 +135,7 @@ const directorDriverConfig = _useDriverConfig("director");
 
 export function useDriverConfig(
   agent: LlmAgentId,
-): Ref<LlmDriverConfig | null> {
+): RemovableRef<LlmDriverConfig | null> {
   switch (agent) {
     case "writer":
       return writerDriverConfig;

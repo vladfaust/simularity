@@ -20,7 +20,7 @@ const model = defineModel<string | null>();
 RichInput(:title :id :help v-model="model" :disabled)
   template(#icon)
     slot(name="icon")
-  select(v-model="model" :disabled)
+  select(:id v-model="model" :disabled)
     option(v-if="allowEmpty" value=null)
     option(v-for="{ value, label } in values" :value="value") {{ label ?? value }}
 </template>

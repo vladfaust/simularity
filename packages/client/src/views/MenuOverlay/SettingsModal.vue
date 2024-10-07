@@ -9,6 +9,7 @@ import type { TtsConfig } from "@/lib/storage/tts";
 import { clone, tap } from "@/lib/utils";
 import { deepEqual } from "fast-equals";
 import {
+  AppWindowIcon,
   AsteriskIcon,
   AudioLinesIcon,
   ClapperboardIcon,
@@ -17,6 +18,8 @@ import {
   SettingsIcon,
 } from "lucide-vue-next";
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import AppSettings from "./SettingsModal/AppSettings.vue";
 import Director from "./SettingsModal/Director.vue";
 import LlmStatusIcon from "./SettingsModal/LlmAgent/StatusIcon.vue";
 import Voicer from "./SettingsModal/Voicer.vue";
@@ -24,6 +27,7 @@ import VoicerStatusIcon from "./SettingsModal/Voicer/StatusIcon.vue";
 import Writer from "./SettingsModal/Writer.vue";
 
 enum Tab {
+  App,
   Writer,
   Director,
   Voicer,
@@ -37,7 +41,7 @@ const emit = defineEmits<{
   (event: "close"): void;
 }>();
 
-const DEFAULT_TAB = Tab.Writer;
+const DEFAULT_TAB = Tab.App;
 const tab = ref(DEFAULT_TAB);
 
 const writerConfig = storage.llm.useDriverConfig("writer");
@@ -85,6 +89,31 @@ onMounted(() => {
 onUnmounted(() => {
   save();
 });
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      settings: {
+        label: "Settings",
+        gotChanges: "Some changes will be applied after close",
+        application: "Application",
+        writer: "Writer",
+        director: "Director",
+        voicer: "Voicer",
+      },
+    },
+    "ru-RU": {
+      settings: {
+        label: "Настройки",
+        gotChanges: "Некоторые изменения будут применены после закрытия",
+        application: "Приложение",
+        writer: "Писатель",
+        director: "Режиссер",
+        voicer: "Озвучиватель",
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
@@ -103,15 +132,22 @@ onUnmounted(() => {
       .h-7(v-else)
 
     .flex.items-center
-      span.font-semibold.leading-snug.tracking-wide Settings
+      span.font-semibold.leading-snug.tracking-wide {{ t("settings.label") }}
       AsteriskIcon.cursor-help.text-primary-500(
         :size="18"
         v-if="anyChanges"
-        v-tooltip="'Some changes will be applied after close'"
+        v-tooltip="t('settings.gotChanges')"
       )
 
   .flex.h-full.flex-col.overflow-hidden
     .flex.w-full.divide-x.border-b
+      //- Application settings tab.
+      ._tab(:class="{ _selected: tab === Tab.App }" @click="tab = Tab.App")
+        ._name
+          ._icon
+            AppWindowIcon(:size="20")
+          span {{ t("settings.application") }}
+
       //- Writer agent tab.
       ._tab(
         :class="{ _selected: tab === Tab.Writer }"
@@ -120,7 +156,7 @@ onUnmounted(() => {
         ._name
           ._icon
             FeatherIcon(:size="20")
-          span Writer
+          span {{ t("settings.writer") }}
         .flex.items-center(v-if="simulation")
           LlmStatusIcon(
             :driver="simulation.writer.llmDriver.value"
@@ -136,7 +172,7 @@ onUnmounted(() => {
         ._name
           ._icon
             ClapperboardIcon(:size="20")
-          span Director
+          span {{ t("settings.director") }}
         LlmStatusIcon(
           v-if="simulation"
           :driver="simulation.director?.llmDriver.value"
@@ -151,7 +187,7 @@ onUnmounted(() => {
         ._name
           ._icon
             AudioLinesIcon(:size="20")
-          span Voicer
+          span {{ t("settings.voicer") }}
         VoicerStatusIcon(
           v-if="simulation"
           :driver="simulation.voicer.ttsDriver.value"
@@ -159,6 +195,9 @@ onUnmounted(() => {
 
     //- Tab content.
     .h-full.overflow-y-scroll
+      //- Application settings tab.
+      AppSettings(v-if="tab === Tab.App")
+
       //- Writer agent tab.
       Writer(
         v-if="tab === Tab.Writer"

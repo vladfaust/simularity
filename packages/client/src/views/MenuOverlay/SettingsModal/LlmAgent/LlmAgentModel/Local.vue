@@ -7,6 +7,7 @@ import * as resources from "@/lib/resources";
 import * as storage from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { omit } from "@/lib/utils";
+import type { WellKnownModel } from "@/queries";
 import { broom } from "@lucide/lab";
 import * as dialog from "@tauri-apps/api/dialog";
 import * as fs from "@tauri-apps/api/fs";
@@ -24,8 +25,9 @@ import prettyBytes from "pretty-bytes";
 import * as fsExtra from "tauri-plugin-fs-extra-api";
 import type { ShallowRef } from "vue";
 import { computed, onMounted, ref, shallowRef, triggerRef, watch } from "vue";
-import WellKnownModel, {
-  type AvailableModel,
+import { useI18n } from "vue-i18n";
+import CustomModel from "./Local/CustomModel.vue";
+import WellKnownModelVue, {
   type WellKnownModelProps,
 } from "./Local/WellKnownModel.vue";
 
@@ -71,7 +73,7 @@ const latestLocalModelConfig = storage.llm.useLatestLocalModelConfig(
   props.agentId,
 );
 
-const availableModels = asyncComputed<Record<string, AvailableModel>>(() =>
+const availableModels = asyncComputed<Record<string, WellKnownModel>>(() =>
   fetch(`/available_models/${props.agentId}.json`).then((res) => res.json()),
 );
 
@@ -407,6 +409,7 @@ async function openLocalModelSelectionDialog() {
       if (!selectedModelPath.value) {
         selectModel(cachedModel);
       }
+      refresh();
     } catch (e: any) {
       console.error(`Failed to cache model ${modelPath}`, e);
     } finally {
@@ -434,11 +437,34 @@ async function removeModel(modelPath: string, deleteFile: boolean) {
   if (
     !(await resources.confirm_(
       deleteFile
-        ? "Are you sure you want to remove this model? The model file will be deleted."
-        : "Are you sure you want to remove this model from the list?",
+        ? t(
+            "settings.llmAgentModel.local.removeConfirmation.deleteFile.message",
+          )
+        : t(
+            "settings.llmAgentModel.local.removeConfirmation.removeFromList.message",
+          ),
       {
-        title: deleteFile ? "Delete model file?" : "Remove model?",
-        okLabel: deleteFile ? "Delete" : "Remove",
+        title: deleteFile
+          ? t(
+              "settings.llmAgentModel.local.removeConfirmation.deleteFile.title",
+            )
+          : t(
+              "settings.llmAgentModel.local.removeConfirmation.removeFromList.title",
+            ),
+        okLabel: deleteFile
+          ? t(
+              "settings.llmAgentModel.local.removeConfirmation.deleteFile.okLabel",
+            )
+          : t(
+              "settings.llmAgentModel.local.removeConfirmation.removeFromList.okLabel",
+            ),
+        cancelLabel: deleteFile
+          ? t(
+              "settings.llmAgentModel.local.removeConfirmation.deleteFile.cancelLabel",
+            )
+          : t(
+              "settings.llmAgentModel.local.removeConfirmation.removeFromList.cancelLabel",
+            ),
         type: "warning",
       },
     ))
@@ -492,6 +518,99 @@ onMounted(async () => {
     }
   }
 });
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      settings: {
+        llmAgentModel: {
+          local: {
+            addFromFileButton: {
+              title: "Add model from file",
+              label: "Add from file",
+            },
+            openDirectoryButton: {
+              title: "Open the models directory",
+              label: "Open directory",
+            },
+            refreshButton: {
+              title: "Refresh",
+              label: "Refresh",
+            },
+            contextSize: "Context size",
+            batchSize: "Batch size",
+            stateCache: "State cache",
+            clearStateCacheButton: {
+              title: "Clear state cache",
+              label: "Clear",
+            },
+            emptyCache: "Empty",
+            removeConfirmation: {
+              deleteFile: {
+                message:
+                  "Are you sure you want to remove this model? The model file will be deleted.",
+                title: "Delete model file?",
+                okLabel: "Delete",
+                cancelLabel: "Cancel",
+              },
+              removeFromList: {
+                message:
+                  "Are you sure you want to remove this model from the list?",
+                title: "Remove model?",
+                okLabel: "Remove",
+                cancelLabel: "Cancel",
+              },
+            },
+          },
+        },
+      },
+    },
+    "ru-RU": {
+      settings: {
+        llmAgentModel: {
+          local: {
+            addFromFileButton: {
+              title: "Добавить модель из файла",
+              label: "Добавить из файла",
+            },
+            openDirectoryButton: {
+              title: "Открыть папку моделей",
+              label: "Открыть папку",
+            },
+            refreshButton: {
+              title: "Обновить список моделей",
+              label: "Обновить",
+            },
+            contextSize: "Размер контекста",
+            batchSize: "Размер батча",
+            stateCache: "Кэш состояния",
+            clearStateCacheButton: {
+              title: "Очистить кэш состояния",
+              label: "Очистить",
+            },
+            emptyCache: "Пусто",
+            removeConfirmation: {
+              deleteFile: {
+                message:
+                  "Вы уверены, что хотите удалить эту модель? Файл модели будет удален.",
+                title: "Удалить файл модели?",
+                okLabel: "Удалить",
+                cancelLabel: "Отмена",
+              },
+              removeFromList: {
+                message:
+                  "Вы уверены, что хотите убрать эту модель из списка? Файл модели не будет удален.",
+                title: "Убрать модель?",
+                okLabel: "Убрать",
+                cancelLabel: "Отмена",
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
@@ -500,30 +619,30 @@ onMounted(async () => {
   .flex.col-span-full.gap-2.items-center.p-3
     button.shrink-0.btn-pressable.bg-white.btn.btn-sm.rounded-lg.border(
       @click="openLocalModelSelectionDialog"
-      title="Add a local model from file"
+      :title="t('settings.llmAgentModel.local.addFromFileButton.title')"
     )
       FileIcon(:size="18")
-      span Add from file
+      span {{ t("settings.llmAgentModel.local.addFromFileButton.label") }}
 
     button.shrink-0.btn-pressable.bg-white.btn.btn-sm.rounded-lg.border(
       @click="openModelsDirectory"
-      title="Open the models directory"
+      :title="t('settings.llmAgentModel.local.openDirectoryButton.title')"
     )
       FolderOpenIcon(:size="18")
-      span Open directory
+      span {{ t("settings.llmAgentModel.local.openDirectoryButton.label") }}
 
     .w-full.border-b
 
     button.group.shrink-0.btn.btn-pressable.bg-white.btn-sm.rounded-lg.border(
       @click="refresh"
-      title="Refresh"
+      :title="t('settings.llmAgentModel.local.refreshButton.title')"
     )
       RefreshCwIcon.transition(:size="18")
-      span Refresh
+      span {{ t("settings.llmAgentModel.local.refreshButton.label") }}
 
   //- Models grid.
   .grid.gap-2.p-3(class="lg:grid-cols-2 xl:grid-cols-3")
-    WellKnownModel.rounded-lg.bg-white.shadow-lg(
+    WellKnownModelVue.rounded-lg.bg-white.shadow-lg(
       v-for="(recommended,) in allModels?.wellKnown"
       v-bind="recommended"
       :base-path="modelsDirectoryRef"
@@ -534,12 +653,22 @@ onMounted(async () => {
       @download-complete="() => refresh()"
     )
 
+    //- Custom models.
+    CustomModel.rounded-lg.bg-white.shadow-lg(
+      v-for="customModel in allModels?.custom"
+      :key="customModel.path"
+      :model="customModel"
+      :selected="selectedModelPath === customModel.path"
+      @select="() => selectModel(customModel)"
+      @remove="removeModel(customModel.path, false)"
+    )
+
   //- Settings.
   .p-3(v-if="driverConfig?.type === 'local' && selectedModel")
     .grid.gap-2.rounded-lg.bg-white.p-3.shadow-lg( class="xl:grid-cols-2")
       //- Context size.
       RichInput#context-size(
-        title="Context size"
+        :title="t('settings.llmAgentModel.local.contextSize')"
         v-model="driverConfig.contextSize"
       )
         template(#icon)
@@ -549,9 +678,15 @@ onMounted(async () => {
           :max="selectedModel.contextSize"
         )
 
+      slot(
+          name="context-size-help"
+          :context-size="driverConfig.contextSize"
+          :max-context-size="selectedModel.contextSize"
+        )
+
       //- Batch size.
       RichInput#batch-size(
-        title="Batch size"
+        :title="t('settings.llmAgentModel.local.batchSize')"
         v-model="driverConfig.batchSize"
       )
         template(#icon)
@@ -563,7 +698,7 @@ onMounted(async () => {
       //- Cache.
       RichInput#state-cache(
         v-if="hasCache"
-        title="State cache"
+        :title="t('settings.llmAgentModel.local.stateCache')"
       )
         template(#icon)
           DatabaseZapIcon(:size="16")
@@ -572,8 +707,8 @@ onMounted(async () => {
             span.text-sm {{ prettyBytes( cacheFiles.reduce((acc, file) => acc + file.size, 0)) }}
             button.btn-pressable.btn.btn-sm-square.border.rounded-lg.bg-white(
               @click="clearStateCache"
-              title="Clear state cache"
+              :title="t('settings.llmAgentModel.local.clearStateCacheButton.title')"
             )
               Icon(:iconNode="broom" name="broom" :size='16')
-          span.text-sm.opacity-50(v-else) Empty
+          span.text-sm.opacity-50(v-else) {{ t("settings.llmAgentModel.local.emptyCache") }}
 </template>

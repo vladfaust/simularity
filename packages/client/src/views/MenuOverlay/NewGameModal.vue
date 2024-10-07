@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import Alert from "@/components/Alert.vue";
 import EpisodeCard from "@/components/EpisodeCard.vue";
 import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
 import SandboxModeIcon from "@/components/Icons/SandboxModeIcon.vue";
 import Modal from "@/components/Modal.vue";
 import Placeholder from "@/components/Placeholder.vue";
+import RichSelect from "@/components/RichForm/RichSelect.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import RichToggle from "@/components/RichForm/RichToggle.vue";
 import ScenarioCard from "@/components/ScenarioCard.vue";
@@ -15,12 +17,19 @@ import {
   type Scenario,
 } from "@/lib/scenario";
 import { Mode, Simulation } from "@/lib/simulation";
-import { allSavesQueryKey } from "@/queries";
+import * as storage from "@/lib/storage";
+import { localesToSelectValues, translationWithFallback } from "@/logic/i18n";
+import {
+  allSavesQueryKey,
+  useWellKnownLlmModelsQuery,
+  type WellKnownModel,
+} from "@/queries";
 import router, { routeLocation } from "@/router";
 import { useQueryClient } from "@tanstack/vue-query";
 import { asyncComputed, useElementSize, watchImmediate } from "@vueuse/core";
-import { SparkleIcon } from "lucide-vue-next";
+import { LanguagesIcon, SparkleIcon } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 
 const queryClient = useQueryClient();
 
@@ -54,18 +63,85 @@ const immersiveMode = ref(
     ? props.scenario instanceof LocalImmersiveScenario
     : false,
 );
-const sandboxMode = ref(false);
+const sandboxMode = ref(true);
 
 const detailsRef = ref<HTMLElement | null>(null);
 const detailsSize = useElementSize(detailsRef);
 const helperRef = ref<HTMLElement | null>(null);
 const helperSize = useElementSize(helperRef);
+const { data: wellKnownWriterModels } = useWellKnownLlmModelsQuery("writer");
+const writerDriverConfig = storage.llm.useDriverConfig("writer");
 
-async function play(episodeId?: string | null) {
+/**
+ * If the selected model is a well-known model, return it.
+ */
+const selectedWellKnownWriterModel = computed<WellKnownModel | undefined>(
+  () => {
+    if (!wellKnownWriterModels.value) return;
+
+    if (writerDriverConfig.value?.type === "local") {
+      const cachedModel = storage.llm.getCachedModel(
+        writerDriverConfig.value.modelPath,
+      );
+
+      if (cachedModel) {
+        const wellKnownModel = Object.entries(wellKnownWriterModels.value).find(
+          ([_, wellKnownModel]) =>
+            Object.entries(wellKnownModel.quants).find(
+              ([_, quant]) =>
+                quant.hash.sha256 === cachedModel.modelHash.sha256,
+            ),
+        );
+
+        if (wellKnownModel) {
+          return wellKnownModel[1];
+        }
+      }
+    } else if (writerDriverConfig.value?.type === "remote") {
+      // FIXME: Remote model shall include locale information.
+      return undefined;
+    }
+  },
+);
+
+const scenarioLocalesFilteredBySelectedModel = computed<Intl.Locale[]>(() => {
+  if (!selectedWellKnownWriterModel.value) {
+    return props.scenario.locales;
+  } else {
+    return props.scenario.locales.filter((l) =>
+      selectedWellKnownWriterModel.value?.locales.includes(l.toString()),
+    );
+  }
+});
+
+/**
+ * Get default chat locale string for the selected model and scenario.
+ */
+function getDefaultChatLocalString() {
+  return scenarioLocalesFilteredBySelectedModel.value.find(
+    (l) => l.toString() === storage.chatLocale.value.toString(),
+  )
+    ? storage.chatLocale.value.toString()
+    : scenarioLocalesFilteredBySelectedModel.value.find(
+          (l) => l.toString() === storage.appLocale.value.toString(),
+        )
+      ? storage.appLocale.value.toString()
+      : scenarioLocalesFilteredBySelectedModel.value[0].toString();
+}
+
+const chatLocaleModelRef = ref(getDefaultChatLocalString());
+
+const chatLocale = computed<Intl.Locale>({
+  get: () => new Intl.Locale(chatLocaleModelRef.value),
+  set: (value) => (chatLocaleModelRef.value = value.toString()),
+});
+
+async function play(locale: Intl.Locale, episodeId?: string | null) {
   const simulationId = await Simulation.create(
     props.scenario.id,
     immersiveMode.value ? Mode.Immersive : Mode.Chat,
     sandboxMode.value,
+    locale,
     episodeId ?? undefined,
   );
 
@@ -101,6 +177,54 @@ watchImmediate(selectedEpisodeId, (episodeId) => {
     },
   });
 });
+
+watch(
+  [
+    scenarioLocalesFilteredBySelectedModel,
+    storage.appLocale,
+    storage.chatLocale,
+  ],
+  () => {
+    chatLocaleModelRef.value = getDefaultChatLocalString();
+  },
+);
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      newGameModal: {
+        newGame: "New game",
+        startGame: "Start game",
+        downloadScenario: "Download scenario to play",
+        chatLanguage: "Language",
+        unsupportedLanguage:
+          "The currently selected model ({model}) was not trained for this language. Expect suboptimal results.",
+        immersiveMode: "Immersive mode",
+        immersiveModeHelp:
+          "In immersive mode, you can play the simulation as a visual novel.",
+        sandboxMode: "Sandbox mode",
+        sandboxModeHelp:
+          "In sandbox mode, you get full control over the simulation.",
+      },
+    },
+    "ru-RU": {
+      newGameModal: {
+        newGame: "Новая игра",
+        startGame: "Начать игру",
+        downloadScenario: "Скачайте сценарий для начала игры",
+        chatLanguage: "Язык",
+        unsupportedLanguage:
+          "Выбранная модель ({model}) не была обучена для этого языка. Вероятно, результаты будут посредственными.",
+        immersiveMode: "Режим погружения",
+        immersiveModeHelp:
+          "В режиме погружения вы можете играть в симуляцию как визуальный роман.",
+        sandboxMode: "Режим песочницы",
+        sandboxModeHelp:
+          "В режиме песочницы у вас есть полный контроль над симуляцией.",
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
@@ -108,7 +232,7 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
   class="bg-white/90"
   :open
   @close="emit('close')"
-  title="New game"
+  :title="t('newGameModal.newGame')"
 )
   template(#icon)
     SparkleIcon(:size="22")
@@ -152,40 +276,60 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
             )
 
             .mt-1.px-1
-              RichTitle(:title="selectedEpisode.name" :hide-border="true")
-              p.leading-snug {{ selectedEpisode.about }}
+              RichTitle(
+                :title="translationWithFallback(selectedEpisode.name, storage.appLocale.value)"
+                :hide-border="true"
+              )
+              p.leading-snug {{ translationWithFallback(selectedEpisode.about, storage.appLocale.value) }}
 
-          .flex.flex-col.gap-2.p-3(
-            v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && !(scenario instanceof RemoteScenario)"
-          )
-            RichToggle#immersive(
-              title="Immersive mode"
-              help="In immersive mode, you can play the simulation as a visual novel."
-              v-model="immersiveMode"
-              :disabled="!(scenario instanceof LocalImmersiveScenario)"
+          .flex.flex-col.gap-2.p-3
+            RichSelect#chat-language(
+              :title="t('newGameModal.chatLanguage')"
+              v-model="chatLocaleModelRef"
+              :values="localesToSelectValues(scenario.locales)"
             )
               template(#icon)
-                ImmersiveModeIcon(:size="20")
+                LanguagesIcon(:size="16")
 
-            RichToggle#sandbox(
-              title="Sandbox mode"
-              help="In sandbox mode, you get full control over the simulation."
-              v-model="sandboxMode"
+            Alert(
+              v-if="selectedWellKnownWriterModel && !selectedWellKnownWriterModel?.locales.includes(chatLocaleModelRef)"
+              type="warn"
             )
-              template(#icon)
-                SandboxModeIcon(:size="20")
+              i18n-t(:keypath="'newGameModal.unsupportedLanguage'")
+                template(#model)
+                  | {{ selectedWellKnownWriterModel?.name }}
+
+            template(
+              v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && !(scenario instanceof RemoteScenario)"
+            )
+              RichToggle#immersive(
+                :title="t('newGameModal.immersiveMode')"
+                :help="t('newGameModal.immersiveModeHelp')"
+                v-model="immersiveMode"
+                :disabled="!(scenario instanceof LocalImmersiveScenario)"
+              )
+                template(#icon)
+                  ImmersiveModeIcon(:size="20")
+
+              RichToggle#sandbox(
+                :title="t('newGameModal.sandboxMode')"
+                :help="t('newGameModal.sandboxModeHelp')"
+                v-model="sandboxMode"
+              )
+                template(#icon)
+                  SandboxModeIcon(:size="20")
 
   .col-span-full.border-t.p-3
     .btn.btn-md.w-full.rounded-lg.border.border-dashed(
       v-if="scenario instanceof RemoteScenario && true"
     )
-      | Download scenario to play
+      | {{ t("newGameModal.downloadScenario") }}
     button.btn.btn-pressable-sm.btn-primary.btn-md.w-full.rounded-lg(
       v-else
       :disabled="!selectedEpisodeId"
-      @click="play(selectedEpisodeId)"
+      @click="play(chatLocale, selectedEpisodeId)"
     )
-      | Start game
+      | {{ t("newGameModal.startGame") }}
 </template>
 
 <style lang="postcss" scoped>

@@ -35,6 +35,7 @@ export class VoicerJob {
     readonly text: string,
     private agent: Voicer,
     private scenario: LocalScenario,
+    private locale: Intl.Locale,
   ) {
     this.run();
   }
@@ -120,7 +121,7 @@ export class VoicerJob {
             speakerEmbedding: speaker.speaker_embedding,
           },
           this.text,
-          this.scenario.content.language,
+          this.locale,
           (chunk) => {
             if (wroteToBuffer) {
               chunks.push(new Uint8Array(chunk));

@@ -1,6 +1,6 @@
 import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
-import { PatreonTier } from "@/lib/schema.js";
+import { MultiLocaleTextSchema, PatreonTier } from "@/lib/schema.js";
 import {
   AssetSchema,
   IdSchema,
@@ -9,58 +9,60 @@ import {
 import { v } from "@/lib/valibot.js";
 import { fetchScenarioManifest } from "@/logic/scenarios.js";
 import { t } from "@/server/trpc.js";
-import { TRPCError } from "@trpc/server";
 import { wrap } from "@typeschema/valibot";
 import { eq } from "drizzle-orm";
 
-const OutputSchema = v.object({
-  version: v.number(),
-  name: v.string(),
-  requiredPatreonTier: v.nullable(
-    v.object({
-      ...PatreonTier.entries,
-      index: v.number(),
-    }),
-  ),
-  nsfw: v.boolean(),
-  immersive: v.boolean(),
-  tags: v.optional(v.array(v.string())),
-  icon: v.optional(AssetSchema),
-  logo: v.optional(AssetSchema),
-  thumbnail: v.optional(AssetSchema),
-  coverImage: v.optional(AssetSchema),
-  teaser: v.string(),
-  about: v.string(),
-  characters: v.record(
-    IdSchema,
-    v.object({
-      name: v.string(),
-      color: v.optional(v.string()),
-      about: v.string(),
-      pfp: v.optional(AssetSchema),
-    }),
-  ),
-  episodes: v.record(
-    IdSchema,
-    v.object({
-      name: v.string(),
-      about: v.string(),
-      image: v.optional(AssetSchema),
-    }),
-  ),
-  achievements: v.optional(
-    v.record(
-      IdSchema,
+const OutputSchema = v.nullable(
+  v.object({
+    version: v.number(),
+    locales: v.array(v.string()),
+    name: MultiLocaleTextSchema,
+    requiredPatreonTier: v.nullable(
       v.object({
-        title: v.string(),
-        description: v.string(),
-        icon: v.optional(AssetSchema),
-        points: v.number(),
+        ...PatreonTier.entries,
+        index: v.number(),
       }),
     ),
-  ),
-  downloadSize: v.number(),
-});
+    nsfw: v.boolean(),
+    immersive: v.boolean(),
+    tags: v.optional(v.array(v.string())),
+    icon: v.optional(AssetSchema),
+    logo: v.optional(AssetSchema),
+    thumbnail: v.optional(AssetSchema),
+    coverImage: v.optional(AssetSchema),
+    teaser: MultiLocaleTextSchema,
+    about: MultiLocaleTextSchema,
+    characters: v.record(
+      IdSchema,
+      v.object({
+        name: MultiLocaleTextSchema,
+        color: v.optional(v.string()),
+        about: MultiLocaleTextSchema,
+        pfp: v.optional(AssetSchema),
+      }),
+    ),
+    episodes: v.record(
+      IdSchema,
+      v.object({
+        name: MultiLocaleTextSchema,
+        about: MultiLocaleTextSchema,
+        image: v.optional(AssetSchema),
+      }),
+    ),
+    achievements: v.optional(
+      v.record(
+        IdSchema,
+        v.object({
+          title: MultiLocaleTextSchema,
+          description: MultiLocaleTextSchema,
+          icon: v.optional(AssetSchema),
+          points: v.number(),
+        }),
+      ),
+    ),
+    downloadSize: v.number(),
+  }),
+);
 
 /**
  * Get a single scenario by ID.
@@ -87,10 +89,7 @@ export default t.procedure
     });
 
     if (!scenario) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Scenario not found",
-      });
+      return null;
     }
 
     const manifest = await fetchScenarioManifest(

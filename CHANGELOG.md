@@ -6,6 +6,7 @@
 
 - [x] epic: migrate to tRPC (Thu 3)
 - [x] feat: remote scenarios (Fri 4)
+- [x] feat: i18n (Mon 7)
 
 ### September 2024
 

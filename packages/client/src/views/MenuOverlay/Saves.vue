@@ -3,6 +3,7 @@ import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { env } from "@/env";
 import { d } from "@/lib/drizzle";
 import { trackPageview } from "@/lib/plausible";
+import { appLocale } from "@/lib/storage";
 import { allSavesQueryKey, useSavesQuery } from "@/queries";
 import { routeLocation } from "@/router";
 import { TransitionRoot } from "@headlessui/vue";
@@ -17,6 +18,7 @@ import {
   Trash2Icon,
 } from "lucide-vue-next";
 import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { toast } from "vue3-toastify";
 import Save from "./Saves/Save.vue";
 
@@ -44,11 +46,11 @@ const savesGroupedByDate = computed(() => {
   const grouped = new Map<string, Save[]>();
 
   for (const save of saves.value) {
-    const date = save.createdAt!.toLocaleDateString(undefined, {
+    const date = save.createdAt!.toLocaleDateString(appLocale.value, {
       dateStyle: "medium",
     });
 
-    const weekday = save.createdAt!.toLocaleDateString(undefined, {
+    const weekday = save.createdAt!.toLocaleDateString(appLocale.value, {
       weekday: "short",
     });
 
@@ -74,10 +76,17 @@ async function deleteSelected() {
 
   if (
     !(await dialog.confirm(
-      `Are you sure you want to delete ${selectedSaveIds.value.length} saves?`,
+      t(
+        "menuOverlay.saves.deleteConfirmation.message",
+        selectedSaveIds.value.length,
+      ),
       {
-        title: "Delete saves",
-        okLabel: `Delete ${selectedSaveIds.value.length} saves`,
+        title: t("menuOverlay.saves.deleteConfirmation.title"),
+        okLabel: t(
+          "menuOverlay.saves.deleteConfirmation.okLabel",
+          selectedSaveIds.value.length,
+        ),
+        cancelLabel: t("menuOverlay.saves.deleteConfirmation.cancelLabel"),
         type: "warning",
       },
     ))
@@ -123,12 +132,53 @@ async function switchSelection(simulationId: number) {
 onMounted(() => {
   trackPageview(`/saves/${scenarioId}`);
 });
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      menuOverlay: {
+        saves: {
+          title: "Load game",
+          gamesCreatedAt: "Games created {date}",
+          noSavesFound: "No saves found.",
+          deleteSelected: "Delete selected ({count})",
+          switchSelectionMode: "Switch selection mode",
+          deleteConfirmation: {
+            message: "Are you sure you want to delete {count} saves?",
+            title: "Delete saves",
+            okLabel: "Delete {count} saves",
+            cancelLabel: "Cancel",
+          },
+        },
+      },
+    },
+    "ru-RU": {
+      menuOverlay: {
+        saves: {
+          title: "Загрузить игру",
+          gamesCreatedAt: "Игры, созданные {date}",
+          noSavesFound: "Сохранений не найдено.",
+          deleteSelected: "Удалить выбранные ({count})",
+          switchSelectionMode: "Переключить режим выбора",
+          deleteConfirmation: {
+            message:
+              "Вы уверены, что хотите удалить 0 сохранений? | Вы уверены, что хотите удалить {n} сохранение? | Вы уверены, что хотите удалить {n} сохранения? | Вы уверены, что хотите удалить {n} сохранений?",
+            title: "Удалить сохранения",
+            okLabel:
+              "Удалить 0 сохранений | Удалить {n} сохранение | Удалить {n} сохранения | Удалить {n} сохранений",
+            cancelLabel: "Отмена",
+          },
+        },
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
 .relative.flex.flex-col.overflow-y-hidden
   //- Header.
-  RichTitle.border-b.p-3(title="Load game")
+  RichTitle.border-b.p-3(:title="t('menuOverlay.saves.title')")
     template(#icon)
       HistoryIcon(:size="20")
     template(#extra)
@@ -139,7 +189,7 @@ onMounted(() => {
         button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
           @click="selectionMode = !selectionMode; selectedSaveIds = []"
           title="Switch to selection mode"
-          v-tooltip="'Switch to selection mode'"
+          v-tooltip="t('menuOverlay.saves.switchSelectionMode')"
           :disabled="savesGroupedByDate.length === 0"
         )
           SquareMousePointerIcon(
@@ -157,7 +207,7 @@ onMounted(() => {
       //- Date.
       RichTitle(:title="group.date")
         span.cursor-help.font-semibold.leading-snug.tracking-wide(
-          v-tooltip="`Games created ${group.saves[0].createdAt?.toLocaleDateString()}`"
+          v-tooltip="t('menuOverlay.saves.gamesCreatedAt', { date: group.saves[0].createdAt?.toLocaleDateString() })"
         ) {{ group.date }}
 
       //- Saves.
@@ -189,7 +239,7 @@ onMounted(() => {
       v-else
     )
       CircleSlash2Icon(:size="32")
-      p No saves found.
+      p {{ t("menuOverlay.saves.noSavesFound") }}
 
   //- Selection actions.
   TransitionRoot.absolute.bottom-0.z-10.flex.w-full.p-3(
@@ -208,5 +258,5 @@ onMounted(() => {
       Loader2Icon.animate-spin(v-if="deletionInProgress" :size="24")
       template(v-else)
         Trash2Icon(:size="20")
-        | Delete selected ({{ selectedSaveIds.length }})
+        | {{ t("menuOverlay.saves.deleteSelected", { count: selectedSaveIds.length }) }}
 </template>

@@ -1,4 +1,4 @@
-import { MultiLangTextSchema } from "@/lib/schema.js";
+import { MultiLocaleTextSchema } from "@/lib/schema.js";
 import { v } from "@/lib/valibot.js";
 import {
   boolean,
@@ -24,7 +24,7 @@ export const llmModels = pgTable(
     task: llmModelTaskEnum("task").notNull(),
     name: varchar("name").notNull(),
     description:
-      json("description").$type<v.InferOutput<typeof MultiLangTextSchema>>(),
+      json("description").$type<v.InferOutput<typeof MultiLocaleTextSchema>>(),
     contextSize: integer("context_size").notNull(),
 
     /**

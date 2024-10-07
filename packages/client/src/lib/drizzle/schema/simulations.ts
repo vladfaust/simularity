@@ -18,6 +18,11 @@ export const simulations = sqliteTable(
     mode: integer("mode", { mode: "number" }).notNull(),
     sandbox: integer("sandbox", { mode: "boolean" }).notNull(),
 
+    /**
+     * Target locale for the simulation, e.g. `"en-US"`.
+     */
+    locale: text("locale").notNull(),
+
     starterEpisodeId: text("starter_episode_id"),
     currentUpdateId: integer("current_writer_update_id"),
 

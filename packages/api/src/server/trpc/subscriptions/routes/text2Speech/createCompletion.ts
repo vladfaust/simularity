@@ -20,6 +20,9 @@ type InferenceChunk = {
   chunkBase64: string;
 };
 
+// TODO: Make it configurable per model.
+const SUPPORTED_LOCALES = ["en", "ru"];
+
 /**
  * Create a new TTS completion.
  */
@@ -31,7 +34,7 @@ export default protectedProcedure
         speakerEmbedding: v.array(v.number()),
         gptCondLatent: v.array(v.array(v.number())),
         text: v.string(),
-        language: v.string(),
+        locale: v.string(),
         streamChunkSize: v.optional(v.number()),
         overlapWavLen: v.optional(v.number()),
         temperature: v.optional(v.number()),
@@ -71,6 +74,18 @@ export default protectedProcedure
               new TRPCError({
                 code: "FORBIDDEN",
                 message: "Not enough credit balance",
+              }),
+            );
+          }
+
+          const language = input.locale.split("-")[0];
+          if (!SUPPORTED_LOCALES.includes(language)) {
+            konsole.warn("Unsupported locale", input.locale);
+
+            return observer.error(
+              new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Unsupported locale",
               }),
             );
           }
@@ -135,7 +150,7 @@ export default protectedProcedure
             speaker_embedding: input.speakerEmbedding,
             gpt_cond_latent: input.gptCondLatent,
             text: input.text,
-            language: input.language,
+            language,
             stream_chunk_size: input.streamChunkSize,
             overlap_wav_len: input.overlapWavLen,
             temperature: input.temperature,

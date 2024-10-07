@@ -10,6 +10,8 @@ import {
   RemoteScenario,
   type Scenario,
 } from "@/lib/scenario";
+import { appLocale } from "@/lib/storage";
+import { translationWithFallback } from "@/logic/i18n";
 import { TransitionRoot } from "@headlessui/vue";
 import { asyncComputed, useElementHover } from "@vueuse/core";
 import {
@@ -83,7 +85,7 @@ onMounted(async () => {
     )
       //- Top.
       .flex.flex-col
-        RichTitle(:title="scenario.name")
+        RichTitle(:title="translationWithFallback(scenario.name, appLocale)")
           template(#extra)
             .flex.gap-1
               NsfwIcon.cursor-help.text-pink-500(
@@ -117,7 +119,7 @@ onMounted(async () => {
   .flex.w-full.flex-col.justify-between.gap-1.px-3.py-2(v-if="scenario")
     //- Top.
     .flex.flex-col
-      RichTitle(:title="scenario.name")
+      RichTitle(:title="translationWithFallback(scenario.name, appLocale)")
         template(#extra)
           .flex.gap-1
             NsfwIcon.cursor-help.text-pink-500(
@@ -130,7 +132,7 @@ onMounted(async () => {
               :size="18"
               v-tooltip="'This scenario supports immersive mode'"
             )
-      p.text-sm.leading-snug {{ scenario.teaser }}
+      p.text-sm.leading-snug {{ translationWithFallback(scenario.teaser, appLocale) }}
 
     //- Bottom.
     .flex.items-center.justify-between

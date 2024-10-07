@@ -1,10 +1,11 @@
+import { MultiLocaleTextSchema } from "@/lib/schema";
 import { v } from "@/lib/valibot.js";
 import {
   boolean,
   integer,
   json,
+  jsonb,
   pgTable,
-  text,
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -36,9 +37,11 @@ export const scenarios = pgTable("scenarios", {
     .notNull(),
 
   /**
-   * Scenario name.
+   * Scenario name, localized.
    */
-  name: text("name").notNull(),
+  name: jsonb("name")
+    .$type<v.InferOutput<typeof MultiLocaleTextSchema>>()
+    .notNull(),
 
   /**
    * Whether the scenario is NSFW.

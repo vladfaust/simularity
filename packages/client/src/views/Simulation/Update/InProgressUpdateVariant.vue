@@ -3,6 +3,7 @@ import CharacterPfp from "@/components/CharacterPfp.vue";
 import type { Simulation } from "@/lib/simulation";
 import { NARRATOR, PREDICTION_REGEX } from "@/lib/simulation/agents/writer";
 import type { Update } from "@/lib/simulation/update";
+import { translationWithFallback } from "@/logic/i18n";
 import { TransitionRoot } from "@headlessui/vue";
 import { BotIcon, ThumbsDownIcon } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
@@ -98,7 +99,7 @@ const character = computed(() => {
             )
             span.font-semibold.leading-none(
               :style="{ color: character.color }"
-            ) {{ character.name }}
+            ) {{ translationWithFallback(character.name, simulation.locale) }}
           template(v-else)
             .grid.aspect-square.h-5.place-items-center.rounded.border(
               :class="{ 'opacity-0': character === undefined }"

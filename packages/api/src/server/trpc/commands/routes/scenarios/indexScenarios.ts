@@ -2,7 +2,7 @@ import { d } from "@/lib/drizzle.js";
 import { v } from "@/lib/valibot.js";
 import { t } from "@/server/trpc.js";
 import { wrap } from "@typeschema/valibot";
-import { and, eq, ilike } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 /**
  * Return scenario IDs.
@@ -25,7 +25,18 @@ export default t.procedure
     }
 
     if (input.nameFilter) {
-      conditions.push(ilike(d.scenarios.name, input.nameFilter));
+      const nameFilter = `%${input.nameFilter}%`;
+
+      conditions.push(sql`
+        EXISTS (
+          SELECT
+            1
+          FROM
+            jsonb_each_text(${d.scenarios.name}) AS name_pair
+          WHERE
+            name_pair.value ILIKE ${nameFilter}
+        )
+      `);
     }
 
     return (

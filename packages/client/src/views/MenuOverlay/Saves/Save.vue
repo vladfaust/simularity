@@ -14,6 +14,7 @@ import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { asyncComputed } from "@vueuse/core";
 import { eq } from "drizzle-orm";
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import Message, { type SimpleMessage } from "./Save/Message.vue";
 
 const { simulationId } = defineProps<{
@@ -63,6 +64,31 @@ const latestMessage = computed<SimpleMessage | null>(() => {
       }
     : null;
 });
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      saves: {
+        save: {
+          updatedAt: "Upd. {date}",
+          sandboxModeTooltip: "This simulation runs in a sandbox mode",
+          immersiveModeTooltip: "This simulation runs in immersive mode",
+          chatModeTooltip: "This simulation runs in chat mode",
+        },
+      },
+    },
+    "ru-RU": {
+      saves: {
+        save: {
+          updatedAt: "Обн. {date}",
+          sandboxModeTooltip: "Эта симуляция запущена в режиме песочницы",
+          immersiveModeTooltip: "Эта симуляция запущена в режиме погружения",
+          chatModeTooltip: "Эта симуляция запущена в режиме чата",
+        },
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
@@ -81,24 +107,24 @@ const latestMessage = computed<SimpleMessage | null>(() => {
       Message(:key="latestMessage.id" :scenario :message="latestMessage")
 
   .flex.flex-col.p-3(v-if="simulation?.updatedAt")
-    RichTitle(:title="scenario?.content.name")
+    RichTitle
       template(#default)
-        span.text-xs.leading-tight.text-gray-500 Upd. {{ simulation.updatedAt.toLocaleString() }}
+        span.text-xs.leading-tight.text-gray-500 {{ t("saves.save.updatedAt", { date: simulation.updatedAt.toLocaleString() }) }}
       template(#extra)
         .flex.gap-1
           SandboxModeIcon.cursor-help(
             v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && simulation.sandbox"
             :size="16"
-            v-tooltip="'This simulation runs in a sandbox mode'"
+            v-tooltip="t('saves.save.sandboxModeTooltip')"
           )
           ImmersiveModeIcon.cursor-help(
             v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && simulation?.mode === Mode.Immersive"
             :size="16"
-            v-tooltip="'This simulation runs in immersive mode'"
+            v-tooltip="t('saves.save.immersiveModeTooltip')"
           )
           ChatModeIcon.cursor-help(
             v-else-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE"
             :size="16"
-            v-tooltip="'This simulation runs in chat mode'"
+            v-tooltip="t('saves.save.chatModeTooltip')"
           )
 </template>

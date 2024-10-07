@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { type Scenario } from "@/lib/scenario";
+import { appLocale } from "@/lib/storage";
 import { v } from "@/lib/valibot";
+import { translationWithFallback } from "@/logic/i18n";
 import * as schema from "@simularity/api/lib/schema";
 import { asyncComputed } from "@vueuse/core";
 import { TrophyIcon } from "lucide-vue-next";
@@ -36,8 +38,8 @@ const iconUrl = asyncComputed(() =>
           .flex.items-center.gap-1
             span.text-sm.font-medium {{ achievement.points }}
             TrophyIcon(:size="14" :stroke-width="2.5")
-        span.text-sm.font-semibold.leading-snug.tracking-wide {{ achievement.title }}
-      p.text-sm.leading-tight {{ achievement.description }}
+        span.text-sm.font-semibold.leading-snug.tracking-wide {{ translationWithFallback(achievement.title, appLocale) }}
+      p.text-sm.leading-tight {{ translationWithFallback(achievement.description, appLocale) }}
     .flex(v-if="unlockDate")
       span.text-xs.text-gray-600 Unlocked {{ unlockDate.toLocaleDateString() }}
 </template>

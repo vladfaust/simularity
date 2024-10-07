@@ -49,7 +49,7 @@ export interface BaseTtsDriver {
       speakerEmbedding: number[];
     },
     text: string,
-    language: string,
+    locale: Intl.Locale,
     onChunk?: (chunk: ArrayBuffer) => void,
     params?: TtsParams,
     abortSignal?: AbortSignal,

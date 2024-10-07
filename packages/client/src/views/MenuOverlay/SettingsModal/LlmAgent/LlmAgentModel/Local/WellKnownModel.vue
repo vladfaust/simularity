@@ -1,27 +1,7 @@
 <script lang="ts">
-export type AvailableModel = {
-  name: string;
-  description: string;
-  nParams: number;
-  contextSize: number;
-  hfUrl?: string;
-  quants: Record<
-    string,
-    {
-      hash: {
-        sha256: string;
-      };
-      ramSize: number;
-      urls: {
-        hf: string;
-      };
-    }
-  >;
-};
-
 export type WellKnownModelProps = {
   recommendationModelId: string;
-  recommendationModel: AvailableModel;
+  recommendationModel: WellKnownModel;
   cachedModelsByQuants: Record<
     string,
     {
@@ -40,6 +20,8 @@ import { Download, downloadManager } from "@/lib/downloads";
 import * as storage from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { prettyNumber } from "@/lib/utils";
+import { SUPPORTED_LOCALES } from "@/logic/i18n";
+import type { WellKnownModel } from "@/queries";
 import { path, shell } from "@tauri-apps/api";
 import {
   BanIcon,
@@ -47,6 +29,7 @@ import {
   ChevronDownIcon,
   CircleMinusIcon,
   FolderOpenIcon,
+  LanguagesIcon,
   LoaderCircleIcon,
   PauseIcon,
   PlayIcon,
@@ -55,30 +38,14 @@ import {
 import prettyBytes from "pretty-bytes";
 import type { ShallowRef } from "vue";
 import { computed, ref, shallowRef, triggerRef, type Ref } from "vue";
+import { useI18n } from "vue-i18n";
 
-const WELL_KNOWN_QUANTS: Record<
-  string,
-  {
-    name: string;
-    help?: string;
-  }
-> = {
-  q3km: {
-    name: "Q3_K_M",
-    help: "Very small, high quality loss.",
-  },
-  q4km: {
-    name: "Q4_K_M",
-    help: "Medium, balanced quality.",
-  },
-  q5km: {
-    name: "Q5_K_M",
-    help: "Large, very low quality loss.",
-  },
-  q6k: {
-    name: "Q6_K",
-    help: "Very large, extremely low quality loss.",
-  },
+const WELL_KNOWN_QUANTS: Record<string, string> = {
+  q3km: "Q3_K_M",
+  q4km: "Q4_K_M",
+  q5km: "Q5_K_M",
+  q6k: "Q6_K",
+  q8: "Q8",
 };
 
 const props = defineProps<
@@ -173,6 +140,141 @@ async function showInFileManager(quantId: string) {
   const cachedModel = props.cachedModelsByQuants[quantId];
   await tauri.utils.fileManagerOpen(cachedModel.model.path);
 }
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      settings: {
+        llmAgentModel: {
+          local: {
+            wellKnownModel: {
+              wellKnownQuants: {
+                q3km: {
+                  help: "Very small size, high quality loss",
+                },
+                q4km: {
+                  help: "Medium size, balanced quality",
+                },
+                q5km: {
+                  help: "Large size, very low quality loss",
+                },
+                q6k: {
+                  help: "Very large size, extremely low quality loss",
+                },
+                q8: {
+                  help: "Largest size, lossless",
+                },
+              },
+              params: {
+                label: "Params",
+                tooltip:
+                  "Number of model parameters. The higher, the more smart the model is",
+              },
+              contextSize: {
+                label: "Ctx",
+                tooltip: "Maximum context size for a this model",
+              },
+              locales: {
+                label: "Lang",
+                tooltip: "Languages the model has been trained on",
+              },
+              selected: "Selected",
+              select: "Select",
+              download: "Download",
+              openInFileManagerButton: {
+                title: "Open in file manager",
+              },
+              remove: {
+                button: {
+                  titleRemoveFromList: "Remove model from list",
+                  titleDeleteFile: "Delete model file",
+                },
+              },
+              resumeDownloadButton: {
+                title: "Resume download",
+              },
+              pauseDownloadButton: {
+                title: "Pause download",
+              },
+              cancelDownloadButton: {
+                title: "Cancel download",
+              },
+              show: {
+                less: "Show less",
+                more: "Show more",
+              },
+            },
+          },
+        },
+      },
+    },
+    "ru-RU": {
+      settings: {
+        llmAgentModel: {
+          local: {
+            wellKnownModel: {
+              wellKnownQuants: {
+                q3km: {
+                  help: "Очень маленький размер, большое снижение качества модели",
+                },
+                q4km: {
+                  help: "Средний размер, сбалансированное качество модели",
+                },
+                q5km: {
+                  help: "Большой размер, небольшое снижение качества модели",
+                },
+                q6k: {
+                  help: "Очень большой размер, крайне небольшое снижение качества модели",
+                },
+                q8: {
+                  help: "Самый большой размер, без потерь в качестве модели",
+                },
+              },
+              params: {
+                label: "Параметры",
+                tooltip:
+                  "Количество параметров модели. Чем больше, тем умнее модель",
+              },
+              contextSize: {
+                label: "Контекст",
+                tooltip: "Максимальный размер контекста для этой модели",
+              },
+              locales: {
+                label: "Языки",
+                tooltip: "Языки, на которых обучена модель",
+              },
+              selected: "Выбрано",
+              select: "Выбрать",
+              download: "Скачать",
+              openInFileManagerButton: {
+                title: "Открыть в файловом менеджере",
+              },
+              remove: {
+                button: {
+                  titleRemoveFromList: "Удалить модель из списка",
+                  titleDeleteFile: "Удалить файл модели",
+                },
+              },
+              resumeDownloadButton: {
+                title: "Продолжить скачивание",
+              },
+              pauseDownloadButton: {
+                title: "Приостановить скачивание",
+              },
+              cancelDownloadButton: {
+                title: "Отменить скачивание",
+              },
+              show: {
+                less: "Показать меньше",
+                more: "Показать больше",
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
@@ -182,23 +284,36 @@ li.flex.flex-col.divide-y
       template(#extra v-if="recommendationModel.hfUrl")
         button.btn-pressable(@click="openHfUrl") 🤗
 
-    p.text-sm.leading-snug {{ recommendationModel.description }}
+    p.text-sm.leading-snug.opacity-80 {{ recommendationModel.description }}
 
     //- Params.
     .mt-1.flex.flex-wrap.items-center.gap-x-2.text-sm
       //- nParams.
-      .flex.gap-1
+      .flex.cursor-help.gap-1(
+        v-tooltip="t('settings.llmAgentModel.local.wellKnownModel.params.tooltip')"
+      )
         BrainCogIcon.self-center(:size="18" :stroke-width="2.5")
         .flex.gap-1
-          span.font-semibold Params:
+          span.font-semibold {{ t("settings.llmAgentModel.local.wellKnownModel.params.label") }}:
           span {{ prettyNumber(recommendationModel.nParams, { space: false }) }}p
 
       //- Context size.
-      .flex.gap-1
+      .flex.cursor-help.gap-1(
+        v-tooltip="t('settings.llmAgentModel.local.wellKnownModel.contextSize.tooltip')"
+      )
         ProportionsIcon.self-center(:size="18" :stroke-width="2.5")
         .flex.gap-1
-          span.font-semibold Context:
+          span.font-semibold {{ t("settings.llmAgentModel.local.wellKnownModel.contextSize.label") }}:
           span {{ prettyNumber(recommendationModel.contextSize, { space: false }) }}t
+
+      //- Locales.
+      .flex.cursor-help.gap-1(
+        v-tooltip="t('settings.llmAgentModel.local.wellKnownModel.locales.tooltip')"
+      )
+        LanguagesIcon.self-center(:size="18" :stroke-width="2.5")
+        .flex.gap-1
+          span.font-semibold {{ t("settings.llmAgentModel.local.wellKnownModel.locales.label") }}:
+          span {{ recommendationModel.locales.map((l) => SUPPORTED_LOCALES[l.toString()].label).join(", ") }}
 
   //- Quants.
   .grid.gap-2.p-3(
@@ -212,9 +327,9 @@ li.flex.flex-col.divide-y
         @click="emit('select', quantId)"
       )
         template(v-if="cachedModelsByQuants[quantId].selected.value")
-          | Selected
+          | {{ t("settings.llmAgentModel.local.wellKnownModel.selected") }}
         template(v-else)
-          | Select
+          | {{ t("settings.llmAgentModel.local.wellKnownModel.select") }}
 
       //- Download progress.
       .btn.btn-sm.rounded.border(v-else-if="downloadsByQuant.value[quantId]")
@@ -229,13 +344,13 @@ li.flex.flex-col.divide-y
         v-else
         @click="createDownload(quantId)"
       )
-        | Download
+        | {{ t("settings.llmAgentModel.local.wellKnownModel.download") }}
 
       .flex.items-center.justify-center
         span.text-sm.leading-none(
-          v-tooltip="WELL_KNOWN_QUANTS[quantId]?.help"
-          :class="{ 'cursor-help underline decoration-dotted': WELL_KNOWN_QUANTS[quantId]?.help }"
-        ) {{ WELL_KNOWN_QUANTS[quantId]?.name || quantId }}
+          v-tooltip="WELL_KNOWN_QUANTS[quantId] ? t(`settings.llmAgentModel.local.wellKnownModel.wellKnownQuants.${quantId}.help`) : undefined"
+          :class="{ 'cursor-help underline decoration-dotted': WELL_KNOWN_QUANTS[quantId] }"
+        ) {{ WELL_KNOWN_QUANTS[quantId] ?? quantId }}
 
       .flex.items-center
         span.cursor-help.rounded.border.px-1.text-xs.leading-none(
@@ -254,7 +369,7 @@ li.flex.flex-col.divide-y
         .flex.items-center.gap-1
           //- Open in file manager.
           button.btn.btn-pressable(
-            title="Open in file manager"
+            :title="t('settings.llmAgentModel.local.wellKnownModel.openInFileManagerButton.title')"
             @click="showInFileManager(quantId)"
           )
             FolderOpenIcon(:size="18")
@@ -262,7 +377,7 @@ li.flex.flex-col.divide-y
           //- Remove.
           button.btn.btn-pressable(
             class="hover:text-error-500"
-            :title="cachedModelsByQuants[quantId].removeDeletesFile ? 'Delete model file' : 'Remove model from list'"
+            :title="cachedModelsByQuants[quantId].removeDeletesFile ? t('settings.llmAgentModel.local.wellKnownModel.remove.button.titleDeleteFile') : t('settings.llmAgentModel.local.wellKnownModel.remove.button.titleRemoveFromList')"
             @click="emit('remove', quantId, cachedModelsByQuants[quantId].removeDeletesFile)"
           )
             CircleMinusIcon(:size="18")
@@ -274,7 +389,7 @@ li.flex.flex-col.divide-y
           //- Resume.
           button.btn.btn-pressable(
             v-if="downloadsByQuant.value[quantId].value.paused.value"
-            title="Resume download"
+            :title="t('settings.llmAgentModel.local.wellKnownModel.resumeDownloadButton.title')"
             @click="downloadsByQuant.value[quantId].value.resume()"
           )
             PlayIcon(:size="18")
@@ -282,14 +397,14 @@ li.flex.flex-col.divide-y
           //- Pause.
           button.btn.btn-pressable(
             v-else
-            title="Pause download"
+            :title="t('settings.llmAgentModel.local.wellKnownModel.pauseDownloadButton.title')"
             @click="downloadsByQuant.value[quantId].value.pause()"
           )
             PauseIcon(:size="18")
 
           //- Cancel.
           button.btn.btn-pressable(
-            title="Cancel download"
+            :title="t('settings.llmAgentModel.local.wellKnownModel.cancelDownloadButton.title')"
             @click="cancelDownload(quantId)"
           )
             BanIcon(:size="18")
@@ -302,7 +417,6 @@ li.flex.flex-col.divide-y
       @click="showAllQuants = !showAllQuants"
     )
       ChevronDownIcon(:size="18" :class="{ 'rotate-180': showAllQuants }")
-      span Show
-      span(v-if="showAllQuants") less
-      span(v-else) more
+      span(v-if="showAllQuants") {{ t("settings.llmAgentModel.local.wellKnownModel.show.less") }}
+      span(v-else) {{ t("settings.llmAgentModel.local.wellKnownModel.show.more") }}
 </template>

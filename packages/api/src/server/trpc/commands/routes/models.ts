@@ -1,6 +1,9 @@
 import { t } from "@/server/trpc.js";
-import index from "./models/index.js";
+
+import indexLlmModels from "./models/indexLlmModels.js";
+import indexTtsModels from "./models/indexTtsModels.js";
 
 export default t.router({
-  index,
+  indexLlmModels,
+  indexTtsModels,
 });

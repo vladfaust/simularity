@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { StateCommandSchema } from "../commands.js";
+import { MultiLocaleTextSchema } from "../common.js";
 import {
   AssetSchema,
   baseScenarioAssets,
@@ -128,7 +129,7 @@ export const ImmersiveScenarioSchema = v.object({
       /**
        * Scene name.
        */
-      name: v.string(),
+      name: MultiLocaleTextSchema,
 
       /**
        * Scene prompt.

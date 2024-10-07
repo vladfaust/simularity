@@ -6,6 +6,7 @@ import { type UpdateVariant } from "@/lib/simulation/update";
 import * as api from "@/lib/api";
 import { confirm_ } from "@/lib/resources";
 import { Writer } from "@/lib/simulation/agents/writer";
+import { translationWithFallback } from "@/logic/i18n";
 import {
   AudioLinesIcon,
   BotIcon,
@@ -259,7 +260,7 @@ onMounted(() => {
           :scenario="props.simulation.scenario"
           :character
         )
-        span.font-semibold.leading-none(:style="{ color: character.color }") {{ character.name }}
+        span.font-semibold.leading-none(:style="{ color: character.color }") {{ translationWithFallback(character.name, simulation.locale) }}
       template(v-else-if="character === null")
         .grid.aspect-square.h-5.place-items-center.rounded.border
           BotIcon(:size="16")

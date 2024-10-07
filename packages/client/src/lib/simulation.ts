@@ -1,4 +1,5 @@
 import { env } from "@/env";
+import { translationWithFallback } from "@/logic/i18n";
 import { fs } from "@tauri-apps/api";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
@@ -96,31 +97,6 @@ export class Simulation {
   //#endregion
 
   readonly state: State | undefined;
-
-  /**
-   * The simulation ID.
-   */
-  readonly id: number;
-
-  /**
-   * The scenario ID.
-   */
-  readonly scenarioId: string;
-
-  /**
-   * The mode of the simulation.
-   */
-  readonly mode: Mode;
-
-  /**
-   * Whether the simulation is in the sandbox mode.
-   */
-  readonly sandbox: boolean;
-
-  /**
-   * The scenario.
-   */
-  readonly scenario: LocalScenario;
 
   readonly historicalUpdatesLength = computed(
     () => this._historicalUpdates.value.length,
@@ -276,7 +252,7 @@ export class Simulation {
       this.writer.ready.value &&
       (this.mode === Mode.Immersive
         ? this.director!.ready.value ||
-          (env.VITE_EXPERIMENTAL_FEATURES && directorTeacherMode.value)
+          (env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && directorTeacherMode.value)
         : true),
   );
 
@@ -326,6 +302,7 @@ export class Simulation {
     scenarioId: string,
     mode: Mode,
     sandbox: boolean,
+    locale: Intl.Locale,
     episodeId?: string,
   ) {
     const scenario = await ensureLocalScenario(scenarioId);
@@ -351,6 +328,7 @@ export class Simulation {
             scenarioId,
             mode,
             sandbox,
+            locale: locale.toString(),
             starterEpisodeId: episodeId,
           })
           .returning({ id: d.simulations.id })
@@ -379,7 +357,7 @@ export class Simulation {
             simulationId: simulation.id,
             checkpointId: checkpoint.id,
             characterId: chunk.writerUpdate.characterId,
-            text: chunk.writerUpdate.text,
+            text: translationWithFallback(chunk.writerUpdate.text, locale),
             episodeId,
             episodeChunkIndex: 0,
             simulationDayClock: clockToMinutes(chunk.writerUpdate.clock),
@@ -438,6 +416,7 @@ export class Simulation {
       simulation.scenarioId,
       simulation.mode,
       simulation.sandbox,
+      new Intl.Locale(simulation.locale),
       scenario,
     );
 
@@ -494,7 +473,7 @@ export class Simulation {
           checkpointId: this._checkpoint.value!.id,
           characterId: chunk.writerUpdate.characterId,
           simulationDayClock: clockToMinutes(chunk.writerUpdate.clock),
-          text: chunk.writerUpdate.text,
+          text: translationWithFallback(chunk.writerUpdate.text, this.locale),
           episodeId: currentWriterUpdate.episodeId!,
           episodeChunkIndex: currentWriterUpdate.episodeChunkIndex! + 1,
         },
@@ -1748,11 +1727,12 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
   }
 
   private constructor(
-    id: number,
-    scenarioId: string,
-    mode: Mode,
-    sandbox: boolean,
-    scenario: LocalScenario,
+    readonly id: number,
+    readonly scenarioId: string,
+    readonly mode: Mode,
+    readonly sandbox: boolean,
+    readonly locale: Intl.Locale,
+    readonly scenario: LocalScenario,
   ) {
     if (
       mode === Mode.Immersive &&
@@ -1761,25 +1741,19 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       throw new Error("Immersive mode requires an immersive scenario");
     }
 
-    this.id = id;
-    this.scenarioId = scenarioId;
-    this.mode = mode;
-    this.sandbox = sandbox;
-    this.scenario = scenario;
-
     this.state =
       mode === Mode.Immersive
         ? new State(scenario as LocalImmersiveScenario)
         : undefined;
 
-    this._writer = new Writer(this.scenario);
+    this._writer = new Writer(this.scenario, this.locale);
 
     this._director =
       mode === Mode.Immersive
         ? new Director(this.scenario as LocalImmersiveScenario)
         : undefined;
 
-    this._voicer = new Voicer(this.scenario);
+    this._voicer = new Voicer(this.scenario, this.locale);
   }
 
   /**

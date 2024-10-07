@@ -28,7 +28,7 @@ export class RemoteTtsDriver implements BaseTtsDriver {
       speakerEmbedding: number[];
     },
     text: string,
-    language: string,
+    locale: Intl.Locale,
     onChunk?: (chunk: ArrayBuffer) => void,
     params?: TtsParams,
     abortSignal?: AbortSignal,
@@ -47,7 +47,7 @@ export class RemoteTtsDriver implements BaseTtsDriver {
             gptCondLatent: speaker.gptCondLatent,
             speakerEmbedding: speaker.speakerEmbedding,
             text,
-            language,
+            locale: locale.toString(),
             ...params,
           },
           {

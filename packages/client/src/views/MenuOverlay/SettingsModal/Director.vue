@@ -11,6 +11,7 @@ import {
   GraduationCapIcon,
   TreesIcon,
 } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import LlmAgentModel from "./LlmAgent/LlmAgentModel.vue";
 
 const CONTEXT_SIZE_MULTIPLIER = 1.25;
@@ -22,20 +23,40 @@ defineProps<{
 const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
   "driverConfig",
 );
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      settings: {
+        director: {
+          directorHelp:
+            "Director is an agent responsible for generating scene updates as the story advances. It has to be a fine instruction-tuned model with good reasoning—to understand what's going on—, trained for JSON outputs. Director is only required in visual novel mode.",
+          ambienceVolume: "Ambience Volume",
+          teacherMode: "Teacher Mode",
+          directorModel: "Director Model",
+          contextSizeAlert:
+            "Model is trained on up to {maxContextSize} tokens. Consider reducing the context size to avoid performance degradation.",
+          scenarioContextSizeAlert:
+            "Scenario requires at least {contextSize} tokens of context. Consider increasing the context size to avoid context overflow.",
+          contextSizeHelp:
+            "Consider setting the context size to ~{CONTEXT_SIZE_MULTIPLIER}x of writer's ({simulation.scenario.content.contextWindowSize * CONTEXT_SIZE_MULTIPLIER}+).",
+        },
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
 .flex.flex-col
   InteractiveHelper.border-b(:show-background="false")
     Alert.bg-white(type="info")
-      | Director is an agent responsible for generating scene updates as the story advances.
-      | It has to be a fine instruction-tuned model with good reasoning—to understand what's going on—, trained for JSON outputs.
-      | Director is only required in visual novel mode.
+      | {{ t("settings.director.directorHelp") }}
 
   .flex.flex-col.gap-2.p-3
     .flex.flex-col.gap-2.rounded-lg.bg-white.p-3.shadow-lg
       RichRange#ambience-volume(
-        title="Ambience Volume"
+        :title="t('settings.director.ambienceVolume')"
         v-model="storage.ambientVolumeStorage.value"
         :percent="true"
       )
@@ -43,7 +64,7 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
           TreesIcon(:size="16")
 
       RichToggle#teacher-mode(
-        title="Teacher Mode"
+        :title="t('settings.director.teacherMode')"
         v-model="directorTeacherMode"
       )
         template(#icon)
@@ -61,7 +82,7 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
         .flex.shrink-0.items-center(class="gap-1.5")
           .btn.rounded-lg.border.bg-white.p-1
             ClapperboardIcon(:size="18")
-          h2.shrink-0.font-semibold.leading-tight.tracking-wide Director Model
+          h2.shrink-0.font-semibold.leading-tight.tracking-wide {{ t("settings.director.directorModel") }}
 
       template(#context-size-help="{ contextSize, maxContextSize }")
         Alert(type="warn" v-if="contextSize > maxContextSize")

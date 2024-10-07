@@ -9,14 +9,15 @@ import { unreachable } from "@/lib/utils";
 import {
   AudioLinesIcon,
   BotIcon,
+  CloudIcon,
+  CpuIcon,
   CrownIcon,
   DramaIcon,
-  GlobeIcon,
-  HardDriveIcon,
   Settings2Icon,
   SpeechIcon,
 } from "lucide-vue-next";
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import RemoteModelSettings from "./Voicer/RemoteModelSettings.vue";
 
 defineProps<{
@@ -47,18 +48,68 @@ const selectedModelId = computed<string | undefined>({
     }
   },
 });
+
+const { t } = useI18n({
+  messages: {
+    settings: {
+      voicer: {
+        description:
+          "Voicer is an optional TTS (Text-to-Speech) agent which gives voice to the characters. It can be enabled or disabled at any time.",
+        speechVolume: "Speech Volume",
+        enableVoiceGeneration: "Enable voice generation",
+        charactersVoiceover: "Characters voiceover",
+        narratorVoiceover: "Narrator voiceover",
+        mainCharacterVoiceover: "Main character voiceover",
+        enableTextSplitting: "Enable text splitting",
+        enableTextSplittingHelp:
+          "Split text into sentences for improved stability",
+        model: "Model",
+        local: {
+          label: "Local",
+          tooltip: "Local driver is not available yet.",
+        },
+        remote: {
+          label: "Remote",
+        },
+      },
+    },
+    "ru-RU": {
+      settings: {
+        voicer: {
+          description:
+            "Озвучиватель — это необязательный агент TTS (Text-to-Speech), который придает голос персонажам. Его можно включить или выключить в любое время.",
+          speechVolume: "Громкость речи",
+          enableVoiceGeneration: "Включить генерацию голоса",
+          charactersVoiceover: "Озвучка персонажей",
+          narratorVoiceover: "Озвучка рассказчика",
+          mainCharacterVoiceover: "Озвучка главного персонажа",
+          enableTextSplitting: "Включить разделение текста",
+          enableTextSplittingHelp:
+            "Разделение текста на предложения улучшает стабильность",
+          model: "Модель",
+          local: {
+            label: "Локальная",
+            tooltip: "Локальный драйвер пока что недоступен.",
+          },
+          remote: {
+            label: "Облачная",
+          },
+        },
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
 .flex.flex-col
   InteractiveHelper.border-b(:show-background="false")
-    Alert.bg-white(type="info")
-      | Voicer is an optional TTS (Text-to-Speech) agent which gives voice to the characters. It can be enabled or disabled at any time.
+    Alert.bg-white(type="info") {{ t("settings.voicer.description") }}
 
   .flex.flex-col.gap-2.p-3
     .flex.flex-col.gap-2.rounded-lg.bg-white.p-3.shadow-lg
       RichRange#speech-volume(
-        title="Speech Volume"
+        :title="t('settings.voicer.speechVolume')"
         v-model="storage.speechVolumeStorage.value"
         :percent="true"
       )
@@ -67,7 +118,7 @@ const selectedModelId = computed<string | undefined>({
 
       //- TODO: Replace with "anything is enabled => enable driver" logic.
       RichToggle#voicer-enabled(
-        title="Enable voice generation"
+        :title="t('settings.voicer.enableVoiceGeneration')"
         v-model="ttsConfig.enabled"
       )
         template(#icon)
@@ -75,7 +126,7 @@ const selectedModelId = computed<string | undefined>({
 
       //- Enable or disable voicing automatically.
       RichToggle#auto-enabled(
-        title="Characters voiceover"
+        :title="t('settings.voicer.charactersVoiceover')"
         v-model="ttsConfig.otherCharacters"
       )
         template(#icon)
@@ -83,7 +134,7 @@ const selectedModelId = computed<string | undefined>({
 
       //- Enable or disable narrator voicer.
       RichToggle#narrator-enabled(
-        title="Narrator voiceover"
+        :title="t('settings.voicer.narratorVoiceover')"
         v-model="ttsConfig.narrator"
       )
         template(#icon)
@@ -91,7 +142,7 @@ const selectedModelId = computed<string | undefined>({
 
       //- Enable or disable main character voicer.
       RichToggle#main-character-enabled(
-        title="Main character voiceover"
+        :title="t('settings.voicer.mainCharacterVoiceover')"
         v-model="ttsConfig.mainCharacter"
       )
         template(#icon)
@@ -99,9 +150,9 @@ const selectedModelId = computed<string | undefined>({
 
       //- Switch text splitting.
       RichToggle#enable-text-splitting(
-        title="Text splitting"
+        :title="t('settings.voicer.enableTextSplitting')"
         v-model="storage.tts.enableTextSplitting.value"
-        help="Split text into sentences for improved stability"
+        :help="t('settings.voicer.enableTextSplittingHelp')"
       )
         template(#icon)
           Settings2Icon(:size="16")
@@ -111,23 +162,23 @@ const selectedModelId = computed<string | undefined>({
       :class="{ 'opacity-50 pointer-events-none': !ttsConfig.enabled }"
     )
       .flex.w-full.items-center.justify-between
-        h2.font-semibold.leading-tight.tracking-wide Model
+        h2.font-semibold.leading-tight.tracking-wide {{ t("settings.voicer.model") }}
         .ml-2.h-0.w-full.border-t
 
         //- Driver tabs.
         .grid.shrink-0.grid-cols-2.gap-1.overflow-hidden.rounded-t-lg.border-x.border-t.p-2
-          button.btn-neutral.btn.btn-sm.w-full.rounded.transition-transform.pressable(
+          button.btn-neutral.btn.btn-sm.w-full.rounded-lg.transition-transform.pressable(
             disabled
-            v-tooltip="'Local driver is not available yet.'"
+            v-tooltip="t('settings.voicer.local.tooltip')"
           )
-            HardDriveIcon(:size="20")
-            span Local
-          button.btn.btn-sm.rounded.transition-transform.pressable(
+            CpuIcon(:size="20")
+            span {{ t("settings.voicer.local.label") }}
+          button.btn.btn-sm.rounded-lg.transition-transform.pressable(
             :class="{ 'btn-primary': driverType === 'remote', 'btn-neutral': driverType !== 'remote' }"
             @click="driverType = 'remote'"
           )
-            GlobeIcon(:size="20")
-            span Remote
+            CloudIcon(:size="20")
+            span {{ t("settings.voicer.remote.label") }}
 
       //- Driver content.
       .flex.w-full.flex-col.gap-2.overflow-hidden.rounded-b-lg.rounded-l-lg.border

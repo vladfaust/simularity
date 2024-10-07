@@ -8,6 +8,7 @@ import {
   type PredictionOptions,
 } from "@/lib/simulation/agents/writer";
 import { writerNEval } from "@/lib/storage/llm";
+import { translationWithFallback } from "@/logic/i18n";
 import { accountBalanceQueryKey } from "@/queries";
 import { TransitionRoot } from "@headlessui/vue";
 import { useQueryClient } from "@tanstack/vue-query";
@@ -129,7 +130,8 @@ const enabledCharacterIdsSortedArray = computed(() =>
 const showVisualizeModal = ref(false);
 
 const inputPlaceholder = computed(
-  () => `Speak as ${simulation.scenario.defaultCharacter.name}`,
+  () =>
+    `Speak as ${translationWithFallback(simulation.scenario.defaultCharacter.name, simulation.locale)}`,
 );
 
 const queryClient = useQueryClient();

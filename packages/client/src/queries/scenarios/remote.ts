@@ -47,7 +47,9 @@ export function useRemoteScenarioQuery(
         .query({
           scenarioId: get(scenarioId)!,
         })
-        .then((response) => new RemoteScenario(get(scenarioId)!, response)),
+        .then((response) =>
+          response ? new RemoteScenario(get(scenarioId)!, response) : null,
+        ),
     enabled: computed(() => !!get(scenarioId)),
     staleTime: Infinity,
     ...queryOptions,

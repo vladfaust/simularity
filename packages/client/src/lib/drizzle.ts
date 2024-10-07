@@ -162,6 +162,9 @@ export async function migrate(
     new (
       await import("./drizzle/migrations/009_add_sandbox_to_simulations.js")
     ).default(),
+    new (
+      await import("./drizzle/migrations/010_add_locale_to_simulations.js")
+    ).default(),
   ];
 
   return migrate_(

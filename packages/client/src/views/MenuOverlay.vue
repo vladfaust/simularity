@@ -29,6 +29,7 @@ import {
   User2Icon,
 } from "lucide-vue-next";
 import { ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import Account from "./MenuOverlay/Account.vue";
 import Library from "./MenuOverlay/Library.vue";
 import NewGameModal from "./MenuOverlay/NewGameModal.vue";
@@ -82,9 +83,9 @@ const transition = {
 
 async function exit() {
   if (
-    !(await dialog.confirm("Are you sure you want to exit?", {
-      okLabel: "Exit",
-      title: "Exit",
+    !(await dialog.confirm(t("menuOverlay.exitConfirmation.message"), {
+      okLabel: t("menuOverlay.exitConfirmation.okLabel"),
+      title: t("menuOverlay.exitConfirmation.title"),
       type: "warning",
     }))
   ) {
@@ -93,6 +94,47 @@ async function exit() {
 
   router.push(routeLocation({ name: "Shutdown" }));
 }
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      menuOverlay: {
+        changeScenario: "Change scenario",
+        backToScenario: "Back to scenario",
+        chooseScenario: "Choose scenario",
+        backToGame: "Back to game",
+        newGame: "New game",
+        loadGame: "Load game",
+        settings: "Settings",
+        account: "Account",
+        exit: "Exit",
+        exitConfirmation: {
+          title: "Exit",
+          message: "Are you sure you want to exit?",
+          okLabel: "Exit",
+        },
+      },
+    },
+    "ru-RU": {
+      menuOverlay: {
+        changeScenario: "Изменить сценарий",
+        backToScenario: "Вернуться к сценарию",
+        chooseScenario: "Выберите сценарий",
+        backToGame: "Вернуться",
+        newGame: "Новая игра",
+        loadGame: "Загрузить",
+        settings: "Настройки",
+        account: "Аккаунт",
+        exit: "Выход",
+        exitConfirmation: {
+          title: "Выход",
+          message: "Вы уверены, что хотите выйти?",
+          okLabel: "Выход",
+        },
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
@@ -102,7 +144,7 @@ async function exit() {
     button.btn.aspect-video.w-full.max-w-56.gap-2.overflow-hidden.rounded-lg.border.p-3.transition.pressable-sm(
       @click="tab === Tab.Scenario ? (tab = Tab.Library) : (tab = Tab.Scenario)"
       class="hover:bg-white"
-      :title="tab === Tab.Scenario ? 'Change scenario' : 'Back to scenario'"
+      :title="tab === Tab.Scenario ? t('menuOverlay.changeScenario') : t('menuOverlay.backToScenario')"
     )
       .w-full(v-if="scenarioLogo")
         TransitionImage.pointer-events-none.select-none.object-contain(
@@ -110,13 +152,13 @@ async function exit() {
           alt="Scenario logo"
         )
       span.text-nowrap.text-lg.font-bold(v-else-if="scenarioTitle") {{ scenarioTitle }}
-      span.font-bold(v-else) Choose scenario
+      span.font-bold(v-else) {{ t("menuOverlay.chooseScenario") }}
 
     .flex.flex-col.items-center.gap-2
       //- Back to simulation button.
       button._btn(v-if="simulation" @click="$emit('backToGame')")
         Undo2Icon(:size="20")
-        | Back to game
+        | {{ t("menuOverlay.backToGame") }}
 
       //- New game button.
       button._btn(
@@ -124,7 +166,7 @@ async function exit() {
         @click="newGameRequest = null"
       )
         SparkleIcon(:size="20")
-        | New game
+        | {{ t("menuOverlay.newGame") }}
 
       //- Load game button.
       button._btn(
@@ -133,7 +175,7 @@ async function exit() {
         :class="{ _selected: tab === Tab.LoadGame }"
       )
         HistoryIcon(:size="20")
-        | Load game
+        | {{ t("menuOverlay.loadGame") }}
 
       //- Settings button.
       button._btn(
@@ -141,7 +183,7 @@ async function exit() {
         :class="{ _selected: tab === Tab.Settings }"
       )
         SettingsIcon(:size="20")
-        | Settings
+        | {{ t("menuOverlay.settings") }}
         GpuStatus.ml-1(v-if="simulation" :simulation)
 
       //- Account button.
@@ -150,12 +192,12 @@ async function exit() {
         :class="{ _selected: tab === Tab.Account }"
       )
         User2Icon(:size="20")
-        | Account
+        | {{ t("menuOverlay.account") }}
 
       //- Exit button.
       button._btn._danger(@click="exit")
         DoorOpenIcon(:size="20")
-        | Exit
+        | {{ t("menuOverlay.exit") }}
 
     //- Footer.
     .px-3

@@ -10,13 +10,13 @@ export type SimpleMessage = {
 
 <script setup lang="ts">
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import type { Scenario } from "@/lib/simulation";
+import type { LocalScenario } from "@/lib/scenario";
 import RichText from "@/views/Simulation/Update/RichText.vue";
 import { BotIcon } from "lucide-vue-next";
 import { computed } from "vue";
 
 const props = defineProps<{
-  scenario: Scenario;
+  scenario: LocalScenario;
   message: SimpleMessage;
 }>();
 

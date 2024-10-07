@@ -1,4 +1,5 @@
 import { v } from "@/lib/valibot.js";
+import { LocaleSchema, MultiLocaleTextSchema } from "../common.js";
 
 const TtsParamsSchema = v.object({
   speed: v.optional(v.number()),
@@ -31,8 +32,15 @@ export const AssetSchema = v.object({
   size: v.optional(v.number()),
 });
 
+// TODO: export const MultiLocaleAssetSchema = v.record(LocaleSchema, AssetSchema);
+
 // NOTE: Don't forget to update `baseScenarioAssets` when adding new assets.
 export const BaseScenarioSchema = v.object({
+  /**
+   * Scenario protocol version.
+   */
+  proto: v.literal("v1"),
+
   /**
    * Scenario version (for updates).
    */
@@ -41,7 +49,7 @@ export const BaseScenarioSchema = v.object({
   /**
    * Scenario name.
    */
-  name: v.string(),
+  name: MultiLocaleTextSchema,
 
   /**
    * Whether the scenario is not safe for work.
@@ -69,10 +77,9 @@ export const BaseScenarioSchema = v.object({
   coverImage: v.optional(AssetSchema),
 
   /**
-   * What language the scenario is defined in.
-   * This is useful for language-specific models.
+   * Which languages the scenario is available in.
    */
-  language: v.string(),
+  locales: v.array(LocaleSchema),
 
   /**
    * Minimum recommended context window size for the scenario, in tokens.
@@ -82,31 +89,26 @@ export const BaseScenarioSchema = v.object({
   /**
    * A very short description of the scenario.
    */
-  teaser: v.string(),
+  teaser: MultiLocaleTextSchema,
 
   /**
    * A short description of the scenario.
    */
-  about: v.string(),
+  about: MultiLocaleTextSchema,
 
   /**
    * A longer description of the scenario, Markdown-formatted.
    */
-  description: v.optional(v.string()),
-
-  /**
-   * Tell the model what the player is expecting from this scenario.
-   */
-  excerpt: v.optional(v.string()),
+  description: v.optional(MultiLocaleTextSchema),
 
   /**
    * Global scenario prompt, always present.
    * Describe the setting and the situation.
    */
-  globalScenario: v.optional(v.string()),
+  globalScenario: v.optional(MultiLocaleTextSchema),
 
   /**
-   * "Secret" instructions to drive AI generation.
+   * Secret instructions to drive AI generation, in English.
    */
   instructions: v.optional(v.string()),
 
@@ -144,7 +146,7 @@ export const BaseScenarioSchema = v.object({
       /**
        * Character name to display.
        */
-      name: v.string(),
+      name: MultiLocaleTextSchema,
 
       /**
        * Character color to paint the character's name with.
@@ -154,7 +156,7 @@ export const BaseScenarioSchema = v.object({
       /**
        * Short character description.
        */
-      about: v.string(),
+      about: MultiLocaleTextSchema,
 
       /**
        * Character profile picture.
@@ -164,7 +166,7 @@ export const BaseScenarioSchema = v.object({
       /**
        * The full name of the character, if any.
        */
-      fullName: v.optional(v.string()),
+      fullName: v.optional(MultiLocaleTextSchema),
 
       /**
        * A static personal prompt for the character, e.g. psychological traits.
@@ -258,7 +260,7 @@ export const BaseScenarioSchema = v.object({
       /**
        * Scenario-specific prompt for the character, e.g. occupation.
        */
-      scenarioPrompt: v.optional(v.string()),
+      scenarioPrompt: v.optional(MultiLocaleTextSchema),
 
       /**
        * Relationships with other characters in the scenario.
@@ -272,7 +274,7 @@ export const BaseScenarioSchema = v.object({
         v.record(
           IdSchema,
           v.object({
-            name: v.string(),
+            name: MultiLocaleTextSchema,
             prompt: v.string(),
             visualization: v.optional(
               v.object({
@@ -338,7 +340,7 @@ export const BaseScenarioSchema = v.object({
       /**
        * Location name.
        */
-      name: v.string(),
+      name: MultiLocaleTextSchema,
 
       /**
        * Location description.
@@ -357,12 +359,12 @@ export const BaseScenarioSchema = v.object({
       /**
        * Episode name.
        */
-      name: v.string(),
+      name: MultiLocaleTextSchema,
 
       /**
        * Short episode description.
        */
-      about: v.string(),
+      about: MultiLocaleTextSchema,
 
       /**
        * Episode image.
@@ -403,7 +405,7 @@ export const BaseScenarioSchema = v.object({
               }, "Minutes must be between 0 and 60"),
             ),
 
-            text: v.pipe(v.string(), v.trim(), v.nonEmpty()),
+            text: MultiLocaleTextSchema,
           }),
 
           /**
@@ -422,8 +424,8 @@ export const BaseScenarioSchema = v.object({
     v.record(
       IdSchema,
       v.object({
-        title: v.string(),
-        description: v.string(),
+        title: MultiLocaleTextSchema,
+        description: MultiLocaleTextSchema,
         icon: v.optional(AssetSchema),
         points: v.number(),
       }),
