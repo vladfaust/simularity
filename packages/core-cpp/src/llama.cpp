@@ -64,7 +64,7 @@ std::vector<llama_token> llama_tokenize(
   return tokens;
 }
 
-const size_t LLAMA_MAX_PIECE_SIZE = 16;
+const size_t LLAMA_MAX_PIECE_SIZE = 32;
 
 std::string llama_token_to_piece(
     const struct llama_model *model, const llama_token token, bool special
