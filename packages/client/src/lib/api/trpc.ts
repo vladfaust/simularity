@@ -29,22 +29,36 @@ export const commandsClient = createTRPCProxyClient<CommandsRouter>({
   ],
 });
 
-export const subscriptionsClient = createTRPCProxyClient<SubscriptionsRouter>({
-  links: [
-    loggerLink({
-      enabled: (opts) =>
-        process.env.NODE_ENV === "development" ||
-        (opts.direction === "down" && opts.result instanceof Error),
-    }),
-    wsLink({
-      client: createWSClient({
-        url: toWsUrl(import.meta.env.VITE_API_BASE_URL + "/trpc/subscriptions"),
-        onOpen: () => console.debug("WebSocket open"),
-        onClose: () => console.debug("WebSocket close"),
+function createWsClient() {
+  return createTRPCProxyClient<SubscriptionsRouter>({
+    links: [
+      loggerLink({
+        enabled: (opts) =>
+          // process.env.NODE_ENV === "development" ||
+          opts.direction === "down" && opts.result instanceof Error,
       }),
-    }),
-  ],
-});
+      wsLink({
+        client: createWSClient({
+          url: toWsUrl(
+            import.meta.env.VITE_API_BASE_URL + "/trpc/subscriptions",
+          ),
+          onOpen: () => console.debug("WebSocket open"),
+          onClose: () => console.debug("WebSocket close"),
+        }),
+      }),
+    ],
+  });
+}
+
+export let subscriptionsClient = createWsClient();
+
+/**
+ * Call it when the user logs in or out.
+ */
+export function recreateSubscriptionsClient() {
+  console.log("Recreating subscriptions client");
+  subscriptionsClient = createWsClient();
+}
 
 /**
  * Catch and alert on TRPC errors.

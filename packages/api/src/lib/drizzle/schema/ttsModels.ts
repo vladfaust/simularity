@@ -1,13 +1,7 @@
 import { MultiLocaleTextSchema } from "@/lib/schema.js";
 import { v } from "@/lib/valibot.js";
-import {
-  boolean,
-  decimal,
-  index,
-  json,
-  pgTable,
-  varchar,
-} from "drizzle-orm/pg-core";
+import { boolean, index, json, pgTable, varchar } from "drizzle-orm/pg-core";
+import { subscriptionTier } from "./subscriptions";
 
 export const ttsModels = pgTable(
   "tts_models",
@@ -17,11 +11,7 @@ export const ttsModels = pgTable(
     name: varchar("name").notNull(),
     description:
       json("description").$type<v.InferOutput<typeof MultiLocaleTextSchema>>(),
-
-    /**
-     * Model price per 1000 characters, in credits.
-     */
-    creditPrice: decimal("credit_price", { precision: 10, scale: 2 }),
+    requiredSubscriptionTier: subscriptionTier("required_subscription_tier"),
   },
   (table) => ({
     enabledIndex: index("tts_models_enabled_index").on(table.enabled),

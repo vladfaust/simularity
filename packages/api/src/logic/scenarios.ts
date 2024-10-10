@@ -1,4 +1,3 @@
-import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
 import { redis } from "@/lib/redis.js";
@@ -77,33 +76,6 @@ export async function fetchScenarioManifest(
   }
 
   return parseResult.output;
-}
-
-/**
- * Get the index of the required Patreon tier for a scenario,
- * or null if no tier is required.
- */
-export function scenarioRequiredPatreonTierIndex(
-  scenario: Pick<
-    typeof d.scenarios.$inferSelect,
-    "id" | "requiredPatreonTierId"
-  >,
-): number | null {
-  if (scenario.requiredPatreonTierId) {
-    const requiredTierIndex = env.PATREON_TIERS.findIndex(
-      (t) => t.id === scenario.requiredPatreonTierId,
-    );
-
-    if (requiredTierIndex === -1) {
-      throw new Error(
-        `Scenario ${scenario.id} requires unknown Patreon tier ${scenario.requiredPatreonTierId}`,
-      );
-    }
-
-    return requiredTierIndex;
-  } else {
-    return null;
-  }
 }
 
 function redisScenarioManifestKey(scenarioId: string, s3VersionId: string) {

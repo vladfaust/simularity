@@ -144,6 +144,7 @@ const { t } = useI18n({
     button.btn.aspect-video.w-full.max-w-56.gap-2.overflow-hidden.rounded-lg.border.p-3.transition.pressable-sm(
       @click="tab === Tab.Scenario ? (tab = Tab.Library) : (tab = Tab.Scenario)"
       class="hover:bg-white"
+      :class="{ 'bg-white': tab === Tab.Library }"
       :title="tab === Tab.Scenario ? t('menuOverlay.changeScenario') : t('menuOverlay.backToScenario')"
     )
       .w-full(v-if="scenarioLogo")

@@ -1,5 +1,5 @@
 import { d } from "@/lib/drizzle.js";
-import { MultiLocaleTextSchema } from "@/lib/schema";
+import { MultiLocaleTextSchema, SubscriptionTierSchema } from "@/lib/schema";
 import { v } from "@/lib/valibot.js";
 import { t } from "@/server/trpc.js";
 import { wrap } from "@typeschema/valibot";
@@ -16,7 +16,7 @@ export default t.procedure
           id: v.string(),
           name: v.string(),
           description: v.nullable(MultiLocaleTextSchema),
-          creditPrice: v.nullable(v.string()),
+          requiredSubscriptionTier: v.nullable(SubscriptionTierSchema),
         }),
       ),
     ),
@@ -28,7 +28,7 @@ export default t.procedure
         id: true,
         name: true,
         description: true,
-        creditPrice: true,
+        requiredSubscriptionTier: true,
       },
     });
   });

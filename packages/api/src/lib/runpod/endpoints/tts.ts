@@ -6,7 +6,6 @@ import { MultiCurrencyCostSchema, TtsParamsSchema } from "@/lib/schema.js";
 import { omit, sleep } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import assert from "assert";
-import { eq, sql } from "drizzle-orm";
 import { toMilliseconds } from "duration-fns";
 import pRetry from "p-retry";
 import runpodSdk from "runpod-sdk";
@@ -35,9 +34,7 @@ const TtsStreamingEpilogueSchema = v.object({
 export class TtsEndpoint {
   static create(
     userId: string,
-    worker: typeof d.ttsWorkers.$inferSelect & {
-      model: Pick<typeof d.ttsModels.$inferSelect, "creditPrice">;
-    },
+    worker: typeof d.ttsWorkers.$inferSelect,
   ): TtsEndpoint | null {
     assert(worker.providerId === "runpod");
 
@@ -93,7 +90,7 @@ export class TtsEndpoint {
             },
             timeout,
           ),
-        { retries: 3 },
+        { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
       );
 
       konsole.debug(incompleteOutput);
@@ -103,7 +100,8 @@ export class TtsEndpoint {
       loop: while (status === "IN_QUEUE") {
         status = (
           await pRetry(() => this.endpoint.status(requestId, timeout), {
-            retries: 3,
+            retries: 5,
+            onFailedAttempt: (e) => konsole.warn(e),
           })
         ).status;
 
@@ -125,7 +123,7 @@ export class TtsEndpoint {
 
       for await (const rawOutput of await pRetry(
         () => this.endpoint.stream(requestId, timeout),
-        { retries: 3 },
+        { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
       )) {
         if ("inference_id" in rawOutput.output) {
           const prologue = v.safeParse(
@@ -181,7 +179,8 @@ export class TtsEndpoint {
         this.endpoint instanceof LocalRunpodEndpoint
           ? { delayTime: 0 }
           : await pRetry(() => this.endpoint.status(requestId, timeout), {
-              retries: 3,
+              retries: 5,
+              onFailedAttempt: (e) => konsole.warn(e),
             });
 
       console.debug("TTS final status", finalStatus);
@@ -201,25 +200,6 @@ export class TtsEndpoint {
         }
       }
 
-      const creditCost = this.worker.model.creditPrice
-        ? (parseFloat(this.worker.model.creditPrice) * input.text.length) / 1000
-        : undefined;
-
-      if (creditCost && creditCost > 0) {
-        konsole.log("Charging user for TTS", {
-          userId: this.userId,
-          characters: input.text.length,
-          creditCost,
-        });
-
-        await d.db
-          .update(d.users)
-          .set({
-            creditBalance: sql` ${d.users.creditBalance} - ${creditCost} `,
-          })
-          .where(eq(d.users.id, this.userId));
-      }
-
       return (
         await d.db
           .insert(d.ttsInferences)
@@ -230,7 +210,6 @@ export class TtsEndpoint {
             delayTimeMs: finalStatus.delayTime,
             executionTimeMs: executionTime,
             estimatedCost,
-            creditCost: creditCost?.toString(),
           })
           .returning()
       )[0];
@@ -253,9 +232,7 @@ export class TtsEndpoint {
 
   private constructor(
     readonly userId: string,
-    readonly worker: typeof d.ttsWorkers.$inferSelect & {
-      model: Pick<typeof d.ttsModels.$inferSelect, "creditPrice">;
-    },
+    readonly worker: typeof d.ttsWorkers.$inferSelect,
     private readonly endpoint: RunpodEndpoint | LocalRunpodEndpoint,
   ) {}
 }

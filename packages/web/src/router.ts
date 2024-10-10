@@ -1,25 +1,35 @@
+import { OAuthProviderIdSchema } from "@simularity/api/lib/schema";
 import {
   RouteLocationNamedRaw,
   RouteRecordRaw,
   createRouter,
   createWebHistory,
 } from "vue-router";
-import { OAuthProviderIdSchema } from "@simularity/api/lib/schema";
+import { v } from "./lib/valibot";
 import { userId } from "./store";
 
 import Account from "./views/Account.vue";
 import Home from "./views/Home.vue";
 import Login from "./views/Login.vue";
 import OAuthCallback from "./views/OAuthCallback.vue";
-import { v } from "./lib/valibot";
+import Pricing from "./views/Pricing.vue";
+import Scenario from "./views/Scenario.vue";
 
-export type RouteName = "Account" | "Home" | "Login" | "OAuthCallback";
+export type RouteName =
+  | "Account"
+  | "Home"
+  | "Scenario"
+  | "Login"
+  | "Pricing"
+  | "OAuthCallback";
 
 export function routeLocation(
   args:
     | { name: "Account" }
     | { name: "Home" }
+    | { name: "Scenario"; params: { scenarioId: string } }
     | { name: "Login" }
+    | { name: "Pricing" }
     | {
         name: "OAuthCallback";
         params: { providerId: v.InferInput<typeof OAuthProviderIdSchema> };
@@ -33,6 +43,17 @@ const routes: Array<RouteRecordRaw> = [
     path: "/",
     name: "Home" satisfies RouteName,
     component: Home,
+  },
+  {
+    path: "/pricing",
+    name: "Pricing" satisfies RouteName,
+    component: Pricing,
+  },
+  {
+    path: "/scenarios/:scenarioId",
+    name: "Scenario" satisfies RouteName,
+    component: Scenario,
+    props: true,
   },
   {
     path: "/account",

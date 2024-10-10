@@ -1,5 +1,6 @@
 import { useLocalStorage, useNow } from "@vueuse/core";
 import { computed } from "vue";
+import { filterLocale } from "./lib/logic/i18n";
 
 const userIdStorage = useLocalStorage<string | null>("userId", null, {
   listenToStorageChanges: true,
@@ -43,3 +44,15 @@ export const userId = computed<string | null>(() => {
     return null;
   }
 });
+
+export const appLocale = useLocalStorage<Intl.Locale>(
+  "app:locale",
+  filterLocale(new Intl.Locale(window.navigator.language)),
+  {
+    deep: false,
+    serializer: {
+      read: (value) => new Intl.Locale(value),
+      write: (value) => value.toString(),
+    },
+  },
+);

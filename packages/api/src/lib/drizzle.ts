@@ -13,6 +13,7 @@ export const d = {
     "oauthAccounts",
     "patreonPledges",
     "scenarios",
+    "subscriptions",
     "ttsInferences",
     "ttsModels",
     "ttsWorkers",

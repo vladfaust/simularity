@@ -13,7 +13,7 @@ import { observable } from "@trpc/server/observable";
 import { wrap } from "@typeschema/valibot";
 import assert from "assert";
 import { ChildProcess, spawn } from "child_process";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 
 type InferenceChunk = {
   type: "inferenceChunk";
@@ -54,28 +54,56 @@ export default protectedProcedure
         (async () => {
           const user = await d.db.query.users.findFirst({
             where: eq(d.users.id, ctx.userId),
-            columns: {
-              id: true,
-              creditBalance: true,
-            },
+            columns: { id: true },
           });
 
           if (!user) {
             throw new Error(`User not found in database: ${ctx.userId}`);
           }
 
-          if (parseFloat(user.creditBalance) <= 0) {
-            konsole.log("Not enough credit balance", {
-              userId: user.id,
-              creditBalance: user.creditBalance,
-            });
+          const model = await d.db.query.ttsModels.findFirst({
+            where: eq(d.ttsModels.id, input.modelId),
+            columns: {
+              id: true,
+              requiredSubscriptionTier: true,
+            },
+          });
+
+          if (!model) {
+            konsole.warn("Model not found", input.modelId);
 
             return observer.error(
               new TRPCError({
-                code: "FORBIDDEN",
-                message: "Not enough credit balance",
+                code: "BAD_REQUEST",
+                message: `Model not found: ${input.modelId}`,
               }),
             );
+          }
+
+          if (model.requiredSubscriptionTier) {
+            const subscription = d.db.query.subscriptions.findFirst({
+              where: and(
+                eq(d.subscriptions.userId, user.id),
+                eq(d.subscriptions.tier, model.requiredSubscriptionTier),
+                gte(d.subscriptions.activeUntil, sql`now()`),
+              ),
+            });
+
+            if (!subscription) {
+              konsole.warn("Subscription required", {
+                userId: user.id,
+                tier: model.requiredSubscriptionTier,
+              });
+
+              return observer.error(
+                new TRPCError({
+                  code: "FORBIDDEN",
+                  message: `Subscription required: ${
+                    model.requiredSubscriptionTier
+                  }`,
+                }),
+              );
+            }
           }
 
           const language = input.locale.split("-")[0];
@@ -96,13 +124,6 @@ export default protectedProcedure
               eq(d.ttsWorkers.enabled, true),
               eq(d.ttsWorkers.modelId, input.modelId),
             ),
-            with: {
-              model: {
-                columns: {
-                  creditPrice: true,
-                },
-              },
-            },
           });
 
           if (!worker) {
@@ -196,7 +217,6 @@ export default protectedProcedure
                 usage: {
                   delayTime: ttsCompletion.delayTimeMs,
                   executionTime: ttsCompletion.executionTimeMs,
-                  creditCost: ttsCompletion.creditCost,
                 },
               });
 

@@ -53,7 +53,6 @@ export type Text2TextCompletionEpilogue = {
     totalTokens: number;
     delayTime: number;
     executionTime: number;
-    creditCost: string | null;
   };
 };
 
@@ -63,11 +62,21 @@ export type Text2SpeechCompletionEpilogue = {
   usage: {
     delayTime: number | null;
     executionTime: number;
-    creditCost: string | null;
   };
 };
+
+export const SubscriptionTierSchema = v.union([
+  v.literal("basic"),
+  v.literal("premium"),
+]);
 
 export const PatreonTier = v.object({
   id: v.string(),
   name: v.string(),
+  subscriptionTier: SubscriptionTierSchema,
 });
+
+export const LlmModelTaskSchema = v.union([
+  v.literal("writer"),
+  v.literal("director"),
+]);

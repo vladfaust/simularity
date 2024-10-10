@@ -10,6 +10,7 @@ import { t } from "@/server/trpc.js";
 import { TRPCError } from "@trpc/server";
 import { wrap } from "@typeschema/valibot";
 import assert from "assert";
+import { addMonths } from "date-fns";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { ExpressContext } from "../../../context.js";
 import { setCookie } from "../_common.js";
@@ -299,33 +300,62 @@ async function onAccountLink(
         eq(d.patreonPledges.patronId, account.externalId),
         isNull(d.patreonPledges.userId),
       ),
-      columns: {
-        creditsAmount: true,
-      },
     });
 
     if (orphanPatreonPledges.length) {
-      const totalCredits = orphanPatreonPledges.reduce(
-        (acc, x) => acc + parseFloat(x.creditsAmount),
-        0,
+      konsole.log(
+        `Found ${orphanPatreonPledges.length} orphan Patreon pledge(s)`,
       );
 
-      konsole.log(
-        `Found ${orphanPatreonPledges.length} orphan Patreon pledge(s) with total credits of ${totalCredits}`,
-      );
+      for (const pledge of orphanPatreonPledges) {
+        if (pledge.createdAt < addMonths(new Date(), -1)) {
+          konsole.warn(`Orphan pledge is older than 1 month, skipping`, {
+            pledgeId: pledge.id,
+          });
+
+          continue;
+        }
+
+        const patreonTierId = pledge.tierId;
+        const patreonTier = env.PATREON_TIERS.find(
+          (t) => t.id === patreonTierId,
+        );
+
+        if (!patreonTier) {
+          konsole.warn(`Unknown Patreon tier in orphan pledge, skipping`, {
+            patreonTierId,
+            pledgeId: pledge.id,
+          });
+
+          continue;
+        }
+
+        const subscription = (
+          await tx
+            .insert(d.subscriptions)
+            .values({
+              userId: account.userId,
+              tier: patreonTier.subscriptionTier,
+              patreonPledgeId: pledge.id,
+              activeUntil: addMonths(pledge.createdAt, 1),
+              createdAt: sql`now()`,
+            })
+            .returning({
+              id: d.subscriptions.id,
+              tier: d.subscriptions.tier,
+              activeUntil: d.subscriptions.activeUntil,
+            })
+        )[0];
+
+        konsole.log(`Granted subscription to user`, {
+          userId: account.userId,
+          subscription,
+        });
+      }
 
       await tx.update(d.patreonPledges).set({
         userId: account.userId,
       });
-
-      await tx
-        .update(d.users)
-        .set({
-          creditBalance: sql` ${d.users.creditBalance} + ${totalCredits} `,
-        })
-        .where(eq(d.users.id, account.userId));
-
-      konsole.log(`Granted ${totalCredits} credits to user: ${account.userId}`);
     }
   }
 }

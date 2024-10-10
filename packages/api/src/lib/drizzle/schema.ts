@@ -5,6 +5,7 @@ export * from "./schema/llmWorkers.js";
 export * from "./schema/oauthAccounts.js";
 export * from "./schema/patreonPledges.js";
 export * from "./schema/scenarios.js";
+export * from "./schema/subscriptions.js";
 export * from "./schema/ttsInferences.js";
 export * from "./schema/ttsModels.js";
 export * from "./schema/ttsWorkers.js";

@@ -2,15 +2,11 @@ import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
 import { scenarioAssets } from "@/lib/schema/scenarios.js";
 import { v } from "@/lib/valibot.js";
-import { getActivePatreonTier } from "@/logic/patreon.js";
-import {
-  fetchScenarioManifest,
-  scenarioRequiredPatreonTierIndex,
-} from "@/logic/scenarios.js";
+import { fetchScenarioManifest } from "@/logic/scenarios.js";
 import { protectedProcedure } from "@/server/trpc/middleware/auth.js";
 import { TRPCError } from "@trpc/server";
 import { wrap } from "@typeschema/valibot";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 
 export default protectedProcedure
   .input(
@@ -40,7 +36,7 @@ export default protectedProcedure
         id: true,
         version: true,
         versionMap: true,
-        requiredPatreonTierId: true,
+        requiredSubscriptionTier: true,
       },
     });
 
@@ -51,24 +47,27 @@ export default protectedProcedure
       });
     }
 
-    const requiredTierIndex = scenarioRequiredPatreonTierIndex(scenario);
+    if (scenario.requiredSubscriptionTier !== null) {
+      const activeSubscription = await d.db.query.subscriptions.findFirst({
+        where: and(
+          eq(d.subscriptions.userId, ctx.userId),
+          eq(d.subscriptions.tier, scenario.requiredSubscriptionTier),
+          gte(d.subscriptions.activeUntil, sql`now()`),
+        ),
+      });
 
-    if (requiredTierIndex !== null) {
-      const activePatreonTier = await getActivePatreonTier(ctx.userId);
-
-      if (!activePatreonTier || activePatreonTier.index < requiredTierIndex) {
-        konsole.debug(
-          `User required premium scenario asset map, but is not on the required tier`,
-          {
-            scenarioId: scenario.id,
-            requiredTierIndex,
-            activePatreonTier,
-          },
-        );
+      if (!activeSubscription) {
+        konsole.debug(`Unauthorized access to scenario asset map`, {
+          userId: ctx.userId,
+          scenarioId: scenario.id,
+          requiredSubscriptionTier: scenario.requiredSubscriptionTier,
+        });
 
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Scenario requires premium tier",
+          message: `Scenario requires subscription: ${
+            scenario.requiredSubscriptionTier
+          }`,
         });
       }
     }

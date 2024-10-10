@@ -9,7 +9,6 @@ import {
 import { sleep } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import assert from "assert";
-import { eq, sql } from "drizzle-orm";
 import { toMilliseconds } from "duration-fns";
 import pRetry from "p-retry";
 import runpodSdk from "runpod-sdk";
@@ -55,9 +54,7 @@ const VllmEndpointOutputSchema = v.array(
 export class VllmEndpoint {
   static create(
     userId: string,
-    worker: typeof d.llmWorkers.$inferSelect & {
-      model: Pick<typeof d.llmModels.$inferSelect, "creditPrice">;
-    },
+    worker: typeof d.llmWorkers.$inferSelect,
   ): VllmEndpoint | null {
     assert(worker.providerId === "runpod");
 
@@ -108,7 +105,7 @@ export class VllmEndpoint {
             },
             timeout,
           ),
-        { retries: 3 },
+        { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
       );
 
       konsole.debug(incompleteOutput);
@@ -119,7 +116,8 @@ export class VllmEndpoint {
       loop: while (status === "IN_QUEUE") {
         const status = (
           await pRetry(() => this.endpoint.status(requestId, timeout), {
-            retries: 3,
+            retries: 5,
+            onFailedAttempt: (e) => konsole.warn(e),
           })
         ).status;
 
@@ -145,7 +143,7 @@ export class VllmEndpoint {
 
       for await (const rawOutput of await pRetry(
         () => this.endpoint.stream(requestId, timeout),
-        { retries: 3 },
+        { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
       )) {
         konsole.debug(JSON.stringify(rawOutput.output));
 
@@ -173,7 +171,7 @@ export class VllmEndpoint {
 
       const finalStatus = await pRetry(
         () => this.endpoint.status(requestId, timeout),
-        { retries: 3 },
+        { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
       );
 
       const executionTime = (finalStatus as any).executionTime;
@@ -191,29 +189,6 @@ export class VllmEndpoint {
         }
       }
 
-      const creditCost =
-        usage && this.worker.model.creditPrice
-          ? (
-              (parseFloat(this.worker.model.creditPrice) *
-                (usage.input + usage.output)) /
-              1024
-            ).toFixed(2)
-          : undefined;
-
-      if (creditCost) {
-        konsole.log("Charging user for text2text", {
-          userId: this.userId,
-          creditCost,
-        });
-
-        await d.db
-          .update(d.users)
-          .set({
-            creditBalance: sql`${d.users.creditBalance} - ${creditCost}`,
-          })
-          .where(eq(d.users.id, this.userId));
-      }
-
       return (
         await d.db
           .insert(d.llmCompletions)
@@ -229,7 +204,6 @@ export class VllmEndpoint {
             promptTokens: usage?.input,
             completionTokens: usage?.output,
             estimatedCost,
-            creditCost: creditCost?.toString(),
           })
           .returning()
       )[0];
@@ -254,9 +228,7 @@ export class VllmEndpoint {
 
   private constructor(
     readonly userId: string,
-    readonly worker: typeof d.llmWorkers.$inferSelect & {
-      model: Pick<typeof d.llmModels.$inferSelect, "creditPrice">;
-    },
+    readonly worker: typeof d.llmWorkers.$inferSelect,
     private readonly endpoint: RunpodEndpoint,
   ) {}
 }

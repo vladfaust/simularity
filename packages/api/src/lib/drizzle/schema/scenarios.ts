@@ -9,6 +9,7 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
+import { subscriptionTier } from "./subscriptions";
 
 /**
  * Map from scenario manifest version to S3 version ID.
@@ -49,10 +50,9 @@ export const scenarios = pgTable("scenarios", {
   nsfw: boolean("nsfw").notNull(),
 
   /**
-   * Required Patreon tier ID.
+   * Required subscription tier to access the scenario, if any.
    */
-  // TODO: Change to tier index?
-  requiredPatreonTierId: varchar("required_patreon_tier_id"),
+  requiredSubscriptionTier: subscriptionTier("required_subscription_tier"),
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

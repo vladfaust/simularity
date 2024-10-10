@@ -9,12 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@headlessui/vue": "^1.7.23",
+    "@lucide/lab": "^0.1.2",
     "@simularity/api": "../api",
     "@tanstack/vue-query": "^5.54.1",
     "@trpc/client": "^10.45.2",
     "@vueuse/core": "^10.11.1",
     "@vueuse/integrations": "^11.0.3",
     "jose": "^5.8.0",
+    "lucide-vue-next": "^0.451.0",
     "nprogress": "^0.2.0",
     "valibot": "^0.41.0",
     "vue": "^3.4.35",
@@ -26,7 +29,6 @@
     "@vitejs/plugin-vue": "^5.1.2",
     "@vue/language-plugin-pug": "^2.0.29",
     "autoprefixer": "^10.4.20",
-    "daisyui": "^4.12.10",
     "postcss": "^8.4.41",
     "prettier": "^3.3.3",
     "prettier-plugin-organize-imports": "^4.0.0",

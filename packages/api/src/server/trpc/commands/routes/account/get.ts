@@ -1,5 +1,6 @@
 import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
+import { SubscriptionTierSchema } from "@/lib/schema";
 import { v } from "@/lib/valibot.js";
 import { protectedProcedure } from "@/server/trpc/middleware/auth.js";
 import { wrap } from "@typeschema/valibot";
@@ -31,6 +32,13 @@ export default protectedProcedure
             }),
           ),
         }),
+
+        subscription: v.nullable(
+          v.object({
+            tier: SubscriptionTierSchema,
+            activeUntil: v.string(),
+          }),
+        ),
       }),
     ),
   )
@@ -42,6 +50,18 @@ export default protectedProcedure
     if (!user) {
       throw new Error(`User not found in database: ${ctx.userId}`);
     }
+
+    const subscriptions = await d.db.query.subscriptions.findMany({
+      where: and(
+        eq(d.subscriptions.userId, user.id),
+        gte(d.subscriptions.activeUntil, new Date()),
+      ),
+    });
+
+    const subscription =
+      subscriptions.find((s) => s.tier === "premium") ||
+      subscriptions.find((s) => s.tier === "basic") ||
+      null;
 
     const oauthAccounts = await d.db.query.oauthAccounts.findMany({
       where: eq(d.oauthAccounts.userId, ctx.userId),
@@ -91,5 +111,11 @@ export default protectedProcedure
       oAuthAccounts: {
         patreon: patreonAccount ? { tier: patreonTier } : null,
       },
+      subscription: subscription
+        ? {
+            tier: subscription.tier,
+            activeUntil: subscription.activeUntil.toString(),
+          }
+        : null,
     };
   });

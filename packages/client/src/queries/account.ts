@@ -16,16 +16,3 @@ export function useAccountQuery(queryOptions: QueryOptions = {}) {
 export function accountQueryKey() {
   return ["account"];
 }
-
-export function useAccountBalanceQuery(queryOptions: QueryOptions = {}) {
-  return useQuery({
-    queryKey: accountBalanceQueryKey(),
-    queryFn: () => api.trpc.commandsClient.account.balance.query(),
-    enabled: computed(() => !!storage.user.id.value),
-    ...queryOptions,
-  });
-}
-
-export function accountBalanceQueryKey() {
-  return ["account.balance"];
-}

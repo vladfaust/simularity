@@ -2,7 +2,6 @@
 import * as api from "@/lib/api";
 import { appLocale } from "@/lib/storage";
 import { translationWithFallback } from "@/logic/i18n";
-import { CircleDollarSignIcon } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 
 defineProps<{
@@ -55,12 +54,6 @@ const { t } = useI18n({
   .flex.flex-col.items-center.gap-1
     span.font-bold.leading-tight.tracking-wide {{ model.name }}
     p.text-center.text-sm.leading-tight(v-if="model.description") {{ translationWithFallback(model.description, appLocale) }}
-    .flex.gap-1.text-sm
-      CircleDollarSignIcon.self-center(:size="18" :stroke-width="2.5")
-      span.self-baseline
-        span.font-semibold {{ t("settings.voicer.remoteModel.price.label") }}:&nbsp;
-        span.font-mono.font-medium.text-secondary-500 {{ model.creditPrice }}¢
-        span &nbsp;/ {{ t("settings.voicer.remoteModel.price.chars", 1000) }}
 
   //- Buttons
   button.btn.btn-sm.w-full.rounded.transition-transform.pressable-sm(

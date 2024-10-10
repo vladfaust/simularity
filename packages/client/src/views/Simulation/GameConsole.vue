@@ -9,9 +9,7 @@ import {
 } from "@/lib/simulation/agents/writer";
 import { writerNEval } from "@/lib/storage/llm";
 import { translationWithFallback } from "@/logic/i18n";
-import { accountBalanceQueryKey } from "@/queries";
 import { TransitionRoot } from "@headlessui/vue";
-import { useQueryClient } from "@tanstack/vue-query";
 import { StorageSerializers, useLocalStorage } from "@vueuse/core";
 import {
   CameraIcon,
@@ -134,7 +132,6 @@ const inputPlaceholder = computed(
     `Speak as ${translationWithFallback(simulation.scenario.defaultCharacter.name, simulation.locale)}`,
 );
 
-const queryClient = useQueryClient();
 const userInputElement = ref<HTMLInputElement | null>(null);
 
 // Thanks: https://stackoverflow.com/a/53059914/3645337.
@@ -176,6 +173,8 @@ async function sendMessage() {
       userMessage,
     );
 
+    wouldRestoreUserInput = false;
+
     await simulation.predictUpdate(
       writerNEval.value,
       predictionOptions.value,
@@ -207,7 +206,6 @@ async function sendMessage() {
       throw e;
     }
   } finally {
-    queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
     inferenceAbortController.value = null;
     busy.value = false;
   }
@@ -277,7 +275,6 @@ async function advance() {
       throw e;
     }
   } finally {
-    queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
     inferenceAbortController.value = null;
     busy.value = false;
   }
@@ -378,7 +375,6 @@ async function regenerateUpdate(updateIndex: number) {
       throw e;
     }
   } finally {
-    queryClient.invalidateQueries({ queryKey: accountBalanceQueryKey() });
     inferenceAbortController.value = null;
     busy.value = false;
   }

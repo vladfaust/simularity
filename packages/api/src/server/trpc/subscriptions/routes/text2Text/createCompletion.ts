@@ -15,7 +15,7 @@ import { TRPCError } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import { wrap } from "@typeschema/valibot";
 import assert from "assert";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 
 type Inference = {
   type: "inference";
@@ -38,28 +38,56 @@ export default protectedProcedure
       (async () => {
         const user = await d.db.query.users.findFirst({
           where: eq(d.users.id, ctx.userId),
-          columns: {
-            id: true,
-            creditBalance: true,
-          },
+          columns: { id: true },
         });
 
         if (!user) {
           throw new Error(`User not found in database: ${ctx.userId}`);
         }
 
-        if (parseFloat(user.creditBalance) <= 0) {
-          konsole.log("Not enough credit balance", {
-            userId: user.id,
-            creditBalance: user.creditBalance,
-          });
+        const model = await d.db.query.llmModels.findFirst({
+          where: eq(d.llmModels.id, input.model),
+          columns: {
+            id: true,
+            requiredSubscriptionTier: true,
+          },
+        });
+
+        if (!model) {
+          konsole.warn("Model not found", input.model);
 
           return observer.error(
             new TRPCError({
-              code: "FORBIDDEN",
-              message: "Not enough credit balance",
+              code: "BAD_REQUEST",
+              message: `Model not found: ${input.model}`,
             }),
           );
+        }
+
+        if (model.requiredSubscriptionTier) {
+          const subscription = d.db.query.subscriptions.findFirst({
+            where: and(
+              eq(d.subscriptions.userId, user.id),
+              eq(d.subscriptions.tier, model.requiredSubscriptionTier),
+              gte(d.subscriptions.activeUntil, sql`now()`),
+            ),
+          });
+
+          if (!subscription) {
+            konsole.warn("Subscription required", {
+              userId: user.id,
+              tier: model.requiredSubscriptionTier,
+            });
+
+            return observer.error(
+              new TRPCError({
+                code: "FORBIDDEN",
+                message: `Subscription required: ${
+                  model.requiredSubscriptionTier
+                }`,
+              }),
+            );
+          }
         }
 
         const worker = await d.db.query.llmWorkers.findFirst({
@@ -68,13 +96,6 @@ export default protectedProcedure
             eq(d.llmWorkers.enabled, true),
             eq(d.llmWorkers.modelId, input.model),
           ),
-          with: {
-            model: {
-              columns: {
-                creditPrice: true,
-              },
-            },
-          },
         });
 
         if (!worker) {
@@ -219,7 +240,6 @@ export default protectedProcedure
                 promptTokens: llmCompletion.promptTokens,
                 totalTokens:
                   llmCompletion.promptTokens + llmCompletion.completionTokens,
-                creditCost: llmCompletion.creditCost,
               },
             });
 

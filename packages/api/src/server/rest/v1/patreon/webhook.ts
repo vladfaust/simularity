@@ -7,6 +7,7 @@ import { v } from "@/lib/valibot.js";
 import bodyParser from "body-parser";
 import cors from "cors";
 import crypto from "crypto";
+import { addMonths } from "date-fns";
 import { and, eq, sql } from "drizzle-orm";
 import { Request, Response, Router } from "express";
 
@@ -120,7 +121,7 @@ export default Router()
     // All good.
     //
 
-    konsole.log("Patreon webhook", event, body);
+    konsole.log("Patreon webhook", event, JSON.stringify(body));
 
     switch (event) {
       case "pledges:create": {
@@ -128,19 +129,41 @@ export default Router()
           case undefined:
             konsole.log('Special case: status is `undefined`, deemed "valid"');
           case "valid": {
+            if (
+              env.NODE_ENV !== "development" &&
+              body.data.attributes.created_at < addMonths(new Date(), -1)
+            ) {
+              konsole.warn("Pledge is older than 1 month, skipping", {
+                pledgeId: body.data.id,
+              });
+
+              break;
+            }
+
             if (body.data.attributes.currency !== "USD") {
               throw new Error(
                 `Unsupported currency: ${body.data.attributes.currency}`,
               );
             }
 
-            // 1 USD = 100 credits.
-            const creditsAmount = body.data.attributes.amount_cents * 1;
+            const patreonTierId = body.data.relationships.reward.data.id;
+            const patreonTier = env.PATREON_TIERS.find(
+              (t) => t.id === patreonTierId,
+            );
+            if (!patreonTier) {
+              throw new Error(
+                `Unknown Patreon tier in webhook: ${patreonTierId}`,
+              );
+            }
 
             await d.db.transaction(async (tx) => {
               let patreonPledge = await tx.query.patreonPledges.findFirst({
                 where: eq(d.patreonPledges.id, body.data.id),
-                columns: { id: true },
+                columns: {
+                  id: true,
+                  tierId: true,
+                  createdAt: true,
+                },
               });
 
               if (patreonPledge) {
@@ -148,13 +171,11 @@ export default Router()
                 return;
               }
 
+              const patronId = body.data.relationships.patron.data.id;
               const oauthAccount = await tx.query.oauthAccounts.findFirst({
                 where: and(
                   eq(d.oauthAccounts.providerId, "patreon"),
-                  eq(
-                    d.oauthAccounts.externalId,
-                    body.data.relationships.patron.data.id,
-                  ),
+                  eq(d.oauthAccounts.externalId, patronId),
                 ),
                 columns: {
                   userId: true,
@@ -162,11 +183,14 @@ export default Router()
               });
 
               if (oauthAccount) {
-                konsole.debug(
-                  `Found user for Patreon patron: ${oauthAccount.userId}`,
-                );
+                konsole.debug(`Found user for Patreon patron`, {
+                  patronId,
+                  userId: oauthAccount.userId,
+                });
               } else {
-                konsole.debug("Patreon patron not found in system");
+                konsole.debug("Patreon patron not found in system", {
+                  patronId,
+                });
               }
 
               patreonPledge = (
@@ -175,38 +199,48 @@ export default Router()
                   .values({
                     id: body.data.id,
                     campaignId: body.data.relationships.campaign.data.id,
-                    tierId: body.data.relationships.reward.data.id,
-                    patronId: body.data.relationships.patron.data.id,
+                    tierId: patreonTierId,
+                    patronId,
                     userId: oauthAccount?.userId,
                     amountCents: body.data.attributes.amount_cents,
                     currency: body.data.attributes.currency,
-                    creditsAmount: creditsAmount.toString(),
+
+                    // Date of the pledge, defined by Patreon.
                     createdAt: body.data.attributes.created_at,
                   })
                   .returning({
                     id: d.patreonPledges.id,
+                    tierId: d.patreonPledges.tierId,
+                    createdAt: d.patreonPledges.createdAt,
                   })
               )[0];
 
               konsole.log(`Created Patreon pledge`, patreonPledge);
 
               if (oauthAccount) {
-                konsole.log(
-                  `Granting ${creditsAmount} credits to user: ${oauthAccount.userId}`,
-                );
+                const activeUntil =
+                  env.NODE_ENV === "development"
+                    ? addMonths(new Date(), 1)
+                    : addMonths(patreonPledge.createdAt, 1);
 
-                await tx
-                  .update(d.users)
-                  .set({
-                    creditBalance: sql`
-                      ${d.users.creditBalance} + ${creditsAmount}
-                    `,
-                  })
-                  .where(eq(d.users.id, oauthAccount.userId));
+                konsole.log(`Granting subscription to user`, {
+                  userId: oauthAccount.userId,
+                  patreonPledge,
+                  tier: patreonTier.subscriptionTier,
+                  activeUntil,
+                });
+
+                await tx.insert(d.subscriptions).values({
+                  userId: oauthAccount.userId,
+                  tier: patreonTier.subscriptionTier,
+                  patreonPledgeId: patreonPledge.id,
+                  activeUntil,
+                  createdAt: sql`now()`,
+                });
               } else {
-                konsole.log(
-                  `Pledge not associated with any user yet: ${patreonPledge.id}`,
-                );
+                konsole.log(`Pledge not associated with any user yet`, {
+                  patreonPledge,
+                });
               }
             });
 

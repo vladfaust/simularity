@@ -1,5 +1,7 @@
 import { type MaybeRef } from "vue";
+
 export * from "./queries/account";
+export * from "./queries/scenarios";
 
 export type QueryOptions = {
   staleTime?: number;

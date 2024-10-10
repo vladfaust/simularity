@@ -1,7 +1,7 @@
 import * as api from "@/lib/api";
 import { d } from "@/lib/drizzle";
 import { type LatestSession } from "@/lib/storage/llm";
-import { Bug, Deferred, unreachable } from "@/lib/utils";
+import { Deferred, unreachable } from "@/lib/utils";
 import { type Text2TextCompletionEpilogue } from "@simularity/api/lib/schema";
 import { eq } from "drizzle-orm";
 import { ref, type Ref } from "vue";
@@ -76,12 +76,9 @@ export class RemoteLlmDriver implements BaseLlmDriver {
       }
     }
 
-    const models = await api.trpc.commandsClient.models.index.query();
-    const model = models.find(
-      (model) => model.type === "llm" && model.id === config.modelId,
-    );
+    const models = await api.trpc.commandsClient.models.indexLlmModels.query();
+    const model = models.find((model) => model.id === config.modelId);
     if (!model) throw new Error(`Model ${config.modelId} not found`);
-    if (model.type !== "llm") throw new Bug("Model is not LLM");
 
     return new RemoteLlmDriver(
       config,
@@ -259,9 +256,6 @@ export class RemoteLlmDriver implements BaseLlmDriver {
             delayTime: epilogue.usage.delayTime,
             executionTime: epilogue.usage.executionTime,
             realTime: Date.now() - startedAt,
-            creditCost: epilogue.usage.creditCost
-              ? Math.round(parseFloat(epilogue.usage.creditCost) * 100)
-              : undefined,
           })
           .returning()
       )[0];

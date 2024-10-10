@@ -3,3 +3,98 @@
 @tailwind utilities;
 
 @import url("https://fonts.googleapis.com/css2?family=Golos+Text:wght@400..900&display=swap");
+
+@layer base {
+  // Disable overscroll, thanks to
+  // https://github.com/tauri-apps/tauri/issues/4309.
+  body {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+}
+
+@layer components {
+  .btn {
+    @apply flex items-center justify-center;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+    @apply select-none whitespace-nowrap;
+
+    > * {
+      @apply pointer-events-none;
+    }
+  }
+
+  .btn-shadow {
+    @apply text-shadow;
+
+    & > * {
+      @apply drop-shadow;
+    }
+  }
+
+  .btn-pressable {
+    @apply transition-transform pressable;
+  }
+
+  .btn-pressable-sm {
+    @apply transition-transform pressable-sm;
+  }
+
+  .btn-md {
+    @apply gap-1 px-3 py-1 font-semibold;
+  }
+
+  .btn-lg {
+    @apply gap-1 px-3 py-2 font-semibold;
+  }
+
+  .btn-neutral {
+    @apply bg-neutral-100 text-neutral-800;
+    @apply border-b-[2px] border-b-neutral-200;
+  }
+
+  .btn-primary {
+    @apply btn-shadow bg-primary-500 text-primary-base;
+    @apply border-b-[2px] border-b-primary-600;
+  }
+
+  .btn-secondary {
+    @apply btn-shadow bg-secondary-500 text-secondary-base;
+    @apply border-b-[2px] border-b-secondary-600;
+  }
+
+  .btn-success {
+    @apply btn-shadow bg-success-500 text-success-base;
+    @apply border-b-[2px] border-b-success-600;
+  }
+
+  .btn-warn {
+    @apply btn-shadow bg-warn-500 text-warn-base;
+  }
+
+  .btn-error {
+    @apply btn-shadow bg-error-500 text-error-base;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-success,
+  .btn-warn,
+  .btn-error {
+    &:not(:disabled):hover {
+      @apply brightness-105 transition;
+    }
+  }
+
+  .link {
+    @apply text-primary-500 underline;
+  }
+}

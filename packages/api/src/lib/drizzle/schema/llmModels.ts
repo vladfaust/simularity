@@ -1,8 +1,7 @@
-import { MultiLocaleTextSchema } from "@/lib/schema.js";
+import { LlmModelTaskSchema, MultiLocaleTextSchema } from "@/lib/schema.js";
 import { v } from "@/lib/valibot.js";
 import {
   boolean,
-  decimal,
   index,
   integer,
   json,
@@ -10,10 +9,11 @@ import {
   pgTable,
   varchar,
 } from "drizzle-orm/pg-core";
+import { subscriptionTier } from "./subscriptions";
 
 export const llmModelTaskEnum = pgEnum("llm_model_task", [
-  "writer",
-  "director",
+  LlmModelTaskSchema.options[0].literal,
+  LlmModelTaskSchema.options[1].literal,
 ]);
 
 export const llmModels = pgTable(
@@ -26,11 +26,7 @@ export const llmModels = pgTable(
     description:
       json("description").$type<v.InferOutput<typeof MultiLocaleTextSchema>>(),
     contextSize: integer("context_size").notNull(),
-
-    /**
-     * Model price per 1024 tokens, in credits.
-     */
-    creditPrice: decimal("credit_price", { precision: 10, scale: 2 }),
+    requiredSubscriptionTier: subscriptionTier("required_subscription_tier"),
   },
   (table) => ({
     enabledIndex: index("llm_models_enabled_index").on(table.enabled),

@@ -68,13 +68,14 @@ function bgColor() {
 </script>
 
 <template lang="pug">
-button.dz-btn.dz-btn-md(
+button.btn.btn-lg.btn-pressable.rounded-lg(
+  class="border-b-[2px] border-b-black/30"
   :style="{ backgroundColor: bgColor(), color: textColor() }"
   :isLoading="isLoading"
   :disabled="isLoading"
   :title="t('Login with') + ' ' + TITLE_MAP[providerId]"
   @click="login"
 )
-  span.font-medium {{ t("Login with") }}
+  span {{ t("Login with") }}
   img.h-6(:src="LOGO_MAP[providerId]" :alt="TITLE_MAP[providerId] + ' logo'")
 </template>

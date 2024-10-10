@@ -1,6 +1,5 @@
-import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
-import { MultiLocaleTextSchema, PatreonTier } from "@/lib/schema.js";
+import { MultiLocaleTextSchema, SubscriptionTierSchema } from "@/lib/schema.js";
 import {
   AssetSchema,
   IdSchema,
@@ -17,12 +16,7 @@ const OutputSchema = v.nullable(
     version: v.number(),
     locales: v.array(v.string()),
     name: MultiLocaleTextSchema,
-    requiredPatreonTier: v.nullable(
-      v.object({
-        ...PatreonTier.entries,
-        index: v.number(),
-      }),
-    ),
+    requiredSubscriptionTier: v.nullable(SubscriptionTierSchema),
     nsfw: v.boolean(),
     immersive: v.boolean(),
     tags: v.optional(v.array(v.string())),
@@ -84,7 +78,7 @@ export default t.procedure
         id: true,
         version: true,
         versionMap: true,
-        requiredPatreonTierId: true,
+        requiredSubscriptionTier: true,
       },
     });
 
@@ -96,23 +90,6 @@ export default t.procedure
       scenario,
       input.scenarioVersion,
     );
-
-    let requiredPatreonTier = null;
-    if (scenario.requiredPatreonTierId) {
-      const index = env.PATREON_TIERS.findIndex(
-        (t) => t.id === scenario.requiredPatreonTierId,
-      );
-      if (index === -1) {
-        throw new Error(
-          `Scenario ${scenario.id} requires unknown Patreon tier ${scenario.requiredPatreonTierId}`,
-        );
-      }
-
-      requiredPatreonTier = {
-        ...env.PATREON_TIERS[index],
-        index,
-      };
-    }
 
     // To remove duplicates, we'll use a map.
     const assetMap = new Map<string, v.InferOutput<typeof AssetSchema>>();
@@ -129,7 +106,7 @@ export default t.procedure
       ...manifest,
       nsfw: manifest.nsfw ?? false,
       immersive: "immersive" in manifest ? manifest.immersive : false,
-      requiredPatreonTier,
+      requiredSubscriptionTier: scenario.requiredSubscriptionTier,
       characters: Object.fromEntries(
         Object.entries(manifest.characters).map(([id, character]) => [
           id,

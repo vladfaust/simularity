@@ -1,5 +1,4 @@
 import {
-  decimal,
   pgTable,
   smallint,
   timestamp,
@@ -44,14 +43,6 @@ export const patreonPledges = pgTable("patreon_pledges", {
    * Currency of the pledge.
    */
   currency: varchar("currency", { length: 3 }).notNull(),
-
-  /**
-   * Amount of credits (to be) granted.
-   */
-  creditsAmount: decimal("credits_amount", {
-    precision: 10,
-    scale: 2,
-  }).notNull(),
 
   /**
    * Date of the pledge, defined by Patreon.

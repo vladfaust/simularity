@@ -5,6 +5,9 @@
 
 FROM node:20-buster-slim AS api
 
+# Install ffmpeg.
+RUN apt-get update && apt-get install -y ffmpeg
+
 COPY \
   ./package.json \
   ./package-lock.json \

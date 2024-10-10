@@ -5,6 +5,7 @@ import * as v from "valibot";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
+import Alert from "../Alert.vue";
 
 const route = useRoute();
 
@@ -86,13 +87,13 @@ const { t } = useI18n({
 
 <template lang="pug">
 .flex.flex-col
-  .dz-alert.dz-alert-error(v-if="error") {{ error }}
-  .dz-alert.dz-alert-info(v-else-if="codeSent")
-    i18n-t(keypath="login.email.codeSent" tag="p")
+  Alert.gap-2.p-3(v-if="error" kind="error") {{ error }}
+  Alert.gap-2.p-3(v-else-if="codeSent" kind="info")
+    i18n-t.leading-snug(keypath="login.email.codeSent" tag="p")
       template(#email)
         span.font-medium {{ email }}
 
-  input.dz-input.dz-input-md.dz-input-bordered(
+  input.rounded-lg.border.p-2.shadow-inner(
     v-if="!codeSent"
     type="email"
     :placeholder="t('login.email.placeholder')"
@@ -101,14 +102,14 @@ const { t } = useI18n({
     :disabled="codeSent"
   )
 
-  button.dz-btn.dz-btn-primary.dz-btn-md(
+  button.btn.btn-primary.btn-lg.btn-pressable.rounded-lg(
     v-if="!codeSent"
     @click="sendCode"
     :disabled="!email"
   ) {{ t("login.email.sendCode") }}
 
   template(v-if="codeSent")
-    input.dz-input.dz-input-md.dz-input-bordered(
+    input.rounded-lg.border.p-2.shadow-inner(
       type="text"
       :placeholder="t('login.email.codePlaceholder')"
       v-model="code"
@@ -117,13 +118,13 @@ const { t } = useI18n({
       @keydown.enter="login(code)"
     )
 
-    button.dz-btn.dz-btn-primary.dz-btn-md(
+    button.btn.btn-primary.btn-lg.rounded-lg(
       @click="login(code)"
       :disabled="!codeValid"
     ) {{ t("login.email.logIn") }}
 
-    button.dz-btn-base.dz-btn.dz-btn-sm(
-      @click="email = ''; code = ''; codeSent = false; emit('cancel')"
+    button.btn.btn-md.btn-neutral.rounded-lg(
+      @click="email = ''; code = ''; error = ''; codeSent = false; emit('cancel')"
     )
       span.text-sm {{ t("login.email.cancel") }}
 </template>

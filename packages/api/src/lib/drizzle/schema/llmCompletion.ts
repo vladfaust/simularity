@@ -4,7 +4,6 @@ import {
 } from "@/lib/schema.js";
 import { v } from "@/lib/valibot.js";
 import {
-  decimal,
   index,
   integer,
   json,
@@ -50,11 +49,6 @@ export const llmCompletions = pgTable(
       json("estimated_cost").$type<
         v.InferOutput<typeof MultiCurrencyCostSchema>
       >(),
-
-    /**
-     * How much the user was charged for this completion, in credits.
-     */
-    creditCost: decimal("credit_cost", { precision: 10, scale: 2 }),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

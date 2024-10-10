@@ -4,15 +4,10 @@ import { pipe } from "@/lib/s3+express.js";
 import { keyExists } from "@/lib/s3.js";
 import { AssetSchema, scenarioAssets } from "@/lib/schema/scenarios.js";
 import { v } from "@/lib/valibot";
-import { getActivePatreonTier } from "@/logic/patreon.js";
-import {
-  fetchScenarioManifest,
-  scenarioAssetKey,
-  scenarioRequiredPatreonTierIndex,
-} from "@/logic/scenarios.js";
+import { fetchScenarioManifest, scenarioAssetKey } from "@/logic/scenarios.js";
 import { getAuthenticatedUserId } from "@/server/rest/v1/_common.js";
 import cors from "cors";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { toSeconds } from "duration-fns";
 import { Router } from "express";
 
@@ -45,7 +40,7 @@ export default Router()
         id: true,
         version: true,
         versionMap: true,
-        requiredPatreonTierId: true,
+        requiredSubscriptionTier: true,
       },
     });
 
@@ -79,23 +74,25 @@ export default Router()
       }
     }
 
-    const requiredTierIndex = scenarioRequiredPatreonTierIndex(scenario);
-    if (!assetEntry.public && requiredTierIndex !== null) {
+    if (!assetEntry.public && scenario.requiredSubscriptionTier !== null) {
       if (!userId) return res.status(401);
 
-      const activePatreonTier = await getActivePatreonTier(userId);
+      const activeSubscription = await d.db.query.subscriptions.findFirst({
+        where: and(
+          eq(d.subscriptions.userId, userId),
+          eq(d.subscriptions.tier, scenario.requiredSubscriptionTier),
+          gte(d.subscriptions.activeUntil, sql`now()`),
+        ),
+      });
 
-      if (!activePatreonTier || activePatreonTier.index < requiredTierIndex) {
-        konsole.debug(
-          `User required premium scenario private asset, but is not on the required tier`,
-          {
-            scenarioId,
-            version,
-            assetPath,
-            requiredTierIndex,
-            activePatreonTier,
-          },
-        );
+      if (!activeSubscription) {
+        konsole.debug(`Unauthorized access to scenario asset`, {
+          userId,
+          scenarioId,
+          version,
+          assetPath,
+          requiredSubscriptionTier: scenario.requiredSubscriptionTier,
+        });
 
         return res.status(404).json({ error: `Asset not found` });
       }

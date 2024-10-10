@@ -104,6 +104,7 @@
 
   .btn-primary {
     @apply btn-shadow  bg-primary-500 text-primary-base;
+    @apply border-b-[2px] border-b-primary-600;
   }
 
   .btn-secondary {
