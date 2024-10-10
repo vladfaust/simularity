@@ -71,7 +71,7 @@ const subscriptionModalOpen = ref(false);
   .flex.flex-col.items-center
     HeaderVue.w-full.border-b
 
-  .flex.h-full.flex-col.items-center.overflow-y-scroll.bg-neutral-100.p-3.shadow-inner
+  .flex.h-full.flex-col.items-center.overflow-y-scroll.bg-neutral-100.p-3
     .flex.w-full.max-w-4xl.flex-col
       .grid.gap-3(class="lg:grid-cols-3")
         //- Free plan.

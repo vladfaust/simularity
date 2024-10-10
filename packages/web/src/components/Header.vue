@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { routeLocation } from "@/router";
 import { userId } from "@/store";
-import {
-  CircleDollarSignIcon,
-  LogInIcon,
-  UserCircle2Icon,
-} from "lucide-vue-next";
+import { CircleDollarSignIcon, LogInIcon } from "lucide-vue-next";
+import UserPfp from "./UserPfp.vue";
 </script>
 
 <template lang="pug">
@@ -25,9 +22,13 @@ import {
         span Pricing
 
       template(v-if="userId")
-        RouterLink._router-link(:to="routeLocation({ name: 'Account' })")
-          UserCircle2Icon(:size="20")
-          | Account
+        RouterLink._router-link(
+          :to="routeLocation({ name: 'User', params: { userId } })"
+        )
+          UserPfp.aspect-square.h-6.rounded-full.object-cover.shadow-lg(
+            :user-id
+          )
+          | Profile
 
       template(v-else)
         RouterLink._router-link(:to="routeLocation({ name: 'Login' })")
@@ -37,7 +38,7 @@ import {
 
 <style lang="postcss" scoped>
 ._router-link {
-  @apply flex h-full items-center gap-1 border-y-4 border-t-transparent px-3 font-semibold transition-transform pressable;
+  @apply flex h-full items-center gap-2 border-y-4 border-t-transparent px-3 font-semibold transition-transform pressable;
   @apply hover:text-primary-500;
 
   &.router-link-active {

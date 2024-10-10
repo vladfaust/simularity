@@ -8,28 +8,28 @@ import {
 import { v } from "./lib/valibot";
 import { userId } from "./store";
 
-import Account from "./views/Account.vue";
 import Home from "./views/Home.vue";
 import Login from "./views/Login.vue";
 import OAuthCallback from "./views/OAuthCallback.vue";
 import Pricing from "./views/Pricing.vue";
 import Scenario from "./views/Scenario.vue";
+import User from "./views/User.vue";
 
 export type RouteName =
-  | "Account"
   | "Home"
   | "Scenario"
   | "Login"
   | "Pricing"
-  | "OAuthCallback";
+  | "OAuthCallback"
+  | "User";
 
 export function routeLocation(
   args:
-    | { name: "Account" }
     | { name: "Home" }
     | { name: "Scenario"; params: { scenarioId: string } }
     | { name: "Login" }
     | { name: "Pricing" }
+    | { name: "User"; params: { userId: string } }
     | {
         name: "OAuthCallback";
         params: { providerId: v.InferInput<typeof OAuthProviderIdSchema> };
@@ -56,12 +56,10 @@ const routes: Array<RouteRecordRaw> = [
     props: true,
   },
   {
-    path: "/account",
-    name: "Account" satisfies RouteName,
-    component: Account,
-    meta: {
-      requiresAuth: true,
-    },
+    path: "/users/:userId",
+    name: "User" satisfies RouteName,
+    component: User,
+    props: true,
   },
   {
     path: "/login",

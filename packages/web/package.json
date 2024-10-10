@@ -16,13 +16,16 @@
     "@trpc/client": "^10.45.2",
     "@vueuse/core": "^10.11.1",
     "@vueuse/integrations": "^11.0.3",
+    "jdenticon": "^3.3.0",
     "jose": "^5.8.0",
     "lucide-vue-next": "^0.451.0",
     "nprogress": "^0.2.0",
     "valibot": "^0.41.0",
     "vue": "^3.4.35",
     "vue-i18n": "^9.14.0",
-    "vue-router": "^4.4.3"
+    "vue-router": "^4.4.3",
+    "vue-wrap-balancer": "^1.2.1",
+    "vue3-toastify": "^0.2.3"
   },
   "devDependencies": {
     "@prettier/plugin-pug": "^3.0.0",

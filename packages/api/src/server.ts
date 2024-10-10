@@ -22,7 +22,14 @@ app.get("/", async (req, res) => {
   res.sendStatus(200);
 });
 
-app.use("/rest", rest.router);
+app.use(
+  "/rest",
+  cors({
+    credentials: true,
+    origin: env.HTTP_CORS_ORIGINS,
+  }),
+  rest.router,
+);
 
 app.use(
   "/trpc/commands",

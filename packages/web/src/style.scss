@@ -78,10 +78,12 @@
 
   .btn-warn {
     @apply btn-shadow bg-warn-500 text-warn-base;
+    @apply border-b-[2px] border-b-warn-600;
   }
 
   .btn-error {
     @apply btn-shadow bg-error-500 text-error-base;
+    @apply border-b-[2px] border-b-error-600;
   }
 
   .btn-primary,
