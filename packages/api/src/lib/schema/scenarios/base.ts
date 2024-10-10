@@ -1,4 +1,4 @@
-import { v } from "@/lib/valibot.js";
+import * as v from "valibot";
 import { LocaleSchema, MultiLocaleTextSchema } from "../common.js";
 
 const TtsParamsSchema = v.object({
