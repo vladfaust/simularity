@@ -19,6 +19,7 @@ const OutputSchema = v.nullable(
     requiredSubscriptionTier: v.nullable(SubscriptionTierSchema),
     nsfw: v.boolean(),
     immersive: v.boolean(),
+    contextWindowSize: v.number(),
     tags: v.optional(v.array(v.string())),
     icon: v.optional(AssetSchema),
     logo: v.optional(AssetSchema),

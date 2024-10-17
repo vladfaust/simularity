@@ -11,8 +11,10 @@ import {
   type Scenario,
 } from "@/lib/scenario";
 import { appLocale } from "@/lib/storage";
+import type { v } from "@/lib/valibot";
 import { translationWithFallback } from "@/logic/i18n";
 import { TransitionRoot } from "@headlessui/vue";
+import type { SubscriptionTierSchema } from "@simularity/api/lib/schema";
 import { asyncComputed, useElementHover } from "@vueuse/core";
 import {
   CheckIcon,
@@ -22,6 +24,8 @@ import {
 } from "lucide-vue-next";
 import prettyBytes from "pretty-bytes";
 import { onMounted, ref, shallowRef } from "vue";
+import { useI18n } from "vue-i18n";
+import SubscriptionIcon from "./Icons/SubscriptionIcon.vue";
 
 const card = ref<HTMLElement | null>(null);
 const isHovered = useElementHover(card);
@@ -31,6 +35,9 @@ const props = defineProps<{
   narrowPadding?: boolean;
   alwaysHideDetails?: boolean;
   scenario: Scenario;
+  requiredSubscriptionTier?: v.InferOutput<
+    typeof SubscriptionTierSchema
+  > | null;
 }>();
 
 const thumbnailUrl = asyncComputed(() => {
@@ -52,6 +59,33 @@ onMounted(async () => {
       break;
     }
   }
+});
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      scenarioCard: {
+        inLibrary: "In library",
+        nsfw: "This scenario is NSFW",
+        immersive: "This scenario supports visual novel mode",
+        requiredSubscriptionTier: {
+          basic: "Basic subscription required",
+          premium: "Premium subscription required",
+        },
+      },
+    },
+    "ru-RU": {
+      scenarioCard: {
+        inLibrary: "В библиотеке",
+        nsfw: "Этот сценарий NSFW",
+        immersive: "Этот сценарий поддерживает режим визуальной новеллы",
+        requiredSubscriptionTier: {
+          basic: "Требуется базовая подписка",
+          premium: "Требуется премиум-подписка",
+        },
+      },
+    },
+  },
 });
 </script>
 
@@ -88,16 +122,28 @@ onMounted(async () => {
         RichTitle(:title="translationWithFallback(scenario.name, appLocale)")
           template(#extra)
             .flex.gap-1
+              //- Subscription icon.
+              SubscriptionIcon.cursor-help(
+                v-if="requiredSubscriptionTier"
+                :tier="requiredSubscriptionTier"
+                :size="18"
+                v-tooltip="t(`scenarioCard.requiredSubscriptionTier.${requiredSubscriptionTier}`)"
+              )
+
+              //- NSFW icon.
               NsfwIcon.cursor-help.text-pink-500(
                 v-if="scenario.nsfw"
                 :size="18"
-                v-tooltip="'This scenario is NSFW'"
+                v-tooltip="t('scenarioCard.nsfw')"
               )
+
+              //- Immersive mode icon.
               MonitorIcon.cursor-help(
                 v-if="scenario instanceof LocalImmersiveScenario && true"
                 :size="18"
-                v-tooltip="'This scenario supports visual novel mode'"
+                v-tooltip="t('scenarioCard.immersive')"
               )
+
         p.text-sm.leading-snug {{ scenario.teaser }}
 
       //- Bottom.
@@ -122,15 +168,26 @@ onMounted(async () => {
       RichTitle(:title="translationWithFallback(scenario.name, appLocale)")
         template(#extra)
           .flex.gap-1
+            //- Subscription icon.
+            SubscriptionIcon.cursor-help(
+              v-if="requiredSubscriptionTier"
+              :tier="requiredSubscriptionTier"
+              :size="18"
+              v-tooltip="t(`scenarioCard.requiredSubscriptionTier.${requiredSubscriptionTier}`)"
+            )
+
+            //- NSFW icon.
             NsfwIcon.cursor-help.text-pink-500(
               v-if="scenario.nsfw"
               :size="18"
-              v-tooltip="'This scenario is NSFW'"
+              v-tooltip="t('scenarioCard.nsfw')"
             )
+
+            //- Immersive mode icon.
             ImmersiveModeIcon.cursor-help(
               v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && scenario.immersive"
               :size="18"
-              v-tooltip="'This scenario supports immersive mode'"
+              v-tooltip="t('scenarioCard.immersive')"
             )
       p.text-sm.leading-snug {{ translationWithFallback(scenario.teaser, appLocale) }}
 
@@ -155,5 +212,5 @@ onMounted(async () => {
 
         .flex.items-center.gap-1(v-else)
           CheckIcon.text-success-500(:size="16")
-          span.text-xs.font-medium In library
+          span.text-xs.font-medium {{ t("scenarioCard.inLibrary") }}
 </template>

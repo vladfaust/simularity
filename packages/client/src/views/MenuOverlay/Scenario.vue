@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import EpisodeCard from "@/components/EpisodeCard.vue";
 import ImmersiveModeIcon from "@/components/Icons/ImmersiveModeIcon.vue";
+import SubscriptionIcon from "@/components/Icons/SubscriptionIcon.vue";
 import NsfwIcon from "@/components/NsfwIcon.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import ScenarioCard from "@/components/ScenarioCard.vue";
@@ -20,6 +21,7 @@ import {
   localScenarioQueryKey,
   localScenariosQueryKey,
   untilFetched,
+  useAccountQuery,
   useLocalScenarioQuery,
   useRemoteScenarioQuery,
 } from "@/queries";
@@ -27,11 +29,13 @@ import * as schema from "@simularity/api/lib/schema";
 import { useQueryClient } from "@tanstack/vue-query";
 import * as tauriPath from "@tauri-apps/api/path";
 import * as tauriFs from "@tauri-apps/plugin-fs";
+import * as tauriShell from "@tauri-apps/plugin-shell";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import {
   BookIcon,
   DownloadIcon,
   DramaIcon,
+  ExternalLinkIcon,
   FolderIcon,
   Loader2Icon,
   PauseIcon,
@@ -63,6 +67,26 @@ const { query: remoteScenarioQuery, data: remoteScenario } =
   useRemoteScenarioQuery(props.scenarioId);
 
 const scenario = computed(() => localScenario.value ?? remoteScenario.value);
+const accountQuery = useAccountQuery();
+
+const requiredSubscriptionTier = computed(() => {
+  return remoteScenario.value?.requiredSubscriptionTier;
+});
+
+const subscriptionEnough = computed(() => {
+  switch (requiredSubscriptionTier.value) {
+    case "basic":
+      return (
+        accountQuery.data.value?.subscription?.tier === "basic" ||
+        accountQuery.data.value?.subscription?.tier === "premium"
+      );
+    case "premium":
+      return accountQuery.data.value?.subscription?.tier === "premium";
+    default:
+      return true;
+  }
+});
+
 const saves = shallowRef<Pick<typeof d.simulations.$inferSelect, "id">[]>([]);
 
 const download = shallowRef<Download | null>();
@@ -198,6 +222,12 @@ async function beginDownload(scenarioVersion?: number) {
   });
 }
 
+async function onSubscribeButtonClick() {
+  const url = env.VITE_WEB_BASE_URL + "/pricing";
+  console.log("Opening subscription page", url);
+  await tauriShell.open(url);
+}
+
 onMounted(async () => {
   trackPageview(`/scenario/${props.scenarioId}`);
 
@@ -253,8 +283,12 @@ const { t } = useI18n({
   messages: {
     "en-US": {
       scenario: {
+        requiredSubscriptionTier: {
+          basic: "Basic subscription required",
+          premium: "Premium subscription required",
+        },
         nsfw: "This scenario is NSFW",
-        immersive: "This scenario supports immersive mode",
+        immersive: "This scenario supports visual novel mode",
         showInFileManager: "Show in file manager",
         playNow: "Play now",
         update: "Update",
@@ -263,12 +297,17 @@ const { t } = useI18n({
         episodes: "Episodes",
         achievements: "Achievements",
         characters: "Characters",
+        subscribe: "Subscribe to download",
       },
     },
     "ru-RU": {
       scenario: {
+        requiredSubscriptionTier: {
+          basic: "Требуется базовая подписка",
+          premium: "Требуется премиум-подписка",
+        },
         nsfw: "Этот сценарий NSFW",
-        immersive: "Этот сценарий поддерживает режим погружения",
+        immersive: "Этот сценарий поддерживает режим визуальной новеллы",
         showInFileManager: "Показать в файловом менеджере",
         playNow: "Играть",
         update: "Обновить",
@@ -277,6 +316,7 @@ const { t } = useI18n({
         episodes: "Эпизоды",
         achievements: "Достижения",
         characters: "Персонажи",
+        subscribe: "Подпишитесь, чтобы скачать",
       },
     },
   },
@@ -292,6 +332,12 @@ const { t } = useI18n({
       BookIcon(:size="20")
     template(#extra)
       .flex.items-center.gap-1
+        .cursor-help.rounded-lg.border.border-dashed.p-1(
+          v-if="requiredSubscriptionTier"
+          v-tooltip="t(`scenario.requiredSubscriptionTier.${requiredSubscriptionTier}`)"
+        )
+          SubscriptionIcon(:size="18" :tier="requiredSubscriptionTier")
+
         .cursor-help.rounded-lg.border.border-dashed.p-1.text-pink-500(
           v-if="scenario?.nsfw"
           v-tooltip="t('scenario.nsfw')"
@@ -299,10 +345,10 @@ const { t } = useI18n({
           NsfwIcon.text-pink-500(:size="18")
 
         .cursor-help.rounded-lg.border.border-dashed.p-1(
-          v-if="scenario?.immersive"
+          v-if="scenario?.immersive && env.VITE_EXPERIMENTAL_IMMERSIVE_MODE"
           v-tooltip="t('scenario.immersive')"
         )
-          ImmersiveModeIcon(:size="18")
+          ImmersiveModeIcon.text-indigo-500(:size="18")
 
         button.btn-pressable.btn.btn-sm-square.rounded-lg.border(
           v-if="localScenario && !localScenario?.builtin"
@@ -387,6 +433,8 @@ const { t } = useI18n({
         ScenarioDetails.gap-2.rounded-lg.bg-white.p-3.shadow-lg(
           :scenario
           :show-attributes="true"
+          :required-subscription-tier
+          :disk-size="remoteScenario?.downloadSize"
         )
 
         //- TODO: Pause on click (shall implement download concurrency limit).
@@ -403,23 +451,32 @@ const { t } = useI18n({
             PauseIcon(v-else :size="18")
 
         template(v-else-if="localScenario")
-          button.btn-pressable.btn.btn-primary.btn-md.rounded-lg(
+          button.btn-pressable.btn.btn-primary.btn-md.rounded-lg.shadow-lg(
             @click="$emit('newGame')"
           )
             | {{ t("scenario.playNow") }}
 
-          button.btn-pressable.btn.btn-sm.rounded-lg.bg-white(
-            v-if="remoteScenario && localScenario.version < remoteScenario.version"
+          button.btn-pressable.btn.btn-sm.rounded-lg.bg-white.shadow-lg(
+            v-if="remoteScenario && localScenario.version < remoteScenario.version && subscriptionEnough"
             @click="beginDownload()"
           )
             | {{ t("scenario.update") }}
 
-        button.btn-pressable.btn.btn-primary.btn-md.rounded-lg(
-          v-else-if="remoteScenario && download !== undefined"
-          @click="beginDownload()"
-        )
-          DownloadIcon(:size="20")
-          span {{ t("scenario.download") }} ({{ prettyBytes(remoteScenario.downloadSize) }})
+        template(v-else-if="remoteScenario && download !== undefined")
+          button.btn-pressable.btn.btn-primary.btn-md.rounded-lg.shadow-lg(
+            v-if="subscriptionEnough"
+            @click="beginDownload()"
+          )
+            DownloadIcon(:size="20")
+            span {{ t("scenario.download") }} ({{ prettyBytes(remoteScenario.downloadSize) }})
+
+          button.btn-pressable.btn.btn-md.rounded-lg.text-white.shadow-lg(
+            v-else
+            :class="{ 'bg-blue-500': remoteScenario.requiredSubscriptionTier === 'basic', 'bg-purple-500': remoteScenario.requiredSubscriptionTier === 'premium' }"
+            @click="onSubscribeButtonClick"
+          )
+            | {{ t("scenario.subscribe") }}
+            ExternalLinkIcon(:size="16")
 </template>
 
 <style lang="postcss" scoped>

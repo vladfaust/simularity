@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import SubscriptionIcon from "@/components/Icons/SubscriptionIcon.vue";
 import RichTitle from "@/components/RichForm/RichTitle.vue";
+import { env } from "@/env";
 import * as api from "@/lib/api";
 import { confirm_ } from "@/lib/resources";
 import * as storage from "@/lib/storage";
@@ -17,7 +19,7 @@ import {
   User2Icon,
 } from "lucide-vue-next";
 import { nanoid } from "nanoid";
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import WrapBalancer from "vue-wrap-balancer";
 import { toast } from "vue3-toastify";
@@ -26,7 +28,6 @@ const LOGIN_TIMEOUT = toMilliseconds({ minutes: 5 });
 
 const accountQuery = useAccountQuery();
 const queryClient = useQueryClient();
-const patreon = computed(() => accountQuery.data.value?.oAuthAccounts.patreon);
 const loginInProgress = ref(false);
 
 async function login() {
@@ -100,23 +101,10 @@ async function logout() {
   api.trpc.recreateSubscriptionsClient();
 }
 
-// TODO: Make it display the progress.
-async function linkPatreon() {
-  const { url } = await api.trpc.commandsClient.auth.oauth.create.mutate({
-    providerId: "patreon",
-    reason: "link",
-  });
-
+async function onSubscribeButtonClick() {
+  const url = env.VITE_WEB_BASE_URL + "/pricing";
+  console.log("Opening subscription page", url);
   await tauriShell.open(url);
-}
-
-async function gotoPatreonCampaign() {
-  console.log(
-    "Opening Patreon campaign URL",
-    import.meta.env.VITE_PATREON_CAMPAIGN_URL,
-  );
-
-  await tauriShell.open(import.meta.env.VITE_PATREON_CAMPAIGN_URL);
 }
 
 const { t } = useI18n({
@@ -137,6 +125,16 @@ const { t } = useI18n({
             okLabel: "Log out",
             cancelLabel: "Cancel",
           },
+          subscription: {
+            label: "Subscription",
+            none: "None",
+            subscribeButtonLabel: "Subscribe",
+            tiers: {
+              basic: "Basic",
+              premium: "Premium",
+            },
+            activeUntil: "until {date}",
+          },
         },
       },
     },
@@ -155,6 +153,16 @@ const { t } = useI18n({
             title: "Выход",
             okLabel: "Выйти",
             cancelLabel: "Отмена",
+          },
+          subscription: {
+            label: "Подписка",
+            none: "Нет",
+            subscribeButtonLabel: "Подписаться",
+            tiers: {
+              basic: "Базовая",
+              premium: "Премиум",
+            },
+            activeUntil: "до {date}",
           },
         },
       },
@@ -177,6 +185,7 @@ const { t } = useI18n({
       )
         LogOutIcon(:size="18")
 
+  //- When logged in.
   .flex.w-full.flex-col.p-3(
     v-if="storage.user.id.value && accountQuery.data.value"
   )
@@ -190,19 +199,26 @@ const { t } = useI18n({
         )
         .font-mono(v-else) {{ accountQuery.data.value?.email }}
 
-    RichTitle(title="Patreon")
+    RichTitle(:title="t('menuOverlay.account.subscription.label')")
       template(#icon)
-        img.h-5(src="/img/patreon.svg" alt="Patreon")
+        SubscriptionIcon(:size="20")
       template(#extra)
-        .flex.flex-col.items-end(v-if="patreon")
-          span(v-if="patreon.tier")
-            span.font-semibold {{ patreon.tier.name }}
-            | &nbsp;until {{ new Date(patreon.tier.activeUntil).toLocaleDateString() }}
-          button.btn.link.gap-1(v-else @click="gotoPatreonCampaign")
-            | See tiers
-            ExternalLinkIcon(:size="16")
-        button.link(v-else @click="linkPatreon") Link
+        //- When subscription is active.
+        span(v-if="accountQuery.data.value.subscription")
+          span(
+            :class="{ 'text-blue-500': accountQuery.data.value.subscription.tier === 'basic', 'text-purple-500': accountQuery.data.value.subscription.tier === 'premium' }"
+          ) {{ t(`menuOverlay.account.subscription.tiers.${accountQuery.data.value.subscription.tier}`) }}&nbsp;
+          span ({{ t("menuOverlay.account.subscription.activeUntil", { date: new Date(accountQuery.data.value.subscription.activeUntil).toLocaleDateString() }) }})
 
+        //- When no subscription.
+        button.link.flex.items-center.gap-1(
+          v-else
+          @click="onSubscribeButtonClick"
+        )
+          | {{ t("menuOverlay.account.subscription.subscribeButtonLabel") }}
+          ExternalLinkIcon.inline-block(:size="16")
+
+  //- When not logged in.
   .flex.h-full.flex-col.items-center.justify-center.gap-2.p-3(v-else)
     WrapBalancer.text-center(tag="p") {{ t("menuOverlay.account.loginText") }}
     button.btn.btn-primary.btn-md.btn-pressable.rounded-lg(

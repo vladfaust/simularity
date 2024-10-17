@@ -5,6 +5,7 @@ import { keyExists } from "@/lib/s3.js";
 import { AssetSchema, scenarioAssets } from "@/lib/schema/scenarios.js";
 import { v } from "@/lib/valibot";
 import { fetchScenarioManifest, scenarioAssetKey } from "@/logic/scenarios.js";
+import { subscriptionEnough } from "@/logic/subscriptions";
 import { getAuthenticatedUserId } from "@/server/rest/v1/_common.js";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { toSeconds } from "duration-fns";
@@ -24,10 +25,11 @@ export default Router().get("/:scenarioId/assets", async (req, res) => {
     return res.status(400).json({ error: "version query is required" });
   }
 
-  const assetPath = req.query.path;
+  let assetPath = req.query.path;
   if (typeof assetPath !== "string") {
     return res.status(400).json({ error: "path query is required" });
   }
+  assetPath = decodeURIComponent(assetPath);
 
   const userId = await getAuthenticatedUserId(req);
 
@@ -72,7 +74,15 @@ export default Router().get("/:scenarioId/assets", async (req, res) => {
   }
 
   if (!assetEntry.public && scenario.requiredSubscriptionTier !== null) {
-    if (!userId) return res.status(401);
+    if (!userId) {
+      konsole.debug(`Unauthorized access to scenario asset`, {
+        scenarioId,
+        version,
+        assetPath,
+      });
+
+      return res.status(401);
+    }
 
     const activeSubscription = await d.db.query.subscriptions.findFirst({
       where: and(
@@ -82,7 +92,13 @@ export default Router().get("/:scenarioId/assets", async (req, res) => {
       ),
     });
 
-    if (!activeSubscription) {
+    if (
+      !activeSubscription ||
+      !subscriptionEnough(
+        activeSubscription.tier,
+        scenario.requiredSubscriptionTier,
+      )
+    ) {
       konsole.debug(`Unauthorized access to scenario asset`, {
         userId,
         scenarioId,

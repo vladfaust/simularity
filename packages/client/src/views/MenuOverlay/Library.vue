@@ -32,7 +32,7 @@ const remoteScenariosQuery = useRemoteScenariosQuery(
   scenarioNameFilterThrottled,
 );
 
-const layoutGrid = useLocalStorage("library:layoutGrid", true);
+const layoutGrid = useLocalStorage("library:layoutGrid", false);
 const hideRemote = useLocalStorage("library:hideRemote", false);
 
 const filteredLocalScenarios = computed(() =>

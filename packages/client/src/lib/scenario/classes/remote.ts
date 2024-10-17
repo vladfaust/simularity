@@ -21,6 +21,10 @@ export class RemoteScenario {
     return this.apiResponse.version;
   }
 
+  get requiredSubscriptionTier() {
+    return this.apiResponse.requiredSubscriptionTier;
+  }
+
   get locales() {
     return this.apiResponse.locales.map((locale) => new Intl.Locale(locale));
   }
@@ -35,6 +39,10 @@ export class RemoteScenario {
 
   get immersive() {
     return this.apiResponse.immersive;
+  }
+
+  get contextWindowSize() {
+    return this.apiResponse.contextWindowSize;
   }
 
   get tags() {

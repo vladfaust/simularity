@@ -35,6 +35,10 @@ export class LocalBaseScenario {
     return false;
   }
 
+  get contextWindowSize() {
+    return this.content.contextWindowSize;
+  }
+
   get teaser() {
     return this.content.teaser;
   }

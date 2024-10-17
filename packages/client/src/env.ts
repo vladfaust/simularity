@@ -29,6 +29,7 @@ const env = v.parse(
     VITE_EXPERIMENTAL_IMMERSIVE_MODE: v.optional(envBool()),
     VITE_PLAUSIBLE_API_HOST: v.optional(v.string()),
     VITE_SENTRY_DSN: v.optional(v.string()),
+    VITE_WEB_BASE_URL: v.pipe(v.string(), v.url()),
   }),
   import.meta.env,
 );

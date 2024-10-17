@@ -69,6 +69,7 @@ export const SubscriptionTierSchema = v.union([
   v.literal("basic"),
   v.literal("premium"),
 ]);
+export type SubscriptionTier = v.InferOutput<typeof SubscriptionTierSchema>;
 
 export const PatreonTier = v.object({
   id: v.string(),

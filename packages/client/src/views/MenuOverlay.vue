@@ -256,7 +256,7 @@ const { t } = useI18n({
 
 <style lang="postcss" scoped>
 ._btn {
-  @apply btn btn-md rounded-lg bg-black/5 transition-transform pressable;
+  @apply btn btn-md rounded-lg border bg-black/5 transition-transform pressable;
 
   &:not(._danger) {
     @apply hover:btn-primary;
