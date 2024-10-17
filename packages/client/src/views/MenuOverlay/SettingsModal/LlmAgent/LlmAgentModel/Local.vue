@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import NumberInputWithDefault from "@/components/RichForm/NumberInputWithDefault.vue";
 import RichInput from "@/components/RichForm/RichInput.vue";
+import { env } from "@/env";
 import type { Download } from "@/lib/downloads";
 import { downloadManager } from "@/lib/downloads";
 import * as resources from "@/lib/resources";
@@ -697,8 +698,9 @@ const { t } = useI18n({
         :max-context-size="selectedModel.contextSize"
       )
 
-      //- Batch size.
+      //- Batch size (dev only).
       RichInput#batch-size(
+        v-if="!env.PROD"
         :title="t('settings.llmAgentModel.local.batchSize')"
         v-model="driverConfig.batchSize"
       )

@@ -25,6 +25,7 @@ function envBool() {
 
 const env = v.parse(
   v.object({
+    PROD: v.boolean(),
     VITE_EXPERIMENTAL_IMMERSIVE_MODE: v.optional(envBool()),
     VITE_PLAUSIBLE_API_HOST: v.optional(v.string()),
     VITE_SENTRY_DSN: v.optional(v.string()),

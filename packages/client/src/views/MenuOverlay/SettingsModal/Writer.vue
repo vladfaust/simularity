@@ -3,6 +3,7 @@ import Alert from "@/components/Alert.vue";
 import InteractiveHelper from "@/components/InteractiveHelper.vue";
 import RichInput from "@/components/RichForm/RichInput.vue";
 import RichToggle from "@/components/RichForm/RichToggle.vue";
+import { env } from "@/env";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import {
@@ -70,15 +71,6 @@ const { t } = useI18n({
 
   .flex.flex-col.gap-2.p-3
     .flex.flex-col.gap-2.rounded-lg.bg-white.p-3.shadow-lg
-      //- Show update IDs.
-      //- TODO: Only in development mode.
-      RichToggle#show-update-ids(
-        :title="t('settings.writer.showUpdateIds')"
-        v-model="storage.showUpdateIds.value"
-      )
-        template(#icon)
-          Settings2Icon(:size="16")
-
       //- Message length limit.
       RichInput#n-eval(
         :title="t('settings.writer.nEval')"
@@ -92,6 +84,15 @@ const { t } = useI18n({
           max="512"
           v-model="storage.llm.writerNEval.value"
         )
+
+      //- Show update IDs (dev only).
+      RichToggle#show-update-ids(
+        v-if="!env.PROD"
+        :title="t('settings.writer.showUpdateIds')"
+        v-model="storage.showUpdateIds.value"
+      )
+        template(#icon)
+          Settings2Icon(:size="16")
 
     LlmAgentModel(
       agent-id="writer"
