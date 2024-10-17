@@ -6,6 +6,7 @@ defineProps<{
   id: string;
   help?: string;
   disabled?: boolean;
+  clickable?: boolean;
 }>();
 </script>
 
@@ -14,7 +15,7 @@ defineProps<{
   .flex.shrink-0.items-center(class="gap-1.5")
     label.flex.select-none.items-center.gap-2(
       :for="id"
-      :class="{ 'cursor-pointer': !disabled, 'opacity-50 cursor-not-allowed': disabled }"
+      :class="{ 'cursor-pointer': !disabled && clickable, 'opacity-50 cursor-not-allowed': disabled }"
     )
       .btn.rounded-lg.border.bg-white.p-1
         slot(name="icon")

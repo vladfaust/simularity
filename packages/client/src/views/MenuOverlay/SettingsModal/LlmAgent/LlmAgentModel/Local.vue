@@ -546,12 +546,6 @@ const { t } = useI18n({
             },
             contextSize: "Context size",
             batchSize: "Batch size",
-            stateCache: "State cache",
-            clearStateCacheButton: {
-              title: "Clear state cache",
-              label: "Clear",
-            },
-            emptyCache: "Empty",
             removeConfirmation: {
               deleteFile: {
                 message:
@@ -566,6 +560,15 @@ const { t } = useI18n({
                 title: "Remove model?",
                 okLabel: "Remove",
                 cancelLabel: "Cancel",
+              },
+            },
+            stateCache: {
+              label: "Model cache",
+              help: "Model cache is used to store model states for faster loading.",
+              empty: "Empty",
+              clearButton: {
+                title: "Clear model cache",
+                label: "Clear",
               },
             },
           },
@@ -590,12 +593,6 @@ const { t } = useI18n({
             },
             contextSize: "Размер контекста",
             batchSize: "Размер батча",
-            stateCache: "Кэш состояния",
-            clearStateCacheButton: {
-              title: "Очистить кэш состояния",
-              label: "Очистить",
-            },
-            emptyCache: "Пусто",
             removeConfirmation: {
               deleteFile: {
                 message:
@@ -610,6 +607,15 @@ const { t } = useI18n({
                 title: "Убрать модель?",
                 okLabel: "Убрать",
                 cancelLabel: "Отмена",
+              },
+            },
+            stateCache: {
+              label: "Кэш моделей",
+              help: "Кэш моделей используется для хранения состояний моделей для более быстрой загрузки.",
+              empty: "Пусто",
+              clearButton: {
+                title: "Очистить кэш моделей",
+                label: "Очистить",
               },
             },
           },
@@ -686,10 +692,10 @@ const { t } = useI18n({
         )
 
       slot(
-          name="context-size-help"
-          :context-size="driverConfig.contextSize"
-          :max-context-size="selectedModel.contextSize"
-        )
+        name="context-size-help"
+        :context-size="driverConfig.contextSize"
+        :max-context-size="selectedModel.contextSize"
+      )
 
       //- Batch size.
       RichInput#batch-size(
@@ -705,17 +711,18 @@ const { t } = useI18n({
       //- Cache.
       RichInput#state-cache(
         v-if="hasCache"
-        :title="t('settings.llmAgentModel.local.stateCache')"
+        :title="t('settings.llmAgentModel.local.stateCache.label')"
+        :help="t('settings.llmAgentModel.local.stateCache.help')"
       )
         template(#icon)
           DatabaseZapIcon(:size="16")
         .flex.shrink-0.items-center.gap-2
           template(v-if="cacheFiles.length")
-            span.text-sm {{ prettyBytes( cacheFiles.reduce((acc, file) => acc + file.size, 0)) }}
-            button.btn-pressable.btn.btn-sm-square.border.rounded-lg.bg-white(
+            span.text-sm {{ prettyBytes(cacheFiles.reduce((acc, file) => acc + file.size, 0)) }}
+            button.btn-pressable.btn.btn-sm-square.rounded-lg.border.bg-white(
               @click="clearStateCache"
-              :title="t('settings.llmAgentModel.local.clearStateCacheButton.title')"
+              :title="t('settings.llmAgentModel.local.stateCache.clearButton.title')"
             )
-              Icon(:iconNode="broom" name="broom" :size='16')
-          span.text-sm.opacity-50(v-else) {{ t("settings.llmAgentModel.local.emptyCache") }}
+              Icon(:iconNode="broom" name="broom" :size="16")
+          span.text-sm.opacity-50(v-else) {{ t("settings.llmAgentModel.local.stateCache.empty") }}
 </template>

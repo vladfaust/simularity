@@ -14,7 +14,7 @@ const model = defineModel<number>({ required: true });
 </script>
 
 <template lang="pug">
-RichInput(:title :id :help v-model="model")
+RichInput(:title :id :help v-model="model" clickable)
   template(#icon)
     slot(name="icon")
   .flex.shrink-0.items-center.gap-2

@@ -17,7 +17,7 @@ const model = defineModel<string | null>();
 </script>
 
 <template lang="pug">
-RichInput(:title :id :help v-model="model" :disabled)
+RichInput(:title :id :help v-model="model" :disabled clickable)
   template(#icon)
     slot(name="icon")
   select(:id v-model="model" :disabled)

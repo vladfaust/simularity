@@ -13,7 +13,7 @@ const model = defineModel<boolean>();
 </script>
 
 <template lang="pug">
-RichInput(:title :id :help v-model="model" :disabled)
+RichInput(:title :id :help v-model="model" :disabled clickable)
   template(#icon)
     slot(name="icon")
   Toggle(:id="id" v-model="model" size="sm" :disabled)
