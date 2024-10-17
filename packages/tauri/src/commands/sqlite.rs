@@ -6,9 +6,9 @@ use tauri::async_runtime::Mutex;
 
 struct RusqliteError(rusqlite::Error);
 
-impl std::convert::From<RusqliteError> for tauri::InvokeError {
+impl std::convert::From<RusqliteError> for tauri::ipc::InvokeError {
     fn from(val: RusqliteError) -> Self {
-        tauri::InvokeError::from(format!("Sqlite error: {}", val.0))
+        tauri::ipc::InvokeError::from(format!("Sqlite error: {}", val.0))
     }
 }
 
@@ -18,7 +18,7 @@ impl std::convert::From<RusqliteError> for tauri::InvokeError {
 pub async fn sqlite_open(
     uri: String,
     state: tauri::State<'_, AppState>,
-) -> Result<(), tauri::InvokeError> {
+) -> Result<(), tauri::ipc::InvokeError> {
     let conn = rusqlite::Connection::open(&uri).map_err(RusqliteError)?;
 
     state
@@ -40,11 +40,11 @@ pub async fn sqlite_execute(
     sql: &str,
     params: Vec<SqliteValue>,
     state: tauri::State<'_, AppState>,
-) -> Result<(), tauri::InvokeError> {
+) -> Result<(), tauri::ipc::InvokeError> {
     let hash_map_lock = state.sqlite_connections.lock().await;
     let arc = hash_map_lock
         .get(uri)
-        .ok_or(tauri::InvokeError::from("connection not found"))?
+        .ok_or(tauri::ipc::InvokeError::from("connection not found"))?
         .clone();
 
     drop(hash_map_lock);
@@ -62,11 +62,11 @@ pub async fn sqlite_execute_batch(
     uri: &str,
     sql: &str,
     state: tauri::State<'_, AppState>,
-) -> Result<(), tauri::InvokeError> {
+) -> Result<(), tauri::ipc::InvokeError> {
     let hash_map_lock = state.sqlite_connections.lock().await;
     let arc = hash_map_lock
         .get(uri)
-        .ok_or(tauri::InvokeError::from("connection not found"))?
+        .ok_or(tauri::ipc::InvokeError::from("connection not found"))?
         .clone();
 
     drop(hash_map_lock);
@@ -97,11 +97,11 @@ pub async fn sqlite_query(
     sql: &str,
     params: Vec<SqliteValue>,
     state: tauri::State<'_, AppState>,
-) -> Result<QueryResult, tauri::InvokeError> {
+) -> Result<QueryResult, tauri::ipc::InvokeError> {
     let hash_map_lock = state.sqlite_connections.lock().await;
     let conn_arc = hash_map_lock
         .get(uri)
-        .ok_or(tauri::InvokeError::from("connection not found"))?
+        .ok_or(tauri::ipc::InvokeError::from("connection not found"))?
         .clone();
 
     drop(hash_map_lock);
@@ -127,7 +127,7 @@ pub async fn sqlite_query(
 
         for (i, column_name) in column_names.iter().enumerate().take(column_count) {
             let value = SqliteValue::column_result(row.get_ref_unwrap(i)).map_err(|e| {
-                tauri::InvokeError::from(format!(
+                tauri::ipc::InvokeError::from(format!(
                     "SQLite error converting column {}: {}",
                     column_name, e
                 ))
@@ -147,13 +147,13 @@ pub async fn sqlite_query(
 pub async fn sqlite_close(
     uri: String,
     state: tauri::State<'_, AppState>,
-) -> Result<(), tauri::InvokeError> {
+) -> Result<(), tauri::ipc::InvokeError> {
     let _ = state
         .sqlite_connections
         .lock()
         .await
         .remove(&uri)
-        .ok_or(tauri::InvokeError::from("connection not found"))?;
+        .ok_or(tauri::ipc::InvokeError::from("connection not found"))?;
 
     Ok(())
 }

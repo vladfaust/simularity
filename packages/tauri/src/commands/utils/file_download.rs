@@ -9,7 +9,10 @@ use std::{
     },
     time::Instant,
 };
-use tauri::async_runtime::{handle, spawn_blocking};
+use tauri::{
+    async_runtime::{handle, spawn_blocking},
+    Emitter, Listener,
+};
 
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -49,7 +52,7 @@ pub async fn file_download(
     abort_event_name: Option<String>,
     window: tauri::Window,
     state: tauri::State<'_, AppState>,
-) -> Result<Response, tauri::InvokeError> {
+) -> Result<Response, tauri::ipc::InvokeError> {
     println!("file_download(url: {}, path: {})", url, path);
 
     let mut hash_map_lock = state.file_downloads.lock().await;
@@ -85,7 +88,9 @@ pub async fn file_download(
         .append(true)
         .create(true)
         .open(&path)
-        .map_err(|e| tauri::InvokeError::from(format!("Failed to open file for writing: {}", e)))?;
+        .map_err(|e| {
+            tauri::ipc::InvokeError::from(format!("Failed to open file for writing: {}", e))
+        })?;
     let initial_file_size = file.metadata().unwrap().len();
 
     let mut easy = Easy::new();
@@ -173,7 +178,7 @@ pub async fn file_download(
         } else {
             let mut hash_map_lock = state.file_downloads.lock().await;
             hash_map_lock.remove(&path);
-            return Err(tauri::InvokeError::from(err.description()));
+            return Err(tauri::ipc::InvokeError::from(err.description()));
         }
     }
 

@@ -1,10 +1,10 @@
 <script lang="ts" setup>
+import * as tauriProcess from "@tauri-apps/plugin-process";
 import { LoaderIcon } from "lucide-vue-next";
 import { onMounted } from "vue";
-import { exit } from "@tauri-apps/api/process";
 
 onMounted(() => {
-  exit();
+  tauriProcess.exit();
 });
 </script>
 

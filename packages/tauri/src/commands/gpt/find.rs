@@ -11,12 +11,12 @@ pub struct Response {
 pub async fn gpt_find(
     session_id: &str,
     state: tauri::State<'_, AppState>,
-) -> Result<Option<Response>, tauri::InvokeError> {
+) -> Result<Option<Response>, tauri::ipc::InvokeError> {
     println!("gpt_find(session_id: {})", session_id);
 
-    let session_id = session_id
-        .parse::<u32>()
-        .map_err(|_| tauri::InvokeError::from(format!("Invalid session ID: {}", session_id)))?;
+    let session_id = session_id.parse::<u32>().map_err(|_| {
+        tauri::ipc::InvokeError::from(format!("Invalid session ID: {}", session_id))
+    })?;
 
     let hash_map_lock = state.gpt_sessions.lock().await;
     let model_id = hash_map_lock.get(&session_id);

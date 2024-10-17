@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/vue";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { getMatches } from "@tauri-apps/api/cli";
+import { getMatches } from "@tauri-apps/plugin-cli";
 import FloatingVue from "floating-vue";
 import "floating-vue/dist/style.css";
 import { createApp, watch } from "vue";

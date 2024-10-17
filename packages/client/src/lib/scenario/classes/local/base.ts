@@ -1,7 +1,7 @@
 import type { v } from "@/lib/valibot";
 import * as schema from "@simularity/api/lib/schema";
-import { join, resolve } from "@tauri-apps/api/path";
-import { convertFileSrc } from "@tauri-apps/api/tauri";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import * as tauriPath from "@tauri-apps/api/path";
 
 export class LocalBaseScenario {
   constructor(
@@ -48,7 +48,10 @@ export class LocalBaseScenario {
   }
 
   async resourceUrl(path: string) {
-    return join(this.basePath, path).then(resolve).then(convertFileSrc);
+    return tauriPath
+      .join(this.basePath, path)
+      .then(tauriPath.resolve)
+      .then(convertFileSrc);
   }
 
   async getLogoUrl() {

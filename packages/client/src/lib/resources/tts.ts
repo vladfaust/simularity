@@ -1,6 +1,6 @@
-import * as fs from "@tauri-apps/api/fs";
-import * as path from "@tauri-apps/api/path";
-import { convertFileSrc } from "@tauri-apps/api/tauri";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import * as tauriPath from "@tauri-apps/api/path";
+import * as tauriFs from "@tauri-apps/plugin-fs";
 
 /**
  * Return a TTS audio file path (the file may or may not exist).
@@ -11,18 +11,18 @@ export async function audioFilePath(
   updateId: number,
   extension: string,
 ): Promise<string> {
-  const appDataDirPath = await path.appLocalDataDir();
+  const appDataDirPath = await tauriPath.appLocalDataDir();
 
-  const dirPath = await path.join(
+  const dirPath = await tauriPath.join(
     appDataDirPath,
     "simulations",
     simulationId.toString(),
     "tts",
   );
-  await fs.createDir(dirPath, { recursive: true });
+  await tauriFs.mkdir(dirPath, { recursive: true });
 
   const fileName = `${updateId}${extension}`;
-  return path.join(dirPath, fileName);
+  return tauriPath.join(dirPath, fileName);
 }
 
 /**
@@ -34,7 +34,7 @@ export async function loadAudio(
   extension: string,
 ): Promise<ArrayBuffer | null> {
   const filePath = await audioFilePath(simulationId, updateId, extension);
-  const fileExists = await fs.exists(filePath);
+  const fileExists = await tauriFs.exists(filePath);
 
   if (fileExists) {
     const fileUrl = convertFileSrc(filePath);
@@ -52,11 +52,11 @@ export async function loadAudio(
 export async function saveAudio(
   simulationId: number,
   updateId: number,
-  content: fs.BinaryFileContents,
+  content: Uint8Array,
   extension: string,
 ): Promise<string> {
   const filePath = await audioFilePath(simulationId, updateId, extension);
-  await fs.writeBinaryFile(filePath, content);
+  await tauriFs.writeFile(filePath, content);
   console.log("Saved TTS audio to", filePath);
   return filePath;
 }

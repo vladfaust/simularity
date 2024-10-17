@@ -1,114 +1,56 @@
 {
-  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/tauri-v1.1.0/tooling/cli/schema.json",
+  "$schema": "https://schema.tauri.app/config/2.0.0",
   "build": {
     "beforeBuildCommand": "",
     "beforeDevCommand": "",
-    "devPath": "http://localhost:5173",
-    "distDir": "../client/dist",
-    "withGlobalTauri": true
+    "frontendDist": "../client/dist",
+    "devUrl": "http://localhost:5173"
   },
-  "package": {
-    "productName": "Simularity AI",
-    "version": "0.0.1"
-  },
-  "tauri": {
-    "allowlist": {
-      "dialog": {
-        "ask": false,
-        "confirm": true,
-        "message": true,
-        "open": true,
-        "save": false
-      },
-      "fs": {
-        "copyFile": false,
-        "createDir": true,
-        "readDir": true,
-        "readFile": true,
-        "removeDir": false,
-        "removeFile": true,
-        "renameFile": true,
-        "scope": [
-          "$APPLOCALDATA/**/*",
-          "$APPCACHE/**/*",
-          "$RESOURCE/**/*"
-        ],
-        "writeFile": true,
-        "exists": true
-      },
-      "globalShortcut": {
-        "all": true
-      },
-      "http": {
-        "request": true,
-        "scope": [
-          "http://localhost:3000/*",
-          "https://api.simularity.ai/*",
-          "tauri://localhost/*"
-        ]
-      },
-      "path": {
-        "all": true
-      },
-      "process": {
-        "exit": true,
-        "relaunch": true
-      },
-      "protocol": {
-        "asset": true,
-        "assetScope": [
-          "$APPLOCALDATA/screenshots/*",
-          "$APPLOCALDATA/scenarios/**/*",
-          "$APPLOCALDATA/simulations/**/*",
-          "$RESOURCE/**/*"
-        ]
-      },
-      "shell": {
-        "open": true
-      },
-      "window": {
-        "close": true
-      }
+  "bundle": {
+    "active": true,
+    "category": "RolePlayingGame",
+    "copyright": "Simularity AI",
+    "targets": [
+      "nsis",
+      "dmg"
+    ],
+    "externalBin": [],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
     },
-    "bundle": {
-      "active": true,
-      "category": "RolePlayingGame",
-      "copyright": "Simularity AI",
+    "longDescription": "",
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": "",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": "Developer ID Application: Vladislav Kosarev (J6FGC4GSYA)"
+    },
+    "resources": [
+      "../client/resources"
+    ],
+    "shortDescription": "",
+    "linux": {
       "deb": {
         "depends": []
-      },
-      "externalBin": [],
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ],
-      "identifier": "ai.simularity.dev",
-      "longDescription": "",
-      "macOS": {
-        "entitlements": null,
-        "exceptionDomain": "",
-        "frameworks": [],
-        "providerShortName": null,
-        "signingIdentity": "Developer ID Application: Vladislav Kosarev (J6FGC4GSYA)"
-      },
-      "resources": [
-        "../client/resources"
-      ],
-      "shortDescription": "",
-      "targets": [
-        "nsis",
-        "dmg",
-        "updater"
-      ],
-      "windows": {
-        "certificateThumbprint": null,
-        "digestAlgorithm": "sha256",
-        "timestampUrl": ""
       }
     },
+    "createUpdaterArtifacts": "v1Compatible"
+  },
+  "productName": "Simularity AI",
+  "mainBinaryName": "Simularity AI",
+  "version": "0.0.1",
+  "identifier": "ai.simularity.dev",
+  "plugins": {
     "cli": {
       "args": [
         {
@@ -119,12 +61,21 @@
           "required": false
         }
       ]
-    },
+    }
+  },
+  "app": {
+    "withGlobalTauri": true,
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: asset: https://asset.localhost blob:; media-src blob:; connect-src https://api.simularity.ai https://plausible.simularity.ai ipc: http://ipc.localhost asset: https://asset.localhost tauri://localhost"
-    },
-    "updater": {
-      "active": false
+      "assetProtocol": {
+        "scope": [
+          "$APPLOCALDATA/screenshots/*",
+          "$APPLOCALDATA/scenarios/**/*",
+          "$APPLOCALDATA/simulations/**/*",
+          "$RESOURCE/**/*"
+        ],
+        "enable": true
+      },
+      "csp": "default-src 'self'; img-src 'self' data: asset: https://asset.localhost blob:; media-src blob:; connect-src ipc: http://ipc.localhost https://api.simularity.ai https://plausible.simularity.ai ipc: http://ipc.localhost asset: https://asset.localhost tauri://localhost"
     },
     "windows": [
       {

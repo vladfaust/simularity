@@ -3,6 +3,8 @@ use std::{
     time::Instant,
 };
 
+use tauri::{Emitter, Listener};
+
 use crate::AppState;
 
 #[derive(serde::Serialize, Clone)]
@@ -39,7 +41,7 @@ pub async fn gpt_infer(
     inference_callback_event_name: Option<&str>,
     window: tauri::Window,
     state: tauri::State<'_, AppState>,
-) -> Result<Response, tauri::InvokeError> {
+) -> Result<Response, tauri::ipc::InvokeError> {
     println!(
         "gpt_infer(gpt_id: {}, prompt: {}, n_eval: {})",
         session_id,
@@ -47,14 +49,14 @@ pub async fn gpt_infer(
         n_eval
     );
 
-    let session_id = session_id
-        .parse::<u32>()
-        .map_err(|_| tauri::InvokeError::from(format!("Invalid session ID: {}", session_id)))?;
+    let session_id = session_id.parse::<u32>().map_err(|_| {
+        tauri::ipc::InvokeError::from(format!("Invalid session ID: {}", session_id))
+    })?;
 
     let hash_map_lock = state.gpt_sessions.lock().await;
     let model_id = hash_map_lock.get(&session_id);
     if model_id.is_none() {
-        return Err(tauri::InvokeError::from("Session not found"));
+        return Err(tauri::ipc::InvokeError::from("Session not found"));
     }
     let model_id = model_id.unwrap();
 
@@ -67,11 +69,9 @@ pub async fn gpt_infer(
     window.listen(ABORT_SIGNAL, move |event| {
         println!("⚠️ Received abort signal: {:?}", event);
 
-        if let Some(payload) = event.payload() {
-            if session_id_str.eq(&payload) {
-                println!("Aborting inference");
-                *aborted_clone.lock().unwrap() = true;
-            }
+        if session_id_str.eq(event.payload()) {
+            println!("Aborting inference");
+            *aborted_clone.lock().unwrap() = true;
         }
     });
 
@@ -126,10 +126,10 @@ pub async fn gpt_infer(
     if let Err(error) = input_token_length {
         match error {
             simularity_core::gpt::token_length::Error::ModelNotFound => {
-                return Err(tauri::InvokeError::from("Model not found"))
+                return Err(tauri::ipc::InvokeError::from("Model not found"))
             }
             simularity_core::gpt::token_length::Error::Unknown(code) => {
-                return Err(tauri::InvokeError::from(format!(
+                return Err(tauri::ipc::InvokeError::from(format!(
                     "Unknown error code {}",
                     code
                 )))
@@ -157,14 +157,14 @@ pub async fn gpt_infer(
     } else {
         match inference_result.unwrap_err() {
             simularity_core::gpt::infer::Error::SessionNotFound => {
-                Err(tauri::InvokeError::from("Session not found"))
+                Err(tauri::ipc::InvokeError::from("Session not found"))
             }
             simularity_core::gpt::infer::Error::ContextOverflow => {
-                Err(tauri::InvokeError::from("Context overflow"))
+                Err(tauri::ipc::InvokeError::from("Context overflow"))
             }
-            simularity_core::gpt::infer::Error::Unknown(code) => Err(tauri::InvokeError::from(
-                format!("Unknown error code {}", code),
-            )),
+            simularity_core::gpt::infer::Error::Unknown(code) => Err(
+                tauri::ipc::InvokeError::from(format!("Unknown error code {}", code)),
+            ),
         }
     }
 }

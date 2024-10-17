@@ -1,28 +1,11 @@
-<script lang="ts">
-export type WellKnownModelProps = {
-  recommendationModelId: string;
-  recommendationModel: WellKnownModel;
-  cachedModelsByQuants: Record<
-    string,
-    {
-      model: storage.llm.CachedModel;
-      selected: Ref<boolean>;
-      removeDeletesFile: boolean;
-    }
-  >;
-  downloadsByQuant: ShallowRef<Record<string, ShallowRef<Download>>>;
-};
-</script>
-
 <script setup lang="ts">
 import RichTitle from "@/components/RichForm/RichTitle.vue";
-import { Download, downloadManager } from "@/lib/downloads";
-import * as storage from "@/lib/storage";
+import { downloadManager } from "@/lib/downloads";
 import * as tauri from "@/lib/tauri";
 import { prettyNumber } from "@/lib/utils";
 import { SUPPORTED_LOCALES } from "@/logic/i18n";
-import type { WellKnownModel } from "@/queries";
-import { path, shell } from "@tauri-apps/api";
+import * as tauriPath from "@tauri-apps/api/path";
+import * as tauriShell from "@tauri-apps/plugin-shell";
 import {
   BanIcon,
   BrainCogIcon,
@@ -36,9 +19,9 @@ import {
   ProportionsIcon,
 } from "lucide-vue-next";
 import prettyBytes from "pretty-bytes";
-import type { ShallowRef } from "vue";
-import { computed, ref, shallowRef, triggerRef, type Ref } from "vue";
+import { computed, ref, shallowRef, triggerRef } from "vue";
 import { useI18n } from "vue-i18n";
+import { type WellKnownModelProps } from "./_common";
 
 const WELL_KNOWN_QUANTS: Record<string, string> = {
   q3km: "Q3_K_M",
@@ -90,7 +73,7 @@ const shownQuants = computed(() => {
 
 function openHfUrl() {
   if (!props.recommendationModel.hfUrl) return;
-  shell.open(props.recommendationModel.hfUrl);
+  tauriShell.open(props.recommendationModel.hfUrl);
 }
 
 /**
@@ -100,11 +83,11 @@ async function createDownload(quantId: string) {
   const quant = props.recommendationModel.quants[quantId];
 
   const id = `${props.recommendationModelId}.${quantId}`;
-  const downloadPath = await path.join(props.basePath, `${id}.download`);
+  const downloadPath = await tauriPath.join(props.basePath, `${id}.download`);
 
   const download = await downloadManager.create(downloadPath, [
     {
-      targetPath: await path.join(props.basePath, `${id}.gguf`),
+      targetPath: await tauriPath.join(props.basePath, `${id}.gguf`),
       url: quant.urls.hf,
       hashes: {
         sha256: quant.hash.sha256,

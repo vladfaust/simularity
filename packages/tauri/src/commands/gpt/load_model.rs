@@ -12,7 +12,7 @@ pub struct Response {
 #[tauri::command]
 /// Load a model at path, returning the path hash as the model ID.
 /// Can be called multiple times with the same model path.
-pub async fn gpt_load_model(model_path: String) -> Result<Response, tauri::InvokeError> {
+pub async fn gpt_load_model(model_path: String) -> Result<Response, tauri::ipc::InvokeError> {
     println!("gpt_load_model(model_path: {})", model_path);
 
     let mut hasher = Sha256::new();
@@ -25,9 +25,9 @@ pub async fn gpt_load_model(model_path: String) -> Result<Response, tauri::Invok
     match model_load_result {
         Err(err) => match err {
             simularity_core::ModelLoadError::LoadFailed => {
-                Err(tauri::InvokeError::from("Model load failed"))
+                Err(tauri::ipc::InvokeError::from("Model load failed"))
             }
-            simularity_core::ModelLoadError::Unknown(code) => Err(tauri::InvokeError::from(
+            simularity_core::ModelLoadError::Unknown(code) => Err(tauri::ipc::InvokeError::from(
                 format!("Model load failed with unhandled code {}", code),
             )),
         },

@@ -6,7 +6,7 @@ import * as storage from "@/lib/storage";
 import { sleep } from "@/lib/utils";
 import { accountQueryKey, useAccountQuery } from "@/queries";
 import { useQueryClient } from "@tanstack/vue-query";
-import { shell } from "@tauri-apps/api";
+import * as tauriShell from "@tauri-apps/plugin-shell";
 import { toMilliseconds } from "duration-fns";
 import {
   ExternalLinkIcon,
@@ -36,7 +36,7 @@ async function login() {
     const nonce = nanoid();
     const url = import.meta.env.VITE_WEB_BASE_URL + "/login?nonce=" + nonce;
     console.log("Opening login page", url);
-    await shell.open(url);
+    await tauriShell.open(url);
 
     const start = Date.now();
     while (true) {
@@ -107,7 +107,7 @@ async function linkPatreon() {
     reason: "link",
   });
 
-  await shell.open(url);
+  await tauriShell.open(url);
 }
 
 async function gotoPatreonCampaign() {
@@ -116,7 +116,7 @@ async function gotoPatreonCampaign() {
     import.meta.env.VITE_PATREON_CAMPAIGN_URL,
   );
 
-  await shell.open(import.meta.env.VITE_PATREON_CAMPAIGN_URL);
+  await tauriShell.open(import.meta.env.VITE_PATREON_CAMPAIGN_URL);
 }
 
 const { t } = useI18n({

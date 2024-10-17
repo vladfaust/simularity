@@ -9,7 +9,7 @@ pub mod file_download;
 #[cfg(not(target_os = "linux"))]
 /// Opens the file manager at the given path.
 #[tauri::command]
-pub async fn file_manager_open(path: String) -> Result<(), tauri::InvokeError> {
+pub async fn file_manager_open(path: String) -> Result<(), tauri::ipc::InvokeError> {
     println!("file_manager_open(path: {})", path);
     use std::{path::PathBuf, process::Command};
 
@@ -43,7 +43,7 @@ pub async fn file_manager_open(path: String) -> Result<(), tauri::InvokeError> {
 
 /// Calculates the SHA-256 hash of the given file.
 #[tauri::command]
-pub async fn file_sha256(path: String) -> Result<String, tauri::InvokeError> {
+pub async fn file_sha256(path: String) -> Result<String, tauri::ipc::InvokeError> {
     println!("file_sha256(path: {})", path);
 
     let file = File::open(&path).map_err(|e| e.to_string())?;

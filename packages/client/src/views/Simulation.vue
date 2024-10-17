@@ -8,13 +8,8 @@ import { Game } from "@/lib/simulation/phaser/game";
 import { ambientVolumeStorage, selectedScenarioId } from "@/lib/storage";
 import { nonNullable } from "@/lib/utils";
 import { TransitionRoot } from "@headlessui/vue";
-import {
-  BaseDirectory,
-  createDir,
-  exists,
-  writeBinaryFile,
-} from "@tauri-apps/api/fs";
-import { appLocalDataDir, join } from "@tauri-apps/api/path";
+import * as tauriPath from "@tauri-apps/api/path";
+import * as tauriFs from "@tauri-apps/plugin-fs";
 import { asyncComputed, watchImmediate } from "@vueuse/core";
 import prettyBytes from "pretty-bytes";
 import { onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
@@ -75,13 +70,13 @@ async function fadeCanvas(callback: () => Promise<void>): Promise<void> {
 async function screenshot(
   rewrite: boolean,
 ): Promise<{ path: string; size: number } | null> {
-  const path = await join(
-    await appLocalDataDir(),
+  const path = await tauriPath.join(
+    await tauriPath.appLocalDataDir(),
     "screenshots",
     `${simulationId}.jpg`,
   );
 
-  if ((await exists(path)) && !rewrite) {
+  if ((await tauriFs.exists(path)) && !rewrite) {
     return null;
   }
 
@@ -89,11 +84,11 @@ async function screenshot(
   const base64 = dataUri.split(",")[1];
   const buffer = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
-  await createDir("screenshots", {
-    dir: BaseDirectory.AppLocalData,
+  await tauriFs.mkdir("screenshots", {
+    baseDir: tauriFs.BaseDirectory.AppLocalData,
     recursive: true,
   });
-  await writeBinaryFile(path, buffer, { append: false });
+  await tauriFs.writeFile(path, buffer, { append: false });
   const size = buffer.length;
 
   console.log("Saved screenshot", path, prettyBytes(size));

@@ -24,7 +24,8 @@ import {
 } from "@/queries";
 import * as schema from "@simularity/api/lib/schema";
 import { useQueryClient } from "@tanstack/vue-query";
-import { fs, path } from "@tauri-apps/api";
+import * as tauriPath from "@tauri-apps/api/path";
+import * as tauriFs from "@tauri-apps/plugin-fs";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import {
   BookIcon,
@@ -105,7 +106,7 @@ async function beginDownload(scenarioVersion?: number) {
 
   const scenariosDir = await defaultScenariosDir();
   const id = `${scenarioVersion}.${props.scenarioId}.scenario`;
-  const downloadPath = await path.join(scenariosDir, `${id}.download`);
+  const downloadPath = await tauriPath.join(scenariosDir, `${id}.download`);
 
   console.log("Fetching asset map for scenario", {
     scenarioId: props.scenarioId,
@@ -145,13 +146,13 @@ async function beginDownload(scenarioVersion?: number) {
     ),
   });
 
-  const scenarioDir = await path.join(scenariosDir, props.scenarioId);
+  const scenarioDir = await tauriPath.join(scenariosDir, props.scenarioId);
   console.log("Creating scenario directory if not exist", { scenarioDir });
-  await fs.createDir(scenarioDir, { recursive: true });
+  await tauriFs.mkdir(scenarioDir, { recursive: true });
 
   download.value = await downloadManager.create(downloadPath, [
     {
-      targetPath: await path.join(
+      targetPath: await tauriPath.join(
         scenariosDir,
         props.scenarioId,
         MANIFEST_FILE_NAME,
@@ -164,7 +165,11 @@ async function beginDownload(scenarioVersion?: number) {
     },
     ...(await Promise.all(
       Object.entries(assetMap).map(async ([assetPath, asset]) => ({
-        targetPath: await path.join(scenariosDir, props.scenarioId, assetPath),
+        targetPath: await tauriPath.join(
+          scenariosDir,
+          props.scenarioId,
+          assetPath,
+        ),
         url: remoteScenarioAssetUrl(
           props.scenarioId,
           scenarioVersion,

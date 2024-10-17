@@ -1,21 +1,17 @@
 export * as tts from "./resources/tts";
-import * as dialog from "@tauri-apps/api/dialog";
-import * as path from "@tauri-apps/api/path";
+import * as tauriPath from "@tauri-apps/api/path";
+import * as tauriDialog from "@tauri-apps/plugin-dialog";
 
 export async function confirm_(
   message: string,
-  options?: dialog.ConfirmDialogOptions,
+  options?: tauriDialog.ConfirmDialogOptions,
 ) {
-  if (window.__TAURI__) {
-    return dialog.confirm(message, options);
-  } else {
-    return confirm(message);
-  }
+  return tauriDialog.confirm(message, options);
 }
 
 /**
  * Return the path to the scenarios directory.
  */
 export async function scenariosDir() {
-  return path.join(await path.appLocalDataDir(), "scenarios");
+  return tauriPath.join(await tauriPath.appLocalDataDir(), "scenarios");
 }

@@ -3,7 +3,7 @@ import { RemoteTtsDriver } from "@/lib/ai/tts/RemoteTtsDriver";
 import type { LocalScenario } from "@/lib/scenario";
 import * as storage from "@/lib/storage";
 import { sleep, unreachable } from "@/lib/utils";
-import { convertFileSrc } from "@tauri-apps/api/tauri";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { watchImmediate } from "@vueuse/core";
 import { computed, ref, shallowRef, type ShallowRef } from "vue";
 import { VoicerJob } from "./voicer/job";

@@ -1,8 +1,7 @@
 import * as tauri from "@/lib/tauri";
-import * as fs from "@tauri-apps/api/fs";
-import * as path from "@tauri-apps/api/path";
+import * as tauriPath from "@tauri-apps/api/path";
+import * as tauriFs from "@tauri-apps/plugin-fs";
 import { nanoid } from "nanoid";
-import * as fsExtra from "tauri-plugin-fs-extra-api";
 import {
   computed,
   markRaw,
@@ -206,10 +205,12 @@ export class Download {
    */
   static async tempPath() {
     // FIXME: Use temp dir instead ($TEMP/**/* doesn't work in tauri config).
-    const tempDir = await tauri.resolveBaseDir(path.BaseDirectory.AppCache);
-    const downloadsDir = await path.join(tempDir, "downloads");
-    await fs.createDir(downloadsDir, { recursive: true });
-    return path.join(downloadsDir, nanoid());
+    const tempDir = await tauri.resolveBaseDir(
+      tauriPath.BaseDirectory.AppCache,
+    );
+    const downloadsDir = await tauriPath.join(tempDir, "downloads");
+    await tauriFs.mkdir(downloadsDir, { recursive: true });
+    return tauriPath.join(downloadsDir, nanoid());
   }
 
   /**
@@ -234,12 +235,12 @@ export class Download {
   ): Promise<Download> {
     console.debug(`Download.create()`, { metaPath, files, paused });
 
-    if (await fs.exists(metaPath)) {
+    if (await tauriFs.exists(metaPath)) {
       throw new Error(`Download already exists at ${metaPath}`);
     }
 
     const download = new Download(
-      (await path.basename(metaPath)).replace(/\.download$/, ""),
+      (await tauriPath.basename(metaPath)).replace(/\.download$/, ""),
       metaPath,
       files.map((file) => ({
         ...file,
@@ -262,13 +263,13 @@ export class Download {
    * SAFETY: There must be no other `Download` instance for the same meta file.
    */
   static async read(metaPath: string): Promise<Download> {
-    const contents = await fs.readTextFile(metaPath);
+    const contents = await tauriFs.readTextFile(metaPath);
     const data = JSON.parse(contents);
     const { files, paused } = v.parse(DownloadFileSchema, data);
 
     return markRaw(
       new Download(
-        (await path.basename(metaPath)).replace(/\.download$/, ""),
+        (await tauriPath.basename(metaPath)).replace(/\.download$/, ""),
         metaPath,
         await Promise.all(
           files.map(async (file) => ({
@@ -278,8 +279,8 @@ export class Download {
             contentLength: ref(file.contentLength),
             tempPath: ref(file.tempPath),
             initialFileSize: file.tempPath
-              ? (await fsExtra.exists(file.tempPath))
-                ? (await fsExtra.metadata(file.tempPath)).size
+              ? (await tauriFs.exists(file.tempPath))
+                ? (await tauriFs.stat(file.tempPath)).size
                 : undefined
               : undefined,
           })),
@@ -363,11 +364,11 @@ export class Download {
                 //   `Moving ${file.tempPath.value} to ${file.targetPath}`,
                 // );
 
-                await fs.createDir(await path.dirname(file.targetPath), {
+                await tauriFs.mkdir(await tauriPath.dirname(file.targetPath), {
                   recursive: true,
                 });
 
-                await fs.renameFile(file.tempPath.value, file.targetPath);
+                await tauriFs.rename(file.tempPath.value, file.targetPath);
               }
             }
 
@@ -429,12 +430,12 @@ export class Download {
           `Removing incomplete temporary file: ${file.tempPath.value}`,
         );
 
-        await fs.removeFile(file.tempPath.value);
+        await tauriFs.remove(file.tempPath.value);
       }
     }
 
     console.log(`Removing meta file: ${this.metaPath}`);
-    await fs.removeFile(this.metaPath);
+    await tauriFs.remove(this.metaPath);
 
     downloadManager.downloads.delete(this.id);
   }
@@ -492,7 +493,7 @@ export class Download {
   }
 
   private async writeMetaFile() {
-    const data = JSON.stringify({
+    const text = JSON.stringify({
       paused: this.paused.value,
       files: this.files.map((file) => ({
         url: file.url,
@@ -505,7 +506,9 @@ export class Download {
       })),
     } satisfies v.InferOutput<typeof DownloadFileSchema>);
 
-    await fs.writeFile(this.metaPath, data);
+    const data: Uint8Array = new TextEncoder().encode(text);
+
+    await tauriFs.writeFile(this.metaPath, data);
   }
 }
 
@@ -545,25 +548,27 @@ export class DownloadManager {
    * Returns a list of downloads, already created or newly found.
    */
   async readDir(dir: string) {
-    const entries = await fs.readDir(dir);
+    const entries = await tauriFs.readDir(dir);
     const downloads: Download[] = [];
 
     for (const entry of entries) {
+      const entryPath = await tauriPath.join(dir, entry.name);
+
       if (!entry.name?.endsWith(".download")) {
-        console.debug(`Skipping non-download file: ${entry.path}`);
+        console.debug(`Skipping non-download file: ${entryPath}`);
         continue;
       }
 
-      let download = this.downloads.get(entry.path);
+      let download = this.downloads.get(entryPath);
       if (download) {
-        console.debug(`Found existing .download file: ${entry.path}`);
+        console.debug(`Found existing .download file: ${entryPath}`);
         downloads.push(download);
         continue;
       }
 
-      console.log(`Found new .download file: ${entry.path}`);
-      download = markRaw(await Download.read(entry.path));
-      this.downloads.set(entry.path, download);
+      console.log(`Found new .download file: ${entryPath}`);
+      download = markRaw(await Download.read(entryPath));
+      this.downloads.set(entryPath, download);
       downloads.push(download);
     }
 
@@ -577,20 +582,20 @@ export class DownloadManager {
     await Promise.all([
       this.initLlmAgentDir("writer"),
       this.initLlmAgentDir("director"),
-      path
-        .join(await path.appLocalDataDir(), SCENARIOS_DIR)
+      tauriPath
+        .join(await tauriPath.appLocalDataDir(), SCENARIOS_DIR)
         .then(async (dir) => {
-          await fs.createDir(dir, { recursive: true });
+          await tauriFs.mkdir(dir, { recursive: true });
           return this.readDir(dir);
         }),
     ]);
   }
 
   private async initLlmAgentDir(agentId: LlmAgentId) {
-    return path
-      .join(await path.appLocalDataDir(), "models", agentId)
+    return tauriPath
+      .join(await tauriPath.appLocalDataDir(), "models", agentId)
       .then(async (dir) => {
-        await fs.createDir(dir, { recursive: true });
+        await tauriFs.mkdir(dir, { recursive: true });
         return this.readDir(dir);
       });
   }

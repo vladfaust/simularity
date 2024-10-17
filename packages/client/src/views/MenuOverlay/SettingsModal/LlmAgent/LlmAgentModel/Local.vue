@@ -9,9 +9,9 @@ import * as tauri from "@/lib/tauri";
 import { omit } from "@/lib/utils";
 import type { WellKnownModel } from "@/queries";
 import { broom } from "@lucide/lab";
-import * as dialog from "@tauri-apps/api/dialog";
-import * as fs from "@tauri-apps/api/fs";
-import * as path from "@tauri-apps/api/path";
+import * as tauriPath from "@tauri-apps/api/path";
+import * as tauriDialog from "@tauri-apps/plugin-dialog";
+import * as tauriFs from "@tauri-apps/plugin-fs";
 import { asyncComputed } from "@vueuse/core";
 import {
   DatabaseZapIcon,
@@ -22,14 +22,12 @@ import {
   Settings2Icon,
 } from "lucide-vue-next";
 import prettyBytes from "pretty-bytes";
-import * as fsExtra from "tauri-plugin-fs-extra-api";
 import type { ShallowRef } from "vue";
 import { computed, onMounted, ref, shallowRef, triggerRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import CustomModel from "./Local/CustomModel.vue";
-import WellKnownModelVue, {
-  type WellKnownModelProps,
-} from "./Local/WellKnownModel.vue";
+import WellKnownModelVue from "./Local/WellKnownModel.vue";
+import { type WellKnownModelProps } from "./Local/_common";
 
 const props = defineProps<{
   agentId: storage.llm.LlmAgentId;
@@ -144,7 +142,7 @@ const allModels = asyncComputed<
 
     for (const quantId of Object.keys(availableModel.quants)) {
       const download = downloadManager.downloads.get(
-        await path.join(
+        await tauriPath.join(
           await modelsDirectory(),
           `${availableModelId}.${quantId}.download`,
         ),
@@ -183,23 +181,25 @@ async function refresh() {
   const modelsDir = await modelsDirectory();
   console.log(`Checking for models in ${modelsDir}`);
 
-  await fs.createDir(modelsDir, {
-    dir: fs.BaseDirectory.AppLocalData,
+  await tauriFs.mkdir(modelsDir, {
+    baseDir: tauriFs.BaseDirectory.AppLocalData,
     recursive: true,
   });
 
-  const entries = await fs.readDir(modelsDir, {
-    dir: fs.BaseDirectory.AppLocalData,
+  const entries = await tauriFs.readDir(modelsDir, {
+    baseDir: tauriFs.BaseDirectory.AppLocalData,
   });
 
   // Remove custom models that no longer exist.
-  const customModelEntries = await Promise.all(
+  const customModelEntries: (tauriFs.DirEntry | null)[] = await Promise.all(
     customModelsStorage.value.map(async (modelPath) => {
-      if (await fs.exists(modelPath)) {
+      if (await tauriFs.exists(modelPath)) {
         return {
-          path: modelPath,
-          name: await path.basename(modelPath),
-        };
+          name: await tauriPath.basename(modelPath),
+          isDirectory: false,
+          isFile: true,
+          isSymlink: false,
+        } satisfies tauriFs.DirEntry;
       }
 
       console.warn(`Custom model ${modelPath} not found, removing`);
@@ -230,29 +230,31 @@ async function refresh() {
       continue;
     }
 
-    if (entry.children) {
+    if (entry.isDirectory) {
       console.log(`${entry.name} is a directory, skipping`);
       continue;
     }
 
-    let cachedModel = storage.llm.getCachedModel(entry.path);
-    const metadata = await fsExtra.metadata(entry.path);
+    const entryPath = await tauriPath.join(modelsDir, entry.name);
+
+    let cachedModel = storage.llm.getCachedModel(entryPath);
+    const stat = await tauriFs.stat(entryPath);
 
     if (cachedModel) {
-      if (metadata.modifiedAt.getTime() !== cachedModel.modifiedAt) {
-        console.log(`Cached model ${entry.path} is outdated`);
+      if (stat.mtime?.getTime() !== cachedModel.modifiedAt) {
+        console.log(`Cached model ${entryPath} is outdated`);
         cachedModel = null;
       }
     }
 
     if (!cachedModel) {
-      uncachedModels.value.push(entry.path);
+      uncachedModels.value.push(entryPath);
       triggerRef(uncachedModels);
 
       try {
-        cachedModel = await cacheModel(entry.path, metadata);
+        cachedModel = await cacheModel(entryPath, stat);
       } catch (e: any) {
-        console.error(`Failed to cache model ${entry.path}`, e);
+        console.error(`Failed to cache model ${entryPath}`, e);
         continue;
       } finally {
         uncachedModels.value.pop();
@@ -265,17 +267,19 @@ async function refresh() {
   }
   {
     // Check cache dir (`appCacheDir/${agentId}`).
-    const cacheDir = await path.join(
-      await tauri.resolveBaseDir(fs.BaseDirectory.AppCache),
+    const cacheDir = await tauriPath.join(
+      await tauri.resolveBaseDir(tauriFs.BaseDirectory.AppCache),
       props.agentId,
     );
 
     // Create the cache dir if it doesn't exist.
-    await fs.createDir(cacheDir, { recursive: true });
+    await tauriFs.mkdir(cacheDir, { recursive: true });
 
-    const entries = await fs.readDir(cacheDir);
+    const entries = await tauriFs.readDir(cacheDir);
 
     for (const entry of entries) {
+      const entryPath = await tauriPath.join(cacheDir, entry.name);
+
       console.log("Cache entry", entry);
       if (!entry.name) {
         console.warn("Entry has no name, skipping");
@@ -288,14 +292,14 @@ async function refresh() {
         continue;
       }
 
-      if (entry.children) {
+      if (entry.isDirectory) {
         console.log(`${entry.name} is a directory, skipping`);
         continue;
       }
 
       cacheFiles.value.push({
-        path: entry.path,
-        size: (await fsExtra.metadata(entry.path)).size,
+        path: entryPath,
+        size: (await tauriFs.stat(entryPath)).size,
       });
     }
 
@@ -309,22 +313,23 @@ async function clearStateCache() {
     return;
   }
 
-  const cacheDir = await path.join(
-    await tauri.resolveBaseDir(fs.BaseDirectory.AppCache),
+  const cacheDir = await tauriPath.join(
+    await tauri.resolveBaseDir(tauriFs.BaseDirectory.AppCache),
     props.agentId,
   );
 
-  const entries = await fs.readDir(cacheDir);
+  const entries = await tauriFs.readDir(cacheDir);
 
   for (const entry of entries) {
-    console.log("Removing cache entry", entry);
-    await fs.removeFile(entry.path);
+    const entryPath = await tauriPath.join(cacheDir, entry.name);
+    console.log("Removing cache entry", entryPath);
+    await tauriFs.remove(entryPath);
   }
 
   cacheFiles.value = [];
 }
 
-async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
+async function cacheModel(modelPath: string, stat?: tauriFs.FileInfo) {
   console.log(`Caching model ${modelPath}`);
 
   const loadedModel = await tauri.gpt.loadModel(modelPath);
@@ -333,7 +338,7 @@ async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
   const xx64HashPromise = tauri.gpt.getModelHashByPath(modelPath);
   const sha256HashPromise = tauri.utils.fileSha256(modelPath, true);
 
-  metadata ||= await fsExtra.metadata(modelPath);
+  stat ||= await tauriFs.stat(modelPath);
 
   const cachedModel: storage.llm.CachedModel = {
     path: modelPath,
@@ -345,7 +350,7 @@ async function cacheModel(modelPath: string, metadata?: fsExtra.Metadata) {
     },
     nParams: loadedModel.nParams,
     ramSize: loadedModel.size,
-    modifiedAt: metadata.modifiedAt.getTime(),
+    modifiedAt: stat.mtime?.getTime() ?? 0,
   };
 
   storage.llm.setCachedModel(modelPath, cachedModel);
@@ -380,7 +385,7 @@ function selectModel(cachedModel: storage.llm.CachedModel) {
 }
 
 async function openLocalModelSelectionDialog() {
-  const modelPath = await dialog.open({
+  const modelPath = await tauriDialog.open({
     filters: [{ extensions: ["gguf"], name: "GGUF" }],
     multiple: false,
     title: "Select a local model file",
@@ -419,8 +424,10 @@ async function openLocalModelSelectionDialog() {
 }
 
 async function modelsDirectory() {
-  const baseDir = await tauri.resolveBaseDir(fs.BaseDirectory.AppLocalData);
-  return await path.join(baseDir, "models", props.agentId);
+  const baseDir = await tauri.resolveBaseDir(
+    tauriFs.BaseDirectory.AppLocalData,
+  );
+  return await tauriPath.join(baseDir, "models", props.agentId);
 }
 
 const modelsDirectoryRef = asyncComputed(modelsDirectory);
@@ -465,7 +472,7 @@ async function removeModel(modelPath: string, deleteFile: boolean) {
           : t(
               "settings.llmAgentModel.local.removeConfirmation.removeFromList.cancelLabel",
             ),
-        type: "warning",
+        kind: "warning",
       },
     ))
   ) {
@@ -475,7 +482,7 @@ async function removeModel(modelPath: string, deleteFile: boolean) {
 
   if (modelPath.startsWith(modelsDirectoryRef.value)) {
     console.log(`Deleting model file ${modelPath}`);
-    await fs.removeFile(modelPath);
+    await tauriFs.remove(modelPath);
     cachedModels.value = cachedModels.value.filter(
       (cachedModel) => cachedModel.path !== modelPath,
     );

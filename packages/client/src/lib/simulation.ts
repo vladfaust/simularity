@@ -1,6 +1,6 @@
 import { env } from "@/env";
 import { translationWithFallback } from "@/logic/i18n";
-import { fs } from "@tauri-apps/api";
+import * as tauriFs from "@tauri-apps/plugin-fs";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import {
@@ -1436,7 +1436,7 @@ export class Simulation {
       variant.ttsPath.value = await resources.tts.saveAudio(
         this.id,
         variant.writerUpdate.id,
-        result,
+        new Uint8Array(result),
         ".mp3",
       );
 
@@ -1638,7 +1638,7 @@ export class Simulation {
             writerUpdate,
             undefined, // Director update is fetched later.
             undefined, // State is fetched later.
-            (await fs.exists(ttsPath)) ? ttsPath : null,
+            (await tauriFs.exists(ttsPath)) ? ttsPath : null,
           ),
         );
       }),

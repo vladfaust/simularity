@@ -195,7 +195,7 @@ export class PredictUpdateVariantJob {
           ttsPath = await resources.tts.saveAudio(
             this.simulationId,
             writerUpdate.id,
-            result,
+            new Uint8Array(result),
             ".mp3",
           );
 

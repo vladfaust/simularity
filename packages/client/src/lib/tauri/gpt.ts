@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api";
+import { invoke } from "@tauri-apps/api/core";
 export { create } from "./gpt/create";
 export { infer } from "./gpt/infer";
 

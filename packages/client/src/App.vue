@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { routeLocation } from "@/router";
 import { type UnlistenFn } from "@tauri-apps/api/event";
-import { appWindow } from "@tauri-apps/api/window";
+import * as tauriWindow from "@tauri-apps/api/window";
 import { onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
@@ -11,7 +11,8 @@ const router = useRouter();
 let unlisten: UnlistenFn | undefined;
 
 onMounted(async () => {
-  appWindow
+  tauriWindow
+    .getCurrentWindow()
     .onCloseRequested(async (_) => {
       console.log("Close requested");
       router.push(routeLocation({ name: "Shutdown" }));

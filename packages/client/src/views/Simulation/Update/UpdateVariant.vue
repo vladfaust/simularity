@@ -204,7 +204,7 @@ async function onConsolidateClick() {
       {
         title: "Summarize",
         okLabel: "Summarize",
-        type: "info",
+        kind: "info",
       },
     ))
   ) {

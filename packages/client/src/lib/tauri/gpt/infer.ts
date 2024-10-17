@@ -1,6 +1,6 @@
 import { TauriInvokeError } from "@/lib/tauri";
 import { v } from "@/lib/valibot";
-import { invoke } from "@tauri-apps/api";
+import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 
 type Response = {

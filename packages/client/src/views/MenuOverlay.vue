@@ -18,7 +18,7 @@ import { useScenarioQuery } from "@/queries";
 import router, { routeLocation } from "@/router";
 import SavesVue from "@/views/MenuOverlay/Saves.vue";
 import { TransitionRoot } from "@headlessui/vue";
-import { dialog } from "@tauri-apps/api";
+import * as tauriDialog from "@tauri-apps/plugin-dialog";
 import { asyncComputed, watchImmediate } from "@vueuse/core";
 import {
   DoorOpenIcon,
@@ -83,10 +83,10 @@ const transition = {
 
 async function exit() {
   if (
-    !(await dialog.confirm(t("menuOverlay.exitConfirmation.message"), {
+    !(await tauriDialog.confirm(t("menuOverlay.exitConfirmation.message"), {
       okLabel: t("menuOverlay.exitConfirmation.okLabel"),
       title: t("menuOverlay.exitConfirmation.title"),
-      type: "warning",
+      kind: "warning",
     }))
   ) {
     return;

@@ -1,5 +1,6 @@
 use sha2::{Digest, Sha256};
 use std::time::Instant;
+use tauri::{Emitter, Manager};
 
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -49,7 +50,7 @@ pub async fn gpt_create(
     app: tauri::AppHandle,
     window: tauri::Window,
     state: tauri::State<'_, crate::AppState>,
-) -> Result<Response, tauri::InvokeError> {
+) -> Result<Response, tauri::ipc::InvokeError> {
     println!(
         "gpt_create(model_id: {}, context_size: {}, batch_size: {}, initial_prompt: {}, progress_event_name: {}, dump_session: {:?})",
         model_id,
@@ -75,7 +76,7 @@ pub async fn gpt_create(
             let state_hash = format!("{:x}", hasher.finalize());
 
             let state_file_path = app
-                .path_resolver()
+                .path()
                 .app_cache_dir()
                 .expect("app cache dir is available")
                 .join(cache_dir.unwrap())
@@ -136,19 +137,19 @@ pub async fn gpt_create(
     if let Err(err) = create_result {
         match err {
             simularity_core::gpt::create::Error::ModelNotFound => {
-                return Err(tauri::InvokeError::from("Model not found"));
+                return Err(tauri::ipc::InvokeError::from("Model not found"));
             }
             simularity_core::gpt::create::Error::SessionLimitReached => {
-                return Err(tauri::InvokeError::from("Session limit reached"));
+                return Err(tauri::ipc::InvokeError::from("Session limit reached"));
             }
             simularity_core::gpt::create::Error::ContextCreationFailed => {
-                return Err(tauri::InvokeError::from("Context creation failed"));
+                return Err(tauri::ipc::InvokeError::from("Context creation failed"));
             }
             simularity_core::gpt::create::Error::DecodeFailed => {
-                return Err(tauri::InvokeError::from("Decode failed"));
+                return Err(tauri::ipc::InvokeError::from("Decode failed"));
             }
             simularity_core::gpt::create::Error::Unknown(code) => {
-                return Err(tauri::InvokeError::from(format!(
+                return Err(tauri::ipc::InvokeError::from(format!(
                     "Unknown error code {}",
                     code
                 )));

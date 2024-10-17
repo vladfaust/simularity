@@ -8,7 +8,7 @@ import { allSavesQueryKey, useSavesQuery } from "@/queries";
 import { routeLocation } from "@/router";
 import { TransitionRoot } from "@headlessui/vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { dialog } from "@tauri-apps/api";
+import * as tauriDialog from "@tauri-apps/plugin-dialog";
 import { inArray } from "drizzle-orm";
 import {
   CircleSlash2Icon,
@@ -75,7 +75,7 @@ async function deleteSelected() {
   if (selectedSaveIds.value.length === 0) return;
 
   if (
-    !(await dialog.confirm(
+    !(await tauriDialog.confirm(
       t(
         "menuOverlay.saves.deleteConfirmation.message",
         selectedSaveIds.value.length,
@@ -87,7 +87,7 @@ async function deleteSelected() {
           selectedSaveIds.value.length,
         ),
         cancelLabel: t("menuOverlay.saves.deleteConfirmation.cancelLabel"),
-        type: "warning",
+        kind: "warning",
       },
     ))
   ) {

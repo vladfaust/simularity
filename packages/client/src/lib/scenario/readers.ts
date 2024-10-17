@@ -2,14 +2,8 @@ import { resolveBaseDir, RESOURCES_PATH } from "@/lib/tauri";
 import { safeParseJson } from "@/lib/utils";
 import { formatIssues } from "@/lib/valibot";
 import * as schema from "@simularity/api/lib/schema";
-import {
-  BaseDirectory,
-  createDir,
-  exists,
-  readDir,
-  readTextFile,
-} from "@tauri-apps/api/fs";
-import { join, resolve, resolveResource } from "@tauri-apps/api/path";
+import * as taurPath from "@tauri-apps/api/path";
+import * as tauriFs from "@tauri-apps/plugin-fs";
 import { LocalBaseScenario } from "./classes/local/base";
 import { LocalImmersiveScenario } from "./classes/local/immersive";
 
@@ -39,7 +33,10 @@ export const SCENARIOS_DIR = "scenarios";
 export const MANIFEST_FILE_NAME = "manifest.json";
 
 export async function defaultScenariosDir() {
-  return join(await resolveBaseDir(BaseDirectory.AppLocalData), SCENARIOS_DIR);
+  return taurPath.join(
+    await resolveBaseDir(tauriFs.BaseDirectory.AppLocalData),
+    SCENARIOS_DIR,
+  );
 }
 
 /**
@@ -47,12 +44,12 @@ export async function defaultScenariosDir() {
  */
 export async function readAllLocalScenarios(): Promise<Scenario[]> {
   const scenarios = await _readLocalScenarios(
-    BaseDirectory.Resource,
+    tauriFs.BaseDirectory.Resource,
     SCENARIOS_DIR,
   );
 
   const localScenarios = await _readLocalScenarios(
-    BaseDirectory.AppLocalData,
+    tauriFs.BaseDirectory.AppLocalData,
     SCENARIOS_DIR,
   );
 
@@ -83,7 +80,7 @@ export async function readLocalScenario(id: string): Promise<Scenario | null> {
 export async function ensureLocalScenario(id: string): Promise<Scenario> {
   // First, try to read the scenario from the resource directory.
   const scenario = await _readLocalScenario(
-    BaseDirectory.Resource,
+    tauriFs.BaseDirectory.Resource,
     SCENARIOS_DIR,
     id,
   ).catch((e: any) => {
@@ -97,7 +94,7 @@ export async function ensureLocalScenario(id: string): Promise<Scenario> {
 
   // If the scenario is not found in the resource directory, try the local data directory.
   return await _readLocalScenario(
-    BaseDirectory.AppLocalData,
+    tauriFs.BaseDirectory.AppLocalData,
     SCENARIOS_DIR,
     id,
   );
@@ -107,22 +104,22 @@ export async function ensureLocalScenario(id: string): Promise<Scenario> {
  * Read all scenarios from a local data directory.
  */
 async function _readLocalScenarios(
-  baseDir: BaseDirectory,
+  baseDir: tauriFs.BaseDirectory,
   dir: string,
 ): Promise<Scenario[]> {
   let scenariosDir;
 
   switch (baseDir) {
-    case BaseDirectory.AppLocalData:
-      if (!(await exists(dir, { dir: baseDir }))) {
-        await createDir(dir, { dir: baseDir });
+    case tauriFs.BaseDirectory.AppLocalData:
+      if (!(await tauriFs.exists(dir, { baseDir }))) {
+        await tauriFs.mkdir(dir, { baseDir });
       }
 
-      scenariosDir = await resolve(await resolveBaseDir(baseDir), dir);
+      scenariosDir = await taurPath.resolve(await resolveBaseDir(baseDir), dir);
       break;
 
-    case BaseDirectory.Resource:
-      scenariosDir = await resolveResource(`${RESOURCES_PATH}/${dir}`);
+    case tauriFs.BaseDirectory.Resource:
+      scenariosDir = await taurPath.resolveResource(`${RESOURCES_PATH}/${dir}`);
       break;
 
     default:
@@ -131,10 +128,10 @@ async function _readLocalScenarios(
 
   const scenarios: Scenario[] = [];
   // console.debug(`Reading scenarios from ${scenariosDir}`);
-  const entries = await readDir(scenariosDir);
+  const entries = await tauriFs.readDir(scenariosDir);
 
   for (const entry of entries) {
-    if (!entry.name || !entry.children) continue;
+    if (!entry.name || !entry.isDirectory) continue;
 
     try {
       const scenario = await _readLocalScenario(baseDir, dir, entry.name);
@@ -155,21 +152,21 @@ async function _readLocalScenarios(
  * Read a scenario from the local data or resource directory.
  */
 async function _readLocalScenario(
-  baseDir: BaseDirectory,
+  baseDir: tauriFs.BaseDirectory,
   dir: string,
   id: string,
 ): Promise<Scenario> {
   let path, manifestPath;
 
   switch (baseDir) {
-    case BaseDirectory.AppLocalData:
-      path = await resolve(await resolveBaseDir(baseDir), dir, id);
-      manifestPath = await join(path, MANIFEST_FILE_NAME);
+    case tauriFs.BaseDirectory.AppLocalData:
+      path = await taurPath.resolve(await resolveBaseDir(baseDir), dir, id);
+      manifestPath = await taurPath.join(path, MANIFEST_FILE_NAME);
 
       break;
-    case BaseDirectory.Resource:
-      path = await resolveResource(`${RESOURCES_PATH}/${dir}/${id}`);
-      manifestPath = await resolveResource(
+    case tauriFs.BaseDirectory.Resource:
+      path = await taurPath.resolveResource(`${RESOURCES_PATH}/${dir}/${id}`);
+      manifestPath = await taurPath.resolveResource(
         `${RESOURCES_PATH}/${dir}/${id}/${MANIFEST_FILE_NAME}`,
       );
 
@@ -182,7 +179,7 @@ async function _readLocalScenario(
   let manifestString;
   try {
     console.debug(`Reading local scenario from ${manifestPath}`);
-    manifestString = await readTextFile(manifestPath);
+    manifestString = await tauriFs.readTextFile(manifestPath);
   } catch (error: any) {
     throw new ScenarioReadError(manifestPath, error.message);
   }
@@ -210,7 +207,7 @@ async function _readLocalScenario(
     console.debug(`Read local immersive scenario: ${id}`);
 
     return new LocalImmersiveScenario(
-      baseDir === BaseDirectory.Resource,
+      baseDir === tauriFs.BaseDirectory.Resource,
       id,
       path,
       scenarioParseResult.output,
@@ -219,7 +216,7 @@ async function _readLocalScenario(
     console.debug(`Read local base scenario: ${id}`);
 
     return new LocalBaseScenario(
-      baseDir === BaseDirectory.Resource,
+      baseDir === tauriFs.BaseDirectory.Resource,
       id,
       path,
       scenarioParseResult.output,

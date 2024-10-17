@@ -1,5 +1,7 @@
 use std::time::Instant;
 
+use tauri::Emitter;
+
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ProgressEventPayload {
@@ -23,16 +25,16 @@ pub async fn gpt_decode(
     prompt: &str,
     callback_event_name: Option<&str>,
     window: tauri::Window,
-) -> Result<Response, tauri::InvokeError> {
+) -> Result<Response, tauri::ipc::InvokeError> {
     println!(
         "gpt_decode(session_id: {}, callback_event_name: {})",
         session_id,
         callback_event_name.unwrap_or("None"),
     );
 
-    let session_id = session_id
-        .parse::<u32>()
-        .map_err(|_| tauri::InvokeError::from(format!("Invalid session ID: {}", session_id)))?;
+    let session_id = session_id.parse::<u32>().map_err(|_| {
+        tauri::ipc::InvokeError::from(format!("Invalid session ID: {}", session_id))
+    })?;
 
     let progress_callback = if let Some(event_name) = callback_event_name.as_ref() {
         let throttle = std::time::Duration::from_millis(500);
@@ -63,13 +65,13 @@ pub async fn gpt_decode(
     if let Err(err) = decode_result {
         match err {
             simularity_core::gpt::decode::Error::SessionNotFound => {
-                return Err(tauri::InvokeError::from("Session not found"));
+                return Err(tauri::ipc::InvokeError::from("Session not found"));
             }
             simularity_core::gpt::decode::Error::ContextOverflow => {
-                return Err(tauri::InvokeError::from("Context overflow"));
+                return Err(tauri::ipc::InvokeError::from("Context overflow"));
             }
             simularity_core::gpt::decode::Error::Unknown(code) => {
-                return Err(tauri::InvokeError::from(format!(
+                return Err(tauri::ipc::InvokeError::from(format!(
                     "Unknown error code {}",
                     code
                 )));
