@@ -64,7 +64,7 @@ async function login() {
         pauseOnHover: false,
       });
 
-      storage.user.save(response.userId, response.cookieMaxAge);
+      storage.user.save(response.userId, response.jwt, response.cookieMaxAge);
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: accountQueryKey() }),

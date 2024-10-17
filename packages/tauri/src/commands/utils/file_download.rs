@@ -1,6 +1,7 @@
 use crate::AppState;
 use curl::easy::Easy;
 use std::{
+    collections::HashMap,
     fs::OpenOptions,
     io::Write,
     sync::{
@@ -47,13 +48,26 @@ pub struct Response {
 #[tauri::command]
 pub async fn file_download(
     url: String,
+    headers: Option<HashMap<String, String>>,
     path: String,
     progress_event_name: Option<String>,
     abort_event_name: Option<String>,
     window: tauri::Window,
     state: tauri::State<'_, AppState>,
 ) -> Result<Response, tauri::ipc::InvokeError> {
-    println!("file_download(url: {}, path: {})", url, path);
+    println!(
+        "file_download(url: {}, headers: {}, path: {})",
+        url,
+        headers
+            .as_ref()
+            .map(|h| h
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, v))
+                .collect::<Vec<String>>()
+                .join(", "))
+            .unwrap_or("None".to_string()),
+        path
+    );
 
     let mut hash_map_lock = state.file_downloads.lock().await;
     let abort_flag = hash_map_lock.get(&path);
@@ -97,6 +111,17 @@ pub async fn file_download(
 
     // Set the URL to download from.
     easy.url(&url).unwrap();
+
+    // Set the headers.
+    if let Some(headers) = headers {
+        let mut list = curl::easy::List::new();
+
+        for (key, value) in headers {
+            list.append(&format!("{}: {}", key, value)).unwrap();
+        }
+
+        easy.http_headers(list).unwrap();
+    }
 
     // Follow redirects.
     easy.follow_location(true).unwrap();

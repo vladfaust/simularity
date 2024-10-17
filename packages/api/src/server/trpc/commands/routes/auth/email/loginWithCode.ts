@@ -28,6 +28,7 @@ export default t.procedure
     wrap(
       v.object({
         userId: v.string(),
+        jwt: v.string(),
         cookieMaxAge: v.number(),
         justCreated: v.boolean(),
       }),
@@ -97,9 +98,15 @@ export default t.procedure
       );
     }
 
+    const { jwt, cookieMaxAge } = await setCookie(
+      ctx as ExpressContext,
+      user.id,
+    );
+
     return {
       userId: user.id,
-      cookieMaxAge: setCookie(ctx as ExpressContext, user.id),
+      jwt,
+      cookieMaxAge,
       justCreated,
     };
   });

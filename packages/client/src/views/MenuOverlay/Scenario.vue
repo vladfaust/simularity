@@ -12,6 +12,7 @@ import { d } from "@/lib/drizzle";
 import { trackEvent, trackPageview } from "@/lib/plausible";
 import { defaultScenariosDir, MANIFEST_FILE_NAME } from "@/lib/scenario";
 import { appLocale } from "@/lib/storage";
+import { jwtStorage } from "@/lib/storage/user";
 import * as tauri from "@/lib/tauri";
 import { translationWithFallback } from "@/logic/i18n";
 import { remoteScenarioAssetUrl } from "@/logic/scenarios";
@@ -162,6 +163,9 @@ async function beginDownload(scenarioVersion?: number) {
         scenarioVersion,
         MANIFEST_FILE_NAME,
       ),
+      headers: {
+        Authorization: `Bearer ${jwtStorage.value}`,
+      },
     },
     ...(await Promise.all(
       Object.entries(assetMap).map(async ([assetPath, asset]) => ({
@@ -175,6 +179,9 @@ async function beginDownload(scenarioVersion?: number) {
           scenarioVersion,
           assetPath,
         ),
+        headers: {
+          Authorization: `Bearer ${jwtStorage.value}`,
+        },
         hashes: { sha256: asset.hash },
         size: asset.size,
       })),

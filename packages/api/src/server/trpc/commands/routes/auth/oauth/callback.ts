@@ -34,6 +34,7 @@ export default t.procedure
     wrap(
       v.object({
         userId: v.optional(v.string()),
+        jwt: v.optional(v.string()),
         cookieMaxAge: v.optional(v.number()),
         returnUrl: v.optional(v.string()),
       }),
@@ -267,13 +268,17 @@ export default t.procedure
     }
 
     let cookieMaxAge: number | undefined;
+    let jwt: string | undefined;
     if (shouldSetCookie) {
-      cookieMaxAge = setCookie(ctx as ExpressContext, user.id);
+      const result = await setCookie(ctx as ExpressContext, user.id);
+      cookieMaxAge = result.cookieMaxAge;
+      jwt = result.jwt;
     }
 
     return {
       userId: user.id,
       cookieMaxAge,
+      jwt,
       returnUrl: redisObject.returnUrl,
     };
   });

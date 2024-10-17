@@ -6,6 +6,11 @@ const idStorage = useLocalStorage<string | null>("userId", null, {
   writeDefaults: true,
 });
 
+export const jwtStorage = useLocalStorage<string | null>("jwt", null, {
+  listenToStorageChanges: true,
+  writeDefaults: false,
+});
+
 const cookieExpiredAtStorage = useLocalStorage<Date | null>(
   "cookieExpiredAt",
   null,
@@ -19,13 +24,15 @@ const cookieExpiredAtStorage = useLocalStorage<Date | null>(
   },
 );
 
-export function save(userId: string, cookieMaxAge: number) {
+export function save(userId: string, jwt: string, cookieMaxAge: number) {
   idStorage.value = userId;
+  jwtStorage.value = jwt;
   cookieExpiredAtStorage.value = new Date(new Date().valueOf() + cookieMaxAge);
 }
 
 export function clear() {
   idStorage.value = null;
+  jwtStorage.value = null;
   cookieExpiredAtStorage.value = null;
 }
 

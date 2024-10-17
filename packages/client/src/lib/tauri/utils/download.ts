@@ -57,6 +57,7 @@ export type Response = v.InferOutput<typeof ResponseSchema>;
  */
 export async function download(
   url: string,
+  headers: Record<string, string> | undefined,
   path: string,
   onProgress?: (event: ProgressEventPayload) => void,
   abortSignal?: AbortSignal,
@@ -90,6 +91,7 @@ export async function download(
   try {
     const response = await invoke(COMMAND_NAME, {
       url,
+      headers,
       path,
       progressEventName,
       abortEventName,

@@ -23,6 +23,7 @@ export default t.procedure
       v.nullable(
         v.object({
           userId: v.string(),
+          jwt: v.string(),
           cookieMaxAge: v.number(),
         }),
       ),
@@ -35,8 +36,14 @@ export default t.procedure
       return null;
     }
 
+    const { jwt, cookieMaxAge } = await setCookie(
+      ctx as ExpressContext,
+      userId,
+    );
+
     return {
       userId,
-      cookieMaxAge: setCookie(ctx as ExpressContext, userId),
+      jwt,
+      cookieMaxAge,
     };
   });

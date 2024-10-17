@@ -22,6 +22,7 @@ const DownloadFileSchema = v.object({
   files: v.array(
     v.object({
       url: v.string(),
+      headers: v.optional(v.record(v.string(), v.string())),
       targetPath: v.string(),
       completed: v.boolean(),
       error: v.optional(v.string()),
@@ -93,6 +94,7 @@ export class Download {
    */
   readonly files: {
     url: string;
+    headers?: Record<string, string>;
     targetPath: string;
     completed: Ref<boolean>;
     error: Ref<string | undefined>;
@@ -224,6 +226,7 @@ export class Download {
     metaPath: string,
     files: {
       url: string;
+      headers?: Record<string, string>;
       targetPath: string;
       tempPath?: string;
       hashes?: {
@@ -326,7 +329,12 @@ export class Download {
       const tempPath = (file.tempPath.value ||= await Download.tempPath());
       // console.debug(`Downloading from ${file.url} to ${tempPath}`);
 
-      const handler = Download.createDownloadHandler(file.url, tempPath, file);
+      const handler = Download.createDownloadHandler(
+        file.url,
+        file.headers,
+        tempPath,
+        file,
+      );
       this.downloadHandlers.value.set(tempPath, handler);
       triggerRef(this.downloadHandlers);
 
@@ -454,6 +462,7 @@ export class Download {
    */
   private static createDownloadHandler(
     url: string,
+    headers: Record<string, string> | undefined,
     path: string,
     file: {
       contentLength: Ref<number | undefined>;
@@ -467,6 +476,7 @@ export class Download {
 
     const onReturn = download(
       url,
+      headers,
       path,
       (event) => {
         currentFileSize.value = event.currentFileSize;
@@ -497,6 +507,7 @@ export class Download {
       paused: this.paused.value,
       files: this.files.map((file) => ({
         url: file.url,
+        headers: file.headers,
         targetPath: file.targetPath,
         completed: file.completed.value,
         error: file.error.value,
@@ -529,6 +540,7 @@ export class DownloadManager {
     metaPath: string,
     files: {
       url: string;
+      headers?: Record<string, string>;
       targetPath: string;
       tempPath?: string;
       hashes?: {

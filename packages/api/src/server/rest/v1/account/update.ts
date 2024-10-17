@@ -27,7 +27,7 @@ const RequestBodySchema = v.object({
 });
 
 export default Router().put("/", async (req, res) => {
-  const userId = getAuthenticatedUserId(req);
+  const userId = await getAuthenticatedUserId(req);
   if (!userId) return res.sendStatus(401);
 
   const user = await d.db.query.users.findFirst({
