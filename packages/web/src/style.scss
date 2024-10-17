@@ -57,35 +57,30 @@
   }
 
   .btn-neutral {
-    @apply bg-neutral-100 text-neutral-800;
-    @apply border-b-[2px] border-b-neutral-200;
+    @apply border border-neutral-300 bg-neutral-200 text-neutral-800;
   }
 
   .btn-primary {
-    @apply btn-shadow bg-primary-500 text-primary-base;
-    @apply border-b-[2px] border-b-primary-600;
+    @apply btn-shadow border border-primary-600 bg-primary-500 text-primary-base;
   }
 
   .btn-secondary {
-    @apply btn-shadow bg-secondary-500 text-secondary-base;
-    @apply border-b-[2px] border-b-secondary-600;
+    @apply btn-shadow border border-secondary-600 bg-secondary-500 text-secondary-base;
   }
 
   .btn-success {
-    @apply btn-shadow bg-success-500 text-success-base;
-    @apply border-b-[2px] border-b-success-600;
+    @apply btn-shadow border border-success-600 bg-success-500 text-success-base;
   }
 
   .btn-warn {
-    @apply btn-shadow bg-warn-500 text-warn-base;
-    @apply border-b-[2px] border-b-warn-600;
+    @apply btn-shadow border border-warn-600 bg-warn-500 text-warn-base;
   }
 
   .btn-error {
-    @apply btn-shadow bg-error-500 text-error-base;
-    @apply border-b-[2px] border-b-error-600;
+    @apply btn-shadow border border-error-600 bg-error-500 text-error-base;
   }
 
+  .btn-neutral,
   .btn-primary,
   .btn-secondary,
   .btn-success,

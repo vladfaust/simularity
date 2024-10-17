@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import NsfwIcon from "@/components/Icons/NsfwIcon.vue";
-import PremiumIcon from "@/components/Icons/PremiumIcon.vue";
+import SubscriptionIcon from "@/components/Icons/SubscriptionIcon.vue";
 import TransitionImage from "@/components/TransitionImage.vue";
 import { translateWithFallback } from "@/lib/logic/i18n";
 import { remoteScenarioAssetUrl } from "@/lib/logic/scenarios";
 import { useRemoteScenarioQuery } from "@/lib/queries";
 import { appLocale } from "@/store";
+import { useI18n } from "vue-i18n";
 
 const { scenarioId } = defineProps<{
   scenarioId: string;
@@ -14,6 +15,20 @@ const { scenarioId } = defineProps<{
 }>();
 
 const { data: scenario } = useRemoteScenarioQuery(scenarioId);
+
+const { t } = useI18n({
+  messages: {
+    "en-US": {
+      scenarioCard: {
+        nsfw: "This scenario is NSFW",
+        requiresSubscription: {
+          basic: "Requires Basic subscription",
+          premium: "Requires Premium subscription",
+        },
+      },
+    },
+  },
+});
 </script>
 
 <template lang="pug">
@@ -27,14 +42,27 @@ const { data: scenario } = useRemoteScenarioQuery(scenarioId);
   .absolute.bottom-0.z-10.hidden.w-full.pb-2.pl-2(v-if="showDetails" class="xs:block")
     .flex.flex-col.gap-1.rounded-l-lg.p-3.shadow-lg.backdrop-blur(class="bg-white/90")
       .flex.shrink-0.items-center.justify-between.gap-2
-        span.shrink-0.font-semibold.leading-tight {{ translateWithFallback(scenario.name, appLocale) }}
+        //- Title.
+        span.shrink-0.text-lg.font-semibold.leading-tight {{ translateWithFallback(scenario.name, appLocale) }}
+
         .w-full.border-b
+
+        //- Buttons.
         .flex.shrink-0.items-center.gap-1
-          PremiumIcon.text-yellow-500(
+          .btn.shrink-0.cursor-help.rounded-lg.border.bg-white.p-1(
             v-if="scenario.requiredSubscriptionTier"
-            :size="18"
+            v-tooltip="t(`scenarioCard.requiresSubscription.${scenario.requiredSubscriptionTier}`)"
           )
-          NsfwIcon.text-pink-500(v-if="scenario.nsfw" :size="18")
+            SubscriptionIcon(
+              :tier="scenario.requiredSubscriptionTier"
+              :size="16"
+            )
+
+          .btn.shrink-0.cursor-help.rounded-lg.border.bg-white.p-1(
+            v-if="scenario.nsfw"
+            v-tooltip="t('scenarioCard.nsfw')"
+          )
+            NsfwIcon.cursor-help.text-pink-500(:size="16")
 
       p.text-sm.leading-tight {{ translateWithFallback(scenario.teaser, appLocale) }}
       .flex.text-xs

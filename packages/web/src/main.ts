@@ -1,4 +1,6 @@
 import { VueQueryPlugin } from "@tanstack/vue-query";
+import FloatingVue from "floating-vue";
+import "floating-vue/dist/style.css";
 import { createApp } from "vue";
 import { createI18n } from "vue-i18n";
 import App from "./App.vue";
@@ -45,6 +47,7 @@ const app = createApp(App);
 app.use(router);
 app.use(i18n);
 app.use(VueQueryPlugin);
+app.use(FloatingVue);
 
 router.isReady().then(() => {
   app.mount("#app");

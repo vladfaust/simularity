@@ -14,7 +14,6 @@ import {
   Loader2Icon,
   SaveIcon,
   Undo2Icon,
-  UserCircle2Icon,
 } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import { toast } from "vue3-toastify";
@@ -180,8 +179,6 @@ Modal.max-h-full.w-full.max-w-xl.rounded-lg.bg-white(
   :open
   @close="emit('close')"
 )
-  template(#icon)
-    UserCircle2Icon(:size="20")
   .flex.h-full.flex-col.overflow-y-hidden
     .flex.h-full.flex-col.gap-2.overflow-y-scroll.p-3
       //- Background picture.

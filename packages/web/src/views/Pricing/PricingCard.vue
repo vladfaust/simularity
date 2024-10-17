@@ -17,8 +17,12 @@ defineProps<{
 
 <template lang="pug">
 .flex.flex-col.divide-y
-  .p-3
+  .flex.items-center.justify-between.p-3
     span.text-xl.font-semibold {{ title }}
+    .btn.aspect-square.shrink-0.rounded-lg.border.border-dashed.p-1(
+      v-if="$slots.icon"
+    )
+      slot(name="icon")
   .p-3
     p.text-sm {{ info }}
 

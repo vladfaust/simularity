@@ -5,6 +5,7 @@ import UserPfp from "@/components/UserPfp.vue";
 import { env } from "@/env";
 import { useUserQuery } from "@/lib/queries";
 import { userId } from "@/store";
+import { PaletteIcon, Settings2Icon } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import WrapBalancer from "vue-wrap-balancer";
 import AccountModal from "./User/AccountModal.vue";
@@ -52,14 +53,18 @@ const bgpUrl = computed(() => {
           WrapBalancer.max-w-md.text-center.leading-snug(as="p") {{ userQuery.data.value?.bio }}
 
         .flex.items-center.gap-2
-          button.btn.btn-md.btn-neutral.btn-pressable.rounded(
+          button.btn.btn-lg.btn-neutral.btn-pressable.rounded-lg(
             v-if="isSelf"
             @click="userSettingsModalOpen = true"
-          ) Edit profile
-          button.btn.btn-md.btn-neutral.btn-pressable.rounded(
+          )
+            PaletteIcon(:size="20")
+            | Edit profile
+          button.btn.btn-lg.btn-neutral.btn-pressable.rounded-lg(
             v-if="isSelf"
             @click="accountModalOpen = true"
-          ) Account
+          )
+            Settings2Icon(:size="20")
+            | Account
 
   UserSettingsModal(
     :open="userSettingsModalOpen"

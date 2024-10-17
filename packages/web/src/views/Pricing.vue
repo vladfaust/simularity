@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import HeaderVue from "@/components/Header.vue";
+import SubscriptionIcon from "@/components/Icons/SubscriptionIcon.vue";
 import * as api from "@/lib/api";
 import { useAccountQuery, useRemoteScenariosQuery } from "@/lib/queries";
 import { useQuery } from "@tanstack/vue-query";
@@ -73,7 +74,7 @@ const subscriptionModalOpen = ref(false);
 
   .flex.h-full.flex-col.items-center.overflow-y-scroll.bg-neutral-100.p-3
     .flex.w-full.max-w-4xl.flex-col
-      .grid.gap-3(class="lg:grid-cols-3")
+      .flex.flex-col-reverse.gap-3(class="lg:grid lg:grid-cols-3")
         //- Free plan.
         PricingCard._pricing-card(
           title="Free"
@@ -96,6 +97,9 @@ const subscriptionModalOpen = ref(false);
           :discord-role="true"
           :vote-for-scenarios="true"
         )
+          template(#icon)
+            SubscriptionIcon(:size="18" tier="basic")
+
           template(#action)
             .btn.btn-success.btn-lg.w-full.rounded-lg(
               v-if="accountQuery.data.value?.subscription?.tier === 'basic'"
@@ -129,6 +133,9 @@ const subscriptionModalOpen = ref(false);
           :discord-role="true"
           :vote-for-scenarios="true"
         )
+          template(#icon)
+            SubscriptionIcon(:size="18" tier="premium")
+
           template(#action)
             .btn.btn-success.btn-lg.w-full.rounded-lg(
               v-if="accountQuery.data.value?.subscription?.tier === 'premium'"

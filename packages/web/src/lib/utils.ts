@@ -1,3 +1,5 @@
+import prettyBytes from "pretty-bytes";
+
 /**
  * Would panic upon non-exhaustive-ness.
  * @example default: unreachable(case)
@@ -28,4 +30,18 @@ export function bufferToHex(buffer: Uint8Array): string {
 
 export async function sha256Hex(buffer: Uint8Array): Promise<string> {
   return bufferToHex(await digest(buffer, "SHA-256"));
+}
+
+/**
+ * @example prettyNumber(512) // => "512"
+ * @example prettyNumber(8192) // => "8K"
+ */
+export function prettyNumber(
+  number_: number,
+  options?: { space: boolean },
+): string {
+  return prettyBytes(number_, { binary: true, ...options }).slice(
+    0,
+    number_ < 1024 ? -1 : -2,
+  );
 }

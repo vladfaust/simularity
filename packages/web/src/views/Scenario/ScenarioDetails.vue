@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import { SUPPORTED_LOCALES, translateWithFallback } from "@/lib/logic/i18n";
 import { useRemoteScenarioQuery } from "@/lib/queries";
+import { prettyNumber } from "@/lib/utils";
 import { appLocale } from "@/store";
-import { DramaIcon, LanguagesIcon, ScrollTextIcon } from "lucide-vue-next";
+import {
+  BookUpIcon,
+  DramaIcon,
+  LanguagesIcon,
+  PackageIcon,
+  ProportionsIcon,
+  ScrollTextIcon,
+} from "lucide-vue-next";
+import prettyBytes from "pretty-bytes";
 import { useI18n } from "vue-i18n";
 
 const { scenarioId } = defineProps<{
@@ -16,24 +25,28 @@ const { t } = useI18n({
   messages: {
     "en-US": {
       scenarioDetails: {
-        context: "Minimum context size for a model",
+        context: "Context",
+        contextHelp: "Minimum context size for a model",
         languages: "Languages",
         episodes: "Episodes",
         achievements: "Achievements",
         characters: "Characters",
         scenes: "Scenes",
         version: "Version",
+        diskSize: "Size",
       },
     },
     "ru-RU": {
       scenarioDetails: {
-        context: "Минимальный размер контекста для модели",
+        context: "Контекст",
+        contextHelp: "Минимальный размер контекста для модели",
         languages: "Языки",
         episodes: "Эпизоды",
         achievements: "Достижения",
         characters: "Персонажи",
         scenes: "Сцены",
         version: "Версия",
+        diskSize: "Размер",
       },
     },
   },
@@ -53,13 +66,6 @@ const { t } = useI18n({
       span.shrink-0.font-semibold {{ t("scenarioDetails.languages") }}:
       span {{ scenario.locales.map((l) => SUPPORTED_LOCALES[l.toString()].label).join(", ") }}
 
-    //- .flex.cursor-help.items-center.gap-1.underline.decoration-dashed(
-    //-   :title="t('scenarioDetails.context')"
-    //- )
-    //-   ProportionsIcon(:size="16")
-    //-   span.shrink-0.font-semibold {{ t('scenarioDetails.context') }}:
-    //-   span {{ prettyNumber(scenario.contextWindowSize, { space: false }) }}
-
     .flex.items-center.gap-1
       ScrollTextIcon(:size="16")
       span.shrink-0.font-semibold {{ t("scenarioDetails.episodes") }}:
@@ -75,12 +81,26 @@ const { t } = useI18n({
       span.shrink-0.font-semibold {{ t("scenarioDetails.characters") }}:
       span {{ Object.keys(scenario.characters).length }}
 
+    .flex.cursor-help.items-center.gap-1(
+      v-tooltip="t('scenarioDetails.contextHelp')"
+    )
+      ProportionsIcon(:size="16")
+      span.shrink-0.font-semibold {{ t("scenarioDetails.context") }}:
+      span {{ prettyNumber(scenario.contextWindowSize, { space: false }) }}
+
+    .flex.items-center.gap-1
+      BookUpIcon(:size="16")
+      span.shrink-0.font-semibold {{ t("scenarioDetails.version") }}:
+      span {{ scenario.version }}
+
+    .flex.items-center.gap-1(v-if="scenario.downloadSize")
+      PackageIcon(:size="16")
+      span.shrink-0.font-semibold {{ t("scenarioDetails.diskSize") }}:
+      span {{ prettyBytes(scenario.downloadSize) }}
+
     //- template(v-if="scenario instanceof LocalImmersiveScenario && true")
     //-   .flex.items-center.gap-1
     //-     ImageIcon(:size="16")
     //-     span.shrink-0.font-semibold {{ t('scenarioDetails.scenes') }}:
     //-     span {{ Object.keys(scenario.scenes).length }}
-
-  .flex.text-xs
-    span.italic.leading-tight {{ t("scenarioDetails.version") }}: {{ scenario.version }}
 </template>
