@@ -18,7 +18,7 @@
     "db:migrate": "node dist/scripts/db/migrate.js",
     "db:drop": "node dist/scripts/db/drop.js",
     "scenarios:check": "node dist/scripts/scenarios/check.js",
-    "scenarios:upload": "node dist/scripts/scenarios/upload.js"
+    "scenarios:update": "node dist/scripts/scenarios/update.js"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
