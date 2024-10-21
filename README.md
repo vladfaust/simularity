@@ -57,7 +57,14 @@ See [packages/api/README.md](./packages/api/README.md) and [packages/web/README.
    6. Remove all disk partitions, create a new one.
 
 2. Connect via Remote Desktop.
-3. These are the variable you'll need to set: `$buildkiteAgentToken`, `$sshKeyUser`, `$userPassword`.
+3. These are the variable you'll need to set:
+
+   ```powershell
+   $buildkiteAgentToken = "TOKEN"
+   $sshKeyUser = "user@example.com"
+   $userPassword = "ADMIN_PASSWORD"
+   ```
+
 4. Download VS Build Tools and install the following:
 
    1. MSVC,
@@ -71,16 +78,23 @@ See [packages/api/README.md](./packages/api/README.md) and [packages/web/README.
      --add Microsoft.VisualStudio.Workload.VCTools `
      --add Microsoft.Component.VC.Runtime.UCRTSDK `
      --add Microsoft.VisualStudio.Component.VC.CMake.Project
+   Get-Process -Name "vs_*", "setup*"
    ```
 
-5. Download and install Cuda with `$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/cuda/12.6.1/network_installers/cuda_12.6.1_windows_network.exe" -OutFile ~\Downloads\cuda_12.6.1_windows_network.exe; ~\Downloads\cuda_12.6.1_windows_network.exe -s`.
+5. Download and install Cuda with
+
+   ```powershell
+   $ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/cuda/12.6.1/network_installers/cuda_12.6.1_windows_network.exe" -OutFile ~\Downloads\cuda_12.6.1_windows_network.exe; ~\Downloads\cuda_12.6.1_windows_network.exe -s
+   Get-Process -Name "cuda*", "setup*"
+   ```
+
    See https://www.server-world.info/en/note?os=Windows_Server_2022&p=cuda.
 
 6. After CUDA is installed, copy some extensions: `cp "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\extras\visual_studio_integration\MSBuildExtensions\*" "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Microsoft\VC\v170\BuildCustomizations\"` (see https://stackoverflow.com/questions/56636714/cuda-compile-problems-on-windows-cmake-error-no-cuda-toolset-found).
 
 7. Install Scoop with `iex "& {$(irm get.scoop.sh)} -RunAsAdmin"`.
 8. Install Git with `scoop install git`.
-9. Run `git config --system core.longpaths true` (https://stackoverflow.com/questions/22041752/github-clone-succeeded-but-checkout-failed).
+9. Run `git config --system core.longpaths true` (https://stackoverflow.com/questions/22041752/github-clone-succeeded-but-checkout-failed) and `git config --global core.sshCommand "C:/Windows/System32/OpenSSH/ssh.exe"` (see https://stackoverflow.com/a/79075865).
 10. Download RustUp with `$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri "https://win.rustup.rs/x86_64" -OutFile ~\Downloads\rustup.exe`.
 11. Install Rust toolchain with `~\Downloads\rustup.exe default stable`.
 12. Add Rust to Path (temporarily) with `$env:Path += ";C:\Users\Administrator\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin;C:\Users\Administrator\.cargo\bin"`.
@@ -95,14 +109,16 @@ See [packages/api/README.md](./packages/api/README.md) and [packages/web/README.
     iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/buildkite/agent/main/install.ps1'))
     ```
 
-17. Generate SSH key with: `ssh-keygen -t rsa -b 4096 -C $sshKeyUser`.
+17. Generate SSH key with: `ssh-keygen -t rsa -b 4096 -C $sshKeyUser; cat  C:\Users\Administrator/.ssh/id_rsa.pub`.
     This key shall be added to the Git repository.
+
 18. Install Nano with `scoop install nano`.
 
 19. Edit Buildkite config with `nano C:\buildkite-agent\buildkite-agent.cfg`:
 
     1. Set tags to `tags="queue=buildkite-agent-windows"`.
     2. Enable PowerShell with new line: `shell="C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"`.
+    3. Set `git-clone-flags=-v --depth=1`.
 
 20. Install NSSM:
 
@@ -112,6 +128,7 @@ See [packages/api/README.md](./packages/api/README.md) and [packages/web/README.
     nssm set buildkite-agent AppStdout "C:\buildkite-agent\buildkite-agent.log"
     nssm set buildkite-agent AppStderr "C:\buildkite-agent\buildkite-agent.log"
     nssm set buildkite-agent ObjectName "$Env:ComputerName\$Env:UserName" "$userPassword"
+    nssm start buildkite-agent
     ```
 
 21. Install NodeJS with `scoop install nodejs-lts`.

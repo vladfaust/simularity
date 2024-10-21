@@ -23,9 +23,10 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      "nsis": {
+        "installerHooks": "./installer.nsh"
+      }
     },
     "longDescription": "",
     "macOS": {
@@ -43,12 +44,11 @@
       "deb": {
         "depends": []
       }
-    },
-    "createUpdaterArtifacts": "v1Compatible"
+    }
   },
   "productName": "Simularity AI",
   "mainBinaryName": "Simularity AI",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "identifier": "ai.simularity.dev",
   "plugins": {
     "cli": {
