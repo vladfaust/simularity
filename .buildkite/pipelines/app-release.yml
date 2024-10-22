@@ -55,5 +55,4 @@ steps:
       buildkite-agent artifact download 'packages\\client\\dist\\**' . --step 'Build Client'
       echo "--- Building app"
       cd packages\\tauri
-      npm run config:windows
-      cargo tauri build -v -c tauri.conf.windows.local.json -- --target-dir C:\\target --features cuda
+      cargo tauri build -v -c tauri.prod.conf.json -- --target-dir C:\\target --features cuda

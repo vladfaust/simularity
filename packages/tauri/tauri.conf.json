@@ -44,8 +44,7 @@
     }
   },
   "productName": "Simularity AI",
-  "mainBinaryName": "Simularity AI",
-  "version": "0.2.0",
+  "mainBinaryName": "simularity",
   "identifier": "ai.simularity.dev",
   "plugins": {
     "cli": {
