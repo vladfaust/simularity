@@ -16,6 +16,7 @@ export const s3 = new S3Client({
   },
   region: env.S3_REGION,
   endpoint: env.S3_ENDPOINT,
+  forcePathStyle: true,
 });
 
 /**
