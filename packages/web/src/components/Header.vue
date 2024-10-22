@@ -1,39 +1,125 @@
 <script setup lang="ts">
 import { routeLocation } from "@/router";
 import { userId } from "@/store";
-import { CircleDollarSignIcon, LogInIcon } from "lucide-vue-next";
+import {
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuItems,
+  TransitionRoot,
+} from "@headlessui/vue";
+import {
+  CircleDollarSignIcon,
+  LibraryBigIcon,
+  LogInIcon,
+  MenuIcon,
+  XIcon,
+} from "lucide-vue-next";
 import UserPfp from "./UserPfp.vue";
 </script>
 
 <template lang="pug">
-.flex.justify-center.px-3
-  .flex.w-full.max-w-4xl.items-center.justify-between.gap-2
-    .flex.h-full.shrink-0.items-center.gap-3
-      .py-4
-        RouterLink.contents(:to="routeLocation({ name: 'Home' })")
-          img.-mb-1.h-8.transition-transform.pressable(
-            src="/img/logo.svg"
-            alt="Logo"
-          )
+Menu(v-slot="{ open }")
+  .flex.flex-col
+    //- Top row (always visible).
+    .flex.justify-center.px-3
+      .flex.w-full.max-w-4xl.items-center.justify-between.gap-2
+        .flex.h-full.shrink-0.items-center.gap-3
+          .py-4
+            RouterLink.contents(:to="routeLocation({ name: 'Home' })")
+              img.-mb-1.h-8.transition-transform.pressable(
+                src="/img/logo.svg"
+                alt="Logo"
+              )
 
-    .flex.h-full.w-full.items-center.justify-end.gap-3
-      RouterLink._router-link(:to="routeLocation({ name: 'Pricing' })")
-        CircleDollarSignIcon(:size="20")
-        span Pricing
+        .hidden.h-full.w-full.items-center.justify-end.gap-3(class="xs:flex")
+          RouterLink._router-link(:to="routeLocation({ name: 'Pricing' })")
+            CircleDollarSignIcon(:size="20")
+            span Pricing
 
-      template(v-if="userId")
-        RouterLink._router-link(
-          :to="routeLocation({ name: 'User', params: { userId } })"
+          template(v-if="userId")
+            RouterLink._router-link(
+              :to="routeLocation({ name: 'User', params: { userId } })"
+            )
+              UserPfp.aspect-square.h-6.rounded-full.object-cover.shadow-lg(
+                :user-id
+              )
+              | Profile
+
+          template(v-else)
+            RouterLink._router-link(:to="routeLocation({ name: 'Login' })")
+              LogInIcon(:size="18" :stroke-width="2.5")
+              | Login
+
+        .flex.items-center(class="xs:hidden")
+          MenuButton.btn-pressable.grid.aspect-square.h-8.place-items-center.rounded-lg.border
+            TransitionRoot.absolute(
+              :show="open"
+              enter="duration-100 ease-out"
+              enter-from="scale-0 opacity-0"
+              enter-to="scale-100 opacity-100"
+              leave="duration-100 ease-in"
+              leave-from="scale-100 opacity-100"
+              leave-to="scale-0 opacity-0"
+            )
+              XIcon(:size="20")
+            TransitionRoot.absolute(
+              :show="!open"
+              enter="duration-100 ease-out"
+              enter-from="scale-0 opacity-0"
+              enter-to="scale-100 opacity-100"
+              leave="duration-100 ease-in"
+              leave-from="scale-100 opacity-100"
+              leave-to="scale-0 opacity-0"
+            )
+              MenuIcon(:size="20")
+
+    //- Dropdown menu.
+    Transition(
+      v-show="open"
+      enter-active-class="transition duration-100 ease-out origin-top"
+      enter-from-class="transform scale-95 opacity-0"
+      enter-to-class="transform scale-100 opacity-100"
+      leave-active-class="transition duration-75 ease-out origin-top"
+      leave-from-class="transform scale-100 opacity-100"
+      leave-to-class="transform scale-95 opacity-0"
+    )
+      .relative.z-10
+        MenuItems.absolute.flex.w-full.flex-col.divide-y.overflow-hidden.rounded-b-lg.border-t.bg-white.shadow-lg(
+          static
         )
-          UserPfp.aspect-square.h-6.rounded-full.object-cover.shadow-lg(
-            :user-id
-          )
-          | Profile
+          MenuItem
+            RouterLink._dropdown-link(:to="routeLocation({ name: 'Home' })")
+              ._icon-container
+                LibraryBigIcon(:size="20")
+              span
+                | Library
 
-      template(v-else)
-        RouterLink._router-link(:to="routeLocation({ name: 'Login' })")
-          LogInIcon(:size="18" :stroke-width="2.5")
-          | Login
+          MenuItem
+            RouterLink._dropdown-link(:to="routeLocation({ name: 'Pricing' })")
+              ._icon-container
+                CircleDollarSignIcon(:size="20")
+              span
+                | Pricing
+
+          MenuItem
+            template(v-if="userId")
+              RouterLink._dropdown-link(
+                :to="routeLocation({ name: 'User', params: { userId } })"
+              )
+                ._icon-container
+                  UserPfp.aspect-square.h-5.rounded-full.object-cover.shadow-lg(
+                    :user-id
+                  )
+                span
+                  | Profile
+
+            template(v-else)
+              RouterLink._dropdown-link(:to="routeLocation({ name: 'Login' })")
+                ._icon-container
+                  LogInIcon(:size="20")
+                span
+                  | Login
 </template>
 
 <style lang="postcss" scoped>
@@ -43,6 +129,20 @@ import UserPfp from "./UserPfp.vue";
 
   &.router-link-active {
     @apply border-b-primary-500 text-primary-500;
+  }
+}
+
+._dropdown-link {
+  @apply flex items-center gap-2 p-3 font-semibold;
+  @apply hover:bg-neutral-100;
+  @apply transition-transform pressable-sm;
+
+  ._icon-container {
+    @apply rounded-lg border p-1;
+  }
+
+  &.router-link-active {
+    @apply border-l-4 border-l-primary-500 text-primary-500;
   }
 }
 </style>

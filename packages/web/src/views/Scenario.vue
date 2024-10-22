@@ -48,10 +48,10 @@ const { t } = useI18n({
 
 <template lang="pug">
 .flex.h-screen.flex-col
-  .z-10.flex.flex-col.items-center
+  .flex.flex-col.items-center
     HeaderVue.w-full.border-b
 
-  .z-10.flex.w-full.flex-col.items-center.border-b.bg-white.p-3
+  .flex.w-full.flex-col.items-center.border-b.bg-white.p-3
     .flex.w-full.max-w-4xl.items-center.justify-between.gap-2
       RouterLink.flex.w-max.shrink-0.origin-left.items-center.gap-2.transition.pressable-sm(
         :to="routeLocation({ name: 'Home' })"
@@ -86,12 +86,12 @@ const { t } = useI18n({
           NsfwIcon(:size="20")
 
   .relative.flex.h-full.flex-col.items-center.overflow-hidden
-    TransitionImage.absolute.h-full.w-full.scale-105.rounded-b-lg.object-cover.blur(
+    TransitionImage.absolute.-z-10.h-full.w-full.scale-105.rounded-b-lg.object-cover.blur(
       v-if="scenario?.coverImage"
       :src="remoteScenarioAssetUrl(scenarioId, scenario.version, scenario.coverImage.path)"
     )
 
-    .z-10.grid.h-full.w-full.max-w-4xl.gap-3.overflow-y-scroll.p-3.shadow-inner(
+    .grid.h-full.w-full.max-w-4xl.gap-3.overflow-y-scroll.p-3.shadow-inner(
       v-if="scenario"
       class="bg-white/90 sm:grid-cols-3 sm:overflow-y-hidden sm:p-0"
     )
