@@ -1,6 +1,7 @@
 import { type MaybeRef } from "vue";
 
 export * from "./queries/account";
+export * from "./queries/releases";
 export * from "./queries/scenarios";
 export * from "./queries/users";
 

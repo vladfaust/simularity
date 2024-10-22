@@ -8,6 +8,7 @@
 - [x] feat: remote scenarios (Fri 4)
 - [x] feat: i18n (Mon 7)
 - [x] feat: upgrade to tauri v2 (Thu 17)
+- [x] feat: download releases (Tue 22)
 
 ### September 2024
 

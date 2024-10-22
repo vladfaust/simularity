@@ -10,6 +10,7 @@ import {
 } from "@headlessui/vue";
 import {
   CircleDollarSignIcon,
+  DownloadIcon,
   LibraryBigIcon,
   LogInIcon,
   MenuIcon,
@@ -22,15 +23,20 @@ import UserPfp from "./UserPfp.vue";
 Menu(v-slot="{ open }")
   .flex.flex-col
     //- Top row (always visible).
-    .flex.justify-center.px-3
+    .flex.justify-center.p-3
       .flex.w-full.max-w-4xl.items-center.justify-between.gap-2
         .flex.h-full.shrink-0.items-center.gap-3
-          .py-4
+          .py-1
             RouterLink.contents(:to="routeLocation({ name: 'Home' })")
               img.-mb-1.h-8.transition-transform.pressable(
                 src="/img/logo.svg"
                 alt="Logo"
               )
+
+          .hidden(class="xs:contents")
+            RouterLink._router-link(:to="routeLocation({ name: 'Download' })")
+              DownloadIcon(:size="20")
+              span Download
 
         .hidden.h-full.w-full.items-center.justify-end.gap-3(class="xs:flex")
           RouterLink._router-link(:to="routeLocation({ name: 'Pricing' })")
@@ -48,11 +54,11 @@ Menu(v-slot="{ open }")
 
           template(v-else)
             RouterLink._router-link(:to="routeLocation({ name: 'Login' })")
-              LogInIcon(:size="18" :stroke-width="2.5")
+              LogInIcon(:size="20")
               | Login
 
         .flex.items-center(class="xs:hidden")
-          MenuButton.btn-pressable.grid.aspect-square.h-8.place-items-center.rounded-lg.border
+          MenuButton.btn-pressable.grid.aspect-square.h-9.place-items-center.rounded-lg.border
             TransitionRoot.absolute(
               :show="open"
               enter="duration-100 ease-out"
@@ -78,16 +84,24 @@ Menu(v-slot="{ open }")
     Transition(
       v-show="open"
       enter-active-class="transition duration-100 ease-out origin-top"
-      enter-from-class="transform scale-95 opacity-0"
-      enter-to-class="transform scale-100 opacity-100"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
       leave-active-class="transition duration-75 ease-out origin-top"
-      leave-from-class="transform scale-100 opacity-100"
-      leave-to-class="transform scale-95 opacity-0"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
     )
       .relative.z-10
         MenuItems.absolute.flex.w-full.flex-col.divide-y.overflow-hidden.rounded-b-lg.border-t.bg-white.shadow-lg(
           static
         )
+          MenuItem
+            RouterLink._dropdown-link(
+              :to="routeLocation({ name: 'Download' })"
+            )
+              ._icon-container
+                DownloadIcon(:size="20")
+              span Download app
+
           MenuItem
             RouterLink._dropdown-link(:to="routeLocation({ name: 'Home' })")
               ._icon-container
@@ -124,11 +138,11 @@ Menu(v-slot="{ open }")
 
 <style lang="postcss" scoped>
 ._router-link {
-  @apply flex h-full items-center gap-2 border-y-4 border-t-transparent px-3 font-semibold transition-transform pressable;
+  @apply flex h-full items-center gap-2 rounded-lg border px-3 font-semibold transition pressable;
   @apply hover:text-primary-500;
 
   &.router-link-active {
-    @apply border-b-primary-500 text-primary-500;
+    @apply border-primary-500 text-primary-500;
   }
 }
 

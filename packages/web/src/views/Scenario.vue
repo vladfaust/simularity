@@ -103,7 +103,9 @@ const { t } = useI18n({
         )
 
         //- Play button.
-        button.btn.btn-primary.btn-pressable.btn-lg.shrink-0.rounded-lg.shadow-lg
+        RouterLink.btn.btn-primary.btn-pressable.btn-lg.shrink-0.rounded-lg.shadow-lg(
+          :to="routeLocation({ name: 'Download', query: { scenarioId } })"
+        )
           AppWindowIcon(:size="20")
           | {{ t("scenario.openScenario") }}
 

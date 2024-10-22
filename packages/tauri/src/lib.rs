@@ -30,7 +30,19 @@ impl AppState {
 }
 
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // See https://v2.tauri.app/plugin/deep-linking/#desktop.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|_app, argv, _cwd| {
+          println!("a new app instance was opened with {argv:?} and the deep link event was already triggered");
+          // when defining deep link schemes at runtime, you must also check `argv` here
+        }));
+    }
+
+    builder = builder
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -69,7 +81,9 @@ pub fn run() {
             commands::utils::file_manager_open,
             commands::utils::file_sha256,
             commands::utils::file_download::file_download,
-        ])
+        ]);
+
+    builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

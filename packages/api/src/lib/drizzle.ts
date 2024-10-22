@@ -12,6 +12,7 @@ export const d = {
     "llmWorkers",
     "oauthAccounts",
     "patreonPledges",
+    "releases",
     "scenarios",
     "subscriptions",
     "ttsInferences",

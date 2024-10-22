@@ -45,3 +45,10 @@ export function prettyNumber(
     number_ < 1024 ? -1 : -2,
   );
 }
+
+/**
+ * Sleep for the given number of milliseconds.
+ */
+export async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

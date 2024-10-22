@@ -48,6 +48,7 @@ const parseResult = v.safeParse(
       v.union([v.literal("development"), v.literal("production")]),
       "development",
     ),
+
     DATABASE_URL: v.pipe(v.string(), v.url()),
     REDIS_URL: v.pipe(v.string(), v.url()),
 
@@ -63,11 +64,12 @@ const parseResult = v.safeParse(
       v.array(v.pipe(v.string(), v.url())),
     ),
 
+    BASE_URL: v.pipe(v.string(), v.url()),
+
     JWT_SECRET: v.pipe(
       v.string(),
       v.transform((str) => Buffer.from(str, "hex")),
     ),
-
     JWT_ISSUER: v.string(),
 
     RUNPOD_BASE_URL: v.pipe(v.string(), v.url()),

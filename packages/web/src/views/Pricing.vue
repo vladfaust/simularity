@@ -3,6 +3,7 @@ import HeaderVue from "@/components/Header.vue";
 import SubscriptionIcon from "@/components/Icons/SubscriptionIcon.vue";
 import * as api from "@/lib/api";
 import { useAccountQuery, useRemoteScenariosQuery } from "@/lib/queries";
+import { routeLocation } from "@/router";
 import { useQuery } from "@tanstack/vue-query";
 import { CheckIcon, CreditCardIcon, DownloadIcon } from "lucide-vue-next";
 import { computed, ref } from "vue";
@@ -82,7 +83,9 @@ const subscriptionModalOpen = ref(false);
           :scenarios-count="freeScenarioIds?.length ?? 0"
         )
           template(#action)
-            button.btn-pressable.btn.btn-neutral.btn-lg.w-full.rounded-lg
+            RouterLink.btn-pressable.btn.btn-lg.w-full.rounded-lg.border(
+              :to="routeLocation({ name: 'Download' })"
+            )
               DownloadIcon(:size="20")
               | Download app
 

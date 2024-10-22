@@ -57,6 +57,13 @@
           "required": false
         }
       ]
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "simularity"
+        ]
+      }
     }
   },
   "app": {

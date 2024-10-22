@@ -81,3 +81,65 @@ export const LlmModelTaskSchema = v.union([
   v.literal("writer"),
   v.literal("director"),
 ]);
+
+export const PlatformIdSchema = v.union([
+  v.literal("windows-x86_64"),
+  v.literal("darwin-arm64"),
+]);
+
+export type PlatformId = v.InferOutput<typeof PlatformIdSchema>;
+
+/**
+ * @see https://v2.tauri.app/plugin/updater/#static-json-file.
+ */
+export const ReleaseSchema = v.object({
+  /**
+   * Must be a valid SemVer, with or without a leading `v`,
+   * meaning that both `1.0.0` and `v1.0.0` are valid.
+   */
+  version: v.pipe(
+    v.string(),
+    v.check(
+      (x) => /^v?\d+\.\d+\.\d+$/.test(x),
+      "must be a valid SemVer, with or without a leading v",
+    ),
+  ),
+
+  /**
+   * Notes about the update.
+   */
+  notes: v.string(),
+
+  /**
+   * The date must be formatted according to RFC 3339 if present.
+   */
+  pub_date: v.optional(
+    v.pipe(
+      v.string(),
+      v.check(
+        (x) => new Date(x).toISOString() === x,
+        "must be formatted according to RFC 3339",
+      ),
+    ),
+  ),
+
+  /**
+   * Each platform key is in the `OS-ARCH` format, where `OS`
+   * is one of `linux`, `darwin` or `windows`, and `ARCH`
+   * is one of `x86_64`, `aarch64`, `i686` or `armv7`.
+   */
+  platforms: v.record(
+    PlatformIdSchema,
+    v.object({
+      /**
+       * The content of the generated `.sig` file, which may change
+       * with each build. A path or URL does not work!
+       */
+      signature: v.string(),
+
+      url: v.pipe(v.string(), v.url()),
+    }),
+  ),
+});
+
+export type Release = v.InferOutput<typeof ReleaseSchema>;

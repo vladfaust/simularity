@@ -2,6 +2,7 @@
 import { routeLocation } from "@/router";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import * as tauriWindow from "@tauri-apps/api/window";
+import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
@@ -21,6 +22,11 @@ onMounted(async () => {
       console.debug("onCloseRequested listener registered");
       unlisten = unlistenFn;
     });
+
+  onOpenUrl((urls) => {
+    // TODO: Handle deep links.
+    console.log("deep link:", urls);
+  });
 });
 
 onUnmounted(() => {
