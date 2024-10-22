@@ -36,9 +36,6 @@
       "providerShortName": null,
       "signingIdentity": "Developer ID Application: Vladislav Kosarev (J6FGC4GSYA)"
     },
-    "resources": [
-      "../client/resources"
-    ],
     "shortDescription": "",
     "linux": {
       "deb": {
@@ -70,8 +67,7 @@
         "scope": [
           "$APPLOCALDATA/screenshots/*",
           "$APPLOCALDATA/scenarios/**/*",
-          "$APPLOCALDATA/simulations/**/*",
-          "$RESOURCE/**/*"
+          "$APPLOCALDATA/simulations/**/*"
         ],
         "enable": true
       },
