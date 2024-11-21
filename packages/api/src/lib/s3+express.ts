@@ -44,7 +44,7 @@ export async function pipe(
   if (options?.filename) {
     res.set(
       "Content-Disposition",
-      `attachment; filename="${options.filename}"`,
+      `attachment; filename="${encodeURI(options.filename)}"`,
     );
   }
 
