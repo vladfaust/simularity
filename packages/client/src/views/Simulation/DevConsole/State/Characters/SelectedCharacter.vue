@@ -3,6 +3,8 @@ import CharacterAvatar from "@/components/CharacterAvatar.vue";
 import CharacterPfp from "@/components/CharacterPfp.vue";
 import type { LocalImmersiveScenario } from "@/lib/scenario";
 import { Simulation } from "@/lib/simulation";
+import { appLocale } from "@/lib/storage";
+import { translationWithFallback } from "@/logic/i18n";
 import { asyncComputed } from "@vueuse/core";
 import { Grid2x2Icon, Grid2x2XIcon } from "lucide-vue-next";
 import { computed, ref } from "vue";
@@ -96,8 +98,8 @@ function removeFromStage() {
       OnStageMark.absolute.-bottom-1.-right-1.shadow-lg(v-if="isOnStage")
 
     //- Info.
-    span.mt-2.font-semibold.leading-tight(:style="{ color: character.color }") {{ character.name }}
-    p.text-center.text-sm.leading-tight {{ character.about }}
+    span.mt-2.font-semibold.leading-tight(:style="{ color: character.color }") {{ translationWithFallback(character.name, appLocale) }}
+    p.text-center.text-sm.leading-tight {{ translationWithFallback(character.about, appLocale) }}
 
     //- Add/remove from stage button.
     button.btn.btn-md.btn-error.btn-pressable.mt-1.rounded(
