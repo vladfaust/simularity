@@ -119,5 +119,7 @@ export default Router().get("/:scenarioId/assets", async (req, res) => {
     );
   }
 
-  return pipe(key, assetEntry.asset.versionId, res, toSeconds({ years: 1 }));
+  return pipe(key, assetEntry.asset.versionId, res, toSeconds({ years: 1 }), {
+    range: req.headers.range,
+  });
 });

@@ -1,6 +1,7 @@
 import { env } from "@/env.js";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { Response } from "express";
+import { konsole } from "./konsole.js";
 import { s3 } from "./s3.js";
 
 /**
@@ -22,18 +23,24 @@ export async function pipe(
   cacheMaxAge: number,
   options?: {
     filename?: string;
+    range?: string;
   },
 ): Promise<void> {
+  konsole.debug("pipe", key, versionId, options);
+
   const command = new GetObjectCommand({
     Bucket: env.S3_BUCKET,
     Key: key,
     VersionId: versionId,
+    Range: options?.range,
   });
 
   const response = await s3.send(command);
 
+  res.set("Accept-Ranges", "bytes");
   res.set("Content-Type", response.ContentType);
   res.set("Content-Length", response.ContentLength?.toString());
+  res.set("Content-Range", response.ContentRange);
   res.set("ETag", response.ETag);
   res.set("Last-Modified", response.LastModified?.toString());
 

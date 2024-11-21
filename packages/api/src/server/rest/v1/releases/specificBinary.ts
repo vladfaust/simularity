@@ -64,6 +64,8 @@ export default Router().get(
         }.${release.versionMinor}.${release.versionPatch}.${extensionByPlatformId(
           platformId,
         )}`,
+
+        range: req.headers.range,
       },
     );
   },
