@@ -121,59 +121,67 @@ export class TtsEndpoint {
       let inferenceId: string | undefined;
       let usage: { execution_time: number } | undefined;
 
-      for await (const rawOutput of await pRetry(
-        () => this.endpoint.stream(requestId, timeout),
+      await pRetry(
+        async () => {
+          for await (const rawOutput of this.endpoint.stream(
+            requestId,
+            timeout,
+          )) {
+            if ("inference_id" in rawOutput.output) {
+              const prologue = v.safeParse(
+                TtsStreamingPrologueSchema,
+                rawOutput.output,
+              );
+
+              if (!prologue.success) {
+                konsole.error("Invalid Runpod prologue", {
+                  issues: JSON.stringify(v.flatten(prologue.issues)),
+                });
+
+                throw new Error("Invalid Runpod prologue");
+              }
+
+              inferenceId = prologue.output.inference_id;
+            } else if ("wav_base_64" in rawOutput.output) {
+              const chunk = v.safeParse(
+                TtsStreamingChunkSchema,
+                rawOutput.output,
+              );
+
+              if (!chunk.success) {
+                konsole.error("Invalid Runpod chunk", {
+                  issues: JSON.stringify(v.flatten(chunk.issues)),
+                });
+
+                throw new Error("Invalid Runpod chunk");
+              }
+
+              await onInference(chunk.output.wav_base_64);
+            } else if ("usage" in rawOutput.output) {
+              const epilogue = v.safeParse(
+                TtsStreamingEpilogueSchema,
+                rawOutput.output,
+              );
+
+              if (!epilogue.success) {
+                konsole.error("Invalid Runpod epilogue", {
+                  issues: JSON.stringify(v.flatten(epilogue.issues)),
+                });
+
+                throw new Error("Invalid Runpod epilogue");
+              }
+
+              usage = {
+                execution_time: epilogue.output.usage.execution_time,
+              };
+            } else {
+              konsole.error("Unknown Runpod output", rawOutput.output);
+              throw new Error("Unknown Runpod output");
+            }
+          }
+        },
         { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
-      )) {
-        if ("inference_id" in rawOutput.output) {
-          const prologue = v.safeParse(
-            TtsStreamingPrologueSchema,
-            rawOutput.output,
-          );
-
-          if (!prologue.success) {
-            konsole.error("Invalid Runpod prologue", {
-              issues: JSON.stringify(v.flatten(prologue.issues)),
-            });
-
-            throw new Error("Invalid Runpod prologue");
-          }
-
-          inferenceId = prologue.output.inference_id;
-        } else if ("wav_base_64" in rawOutput.output) {
-          const chunk = v.safeParse(TtsStreamingChunkSchema, rawOutput.output);
-
-          if (!chunk.success) {
-            konsole.error("Invalid Runpod chunk", {
-              issues: JSON.stringify(v.flatten(chunk.issues)),
-            });
-
-            throw new Error("Invalid Runpod chunk");
-          }
-
-          await onInference(chunk.output.wav_base_64);
-        } else if ("usage" in rawOutput.output) {
-          const epilogue = v.safeParse(
-            TtsStreamingEpilogueSchema,
-            rawOutput.output,
-          );
-
-          if (!epilogue.success) {
-            konsole.error("Invalid Runpod epilogue", {
-              issues: JSON.stringify(v.flatten(epilogue.issues)),
-            });
-
-            throw new Error("Invalid Runpod epilogue");
-          }
-
-          usage = {
-            execution_time: epilogue.output.usage.execution_time,
-          };
-        } else {
-          konsole.error("Unknown Runpod output", rawOutput.output);
-          throw new Error("Unknown Runpod output");
-        }
-      }
+      );
 
       const finalStatus =
         this.endpoint instanceof LocalRunpodEndpoint
