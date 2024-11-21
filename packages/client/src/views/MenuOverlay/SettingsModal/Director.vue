@@ -33,13 +33,30 @@ const { t } = useI18n({
             "Director is an agent responsible for generating scene updates as the story advances. It has to be a fine instruction-tuned model with good reasoning—to understand what's going on—, trained for JSON outputs. Director is only required in visual novel mode.",
           ambienceVolume: "Ambience Volume",
           teacherMode: "Teacher Mode",
-          directorModel: "Director Model",
+          directorModel: "Model",
           contextSizeAlert:
             "Model is trained on up to {maxContextSize} tokens. Consider reducing the context size to avoid performance degradation.",
           scenarioContextSizeAlert:
             "Scenario requires at least {contextSize} tokens of context. Consider increasing the context size to avoid context overflow.",
           contextSizeHelp:
-            "Consider setting the context size to ~{CONTEXT_SIZE_MULTIPLIER}x of writer's ({simulation.scenario.content.contextWindowSize * CONTEXT_SIZE_MULTIPLIER}+).",
+            "Consider setting the context size to ~{multiplier}x of writer's ({recommended}+).",
+        },
+      },
+    },
+    "ru-RU": {
+      settings: {
+        director: {
+          directorHelp:
+            "Режиссер — это агент, ответственный за генерацию обновлений сцены по мере развития сюжета. Ему нужно быть хорошо настроенной моделью с инструкциями и хорошим рассуждением, чтобы понимать, что происходит, обученной для JSON-выводов. Режиссер требуется только в режиме визуальной новеллы.",
+          ambienceVolume: "Громкость фонового звука",
+          teacherMode: "Режим учителя",
+          directorModel: "Модель",
+          contextSizeAlert:
+            "Модель обучена на до {maxContextSize} токенов. Рассмотрите возможность уменьшения размера контекста, чтобы избежать ухудшения производительности.",
+          scenarioContextSizeAlert:
+            "Сценарий требует как минимум {contextSize} токенов контекста. Рассмотрите возможность увеличения размера контекста, чтобы избежать переполнения контекста.",
+          contextSizeHelp:
+            "Рассмотрите возможность установки размера контекста ~{multiplier}x от писателя ({recommended}+).",
         },
       },
     },
@@ -86,15 +103,19 @@ const { t } = useI18n({
 
       template(#context-size-help="{ contextSize, maxContextSize }")
         Alert(type="warn" v-if="contextSize > maxContextSize")
-          | Model is trained on up to {{ maxContextSize }} tokens. Consider reducing the context size to avoid performance degradation.
+          i18n-t(keypath="settings.director.contextSizeAlert")
+            template(#maxContextSize) {{ maxContextSize }}
         Alert(
           type="warn"
           v-if="simulation && contextSize < simulation.scenario.content.contextWindowSize"
         )
-          | Scenario requires at least {{ simulation.scenario.content.contextWindowSize }} tokens of context. Consider increasing the context size to avoid context overflow.
+          i18n-t(keypath="settings.director.scenarioContextSizeAlert")
+            template(#contextSize) {{ contextSize }}
         Alert(
           type="info"
           v-if="simulation && maxContextSize >= simulation.scenario.content.contextWindowSize * CONTEXT_SIZE_MULTIPLIER && contextSize < simulation.scenario.content.contextWindowSize * CONTEXT_SIZE_MULTIPLIER"
         )
-          | Consider setting the context size to ~{{ CONTEXT_SIZE_MULTIPLIER }}x of writer's ({{ simulation.scenario.content.contextWindowSize * CONTEXT_SIZE_MULTIPLIER }}+).
+          i18n-t(keypath="settings.director.contextSizeHelp")
+            template(#multiplier) {{ CONTEXT_SIZE_MULTIPLIER }}
+            template(#recommended) {{ simulation.scenario.content.contextWindowSize * CONTEXT_SIZE_MULTIPLIER }}
 </template>
