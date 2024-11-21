@@ -142,7 +142,7 @@ const { t } = useI18n({
   .flex.flex-col.items-center.justify-between.gap-2.border-r.p-3(class="bg-white/90")
     //- Logo button.
     button.btn.aspect-video.w-full.max-w-56.gap-2.overflow-hidden.rounded-lg.border.p-3.transition.pressable-sm(
-      @click="tab === Tab.Scenario ? (tab = Tab.Library) : (tab = Tab.Scenario)"
+      @click="tab === Tab.Scenario ? (tab = Tab.Library) : (tab = selectedScenarioId ? Tab.Scenario : Tab.Library)"
       class="hover:bg-white"
       :class="{ 'bg-white': tab === Tab.Library }"
       :title="tab === Tab.Scenario ? t('menuOverlay.changeScenario') : t('menuOverlay.backToScenario')"
@@ -153,7 +153,7 @@ const { t } = useI18n({
           alt="Scenario logo"
         )
       span.text-nowrap.text-lg.font-bold(v-else-if="scenarioTitle") {{ scenarioTitle }}
-      span.font-bold(v-else) {{ t("menuOverlay.chooseScenario") }}
+      span.w-full.text-wrap.font-bold.leading-snug.opacity-80(v-else) {{ t("menuOverlay.chooseScenario") }}
 
     .flex.flex-col.items-center.gap-2
       //- Back to simulation button.
