@@ -49,6 +49,8 @@ import { useI18n } from "vue-i18n";
 import Achievement from "./Scenario/Achievement.vue";
 import Character from "./Scenario/Character.vue";
 
+const CAN_PAUSE_DOWNLOAD = false;
+
 const queryClient = useQueryClient();
 
 const props = defineProps<{
@@ -448,6 +450,7 @@ const { t } = useI18n({
             span.text-sm {{ prettyBytes(download.totalFileSize.value ?? 0) }} ({{ Math.round(download.progress.value * 100) }}%)
 
           button.btn-pressable.btn.aspect-square.rounded-lg.border.p-3(
+            v-if="CAN_PAUSE_DOWNLOAD"
             @click="download.paused.value ? download.resume() : download.pause()"
             class="hover:bg-white hover:text-primary-500"
           )
