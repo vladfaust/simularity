@@ -291,6 +291,7 @@ li.flex.flex-col.divide-y
 
       //- Locales.
       .flex.cursor-help.gap-1(
+        v-if="recommendationModel.locales"
         v-tooltip="t('settings.llmAgentModel.local.wellKnownModel.locales.tooltip')"
       )
         LanguagesIcon.self-center(:size="18" :stroke-width="2.5")

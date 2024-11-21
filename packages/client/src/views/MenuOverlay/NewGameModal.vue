@@ -109,7 +109,7 @@ const scenarioLocalesFilteredBySelectedModel = computed<Intl.Locale[]>(() => {
     return props.scenario.locales;
   } else {
     return props.scenario.locales.filter((l) =>
-      selectedWellKnownWriterModel.value?.locales.includes(l.toString()),
+      selectedWellKnownWriterModel.value?.locales?.includes(l.toString()),
     );
   }
 });
@@ -292,7 +292,7 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
                 LanguagesIcon(:size="16")
 
             Alert(
-              v-if="selectedWellKnownWriterModel && !selectedWellKnownWriterModel?.locales.includes(chatLocaleModelRef)"
+              v-if="selectedWellKnownWriterModel && !selectedWellKnownWriterModel?.locales?.includes(chatLocaleModelRef)"
               type="warn"
             )
               i18n-t(:keypath="'newGameModal.unsupportedLanguage'")

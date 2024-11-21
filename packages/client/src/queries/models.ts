@@ -13,7 +13,7 @@ export type WellKnownModel = {
   nParams: number;
   contextSize: number;
   hfUrl?: string;
-  locales: string[];
+  locales?: string[];
 
   quants: Record<
     string,
