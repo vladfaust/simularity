@@ -3,12 +3,12 @@ import { konsole } from "@/lib/konsole.js";
 import { scenarioAssets } from "@/lib/schema/scenarios.js";
 import { v } from "@/lib/valibot.js";
 import { fetchScenarioManifest } from "@/logic/scenarios.js";
-import { protectedProcedure } from "@/server/trpc/middleware/auth.js";
+import { t } from "@/server/trpc";
 import { TRPCError } from "@trpc/server";
 import { wrap } from "@typeschema/valibot";
 import { and, eq, gte, sql } from "drizzle-orm";
 
-export default protectedProcedure
+export default t.procedure
   .input(
     wrap(
       v.object({
@@ -48,6 +48,13 @@ export default protectedProcedure
     }
 
     if (scenario.requiredSubscriptionTier !== null) {
+      if (!ctx.userId) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Scenario requires subscription",
+        });
+      }
+
       const activeSubscription = await d.db.query.subscriptions.findFirst({
         where: and(
           eq(d.subscriptions.userId, ctx.userId),
