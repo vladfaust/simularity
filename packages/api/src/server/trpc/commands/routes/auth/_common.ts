@@ -33,7 +33,6 @@ export async function setCookie(
 ) {
   ctx.res.cookie(userIdCookieName, userId, {
     maxAge: cookieMaxAge,
-    httpOnly: true,
   });
 
   const jwt = await new jose.SignJWT({ userId })
