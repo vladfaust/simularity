@@ -57,25 +57,27 @@ const selectedModelId = computed<string | undefined>({
 
 const { t } = useI18n({
   messages: {
-    settings: {
-      voicer: {
-        description:
-          "Voicer is an optional TTS (Text-to-Speech) agent which gives voice to the characters. It can be enabled or disabled at any time.",
-        speechVolume: "Speech Volume",
-        enableVoiceGeneration: "Enable voice generation",
-        charactersVoiceover: "Characters voiceover",
-        narratorVoiceover: "Narrator voiceover",
-        mainCharacterVoiceover: "Main character voiceover",
-        enableTextSplitting: "Enable text splitting",
-        enableTextSplittingHelp:
-          "Split text into sentences for improved stability",
-        model: "Model",
-        local: {
-          label: "Local",
-          tooltip: "Local driver is not available yet.",
-        },
-        remote: {
-          label: "Remote",
+    "en-US": {
+      settings: {
+        voicer: {
+          description:
+            "Voicer is an optional TTS (Text-to-Speech) agent which gives voice to the characters. It can be enabled or disabled at any time.",
+          speechVolume: "Speech Volume",
+          enableVoiceGeneration: "Enable voice generation",
+          charactersVoiceover: "Characters voiceover",
+          narratorVoiceover: "Narrator voiceover",
+          mainCharacterVoiceover: "Main character voiceover",
+          enableTextSplitting: "Enable text splitting",
+          enableTextSplittingHelp:
+            "Split text into sentences for improved stability",
+          model: "Model",
+          local: {
+            label: "Local",
+            tooltip: "Local driver is not available yet.",
+          },
+          remote: {
+            label: "Remote",
+          },
         },
       },
     },
