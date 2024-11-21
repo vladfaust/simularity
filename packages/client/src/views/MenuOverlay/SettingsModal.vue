@@ -139,7 +139,7 @@ const { t } = useI18n({
       )
 
   .flex.h-full.flex-col.overflow-hidden
-    .flex.w-full.divide-x.border-b
+    .flex.w-full.divide-x.overflow-x-scroll.border-b
       //- Application settings tab.
       ._tab(:class="{ _selected: tab === Tab.App }" @click="tab = Tab.App")
         ._name
