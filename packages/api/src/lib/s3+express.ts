@@ -1,5 +1,5 @@
 import { env } from "@/env.js";
-import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { Response } from "express";
 import { konsole } from "./konsole.js";
 import { s3 } from "./s3.js";
@@ -26,7 +26,15 @@ export async function pipe(
     range?: string;
   },
 ): Promise<void> {
-  konsole.debug("pipe", key, versionId, options);
+  const headCommand = new HeadObjectCommand({
+    Bucket: env.S3_BUCKET,
+    Key: key,
+    VersionId: versionId,
+  });
+
+  const { ContentLength } = await s3.send(headCommand);
+
+  konsole.debug("pipe", key, versionId, options, { ContentLength });
 
   const command = new GetObjectCommand({
     Bucket: env.S3_BUCKET,
