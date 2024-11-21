@@ -67,6 +67,8 @@ onMounted(async () => {
 </template>
 
 <style lang="postcss" scoped>
+@import "@/style.scss";
+
 ._platform-button {
   @apply btn btn-lg btn-pressable flex w-max items-center justify-center rounded-lg bg-white shadow-lg;
 }
