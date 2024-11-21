@@ -196,7 +196,7 @@ async function refresh() {
     customModelsStorage.value.map(async (modelPath) => {
       if (await tauriFs.exists(modelPath)) {
         return {
-          name: await tauriPath.basename(modelPath),
+          name: modelPath,
           isDirectory: false,
           isFile: true,
           isSymlink: false,
@@ -218,6 +218,7 @@ async function refresh() {
 
   // Add existing custom models to the entries list.
   entries.push(...customModelEntries.filter((entry) => entry !== null));
+  console.debug("Entries", entries);
 
   for (const entry of entries) {
     if (!entry.name) {
@@ -236,10 +237,23 @@ async function refresh() {
       continue;
     }
 
-    const entryPath = await tauriPath.join(modelsDir, entry.name);
+    // ADHOC: See https://github.com/tauri-apps/tauri/issues/2233#issuecomment-2490331789.
+    const entryPath = entry.name.startsWith("/")
+      ? entry.name
+      : await tauriPath.join(modelsDir, entry.name);
+
+    console.debug("Entry path", entryPath);
 
     let cachedModel = storage.llm.getCachedModel(entryPath);
-    const stat = await tauriFs.stat(entryPath);
+    let stat;
+
+    try {
+      stat = await tauriFs.stat(entryPath);
+      console.log(`Stat model ${entryPath}`, stat);
+    } catch (e: any) {
+      console.warn(`Failed to stat model ${entryPath}`, e);
+      continue;
+    }
 
     if (cachedModel) {
       if (stat.mtime?.getTime() !== cachedModel.modifiedAt) {
