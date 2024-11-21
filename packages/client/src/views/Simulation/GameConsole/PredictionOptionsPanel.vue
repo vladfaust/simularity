@@ -2,6 +2,8 @@
 import CharacterPfp from "@/components/CharacterPfp.vue";
 import { Simulation } from "@/lib/simulation";
 import { NARRATOR } from "@/lib/simulation/agents/writer";
+import { appLocale } from "@/lib/storage";
+import { translationWithFallback } from "@/logic/i18n";
 import { BotIcon } from "lucide-vue-next";
 
 defineProps<{
@@ -48,7 +50,7 @@ function onCharacterClick(event: MouseEvent, characterId: string) {
         :scenario="simulation.scenario"
         :character
         :class="{ _enabled: enabledCharacterIds.includes(characterId) }"
-        :title="character.name"
+        :title="translationWithFallback(character.name, appLocale)"
         @click="onCharacterClick($event, characterId)"
       )
 </template>
