@@ -187,9 +187,11 @@ async function beginDownload(scenarioVersion?: number) {
         scenarioVersion,
         MANIFEST_FILE_NAME,
       ),
-      headers: {
-        Authorization: `Bearer ${jwtStorage.value}`,
-      },
+      headers: jwtStorage.value
+        ? {
+            Authorization: `Bearer ${jwtStorage.value}`,
+          }
+        : undefined,
     },
     ...(await Promise.all(
       Object.entries(assetMap).map(async ([assetPath, asset]) => ({
@@ -203,9 +205,11 @@ async function beginDownload(scenarioVersion?: number) {
           scenarioVersion,
           assetPath,
         ),
-        headers: {
-          Authorization: `Bearer ${jwtStorage.value}`,
-        },
+        headers: jwtStorage.value
+          ? {
+              Authorization: `Bearer ${jwtStorage.value}`,
+            }
+          : undefined,
         hashes: { sha256: asset.hash },
         size: asset.size,
       })),
