@@ -245,24 +245,31 @@ export class Voicer {
   private async _stopAudioGracefully(duration = 500): Promise<void> {
     if (this._audioElement.paused) return;
 
-    return this._tweenVolume(
-      storage.speechVolumeStorage.value,
-      0,
-      duration,
-    ).then(() => {
-      this._audioElement.pause();
-      this._audioElement.currentTime = 0;
-      this._audioPlaying.value = false;
-    });
+    return this._tweenVolume(storage.speechVolumeStorage.value, 0, duration)
+      .catch((e) => {
+        console.error("Failed to fade out audio", e);
+      })
+      .finally(() => {
+        this._audioElement.pause();
+        this._audioElement.currentTime = 0;
+        this._audioPlaying.value = false;
+      });
   }
 
   private async _startAudioGracefully(duration = 500) {
     this._audioElement.volume = 0;
     this._audioElement.currentTime = 0;
     console.debug("Waiting for audio to play");
-    await this._audioElement.play();
-    this._audioPlaying.value = true;
-    console.debug("Set audio playing to true");
-    return this._tweenVolume(0, storage.speechVolumeStorage.value, duration);
+
+    try {
+      // May fail with `Unhandled Promise Rejection: AbortError: The operation was aborted.`
+      await this._audioElement.play();
+      this._audioPlaying.value = true;
+      console.debug("Set audio playing to true");
+      return this._tweenVolume(0, storage.speechVolumeStorage.value, duration);
+    } catch (e) {
+      console.error("Failed to play audio", e);
+      this._audioPlaying.value = false;
+    }
   }
 }
