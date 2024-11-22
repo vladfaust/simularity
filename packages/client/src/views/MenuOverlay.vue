@@ -212,6 +212,7 @@ const { t } = useI18n({
       Scenario.h-full(
         v-if="selectedScenarioId !== null"
         :scenario-id="selectedScenarioId"
+        :key="selectedScenarioId"
         @back="tab = Tab.Library"
         @new-game="(e) => (newGameRequest = e ?? null)"
       )
@@ -223,6 +224,7 @@ const { t } = useI18n({
       SavesVue.h-full(
         v-if="selectedScenarioId !== null"
         :scenario-id="selectedScenarioId"
+        :key="selectedScenarioId"
       )
 
     TransitionRoot.absolute.h-full.w-full(

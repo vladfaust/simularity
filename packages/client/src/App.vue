@@ -5,6 +5,7 @@ import * as tauriWindow from "@tauri-apps/api/window";
 import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { selectedScenarioId } from "./lib/storage";
 
 const route = useRoute();
 const router = useRouter();
@@ -23,9 +24,23 @@ onMounted(async () => {
       unlisten = unlistenFn;
     });
 
-  onOpenUrl((urls) => {
-    // TODO: Handle deep links.
-    console.log("deep link:", urls);
+  onOpenUrl((deepLinkUrls) => {
+    console.debug({ deepLinkUrls });
+
+    if (deepLinkUrls.length > 0) {
+      const url = new URL(deepLinkUrls[0]);
+      console.log("Deep link url", url);
+
+      if (url.protocol === "simularity:") {
+        // simularity://open/scenarios/neurosummer
+        const scenarioId = url.pathname.split("/").pop();
+
+        if (scenarioId) {
+          console.log("Deep link scenario ID", scenarioId);
+          selectedScenarioId.value = scenarioId;
+        }
+      }
+    }
   });
 });
 
