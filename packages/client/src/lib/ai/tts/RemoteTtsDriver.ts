@@ -1,6 +1,6 @@
 import * as api from "@/lib/api";
-import { Deferred, unreachable } from "@/lib/utils";
-import type { Text2SpeechCompletionEpilogue } from "@simularity/api/lib/schema";
+import { jwtStorage } from "@/lib/storage/user";
+import pRetry from "p-retry";
 import { ref } from "vue";
 import type {
   BaseTtsDriver,
@@ -22,6 +22,8 @@ export class RemoteTtsDriver implements BaseTtsDriver {
     return other.type === "remote" && other.modelId === this.config.modelId;
   }
 
+  // FIXME: When failed and chunks is not empty,
+  // shall restart inference in UI.
   async createTts(
     speaker: {
       gptCondLatent: number[][];
@@ -33,78 +35,62 @@ export class RemoteTtsDriver implements BaseTtsDriver {
     params?: TtsParams,
     abortSignal?: AbortSignal,
   ): Promise<ArrayBuffer> {
+    if (!jwtStorage.value) {
+      throw new api.UnauthorizedError();
+    }
+
+    abortSignal?.addEventListener("abort", () => {
+      console.warn("Aborting inference is not supported yet");
+    });
+
     try {
       this.busy.value = true;
 
-      let deferred = new Deferred<void>();
-      let chunks: Uint8Array[] = [];
-      let epilogue: Text2SpeechCompletionEpilogue | undefined;
+      const chunks: Uint8Array[] = [];
 
-      const subscription =
-        api.trpc.subscriptionsClient.text2Speech.createCompletion.subscribe(
-          {
-            modelId: this.config.modelId,
-            gptCondLatent: speaker.gptCondLatent,
-            speakerEmbedding: speaker.speakerEmbedding,
-            text,
-            locale: locale.toString(),
-            ...params,
+      await pRetry(
+        async () => {
+          const { epilogue } = await api.rest.v1.ai.tts.createCompletion(
+            {
+              modelId: this.config.modelId,
+              gptCondLatent: speaker.gptCondLatent,
+              speakerEmbedding: speaker.speakerEmbedding,
+              text,
+              locale: locale.toString(),
+              ...params,
+            },
+            {
+              jwt: jwtStorage.value!,
+              onInferenceChunk: (data) => {
+                const chunk = Uint8Array.from(atob(data.chunkBase64), (c) =>
+                  c.charCodeAt(0),
+                );
+
+                chunks.push(chunk);
+                onChunk?.(chunk);
+              },
+            },
+          );
+
+          console.debug("Epilogue", epilogue);
+        },
+        {
+          onFailedAttempt: (error) => {
+            console.error("Failed attempt", error);
           },
-          {
-            onData: (data) => {
-              switch (data.type) {
-                case "inferenceChunk":
-                  const chunk = Uint8Array.from(atob(data.chunkBase64), (c) =>
-                    c.charCodeAt(0),
-                  );
+          shouldRetry: (_) => {
+            if (chunks.length) {
+              console.warn(
+                "FIXME: Would not retry because chunks is not empty",
+              );
 
-                  chunks.push(chunk);
-                  onChunk?.(chunk);
-
-                  break;
-
-                case "epilogue":
-                  epilogue = data;
-                  break;
-
-                default:
-                  throw unreachable(data);
-              }
-            },
-
-            onError: (e) => {
-              console.error("Subscription error", e);
-              deferred.reject(e);
-            },
-
-            onComplete: () => {
-              console.debug("Subscription completed");
-              deferred.resolve();
-            },
-
-            onStarted: () => {
-              console.debug("Subscription started");
-            },
-
-            onStopped: () => {
-              console.debug("Subscription stopped");
-              deferred.resolve();
-            },
+              return false;
+            } else {
+              return true;
+            }
           },
-        );
-
-      abortSignal?.addEventListener("abort", () => {
-        console.debug("Aborting inference");
-        subscription.unsubscribe();
-      });
-
-      await deferred.promise;
-
-      if (!epilogue) {
-        throw new Error("Epilogue not received");
-      }
-
-      console.debug("Epilogue", epilogue);
+        },
+      );
 
       return new Blob(chunks, { type: "audio/mpeg" }).arrayBuffer();
     } finally {

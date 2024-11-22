@@ -1,6 +1,5 @@
-import { userIdCookieName } from "@/server.js";
+import { getAuthenticatedUserId } from "@/server/_common.js";
 import { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import cookie from "cookie";
 import { Request, Response } from "express";
 import { Context } from "../context.js";
 
@@ -13,19 +12,11 @@ export async function createExpressContext({
   req,
   res,
 }: CreateExpressContextOptions): Promise<ExpressContext> {
-  const cookies = cookie.parse(req.headers.cookie ?? "");
+  const userId = await getAuthenticatedUserId(req);
 
-  if (cookies[userIdCookieName]) {
-    return {
-      req,
-      res,
-      userId: cookies[userIdCookieName],
-    };
-  } else {
-    return {
-      req,
-      res,
-      userId: null,
-    };
-  }
+  return {
+    req,
+    res,
+    userId,
+  };
 }

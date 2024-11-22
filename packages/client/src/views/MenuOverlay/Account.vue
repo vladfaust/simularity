@@ -71,8 +71,6 @@ async function login() {
         queryClient.invalidateQueries({ queryKey: accountQueryKey() }),
       ]);
 
-      api.trpc.recreateSubscriptionsClient();
-
       break;
     }
   } finally {
@@ -97,8 +95,6 @@ async function logout() {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: accountQueryKey() }),
   ]);
-
-  api.trpc.recreateSubscriptionsClient();
 }
 
 async function onSubscribeButtonClick() {

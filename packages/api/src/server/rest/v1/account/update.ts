@@ -2,7 +2,7 @@ import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
 import * as s3 from "@/lib/s3.js";
 import { v } from "@/lib/valibot.js";
-import { getAuthenticatedUserId } from "@/server/rest/v1/_common.js";
+import { getAuthenticatedUserId } from "@/server/_common";
 import busboy from "busboy";
 import { eq } from "drizzle-orm";
 import { Router } from "express";

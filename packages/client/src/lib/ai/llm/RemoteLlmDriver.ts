@@ -1,9 +1,9 @@
 import * as api from "@/lib/api";
 import { d } from "@/lib/drizzle";
 import { type LatestSession } from "@/lib/storage/llm";
-import { Deferred, unreachable } from "@/lib/utils";
-import { type Text2TextCompletionEpilogue } from "@simularity/api/lib/schema";
+import { jwtStorage } from "@/lib/storage/user";
 import { eq } from "drizzle-orm";
+import pRetry from "p-retry";
 import { ref, type Ref } from "vue";
 import {
   LlmGrammarLang,
@@ -115,6 +115,8 @@ export class RemoteLlmDriver implements BaseLlmDriver {
     );
   }
 
+  // FIXME: When failed and output is not empty,
+  // shall restart inference in UI.
   async createCompletion(
     prompt: string,
     nEval: number,
@@ -123,109 +125,91 @@ export class RemoteLlmDriver implements BaseLlmDriver {
     completionCallback?: (event: CompletionProgressEventPayload) => void,
     abortSignal?: AbortSignal,
   ): Promise<CompletionResult> {
+    if (!jwtStorage.value) {
+      throw new api.UnauthorizedError();
+    }
+
     const startedAt = Date.now();
+
+    abortSignal?.addEventListener("abort", () => {
+      // TODO: Abort the inference.
+      console.warn("Aborting inference is not supported yet");
+    });
 
     try {
       this.busy.value = true;
       this.status.value = LlmStatus.Inferring;
 
-      let deferred = new Deferred<void>();
       let output = "";
-      let epilogue: Text2TextCompletionEpilogue | undefined;
 
-      const subscription =
-        api.trpc.subscriptionsClient.text2Text.createCompletion.subscribe(
-          {
-            model: this.config.modelId,
-            prompt: prompt,
-            sessionId: this._externalSessionId,
-            temperature: inferenceOptions.temp,
+      const { epilogue, sessionId: newSessionId } = await pRetry(
+        () =>
+          api.rest.v1.ai.ttt.createCompletion(
+            {
+              model: this.config.modelId,
+              prompt: prompt,
+              temperature: inferenceOptions.temp,
 
-            guided_regex:
-              inferenceOptions.grammar?.lang === LlmGrammarLang.Regex
-                ? inferenceOptions.grammar?.content
-                : undefined,
+              guided_regex:
+                inferenceOptions.grammar?.lang === LlmGrammarLang.Regex
+                  ? inferenceOptions.grammar?.content
+                  : undefined,
 
-            guided_json:
-              inferenceOptions.grammar?.lang === LlmGrammarLang.JsonSchema
-                ? inferenceOptions.grammar?.content
-                : undefined,
+              guided_json:
+                inferenceOptions.grammar?.lang === LlmGrammarLang.JsonSchema
+                  ? inferenceOptions.grammar?.content
+                  : undefined,
 
-            max_tokens: nEval,
-            min_p: inferenceOptions.minP,
-            presence_penalty: inferenceOptions.penalty?.present,
-            repetition_penalty: inferenceOptions.penalty?.repeat,
-            stop: inferenceOptions.stopSequences,
-            top_k: inferenceOptions.topK,
-            top_p: inferenceOptions.topP,
+              max_tokens: nEval,
+              min_p: inferenceOptions.minP,
+              presence_penalty: inferenceOptions.penalty?.present,
+              repetition_penalty: inferenceOptions.penalty?.repeat,
+              stop: inferenceOptions.stopSequences,
+              top_k: inferenceOptions.topK,
+              top_p: inferenceOptions.topP,
+            },
+            {
+              jwt: jwtStorage.value!,
+              sessionId: this._externalSessionId,
+              onInferenceChunk: (chunk) => {
+                output += chunk.tokens.join("");
+
+                completionCallback?.({
+                  content: chunk.tokens.join(""),
+                });
+              },
+            },
+          ),
+        {
+          onFailedAttempt: (error) => {
+            console.error("Failed attempt", error);
           },
-          {
-            onData: (data) => {
-              console.debug("Subscription data", data);
+          shouldRetry: (_) => {
+            if (output) {
+              console.warn(
+                "FIXME: Would not retry because output is not empty",
+              );
 
-              switch (data.type) {
-                case "inference":
-                  output += data.tokens.join("");
-
-                  completionCallback?.({
-                    content: data.tokens.join(""),
-                  });
-
-                  break;
-
-                case "epilogue":
-                  epilogue = data;
-                  break;
-
-                default:
-                  throw unreachable(data);
-              }
-            },
-
-            onError: (e) => {
-              console.error("Subscription error", e);
-              deferred.reject(e);
-            },
-
-            onComplete: () => {
-              console.debug("Subscription completed");
-              deferred.resolve();
-            },
-
-            onStarted: () => {
-              console.debug("Subscription started");
-            },
-
-            onStopped: () => {
-              console.debug("Subscription stopped");
-              deferred.resolve();
-            },
+              return false;
+            } else {
+              return true;
+            }
           },
-        );
+        },
+      );
 
-      abortSignal?.addEventListener("abort", () => {
-        console.debug("Aborting inference");
-        subscription.unsubscribe();
-      });
-
-      await deferred.promise;
-
-      if (!epilogue) {
-        throw new Error("Epilogue not received");
-      }
-
-      console.debug("Epilogue", epilogue);
+      console.debug({ epilogue, newSessionId });
 
       // If the response contains a new session ID, store it in the database.
       // The old session seems to be invalidated after a while.
-      if (epilogue.sessionId !== this._externalSessionId) {
+      if (newSessionId !== this._externalSessionId) {
         this._latestSession.value = {
           driver: "remote",
           id: (
             await d.db
               .insert(d.llmRemoteSessions)
               .values({
-                externalId: epilogue.sessionId,
+                externalId: newSessionId,
                 baseUrl: this.config.baseUrl,
                 modelId: this.config.modelId,
                 contextSize: this.contextSize,
@@ -237,7 +221,7 @@ export class RemoteLlmDriver implements BaseLlmDriver {
         };
       }
 
-      this._externalSessionId = epilogue.sessionId;
+      this._externalSessionId = newSessionId;
       if (!(this._latestSession.value?.driver === "remote")) {
         throw new Error("[BUG] Latest session value is not set");
       }

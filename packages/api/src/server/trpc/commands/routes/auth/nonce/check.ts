@@ -36,7 +36,7 @@ export default t.procedure
       return null;
     }
 
-    const { jwt, cookieMaxAge } = await setCookie(
+    const { jwt, cookieMaxAge: cookieMaxAge } = await setCookie(
       ctx as ExpressContext,
       userId,
     );

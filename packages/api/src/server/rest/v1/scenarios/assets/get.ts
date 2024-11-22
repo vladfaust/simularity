@@ -6,7 +6,7 @@ import { AssetSchema, scenarioAssets } from "@/lib/schema/scenarios.js";
 import { v } from "@/lib/valibot";
 import { fetchScenarioManifest, scenarioAssetKey } from "@/logic/scenarios.js";
 import { subscriptionEnough } from "@/logic/subscriptions";
-import { getAuthenticatedUserId } from "@/server/rest/v1/_common.js";
+import { getAuthenticatedUserId } from "@/server/_common";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { toSeconds } from "duration-fns";
 import { Router } from "express";
