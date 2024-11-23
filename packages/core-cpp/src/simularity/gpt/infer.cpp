@@ -45,7 +45,7 @@ int simularity_gpt_infer(
     const char *prompt,
     unsigned n_eval,
     const struct simularity_gpt_inference_options options,
-    void(decode_progress_callback)(float, void *),
+    llama_progress_callback decode_progress_callback,
     void *decode_progress_callback_user_data,
     bool(inference_callback)(const char *output, void *),
     void *inference_callback_user_data

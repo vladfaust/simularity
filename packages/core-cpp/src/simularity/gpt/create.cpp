@@ -30,7 +30,7 @@ int simularity_gpt_create(
     unsigned n_batch,
     const char *initial_prompt,
     const char *state_file_path,
-    void(progress_callback)(float, void *),
+    llama_progress_callback progress_callback,
     void *progress_callback_user_data
 ) {
   spdlog::debug(

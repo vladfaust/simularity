@@ -1,4 +1,4 @@
-use std::ffi::{c_void, CString};
+use std::ffi::CString;
 
 use crate::ffi;
 
@@ -32,8 +32,9 @@ pub fn decode(
     let prompt = CString::new(prompt).unwrap();
 
     let user_data = if let Some(cb) = progress_callback.as_mut() {
-        let mut user_data: &mut dyn FnMut(f32) -> bool = cb;
-        &mut user_data as *mut _ as *mut c_void
+        // See https://stackoverflow.com/a/32270215/3645337.
+        let user_data: Box<Box<dyn FnMut(f32) -> bool>> = Box::new(Box::new(cb));
+        Box::into_raw(user_data) as *mut _
     } else {
         std::ptr::null_mut()
     };
@@ -50,6 +51,11 @@ pub fn decode(
             user_data,
         )
     };
+
+    if (user_data as usize) != 0 {
+        // Drop the box.
+        let _: Box<Box<dyn FnMut(f32) -> bool>> = unsafe { Box::from_raw(user_data as *mut _) };
+    }
 
     match result {
         -1 => Err(Error::SessionNotFound),

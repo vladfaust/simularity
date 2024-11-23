@@ -1,4 +1,4 @@
-use std::ffi::{c_void, CString};
+use std::ffi::CString;
 
 use crate::ffi;
 
@@ -92,15 +92,18 @@ pub fn infer(
     let prompt = prompt.map(|p| CString::new(p).unwrap());
 
     let decode_user_data = if let Some(cb) = decode_progress_callback.as_mut() {
-        let mut user_data: &mut dyn FnMut(f32) -> bool = cb;
-        &mut user_data as *mut _ as *mut c_void
+        // See https://stackoverflow.com/a/32270215/3645337.
+        let user_data: Box<Box<dyn FnMut(f32) -> bool>> = Box::new(Box::new(cb));
+        Box::into_raw(user_data) as *mut _
     } else {
         std::ptr::null_mut()
     };
 
     let inference_user_data = if let Some(cb) = inference_callback.as_mut() {
-        let mut user_data: &mut dyn FnMut(&str) -> bool = cb;
-        &mut user_data as *mut _ as *mut c_void
+        // Ditto.
+        #[allow(clippy::type_complexity)]
+        let user_data: Box<Box<dyn FnMut(&str) -> bool>> = Box::new(Box::new(cb));
+        Box::into_raw(user_data) as *mut _
     } else {
         std::ptr::null_mut()
     };
@@ -163,6 +166,19 @@ pub fn infer(
             // Drop the CString.
             let _ = unsafe { CString::from_raw(ptr) };
         }
+    }
+
+    if (decode_user_data as usize) != 0 {
+        // Drop the box.
+        let _: Box<Box<dyn FnMut(f32) -> bool>> =
+            unsafe { Box::from_raw(decode_user_data as *mut _) };
+    }
+
+    if (inference_user_data as usize) != 0 {
+        // Drop the box.
+        #[allow(clippy::type_complexity)]
+        let _: Box<Box<dyn FnMut(&str) -> bool>> =
+            unsafe { Box::from_raw(inference_user_data as *mut _) };
     }
 
     match result {

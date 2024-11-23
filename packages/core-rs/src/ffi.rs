@@ -91,7 +91,10 @@ extern "C" {
     ) -> c_int;
 
     // int simularity_gpt_decode(
-    //     unsigned session_id, const char *prompt, void(progress_callback)(float)
+    //     unsigned session_id,
+    //     const char *prompt,
+    //     bool(progress_callback)(float, void *),
+    //     void *progress_callback_user_data
     // );
     pub fn simularity_gpt_decode(
         session_id: c_uint,
@@ -109,7 +112,7 @@ extern "C" {
     //     const char *prompt,
     //     unsigned n_eval,
     //     const struct simularity_gpt_inference_options options,
-    //     void(decode_progress_callback)(float, void *),
+    //     bool(decode_progress_callback)(float, void *),
     //     void *decode_progress_callback_user_data,
     //     bool(inference_callback)(const char *output, void *),
     //     void *inference_callback_user_data
@@ -132,7 +135,7 @@ extern "C" {
 // See https://stackoverflow.com/a/32270215/3645337.
 pub extern "C" fn progress_callback_wrapper(progress: c_float, user_data: *mut c_void) -> bool {
     #[allow(clippy::transmute_ptr_to_ref)]
-    let closure: &mut &mut dyn FnMut(f32) -> bool = unsafe { std::mem::transmute(user_data) };
+    let closure: &mut Box<dyn FnMut(f32) -> bool> = unsafe { std::mem::transmute(user_data) };
     closure(progress)
 }
 
@@ -142,7 +145,7 @@ pub extern "C" fn inference_callback_wrapper(
     user_data: *mut c_void,
 ) -> bool {
     #[allow(clippy::transmute_ptr_to_ref)]
-    let closure: &mut &mut dyn FnMut(&str) -> bool = unsafe { std::mem::transmute(user_data) };
+    let closure: &mut Box<dyn FnMut(&str) -> bool> = unsafe { std::mem::transmute(user_data) };
     let output = unsafe { std::ffi::CStr::from_ptr(output) };
     // FIXME: Utf8Error (invalid utf-8) handling.
     closure(output.to_str().unwrap())

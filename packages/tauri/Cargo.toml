@@ -1,6 +1,6 @@
 [package]
 name = "simularity-tauri"
-version = "0.2.0"
+version = "0.2.1"
 description = "Simularity Tauri module"
 authors = ["Vlad Faust <hey@vladfaust.com>"]
 license = "UNLICENSED"

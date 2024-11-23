@@ -115,7 +115,7 @@ static int decode_with_progress(
     llama_batch &batch,
     unsigned batch_index,
     unsigned n_tokens,
-    void(progress_callback)(float, void *),
+    llama_progress_callback progress_callback,
     void *progress_callback_user_data
 ) {
   const auto batch_size = llama_n_batch(session->context);

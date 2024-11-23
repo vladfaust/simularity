@@ -34,14 +34,14 @@ struct UnknownDecodeError : public std::runtime_error {
 static void simularity_gpt_decode_internal(
     Session *session,
     std::vector<llama_token> prompt,
-    void(progress_callback)(float, void *),
+    llama_progress_callback progress_callback,
     void *progress_callback_user_data
 );
 
 int simularity_gpt_decode(
     unsigned session_id,
     const char *prompt,
-    void(progress_callback)(float, void *),
+    llama_progress_callback progress_callback,
     void *progress_callback_user_data
 ) {
   // Acquire the session.
@@ -73,7 +73,7 @@ int simularity_gpt_decode(
 static void simularity_gpt_decode_internal(
     Session *session,
     std::vector<llama_token> prompt,
-    void(progress_callback)(float, void *),
+    llama_progress_callback progress_callback,
     void *progress_callback_user_data
 ) {
   auto batch_size = llama_n_batch(session->context);

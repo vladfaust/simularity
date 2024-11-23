@@ -126,7 +126,7 @@ int simularity_gpt_create(
     unsigned batch_size,
     const char *initial_prompt,
     const char *state_file_path,
-    void(progress_callback)(float, void *),
+    bool(progress_callback)(float, void *),
     void *progress_callback_user_data
 );
 
@@ -150,7 +150,7 @@ int simularity_gpt_create(
 int simularity_gpt_decode(
     unsigned session_id,
     const char *prompt,
-    void(progress_callback)(float, void *),
+    bool(progress_callback)(float, void *),
     void *progress_callback_user_data
 );
 
@@ -219,7 +219,7 @@ int simularity_gpt_infer(
     const char *prompt,
     unsigned n_eval,
     const struct simularity_gpt_inference_options options,
-    void(decode_progress_callback)(float, void *),
+    bool(decode_progress_callback)(float, void *),
     void *decode_progress_callback_user_data,
     bool(inference_callback)(const char *output, void *),
     void *inference_callback_user_data
