@@ -2,16 +2,15 @@ import base64
 import io
 import os
 import tempfile
-from threading import Lock
 import time
 import wave
-import torch
-import numpy as np
+from threading import Lock
 from typing import BinaryIO, List
-from pydantic import BaseModel, Field
-import os
-import psutil
 
+import numpy as np
+import psutil
+import torch
+from pydantic import BaseModel, Field
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
 
@@ -169,7 +168,10 @@ class Core:
             raise ValueError(
                 "envelope=True requires encode_base64=True to be set")
 
+        print(f"Locking instance_id={self.instance_id}...")
         with self.mutex:
+            print(f"Locked instance_id={self.instance_id}")
+
             speaker_embedding = torch.tensor(
                 parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
             gpt_cond_latent = torch.tensor(
@@ -259,7 +261,10 @@ class Core:
                 ).model_dump()
 
     def predict_speech(self, parsed_input: TTSInputs, encode_base64: bool):
+        print(f"Locking instance_id={self.instance_id}...")
         with self.mutex:
+            print(f"Locked instance_id={self.instance_id}")
+
             speaker_embedding = torch.tensor(
                 parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
             gpt_cond_latent = torch.tensor(
