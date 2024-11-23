@@ -55,7 +55,7 @@ onMounted(async () => {
           target="_blank"
         )
           img.h-6(src="/img/windows.svg" alt="Windows")
-          | Windows x86_64 (CUDA)
+          | Windows (x86_64 + CUDA) {{ latestRelease.version }}
 
         a._platform-button(
           v-if="latestRelease.platforms['darwin-arm64']"
@@ -63,7 +63,7 @@ onMounted(async () => {
           target="_blank"
         )
           img.-mt-1.h-6(src="/img/apple.svg" alt="MacOS")
-          | MacOS arm64 (Metal)
+          | MacOS (arm64 + Metal) {{ latestRelease.version }}
 </template>
 
 <style lang="postcss" scoped>
