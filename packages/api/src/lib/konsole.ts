@@ -19,7 +19,7 @@ function warn(...args: any[]) {
 }
 
 function error(...args: any[]) {
-  console.error(chalk.red("[W]"), ...args);
+  console.error(chalk.red("[E]"), ...args);
 }
 
 export const konsole = {
