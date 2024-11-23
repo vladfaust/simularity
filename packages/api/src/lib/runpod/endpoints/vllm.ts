@@ -10,8 +10,8 @@ import { sleep } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import assert from "assert";
 import { toMilliseconds } from "duration-fns";
-import pRetry from "p-retry";
 import runpodSdk from "runpod-sdk";
+import { wrapRunpodRequest } from "./_common";
 
 export const VllmEndpointInputSchema = v.object({
   prompt: v.string(),
@@ -88,24 +88,22 @@ export class VllmEndpoint {
     const timeout = toMilliseconds({ minutes: 1 });
 
     try {
-      const incompleteOutput = await pRetry(
-        () =>
-          this.endpoint.run(
-            {
-              input: {
-                ...input,
-                stream: true,
-              },
-              policy: {
-                executionTimeout: toMilliseconds({
-                  // May need some time to warm up.
-                  minutes: 5,
-                }),
-              },
+      const incompleteOutput = await wrapRunpodRequest(() =>
+        this.endpoint.run(
+          {
+            input: {
+              ...input,
+              stream: true,
             },
-            timeout,
-          ),
-        { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
+            policy: {
+              executionTimeout: toMilliseconds({
+                // May need some time to warm up.
+                minutes: 5,
+              }),
+            },
+          },
+          timeout,
+        ),
       );
 
       konsole.debug(incompleteOutput);
@@ -115,10 +113,9 @@ export class VllmEndpoint {
 
       loop: while (status === "IN_QUEUE") {
         const status = (
-          await pRetry(() => this.endpoint.status(requestId, timeout), {
-            retries: 5,
-            onFailedAttempt: (e) => konsole.warn(e),
-          })
+          await wrapRunpodRequest(() =>
+            this.endpoint.status(requestId, timeout),
+          )
         ).status;
 
         switch (status) {
@@ -141,42 +138,38 @@ export class VllmEndpoint {
         | undefined;
       let outputText: string | undefined;
 
-      await pRetry(
-        async () => {
-          for await (const rawOutput of this.endpoint.stream(
-            requestId,
-            timeout,
-          )) {
-            konsole.debug(JSON.stringify(rawOutput.output));
+      await wrapRunpodRequest(async () => {
+        for await (const rawOutput of this.endpoint.stream(
+          requestId,
+          timeout,
+        )) {
+          konsole.debug(JSON.stringify(rawOutput.output));
 
-            const output = v.safeParse(
-              VllmEndpointOutputSchema.item,
-              rawOutput.output,
-            );
+          const output = v.safeParse(
+            VllmEndpointOutputSchema.item,
+            rawOutput.output,
+          );
 
-            if (!output.success) {
-              konsole.error("Invalid Runpod output", {
-                issues: JSON.stringify(v.flatten(output.issues)),
-              });
+          if (!output.success) {
+            konsole.error("Invalid Runpod output", {
+              issues: JSON.stringify(v.flatten(output.issues)),
+            });
 
-              throw new Error("Invalid Runpod output");
-            }
-
-            const tokens = output.output.choices[0].tokens;
-            onInference(tokens);
-
-            outputText ||= "";
-            outputText += tokens.join("");
-
-            usage = output.output.usage;
+            throw new Error("Invalid Runpod output");
           }
-        },
-        { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
-      );
 
-      const finalStatus = await pRetry(
-        () => this.endpoint.status(requestId, timeout),
-        { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
+          const tokens = output.output.choices[0].tokens;
+          onInference(tokens);
+
+          outputText ||= "";
+          outputText += tokens.join("");
+
+          usage = output.output.usage;
+        }
+      });
+
+      const finalStatus = await wrapRunpodRequest(() =>
+        this.endpoint.status(requestId, timeout),
       );
 
       const executionTime = (finalStatus as any).executionTime;

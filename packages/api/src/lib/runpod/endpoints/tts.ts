@@ -7,9 +7,9 @@ import { omit, sleep } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import assert from "assert";
 import { toMilliseconds } from "duration-fns";
-import pRetry from "p-retry";
 import runpodSdk from "runpod-sdk";
 import { LocalRunpodEndpoint } from "../localEndpoint.js";
+import { wrapRunpodRequest } from "./_common.js";
 
 export const TtsEndpointInputSchema = v.object({
   ...TtsParamsSchema.entries,
@@ -74,23 +74,21 @@ export class TtsEndpoint {
     const timeout = toMilliseconds({ minutes: 1 });
 
     try {
-      const incompleteOutput = await pRetry(
-        () =>
-          this.endpoint.run(
-            {
-              input: {
-                ...input,
-              },
-              policy: {
-                executionTimeout: toMilliseconds({
-                  // May need some time to warm up.
-                  minutes: 5,
-                }),
-              },
+      const incompleteOutput = await wrapRunpodRequest(() =>
+        this.endpoint.run(
+          {
+            input: {
+              ...input,
             },
-            timeout,
-          ),
-        { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
+            policy: {
+              executionTimeout: toMilliseconds({
+                // May need some time to warm up.
+                minutes: 5,
+              }),
+            },
+          },
+          timeout,
+        ),
       );
 
       konsole.debug(incompleteOutput);
@@ -99,10 +97,9 @@ export class TtsEndpoint {
 
       loop: while (status === "IN_QUEUE") {
         status = (
-          await pRetry(() => this.endpoint.status(requestId, timeout), {
-            retries: 5,
-            onFailedAttempt: (e) => konsole.warn(e),
-          })
+          await wrapRunpodRequest(() =>
+            this.endpoint.status(requestId, timeout),
+          )
         ).status;
 
         switch (status) {
@@ -121,75 +118,71 @@ export class TtsEndpoint {
       let inferenceId: string | undefined;
       let usage: { execution_time: number } | undefined;
 
-      await pRetry(
-        async () => {
-          for await (const rawOutput of this.endpoint.stream(
-            requestId,
-            timeout,
-          )) {
-            if ("inference_id" in rawOutput.output) {
-              const prologue = v.safeParse(
-                TtsStreamingPrologueSchema,
-                rawOutput.output,
-              );
+      await wrapRunpodRequest(async () => {
+        for await (const rawOutput of this.endpoint.stream(
+          requestId,
+          timeout,
+        )) {
+          if ("inference_id" in rawOutput.output) {
+            const prologue = v.safeParse(
+              TtsStreamingPrologueSchema,
+              rawOutput.output,
+            );
 
-              if (!prologue.success) {
-                konsole.error("Invalid Runpod prologue", {
-                  issues: JSON.stringify(v.flatten(prologue.issues)),
-                });
+            if (!prologue.success) {
+              konsole.error("Invalid Runpod prologue", {
+                issues: JSON.stringify(v.flatten(prologue.issues)),
+              });
 
-                throw new Error("Invalid Runpod prologue");
-              }
-
-              inferenceId = prologue.output.inference_id;
-            } else if ("wav_base_64" in rawOutput.output) {
-              const chunk = v.safeParse(
-                TtsStreamingChunkSchema,
-                rawOutput.output,
-              );
-
-              if (!chunk.success) {
-                konsole.error("Invalid Runpod chunk", {
-                  issues: JSON.stringify(v.flatten(chunk.issues)),
-                });
-
-                throw new Error("Invalid Runpod chunk");
-              }
-
-              await onInference(chunk.output.wav_base_64);
-            } else if ("usage" in rawOutput.output) {
-              const epilogue = v.safeParse(
-                TtsStreamingEpilogueSchema,
-                rawOutput.output,
-              );
-
-              if (!epilogue.success) {
-                konsole.error("Invalid Runpod epilogue", {
-                  issues: JSON.stringify(v.flatten(epilogue.issues)),
-                });
-
-                throw new Error("Invalid Runpod epilogue");
-              }
-
-              usage = {
-                execution_time: epilogue.output.usage.execution_time,
-              };
-            } else {
-              konsole.error("Unknown Runpod output", rawOutput.output);
-              throw new Error("Unknown Runpod output");
+              throw new Error("Invalid Runpod prologue");
             }
+
+            inferenceId = prologue.output.inference_id;
+          } else if ("wav_base_64" in rawOutput.output) {
+            const chunk = v.safeParse(
+              TtsStreamingChunkSchema,
+              rawOutput.output,
+            );
+
+            if (!chunk.success) {
+              konsole.error("Invalid Runpod chunk", {
+                issues: JSON.stringify(v.flatten(chunk.issues)),
+              });
+
+              throw new Error("Invalid Runpod chunk");
+            }
+
+            await onInference(chunk.output.wav_base_64);
+          } else if ("usage" in rawOutput.output) {
+            const epilogue = v.safeParse(
+              TtsStreamingEpilogueSchema,
+              rawOutput.output,
+            );
+
+            if (!epilogue.success) {
+              konsole.error("Invalid Runpod epilogue", {
+                issues: JSON.stringify(v.flatten(epilogue.issues)),
+              });
+
+              throw new Error("Invalid Runpod epilogue");
+            }
+
+            usage = {
+              execution_time: epilogue.output.usage.execution_time,
+            };
+          } else {
+            konsole.error("Unknown Runpod output", rawOutput.output);
+            throw new Error("Unknown Runpod output");
           }
-        },
-        { retries: 5, onFailedAttempt: (e) => konsole.warn(e) },
-      );
+        }
+      });
 
       const finalStatus =
         this.endpoint instanceof LocalRunpodEndpoint
           ? { delayTime: 0 }
-          : await pRetry(() => this.endpoint.status(requestId, timeout), {
-              retries: 5,
-              onFailedAttempt: (e) => konsole.warn(e),
-            });
+          : await wrapRunpodRequest(() =>
+              this.endpoint.status(requestId, timeout),
+            );
 
       console.debug("TTS final status", finalStatus);
 
