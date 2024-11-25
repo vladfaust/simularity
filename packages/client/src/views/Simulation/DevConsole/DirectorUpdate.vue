@@ -109,7 +109,7 @@ function removeCommand(index: number) {
           v-if="!modified"
           @click="prefer"
           :disabled="preferenceInProgress"
-          :class="directorUpdate?.preference ? 'text-success-700 fill-success-500' : 'text-white'"
+          :class="directorUpdate?.preference ? 'text-success-500' : 'text-white'"
         )
           ThumbsUpIcon.drop-shadow(:size="18")
 

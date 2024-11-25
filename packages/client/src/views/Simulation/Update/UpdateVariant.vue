@@ -34,6 +34,7 @@ const props = defineProps<{
   preferenceFunction: (preference: boolean | null) => Promise<void>;
   applyEditFunction: (newContent: string) => Promise<void>;
   mayChangeTtsOnMount?: boolean;
+  inDevConsole?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -281,6 +282,7 @@ onMounted(() => {
         @click="onConsolidateClick"
         :class="{ 'cursor-pointer btn-pressable': !variant.writerUpdate.didConsolidate, 'cursor-help': variant.writerUpdate.didConsolidate }"
         class="hover:animate-pulse hover:text-ai-500"
+        :tabindex="inDevConsole ? -1 : undefined"
       )
         TriangleAlertIcon.text-warn-500(v-if="consolidationWarning" :size="18")
         SigmaSquareIcon(

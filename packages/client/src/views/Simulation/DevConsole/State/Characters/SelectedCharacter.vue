@@ -113,6 +113,7 @@ function removeFromStage() {
       v-else
       @click="addToStage"
       title="Add to stage"
+      tabindex="-1"
     )
       Grid2x2Icon(:size="16" :stroke-width="3")
       | Add

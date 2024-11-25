@@ -58,6 +58,7 @@ Dialog.relative.z-50(
               :hide-tts="true"
               :hide-preference="true"
               :update-index="simulation.currentUpdateIndex.value"
+              :in-dev-console="true"
             )
 
           //- Director update.
@@ -68,6 +69,7 @@ Dialog.relative.z-50(
             DirectorUpdate.h-full.overflow-y-hidden(
               :simulation
               :update="simulation.currentUpdate.value"
+              :in-dev-console="true"
             )
 
         //- State.

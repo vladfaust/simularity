@@ -23,6 +23,7 @@ const props = defineProps<{
   hideTts?: boolean;
   hidePreference?: boolean;
   mayChangeTtsOnMount?: boolean;
+  inDevConsole?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -87,6 +88,7 @@ onMounted(() => {
     :hide-tts
     :hide-preference
     :may-change-tts-on-mount
+    :in-dev-console
     :preference-function="(pref) => simulation.preferWriterUpdate(props.update, pref)"
     :apply-edit-function="(text) => simulation.editUpdateVariant(nonNullable(update.chosenVariant), text)"
     @trigger-edit-handler="emit('triggerEditHandler', $event)"
