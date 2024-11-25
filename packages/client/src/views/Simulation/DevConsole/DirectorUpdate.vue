@@ -113,7 +113,7 @@ function removeCommand(index: number) {
         )
           ThumbsUpIcon.drop-shadow(:size="18")
 
-  .flex.flex-col.gap-1.rounded-lg.bg-white.p-3
+  .flex.h-full.flex-col.gap-1.overflow-y-scroll.rounded-lg.bg-white.p-3
     h2.font-medium Director update code
     .flex.flex-col.gap-1(v-if="directorUpdate?.code.length")
       Command.shadow(

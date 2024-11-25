@@ -44,7 +44,7 @@ Dialog.relative.z-50(
       class="bg-black/50"
     )
       DialogPanel.grid.h-full.w-full.grid-cols-3.flex-col.gap-3.overflow-y-hidden.p-3
-        .flex.flex-col.gap-3(@click="onRootClick")
+        .flex.h-full.flex-col.gap-3.overflow-y-hidden(@click="onRootClick")
           //- Writer update.
           .flex.flex-col.gap-2.rounded-xl.p-3(class="bg-white/20")
             UpdateVue(
@@ -61,11 +61,11 @@ Dialog.relative.z-50(
             )
 
           //- Director update.
-          .flex.flex-col.gap-2.rounded-xl.p-3(
+          .flex.max-h-full.flex-col.gap-2.overflow-y-hidden.rounded-xl.p-3(
             class="bg-white/20"
             v-if="simulation.currentUpdate.value"
           )
-            DirectorUpdate(
+            DirectorUpdate.h-full.overflow-y-hidden(
               :simulation
               :update="simulation.currentUpdate.value"
             )

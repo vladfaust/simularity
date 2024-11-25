@@ -32,7 +32,7 @@ const bgColor = computed(() => {
 .text-shadow.flex.items-center.justify-between.rounded.p-2(
   :style="{ backgroundColor: bgColor }"
 )
-  span.font-mono.text-sm.leading-none.text-white {{ command.name }}({{ Object.values(command.args).join(", ") }})
-  button.btn.btn-pressable(v-if="canRemove" @click="emit('remove')")
+  span.w-full.break-all.font-mono.text-sm.leading-none.text-white {{ command.name }}({{ Object.values(command.args).join(", ") }})
+  button.btn.btn-pressable.shrink-0(v-if="canRemove" @click="emit('remove')")
     CircleMinusIcon.text-white.drop-shadow(:size="16")
 </template>
