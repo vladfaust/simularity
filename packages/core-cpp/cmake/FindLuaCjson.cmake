@@ -11,3 +11,7 @@ list(APPEND LuaCjson_LIBRARIES lua-cjson)
 
 target_include_directories(lua-cjson PRIVATE ${LuaCjson_INCLUDE_DIR})
 target_compile_definitions(lua-cjson PRIVATE ENABLE_CJSON_GLOBAL MULTIPLE_THREADS)
+
+if (MSVC)
+  target_compile_definitions(lua-cjson PRIVATE strncasecmp=_strnicmp strcasecmp=_stricmp)
+endif()
