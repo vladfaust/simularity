@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "bundle": {
+    "resources": [
+      "./cublas64_12.dll",
+      "./cublasLt64_12.dll",
+      "./cudart64_12.dll"
+    ]
+  }
+}

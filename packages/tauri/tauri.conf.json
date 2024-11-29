@@ -23,10 +23,7 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "digestAlgorithm": "sha256",
-      "nsis": {
-        "installerHooks": "./installer.nsh"
-      }
+      "digestAlgorithm": "sha256"
     },
     "longDescription": "",
     "macOS": {

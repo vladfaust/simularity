@@ -47,7 +47,7 @@ steps:
 
   - label: "Build Tauri"
     artifact_paths:
-      - "C:/target/release/bundle/nsis/Simularity AI_0.0.1_x64-setup.exe"
+      - "C:/target/release/bundle/nsis/*_x64-setup.exe"
     command: |
       Import-Module "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"; Enter-VsDevShell -VsInstallPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" -DevCmdArguments '-arch=x64'
       \$env:Path += ";C:\Users\Administrator\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin;C:\Users\Administrator\.cargo\\bin"
@@ -57,4 +57,4 @@ steps:
       buildkite-agent artifact download 'packages\\client\\dist\\**' . --step 'Build Client'
       echo "--- Building app"
       cd packages\\tauri
-      cargo tauri build -v -c tauri.prod.conf.json -- --target-dir C:\\target --features cuda
+      cargo tauri build --ci -v -c tauri.prod.conf.json -- --target-dir C:\\target --features cuda
