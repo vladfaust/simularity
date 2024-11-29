@@ -74,7 +74,7 @@
         ],
         "enable": true
       },
-      "csp": "default-src 'self'; img-src 'self' https://api.simularity.ai data: asset: https://asset.localhost blob:; media-src blob:; connect-src ipc: http://ipc.localhost https://api.simularity.ai wss://api.simularity.ai https://plausible.simularity.ai https://*.sentry.io ipc: http://ipc.localhost asset: https://asset.localhost tauri://localhost"
+      "csp": "default-src 'self'; img-src 'self' https://api.simularity.ai http://asset.localhost data: asset: http://asset.localhost http://tauri.localhost tauri://localhost blob:; media-src blob:; connect-src ipc: http://ipc.localhost https://api.simularity.ai wss://api.simularity.ai https://plausible.simularity.ai https://*.sentry.io asset: http://asset.localhost http://tauri.localhost tauri://localhost"
     },
     "windows": [
       {
