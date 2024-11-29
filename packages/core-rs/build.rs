@@ -4,6 +4,7 @@ use std::path::Path;
 fn main() {
     let dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
+    println!("cargo:rerun-if-changed=../core-cpp/cmake");
     println!("cargo:rerun-if-changed=../core-cpp/src");
     println!("cargo:rerun-if-changed=../core-cpp/vendor");
 
@@ -75,5 +76,7 @@ fn main() {
     println!("cargo::rustc-link-lib=static=ggml");
     println!("cargo::rustc-link-lib=static=llama");
     println!("cargo::rustc-link-lib=static=xxhash");
+    println!("cargo::rustc-link-lib=static=lua");
+    println!("cargo::rustc-link-lib=static=lua-cjson");
     println!("cargo::rustc-link-lib=static=simularity");
 }

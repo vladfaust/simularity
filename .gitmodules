@@ -10,3 +10,12 @@
 [submodule "packages/core-cpp/vendor/xxHash"]
 	path = packages/core-cpp/vendor/xxHash
 	url = https://github.com/Cyan4973/xxHash
+[submodule "packages/core-cpp/vendor/sol2"]
+	path = packages/core-cpp/vendor/sol2
+	url = https://github.com/ThePhD/sol2.git
+[submodule "packages/core-cpp/vendor/lua"]
+	path = packages/core-cpp/vendor/lua
+	url = https://github.com/lua/lua.git
+[submodule "packages/core-cpp/vendor/lua-cjson"]
+	path = packages/core-cpp/vendor/lua-cjson
+	url = https://github.com/mpx/lua-cjson.git

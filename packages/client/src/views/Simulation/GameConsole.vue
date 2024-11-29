@@ -26,7 +26,6 @@ import { computed, onMounted, onUnmounted, ref, triggerRef, watch } from "vue";
 import { toast } from "vue3-toastify";
 import PredictionOptionsPanel from "./GameConsole/PredictionOptionsPanel.vue";
 import ProgressBar from "./GameConsole/ProgressBar.vue";
-import VisualizeModal from "./GameConsole/VisualizeModal.vue";
 import GpuStatus from "./GpuStatus.vue";
 import UpdateVue from "./Update.vue";
 import UpdatesHistory from "./UpdatesHistory.vue";
@@ -124,8 +123,6 @@ const enabledCharacterIds = useLocalStorage<Set<string>>(
 const enabledCharacterIdsSortedArray = computed(() =>
   Array.from(enabledCharacterIds.value).sort(),
 );
-
-const showVisualizeModal = ref(false);
 
 const inputPlaceholder = computed(
   () =>
@@ -257,8 +254,6 @@ async function advance() {
             sandbox: simulation.sandbox,
             enabledCharacterIds: enabledCharacterIdsSortedArray.value.join(","),
             writerModelId: simulation.writer.llmDriver.value!.modelId,
-            directorModelId:
-              simulation.director?.llmDriver.value!.modelId ?? "",
             voicerModelId: simulation.voicer.ttsDriver.value?.modelId ?? "",
           },
         });
@@ -360,7 +355,6 @@ async function regenerateUpdate(updateIndex: number) {
         immersive: simulation.mode === Mode.Immersive,
         enabledCharacterIds: enabledCharacterIdsSortedArray.value.join(","),
         writerModelId: simulation.writer.llmDriver.value!.modelId,
-        directorModelId: simulation.director?.llmDriver.value!.modelId ?? "",
         voicerModelId: simulation.voicer.ttsDriver.value?.modelId ?? "",
       },
     });
@@ -734,13 +728,6 @@ onUnmounted(() => {
             :size="20"
             class="group-hover:animate-pulse group-hover:text-ai-500"
           )
-
-  VisualizeModal(
-    v-if="simulation"
-    :open="showVisualizeModal"
-    :simulation
-    @close="showVisualizeModal = false"
-  )
 </template>
 
 <style lang="postcss" scoped>

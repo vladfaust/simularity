@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import RichTitle from "@/components/RichForm/RichTitle.vue";
-import { env } from "@/env";
 import { trackPageview } from "@/lib/plausible";
-import { Mode, Simulation } from "@/lib/simulation";
+import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
-import { directorTeacherMode } from "@/lib/storage/llm";
 import type { TtsConfig } from "@/lib/storage/tts";
 import { clone, tap } from "@/lib/utils";
 import { deepEqual } from "fast-equals";
@@ -12,7 +10,6 @@ import {
   AppWindowIcon,
   AsteriskIcon,
   AudioLinesIcon,
-  ClapperboardIcon,
   FeatherIcon,
   SaveIcon,
   SettingsIcon,
@@ -20,7 +17,6 @@ import {
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import AppSettings from "./SettingsModal/AppSettings.vue";
-import Director from "./SettingsModal/Director.vue";
 import LlmStatusIcon from "./SettingsModal/LlmAgent/StatusIcon.vue";
 import Voicer from "./SettingsModal/Voicer.vue";
 import VoicerStatusIcon from "./SettingsModal/Voicer/StatusIcon.vue";
@@ -47,9 +43,6 @@ const tab = ref(DEFAULT_TAB);
 const writerConfig = storage.llm.useDriverConfig("writer");
 const tempWriterConfig = ref(tap(writerConfig.value, clone) ?? null);
 
-const directorConfig = storage.llm.useDriverConfig("director");
-const tempDirectorConfig = ref(tap(directorConfig.value, clone) ?? null);
-
 const tempTtsConfig = ref<TtsConfig>(
   tap(storage.tts.ttsConfig.value, clone) ?? {
     narrator: true,
@@ -61,7 +54,6 @@ const tempTtsConfig = ref<TtsConfig>(
 const anyChanges = computed(() => {
   return !(
     deepEqual(clone(writerConfig.value), clone(tempWriterConfig.value)) &&
-    deepEqual(clone(directorConfig.value), clone(tempDirectorConfig.value)) &&
     deepEqual(clone(storage.tts.ttsConfig.value), clone(tempTtsConfig.value))
   );
 });
@@ -73,9 +65,6 @@ function save() {
 
   writerConfig.value = tempWriterConfig.value;
   tempWriterConfig.value = clone(writerConfig.value);
-
-  directorConfig.value = tempDirectorConfig.value;
-  tempDirectorConfig.value = clone(directorConfig.value);
 
   storage.tts.ttsConfig.value = clone(tempTtsConfig.value);
   tempTtsConfig.value = clone(storage.tts.ttsConfig.value);
@@ -162,22 +151,6 @@ const { t } = useI18n({
             :required="true"
           )
 
-      //- Director agent tab.
-      ._tab(
-        v-if="env.VITE_EXPERIMENTAL_IMMERSIVE_MODE"
-        :class="{ _selected: tab === Tab.Director }"
-        @click="tab = Tab.Director"
-      )
-        ._name
-          ._icon
-            ClapperboardIcon(:size="20")
-          span {{ t("settings.director") }}
-        LlmStatusIcon(
-          v-if="simulation"
-          :driver="simulation.director?.llmDriver.value"
-          :required="simulation.mode === Mode.Immersive && !directorTeacherMode"
-        )
-
       //- Voicer agent tab.
       ._tab(
         :class="{ _selected: tab === Tab.Voicer }"
@@ -202,13 +175,6 @@ const { t } = useI18n({
         v-if="tab === Tab.Writer"
         :simulation
         v-model:driver-config="tempWriterConfig"
-      )
-
-      //- Director agent tab.
-      Director(
-        v-else-if="tab === Tab.Director"
-        :simulation
-        v-model:driver-config="tempDirectorConfig"
       )
 
       //- Voicer agent tab.

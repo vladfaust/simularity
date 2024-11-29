@@ -593,7 +593,6 @@ export class DownloadManager {
   async init() {
     await Promise.all([
       this.initLlmAgentDir("writer"),
-      this.initLlmAgentDir("director"),
       tauriPath
         .join(await tauriPath.appLocalDataDir(), SCENARIOS_DIR)
         .then(async (dir) => {

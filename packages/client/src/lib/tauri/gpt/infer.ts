@@ -51,6 +51,7 @@ const CompletionOptionsSchema = v.strictObject({
   ),
   seed: v.optional(v.number()),
   grammar: v.optional(v.string()),
+  luaGrammar: v.optional(v.string()),
 });
 
 const COMMAND_NAME = "gpt_infer";

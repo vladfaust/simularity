@@ -45,6 +45,31 @@ message("XxHash libraries: ${XxHash_LIBRARIES}")
 include_directories(${XxHash_INCLUDE_DIR})
 list(APPEND LIB_LIST ${XxHash_LIBRARIES})
 
+# Lua 5.1 lib
+#
+
+find_package(Lua51 REQUIRED)
+message("Lua 5.1 include dir: ${Lua51_INCLUDE_DIR}")
+message("Lua 5.1 libraries: ${Lua51_LIBRARIES}")
+include_directories(${Lua51_INCLUDE_DIR})
+list(APPEND LIB_LIST ${Lua51_LIBRARIES})
+
+# Lua-CJSON lib
+#
+
+find_package(LuaCjson REQUIRED)
+message("Lua-CJSON include dir: ${LuaCjson_INCLUDE_DIR}")
+message("Lua-CJSON libraries: ${LuaCjson_LIBRARIES}")
+include_directories(${LuaCjson_INCLUDE_DIR})
+list(APPEND LIB_LIST ${LuaCjson_LIBRARIES})
+
+# Sol2 lib
+#
+
+find_package(Sol2 REQUIRED)
+message("Sol2 include dir: ${Sol2_INCLUDE_DIR}")
+include_directories(${Sol2_INCLUDE_DIR})
+
 # Add the libraries to the target
 #
 

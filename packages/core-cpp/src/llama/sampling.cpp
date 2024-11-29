@@ -2,7 +2,9 @@
 
 #include <llama.h>
 #include <spdlog/spdlog.h>
+#include <utility>
 
+#include "grammar-parser.h"
 #include "sampling.h"
 
 class LlamaSamplingContext {
@@ -10,18 +12,58 @@ public:
   llama_sampling_context *context;
   LlamaSamplingContext(llama_sampling_context *context) : context(context) {}
   ~LlamaSamplingContext() { llama_sampling_free(context); }
-  void reset() { llama_sampling_reset(context); }
+  void reset() { llama_sampling_reset(context, nullptr); }
   llama_token sample(llama_context *llama_ctx, const int idx = -1) {
     return llama_sampling_sample(context, llama_ctx, NULL, idx);
   }
   void accept(llama_context *llama_ctx, llama_token token) {
     llama_sampling_accept(context, llama_ctx, token, true);
   }
+  int set_grammar(const char *new_grammar) {
+    return llama_sampling_reset(context, new_grammar);
+  }
 };
 
 std::string llama_token_to_piece(
     const struct llama_model *model, const llama_token token, bool special
 );
+
+std::pair<grammar_parser::parse_state, llama_grammar *> *
+parse_grammar(const char *grammar_str) {
+  spdlog::debug("Parsing grammar: {}", grammar_str);
+  auto parsed_grammar = grammar_parser::parse(grammar_str);
+
+  // will be empty (default) if there are parse errors
+  if (parsed_grammar.rules.empty()) {
+    spdlog::warn("Failed to parse grammar");
+    return nullptr;
+  }
+
+  // Ensure that there is a "root" node.
+  if (parsed_grammar.symbol_ids.find("root") ==
+      parsed_grammar.symbol_ids.end()) {
+    spdlog::warn("Grammar does not contain a 'root' symbol");
+    return nullptr;
+  }
+
+  std::vector<const llama_grammar_element *> grammar_rules(
+      parsed_grammar.c_rules()
+  );
+
+  struct llama_grammar *grammar = llama_grammar_init(
+      grammar_rules.data(),
+      grammar_rules.size(),
+      parsed_grammar.symbol_ids.at("root")
+  );
+
+  if (grammar == nullptr) {
+    throw std::runtime_error("Failed to initialize llama_grammar");
+  }
+
+  return new std::pair<grammar_parser::parse_state, llama_grammar *>(
+      parsed_grammar, grammar
+  );
+}
 
 struct llama_sampling_context *
 llama_sampling_init(const struct llama_sampling_params &params) {
@@ -32,37 +74,15 @@ llama_sampling_init(const struct llama_sampling_params &params) {
 
   // if there is a grammar, parse it
   if (!params.grammar.empty()) {
-    spdlog::debug("Parsing grammar: {}", params.grammar);
-    result->parsed_grammar = grammar_parser::parse(params.grammar.c_str());
+    auto parse_result = parse_grammar(params.grammar.c_str());
 
-    // will be empty (default) if there are parse errors
-    if (result->parsed_grammar.rules.empty()) {
-      spdlog::warn("Failed to parse grammar");
+    if (parse_result == nullptr) {
       delete result;
       return nullptr;
     }
 
-    // Ensure that there is a "root" node.
-    if (result->parsed_grammar.symbol_ids.find("root") ==
-        result->parsed_grammar.symbol_ids.end()) {
-      spdlog::warn("Grammar does not contain a 'root' symbol");
-      delete result;
-      return nullptr;
-    }
-
-    std::vector<const llama_grammar_element *> grammar_rules(
-        result->parsed_grammar.c_rules()
-    );
-
-    struct llama_grammar *grammar = llama_grammar_init(
-        grammar_rules.data(),
-        grammar_rules.size(),
-        result->parsed_grammar.symbol_ids.at("root")
-    );
-    if (grammar == nullptr) {
-      throw std::runtime_error("Failed to initialize llama_grammar");
-    }
-    result->grammar = grammar;
+    result->parsed_grammar = parse_result->first;
+    result->grammar        = parse_result->second;
   }
 
   result->prev.resize(params.n_prev);
@@ -82,13 +102,24 @@ void llama_sampling_free(struct llama_sampling_context *ctx) {
   delete ctx;
 }
 
-void llama_sampling_reset(llama_sampling_context *ctx) {
+int llama_sampling_reset(
+    llama_sampling_context *ctx, const char *new_grammar_str
+) {
   if (ctx->grammar != NULL) {
     llama_grammar_free(ctx->grammar);
     ctx->grammar = NULL;
   }
 
-  if (!ctx->parsed_grammar.rules.empty()) {
+  if (new_grammar_str) {
+    auto parse_result = parse_grammar(new_grammar_str);
+
+    if (parse_result == nullptr) {
+      return -1;
+    }
+
+    ctx->parsed_grammar = parse_result->first;
+    ctx->grammar        = parse_result->second;
+  } else if (!ctx->parsed_grammar.rules.empty()) {
     std::vector<const llama_grammar_element *> grammar_rules(
         ctx->parsed_grammar.c_rules()
     );
@@ -98,15 +129,20 @@ void llama_sampling_reset(llama_sampling_context *ctx) {
         grammar_rules.size(),
         ctx->parsed_grammar.symbol_ids.at("root")
     );
+
     if (grammar == nullptr) {
+      // This should never happen.
       throw std::runtime_error("Failed to initialize llama_grammar");
     }
+
     ctx->grammar = grammar;
   }
 
   std::fill(ctx->prev.begin(), ctx->prev.end(), 0);
   ctx->cur.clear();
   ctx->n_valid = 0;
+
+  return 0;
 }
 
 void llama_sampling_set_rng_seed(

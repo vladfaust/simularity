@@ -101,7 +101,10 @@ void llama_sampling_free(struct llama_sampling_context *ctx);
 // Reset the sampler context
 // - clear prev tokens
 // - reset grammar
-void llama_sampling_reset(llama_sampling_context *ctx);
+// - set grammar to new_grammar_str, if provided
+int llama_sampling_reset(
+    llama_sampling_context *ctx, const char *new_grammar_str
+);
 
 // Set the sampler seed
 void llama_sampling_set_rng_seed(

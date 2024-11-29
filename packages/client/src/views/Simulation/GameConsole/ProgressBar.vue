@@ -6,7 +6,7 @@ import { PredictUpdateVariantJob } from "@/lib/simulation/jobs/predictUpdateVari
 import * as storage from "@/lib/storage";
 import type { LlmAgentId } from "@/lib/storage/llm";
 import { clamp, unreachable } from "@/lib/utils";
-import { AudioLinesIcon, ClapperboardIcon, FeatherIcon } from "lucide-vue-next";
+import { AudioLinesIcon, FeatherIcon } from "lucide-vue-next";
 import { computed } from "vue";
 import AgentStatusVue, { Status } from "./ProgressBar/AgentStatus.vue";
 
@@ -20,8 +20,6 @@ function llmDriverDone(agent: LlmAgentId): boolean | undefined {
   switch (agent) {
     case "writer":
       return job?.writerDone.value;
-    case "director":
-      return job?.directorDone.value;
     default:
       throw unreachable(agent);
   }
@@ -72,14 +70,6 @@ const writerStatus = computed<Status>(() =>
 
 const writerStatusText = computed<string | undefined>(() =>
   llmStatusText(job?.agents.writer.llmDriver.value ?? null),
-);
-
-const directorStatus = computed<Status>(() =>
-  llmStatus("director", job?.agents.director?.llmDriver.value ?? null),
-);
-
-const directorStatusText = computed<string | undefined>(() =>
-  llmStatusText(job?.agents.director?.llmDriver.value ?? null),
 );
 
 const voicerStatus = computed<Status>(() => {
@@ -156,15 +146,6 @@ const voicerStatusText = computed<string | undefined>(() => {
   )
     template(#agentIcon)
       FeatherIcon(:size="AGENT_ICON_SIZE")
-
-  //- Director status.
-  AgentStatusVue(
-    key="director"
-    :status="directorStatus"
-    :status-text="directorStatusText"
-  )
-    template(#agentIcon)
-      ClapperboardIcon(:size="AGENT_ICON_SIZE")
 
   //- TTS status.
   AgentStatusVue(

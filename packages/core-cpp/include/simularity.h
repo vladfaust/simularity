@@ -183,6 +183,8 @@ struct simularity_gpt_inference_options {
   const char *grammar;
   const unsigned stop_sequences_len;
   const char **stop_sequences;
+
+  const char *lua_grammar;
 };
 
 /**
@@ -208,6 +210,7 @@ simularity_gpt_inference_options simularity_gpt_inference_options_default();
   @returns -1 when session not found.
   @returns -2 on context overflow.
   @returns -3 on failure to initialize sampling (likely a grammar error).
+  @returns -8 on Lua script error.
   @returns <0 on other error.
 
   SAFETY: `simularity_gpt_*` functions are thread-safe.

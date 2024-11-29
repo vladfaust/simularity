@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iostream>
+#include <optional>
 #include <spdlog/fmt/bin_to_hex.h>
 #include <spdlog/fmt/ranges.h>
 #include <spdlog/spdlog.h>
@@ -11,6 +12,11 @@
 #include "common.cpp"
 #include "decode.cpp"
 #include "llama.h"
+#include "sol/sol.hpp"
+#include "sol/types.hpp"
+
+// Defined in lua-cjson.c
+extern "C" int luaopen_cjson(lua_State *l);
 
 simularity_gpt_inference_options simularity_gpt_inference_options_default() {
   return simularity_gpt_inference_options{
@@ -37,6 +43,7 @@ simularity_gpt_inference_options simularity_gpt_inference_options_default() {
       .grammar            = nullptr,
       .stop_sequences_len = 0,
       .stop_sequences     = nullptr,
+      .lua_grammar        = nullptr,
   };
 }
 
@@ -79,9 +86,50 @@ int simularity_gpt_infer(
       .penalize_nl       = options.penalize_nl,
       .seed              = options.seed};
 
+  std::optional<sol::state> lua_state;
+  std::optional<sol::function> lua_on_eos_function;
+
   // Set grammar, if provided.
   if (options.grammar != nullptr) {
+    if (options.lua_grammar != nullptr) {
+      spdlog::error("Both grammar and lua_grammar are provided, that's a error"
+      );
+
+      return -3;
+    }
+
     sampling_params.grammar = std::string(options.grammar);
+  } else if (options.lua_grammar != nullptr) {
+    spdlog::debug("Initializing Lua state");
+    sol::state lua;
+
+    // Make `cjson` table available in the Lua state.
+    luaopen_cjson(lua.lua_state());
+
+    spdlog::info("Running Lua grammar script");
+    spdlog::debug(options.lua_grammar);
+
+    // Add the cjson library.
+    lua.open_libraries(sol::lib::base, sol::lib::string, sol::lib::table);
+
+    try {
+      lua.safe_script(options.lua_grammar);
+    } catch (const sol::error &e) {
+      spdlog::error("Error during initial Lua script loading: {}", e.what());
+      return -8;
+    }
+
+    sol::function lua_start_function = lua["start"];
+
+    try {
+      sampling_params.grammar = lua_start_function();
+    } catch (const sol::error &e) {
+      spdlog::error("Error during Lua .start() call: {}", e.what());
+      return -8;
+    }
+
+    lua_on_eos_function = lua["on_eos"];
+    lua_state           = std::move(lua);
   }
 
   // Create the sampling context.
@@ -145,6 +193,7 @@ int simularity_gpt_infer(
   batch.add(prompt_tokens.back(), n_prompt - 1, true);
 
   std::vector<llama_token> eval_tokens;
+  std::string eval_string;
   auto start = std::chrono::high_resolution_clock::now();
 
   while (eval_tokens.size() < n_eval) {
@@ -158,6 +207,48 @@ int simularity_gpt_infer(
         return -7;
       }
 
+      if (next == llama_token_eos(session->model())) {
+        // If we have a Lua instance, call on_eos(eval_string)
+        // to get the new grammar. on_eos(eval_string) may return string or nil.
+        if (lua_on_eos_function.has_value()) {
+          spdlog::info("Calling Lua .on_eos({})", eval_string);
+
+          try {
+            auto new_grammar = lua_on_eos_function.value()(eval_string);
+
+            if (new_grammar.get_type() != sol::type::lua_nil) {
+              sampling_params.grammar = new_grammar;
+
+              if (sampling_ctx->set_grammar(sampling_params.grammar.c_str()) !=
+                  0) {
+                spdlog::error("Failed to set new grammar");
+                return -3;
+              } else {
+                spdlog::debug("Set new grammar");
+              }
+
+              eval_string.clear();
+              continue;
+            } else {
+              spdlog::info("Stop: Lua .on_eos() returned nil");
+              break;
+            }
+          } catch (const sol::error &e) {
+            spdlog::error("Error during Lua .on_eos() call: {}", e.what());
+            return -8;
+          }
+        } else {
+          spdlog::info("Stop: EOS token");
+          break;
+        }
+      }
+
+      // Accept the token.
+      sampling_ctx->accept(session->context, next);
+      eval_tokens.push_back(next);
+      session->prompt.push_back(next);
+
+      // Convert the token to a piece.
       std::string piece;
       try {
         piece = llama_token_to_piece(session->model(), next, true);
@@ -165,16 +256,6 @@ int simularity_gpt_infer(
         spdlog::warn("Failed to convert token to piece: ⌘{}", next);
         piece = "�";
       }
-
-      if (next == llama_token_eos(session->model())) {
-        spdlog::info("Stop: EOS token found");
-        break;
-      }
-
-      // Accept the token.
-      sampling_ctx->accept(session->context, next);
-      eval_tokens.push_back(next);
-      session->prompt.push_back(next);
 
       // Call the inference callback.
       if (inference_callback != NULL) {
@@ -201,6 +282,9 @@ int simularity_gpt_infer(
         break;
       }
       if (found) break;
+
+      // Append the piece to the output string.
+      eval_string += piece;
 
       // Clear the batch and add the single next token to it.
       batch.batch.n_tokens = 0;

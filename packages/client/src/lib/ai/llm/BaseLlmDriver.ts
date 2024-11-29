@@ -12,6 +12,7 @@ export enum LlmGrammarLang {
   Gnbf,
   Regex,
   JsonSchema,
+  LuaGnbf,
 }
 
 export type DecodeProgressEventPayload = {

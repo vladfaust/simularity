@@ -1,7 +1,10 @@
 <script lang="ts" setup>
 import CharacterPfp from "@/components/CharacterPfp.vue";
 import type { Simulation } from "@/lib/simulation";
-import { NARRATOR, PREDICTION_REGEX } from "@/lib/simulation/agents/writer";
+import {
+  CHARACTER_LINE_PREDICTION_REGEX,
+  NARRATOR,
+} from "@/lib/simulation/agents/writer";
 import type { Update } from "@/lib/simulation/update";
 import { translationWithFallback } from "@/logic/i18n";
 import { TransitionRoot } from "@headlessui/vue";
@@ -19,7 +22,9 @@ const props = defineProps<{
 }>();
 
 const match = computed(() =>
-  props.variant ? PREDICTION_REGEX.exec(props.variant.text) : undefined,
+  props.variant
+    ? CHARACTER_LINE_PREDICTION_REGEX.exec(props.variant.text)
+    : undefined,
 );
 
 const bufferedCharacterId = ref<string | null>("");

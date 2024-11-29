@@ -52,12 +52,15 @@ pub struct Options {
     pub seed: Option<u32>,
     pub grammar: Option<String>,
     pub stop_sequences: Option<Vec<String>>,
+    pub lua_grammar: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Error {
     SessionNotFound,
     ContextOverflow,
+    SamplingError,
+    LuaError,
     Unknown(i32),
 }
 
@@ -111,6 +114,7 @@ pub fn infer(
     let mut converted_options = convert_options(options.clone());
     let mut grammar_ptr: Option<*mut i8> = None;
     let mut sequence_ptrs: Option<Vec<*mut i8>> = None;
+    let mut lua_grammar_ptr: Option<*mut i8> = None;
 
     if let Some(options) = options.clone() {
         if let Some(grammar) = options.grammar {
@@ -130,6 +134,12 @@ pub fn infer(
             converted_options.stop_sequences_len = ptrs.len() as u32;
 
             sequence_ptrs = Some(ptrs);
+        }
+
+        if let Some(lua_grammar) = options.lua_grammar {
+            let ptr = CString::new(lua_grammar).unwrap().into_raw();
+            lua_grammar_ptr = Some(ptr);
+            converted_options.lua_grammar = ptr;
         }
     }
 
@@ -168,6 +178,11 @@ pub fn infer(
         }
     }
 
+    if let Some(lua_grammar_ptr) = lua_grammar_ptr {
+        // Drop the CString.
+        let _ = unsafe { CString::from_raw(lua_grammar_ptr) };
+    }
+
     if (decode_user_data as usize) != 0 {
         // Drop the box.
         let _: Box<Box<dyn FnMut(f32) -> bool>> =
@@ -184,6 +199,8 @@ pub fn infer(
     match result {
         -1 => Err(Error::SessionNotFound),
         -2 => Err(Error::ContextOverflow),
+        -3 => Err(Error::SamplingError),
+        -8 => Err(Error::LuaError),
         x if x > 0 => Ok(result as u32),
         x => Err(Error::Unknown(x)),
     }

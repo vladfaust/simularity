@@ -8,7 +8,7 @@ import {
 import { type Ref } from "vue";
 
 export type LlmDriverConfig = TauriLlmDriverConfig | RemoteLlmDriverConfig;
-export type LlmAgentId = "writer" | "director";
+export type LlmAgentId = "writer";
 
 //#region Per-agent storage
 //
@@ -73,14 +73,11 @@ function _useCustomModels(agent: LlmAgentId) {
 }
 
 const writerCustomModels = _useCustomModels("writer");
-const directorCustomModels = _useCustomModels("director");
 
 export function useCustomModels(agent: LlmAgentId): Ref<string[]> {
   switch (agent) {
     case "writer":
       return writerCustomModels;
-    case "director":
-      return directorCustomModels;
   }
 }
 
@@ -104,7 +101,6 @@ function _useLatestSession(agent: LlmAgentId) {
 }
 
 const latestWriterSession = _useLatestSession("writer");
-const latestDirectorSession = _useLatestSession("director");
 
 /**
  * Use to get the latest session object.
@@ -113,8 +109,6 @@ export function useLatestSession(agent: LlmAgentId): Ref<LatestSession | null> {
   switch (agent) {
     case "writer":
       return latestWriterSession;
-    case "director":
-      return latestDirectorSession;
   }
 }
 
@@ -131,7 +125,6 @@ function _useDriverConfig(agent: LlmAgentId) {
 }
 
 const writerDriverConfig = _useDriverConfig("writer");
-const directorDriverConfig = _useDriverConfig("director");
 
 export function useDriverConfig(
   agent: LlmAgentId,
@@ -139,8 +132,6 @@ export function useDriverConfig(
   switch (agent) {
     case "writer":
       return writerDriverConfig;
-    case "director":
-      return directorDriverConfig;
   }
 }
 
@@ -163,7 +154,6 @@ function _useLatestLocalModelConfig(agent: LlmAgentId) {
 }
 
 const latestWriterLocalModelConfig = _useLatestLocalModelConfig("writer");
-const latestDirectorLocalModelConfig = _useLatestLocalModelConfig("director");
 
 export function useLatestLocalModelConfig(
   agent: LlmAgentId,
@@ -171,8 +161,6 @@ export function useLatestLocalModelConfig(
   switch (agent) {
     case "writer":
       return latestWriterLocalModelConfig;
-    case "director":
-      return latestDirectorLocalModelConfig;
   }
 }
 
@@ -195,7 +183,6 @@ function _useLatestRemoteModelConfig(agent: LlmAgentId) {
 }
 
 const latestWriterRemoteModelConfig = _useLatestRemoteModelConfig("writer");
-const latestDirectorRemoteModelConfig = _useLatestRemoteModelConfig("director");
 
 export function useLatestRemoteModelConfig(
   agent: LlmAgentId,
@@ -203,8 +190,6 @@ export function useLatestRemoteModelConfig(
   switch (agent) {
     case "writer":
       return latestWriterRemoteModelConfig;
-    case "director":
-      return latestDirectorRemoteModelConfig;
   }
 }
 

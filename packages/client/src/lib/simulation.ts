@@ -1,4 +1,3 @@
-import { env } from "@/env";
 import { translationWithFallback } from "@/logic/i18n";
 import * as tauriFs from "@tauri-apps/plugin-fs";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -26,11 +25,9 @@ import {
   ensureLocalScenario,
   type LocalScenario,
 } from "./scenario";
-import { Director } from "./simulation/agents/director";
 import { Voicer } from "./simulation/agents/voicer";
 import {
   Writer,
-  type VisualizationOptions,
   type PredictionOptions as WriterPredictionOptions,
 } from "./simulation/agents/writer";
 import { PredictUpdateVariantJob } from "./simulation/jobs/predictUpdateVariant";
@@ -38,13 +35,11 @@ import { type StageRenderer } from "./simulation/stageRenderer";
 import {
   State,
   compareStateDeltas,
-  emptyState,
   type StateCommand,
   type StateDto,
 } from "./simulation/state";
 import { Update, UpdateVariant } from "./simulation/update";
 import * as storage from "./storage";
-import { directorTeacherMode } from "./storage/llm";
 import { Bug, Deferred, assert, assertCallback, clockToMinutes } from "./utils";
 
 export { State };
@@ -80,22 +75,15 @@ export class Simulation {
 
   private _busy = ref(false);
   private _previousState = shallowRef<StateDto>();
-
-  // TODO: Make it always defined (i.e. simulation is always in valid state).
-  private _checkpoint = shallowRef<
-    typeof d.checkpoints.$inferSelect | undefined
-  >();
-
+  private _checkpoint = shallowRef<typeof d.checkpoints.$inferSelect>();
   private _writer: Writer;
-
-  /** undefined if the simulation is not immersive. */
-  private _director: Director | undefined;
-
   private _voicer: Voicer;
-
   private _currentJob = shallowRef<PredictUpdateVariantJob | null>(null);
   //#endregion
 
+  /**
+   * Undefined for non-immersive simulations.
+   */
   readonly state: State | undefined;
 
   readonly historicalUpdatesLength = computed(
@@ -212,13 +200,6 @@ export class Simulation {
   }
 
   /**
-   * The director instance.
-   */
-  get director() {
-    return this._director;
-  }
-
-  /**
    * The voicer instance.
    */
   get voicer() {
@@ -247,14 +228,7 @@ export class Simulation {
       : null;
   });
 
-  readonly ready = computed(
-    () =>
-      this.writer.ready.value &&
-      (this.mode === Mode.Immersive
-        ? this.director!.ready.value ||
-          (env.VITE_EXPERIMENTAL_IMMERSIVE_MODE && directorTeacherMode.value)
-        : true),
-  );
+  readonly ready = computed(() => this.writer.ready.value);
 
   /**
    * Context length of the current update, or the most recent update.
@@ -548,7 +522,7 @@ export class Simulation {
           characterId,
 
           // TODO: Allow specifying the clock.
-          simulationDayClock: parentWriterUpdate
+          simulationDayClock: parentWriterUpdate?.simulationDayClock
             ? parentWriterUpdate.simulationDayClock + 1
             : 0,
 
@@ -1367,27 +1341,6 @@ export class Simulation {
   }
 
   /**
-   * Infer visual prompt for current update.
-   */
-  async inferVisualPrompt(
-    nEval = 128,
-    visualizationOptions?: VisualizationOptions,
-    completionOptions?: CompletionOptions,
-    abortSignal?: AbortSignal,
-  ) {
-    return await this.writer.visualize(
-      this._checkpoint.value!,
-      this._historicalUpdates.value,
-      this._recentUpdates.value,
-      this.state?.serialize() || emptyState(),
-      nEval,
-      visualizationOptions,
-      completionOptions,
-      abortSignal,
-    );
-  }
-
-  /**
    * Infer TTS for an update variant.
    * @returns The TTS job, or null if the TTS audio already exists.
    */
@@ -1448,7 +1401,6 @@ export class Simulation {
 
   destroy() {
     this.writer.destroy();
-    this.director?.destroy();
     this.voicer.destroy();
   }
 
@@ -1745,14 +1697,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
       mode === Mode.Immersive
         ? new State(scenario as LocalImmersiveScenario)
         : undefined;
-
-    this._writer = new Writer(this.scenario, this.locale);
-
-    this._director =
-      mode === Mode.Immersive
-        ? new Director(this.scenario as LocalImmersiveScenario)
-        : undefined;
-
+    this._writer = new Writer(this.mode, this.scenario, this.locale);
     this._voicer = new Voicer(this.scenario, this.locale);
   }
 
@@ -2090,7 +2035,6 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
           this.mode,
           {
             writer: this.writer,
-            director: this.director,
             voicer: this.voicer,
           },
           this._checkpoint.value!,
@@ -2102,7 +2046,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
         ),
       );
 
-      return await this._currentJob.value.run(abortSignal);
+      return (await this._currentJob.value.run(abortSignal)).writerUpdate;
     } finally {
       this._currentJob.value = null;
     }

@@ -162,6 +162,12 @@ pub async fn gpt_infer(
             simularity_core::gpt::infer::Error::ContextOverflow => {
                 Err(tauri::ipc::InvokeError::from("Context overflow"))
             }
+            simularity_core::gpt::infer::Error::SamplingError => {
+                Err(tauri::ipc::InvokeError::from("Sampling error"))
+            }
+            simularity_core::gpt::infer::Error::LuaError => {
+                Err(tauri::ipc::InvokeError::from("Lua error"))
+            }
             simularity_core::gpt::infer::Error::Unknown(code) => Err(
                 tauri::ipc::InvokeError::from(format!("Unknown error code {}", code)),
             ),

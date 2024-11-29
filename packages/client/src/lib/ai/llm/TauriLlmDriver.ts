@@ -222,7 +222,10 @@ export class TauriLlmDriver implements BaseLlmDriver {
     }
   }
 
-  readonly supportedGrammarLangs = new Set([LlmGrammarLang.Gnbf]);
+  readonly supportedGrammarLangs = new Set([
+    LlmGrammarLang.Gnbf,
+    LlmGrammarLang.LuaGnbf,
+  ]);
   readonly needsWarmup = true;
   private readonly _initializationParams: ShallowRef<InitializationParams>;
   readonly initialized = computed(
@@ -309,7 +312,10 @@ export class TauriLlmDriver implements BaseLlmDriver {
 
       if (inferenceOptions.grammar) {
         // Sanity check.
-        if (inferenceOptions.grammar.lang !== LlmGrammarLang.Gnbf) {
+        if (
+          inferenceOptions.grammar.lang !== LlmGrammarLang.Gnbf &&
+          inferenceOptions.grammar.lang !== LlmGrammarLang.LuaGnbf
+        ) {
           throw new Error(
             `Unsupported grammar language: ${inferenceOptions.grammar.lang}`,
           );
@@ -322,7 +328,14 @@ export class TauriLlmDriver implements BaseLlmDriver {
         nEval,
         {
           ...inferenceOptions,
-          grammar: inferenceOptions.grammar?.content,
+          grammar:
+            inferenceOptions.grammar?.lang === LlmGrammarLang.Gnbf
+              ? inferenceOptions.grammar.content
+              : undefined,
+          luaGrammar:
+            inferenceOptions.grammar?.lang === LlmGrammarLang.LuaGnbf
+              ? inferenceOptions.grammar.content
+              : undefined,
         },
         (e) => {
           this.progress.value = e.progress;

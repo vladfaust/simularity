@@ -26,6 +26,7 @@ pub struct SimularityGptInferenceOptions {
     pub grammar: *const c_char,
     pub stop_sequences_len: c_uint,
     pub stop_sequences: *const *const c_char,
+    pub lua_grammar: *const c_char,
 }
 
 #[derive(Debug)]
