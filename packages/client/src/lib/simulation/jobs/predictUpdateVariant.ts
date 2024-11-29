@@ -53,10 +53,14 @@ export class PredictUpdateVariantJob {
 
   async run(abortSignal?: AbortSignal) {
     this.update.inProgressVariant.value = {
-      characterId: undefined,
-      clockString: undefined,
-      text: "",
+      writerUpdate: {
+        characterId: undefined,
+        clockString: undefined,
+        text: "",
+      },
     };
+
+    const previousState = this.state?.serialize();
 
     try {
       this._writerDone.value = false;
@@ -72,9 +76,16 @@ export class PredictUpdateVariantJob {
         this.writerParams.inferenceOptions,
         undefined,
         (e) => {
-          this.update.inProgressVariant.value!.text += e.content;
+          this.update.inProgressVariant.value!.writerUpdate.text += e.content;
         },
         abortSignal,
+        (command) => {
+          console.log("Applying command", command);
+          this.state!.apply([command]);
+          (this.update.inProgressVariant.value!.directorUpdate ||= []).push(
+            command,
+          );
+        },
       );
 
       console.log("Predicted writer response", writerResponse);
@@ -156,11 +167,6 @@ export class PredictUpdateVariantJob {
         }
       }
 
-      if (directorUpdate?.code.length) {
-        console.log("Applying stage code", directorUpdate.code);
-        this.state!.apply(directorUpdate.code);
-      }
-
       this.update.variants.value.push(
         markRaw(
           new UpdateVariant(
@@ -178,6 +184,13 @@ export class PredictUpdateVariantJob {
       this.update.setChosenVariantToLast();
 
       return writerResponse;
+    } catch (e) {
+      if (previousState) {
+        console.warn("Reverting state due to error");
+        this.state!.setState(previousState);
+      }
+
+      throw e;
     } finally {
       this.update.inProgressVariant.value = undefined;
     }

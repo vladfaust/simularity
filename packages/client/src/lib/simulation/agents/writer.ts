@@ -23,6 +23,7 @@ import {
 } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 import { translationWithFallback } from "@/logic/i18n";
+import { IncompleteJsonParser } from "incomplete-json-parser";
 import { computed, shallowRef, type ShallowRef } from "vue";
 import { hookLlmAgentToDriverRef } from "./llm";
 import { buildImmersiveLuaGnbfGrammar } from "./writer/immersiveLuaGrammar";
@@ -112,10 +113,12 @@ export class Writer {
     predictionOptions?: PredictionOptions,
     inferenceOptions?: CompletionOptions,
     onDecodeProgress?: (event: { progress: number }) => void,
-    onInferenceProgress?: (event: { content: string }) => void,
+    onInferenceProgressArg?: (event: { content: string }) => void,
     inferenceAbortSignal?: AbortSignal,
+    onCommand?: (command: StateCommand) => void,
   ): Promise<{
     completion: typeof d.llmCompletions.$inferSelect;
+
     writerUpdate: {
       characterId: string | null;
       simulationDayClock: number;
@@ -153,6 +156,88 @@ export class Writer {
 
     console.log("Inferring update", prompt, nEval, options, predictionOptions);
 
+    let directorUpdate: StateCommand[] | undefined;
+    let onInferenceProgress = onInferenceProgressArg;
+
+    if (this.mode === Mode.Immersive) {
+      if (onCommand) {
+        // If onCommand is defined, would parse commands progressively.
+        //
+
+        const incompleteJsonParser = new IncompleteJsonParser();
+        directorUpdate = [];
+
+        let parserFinished = false;
+        let inferencedSoFar = "";
+        let parsedCommandsCount = 0;
+
+        onInferenceProgress = (event: { content: string }) => {
+          onInferenceProgressArg?.(event);
+          if (parserFinished) return;
+
+          inferencedSoFar += event.content;
+          // console.debug("Inferenced so far", inferencedSoFar);
+
+          const match = inferencedSoFar.match(`<${SYSTEM}> (.+)`);
+          if (!match) {
+            // console.debug("No system line yet");
+            return;
+          }
+
+          try {
+            incompleteJsonParser.write(event.content);
+          } catch (e: any) {
+            if (e.message === "Parser is already finished") {
+              // console.debug("Parser is already finished");
+              parserFinished = true;
+              return;
+            } else {
+              throw e;
+            }
+          }
+
+          const jsonObjects = incompleteJsonParser.getObjects();
+          // console.debug("Parsed JSON objects", jsonObjects);
+
+          if (jsonObjects instanceof Array && jsonObjects.length) {
+            jsonObjects.splice(0, parsedCommandsCount);
+
+            const parseResult = v.safeParse(
+              v.array(StateCommandSchema),
+              jsonObjects,
+            );
+
+            if (!parseResult.success) {
+              // console.debug(
+              //   `(OK) Failed to parse system object: ${JSON.stringify(v.flatten(parseResult.issues))}`,
+              //   jsonObjects,
+              // );
+            } else {
+              // console.debug("Parsed new commands", parseResult.output);
+
+              for (const command of parseResult.output) {
+                try {
+                  onCommand(command);
+                } catch (e) {
+                  // console.debug(
+                  //   "(OK) Failed to apply command, breaking the loop",
+                  //   e,
+                  // );
+
+                  break;
+                }
+
+                directorUpdate!.push(command);
+                parsedCommandsCount++;
+              }
+            }
+          }
+        };
+      } else {
+        // Otherwise, would parse all commands at once in the end.
+      }
+    }
+
     const inferenceResult = await this.llmDriver.value.createCompletion(
       prompt,
       nEval,
@@ -168,13 +253,37 @@ export class Writer {
       inferenceResult.completion.output,
     );
 
-    const parsedResult = Writer._parsePrediction(
+    if (this.mode === Mode.Immersive && !onCommand) {
+      const systemLineMatch =
+        inferenceResult.completion.output!.match(/<system> (.+)/);
+
+      if (systemLineMatch) {
+        const json = safeParseJson(systemLineMatch[1]);
+        if (!json.success) {
+          throw new ResponseError(
+            `Failed to parse system line: ${json.error.message}`,
+          );
+        }
+
+        const commands = v.safeParse(v.array(StateCommandSchema), json.output);
+        if (!commands.success) {
+          throw new ResponseError(
+            `Failed to parse system commands: ${JSON.stringify(v.flatten(commands.issues))}`,
+          );
+        }
+
+        directorUpdate = commands.output;
+      }
+    }
+
+    const writerUpdate = Writer._parseCharacterLinePrediction(
       trimEndAny(inferenceResult.completion.output!, ["\n"]),
     );
 
     return {
       completion: inferenceResult.completion,
-      ...parsedResult,
+      writerUpdate,
+      directorUpdate,
     };
   }
 
@@ -759,7 +868,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
 
     let lines: string[] = [];
 
-    if (mode === Mode.Immersive && directorUpdate) {
+    if (mode === Mode.Immersive && directorUpdate?.code.length) {
       lines.push(`<${SYSTEM}> ${JSON.stringify(directorUpdate.code)}\n`);
     }
 
@@ -878,67 +987,26 @@ characterId ::= ${characterIdRule}
    * Parse a prediction response.
    * @throws {ResponseError} If the response is invalid.
    */
-  private static _parsePrediction(response: string): {
-    directorUpdate?: StateCommand[];
-    writerUpdate: {
-      characterId: string | null;
-      simulationDayClock: number;
-      text: string;
-    };
+  private static _parseCharacterLinePrediction(response: string): {
+    characterId: string | null;
+    simulationDayClock: number;
+    text: string;
   } {
-    let directorUpdate: StateCommand[] | undefined;
+    const match = response.match(CHARACTER_LINE_PREDICTION_REGEX);
 
-    {
-      const match = response.match(`<${SYSTEM}> (.+)\n`);
-
-      if (match) {
-        const json = safeParseJson(match[1]);
-        if (!json.success) {
-          console.debug(`Failed to parse system JSON: ${json.error}`, match);
-          throw new ResponseError(`Failed to parse system JSON`);
-        }
-
-        const parseResult = v.safeParse(
-          v.array(StateCommandSchema),
-          json.output,
-        );
-
-        if (!parseResult.success) {
-          console.debug(
-            `Failed to parse system object: ${JSON.stringify(v.flatten(parseResult.issues))}`,
-            json.output,
-          );
-
-          throw new ResponseError(`Failed to parse system object`);
-        }
-
-        directorUpdate = parseResult.output;
-      }
+    if (!match) {
+      console.debug(`Failed to parse character line: ${response}`);
+      throw new ResponseError(`Failed to parse character line`);
     }
 
-    let writerUpdate;
-    {
-      const match = response.match(CHARACTER_LINE_PREDICTION_REGEX);
+    const rawCharacterId: string = match[1];
+    const clock: string = match[2];
+    const text: string = match[3];
 
-      if (!match) {
-        console.debug(`Failed to parse character line: ${response}`);
-        throw new ResponseError(`Failed to parse character line`);
-      }
+    const characterId = rawCharacterId === NARRATOR ? null : rawCharacterId;
+    const simulationDayClock = clockToMinutes(clock);
 
-      const rawCharacterId: string = match[1];
-      const clock: string = match[2];
-      const text: string = match[3];
-
-      const characterId = rawCharacterId === NARRATOR ? null : rawCharacterId;
-      const simulationDayClock = clockToMinutes(clock);
-
-      writerUpdate = { characterId, simulationDayClock, text };
-    }
-
-    return {
-      writerUpdate,
-      directorUpdate,
-    };
+    return { characterId, simulationDayClock, text };
   }
 
   //

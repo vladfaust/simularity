@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import { Simulation } from "@/lib/simulation";
+import { Mode, Simulation } from "@/lib/simulation";
 import { type UpdateVariant } from "@/lib/simulation/update";
 // import { minutesToClock, tap } from "@/lib/utils";
 import * as api from "@/lib/api";
@@ -22,6 +22,7 @@ import {
 } from "lucide-vue-next";
 import { computed, onMounted, ref, watch } from "vue";
 import { toast } from "vue3-toastify";
+import DirectorUpdateText from "./DirectorUpdateText.vue";
 import RichText from "./RichText.vue";
 
 const props = defineProps<{
@@ -372,5 +373,11 @@ onMounted(() => {
       @keydown.escape.prevent="editInProgress = false"
     )
 
-    RichText.leading-snug(v-else :text="variant.writerUpdate.text" as="p")
+    p.leading-snug(v-else)
+      DirectorUpdateText.italic.opacity-50(
+        v-if="simulation.mode === Mode.Immersive && variant.directorUpdate.value?.code.length"
+        :simulation
+        :commands="variant.directorUpdate.value?.code"
+      )
+      RichText(:text="variant.writerUpdate.text" as="span")
 </template>

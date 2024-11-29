@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import CharacterPfp from "@/components/CharacterPfp.vue";
-import type { Simulation } from "@/lib/simulation";
+import { Mode, type Simulation } from "@/lib/simulation";
 import {
   CHARACTER_LINE_PREDICTION_REGEX,
   NARRATOR,
@@ -10,10 +10,11 @@ import { translationWithFallback } from "@/logic/i18n";
 import { TransitionRoot } from "@headlessui/vue";
 import { BotIcon, ThumbsDownIcon } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
+import DirectorUpdateText from "./DirectorUpdateText.vue";
 import RichText from "./RichText.vue";
 
 const props = defineProps<{
-  variant?: NonNullable<Update["inProgressVariant"]["value"]>;
+  variant: NonNullable<Update["inProgressVariant"]["value"]>;
   isSingle: boolean;
   live: boolean;
   simulation: Simulation;
@@ -23,7 +24,7 @@ const props = defineProps<{
 
 const match = computed(() =>
   props.variant
-    ? CHARACTER_LINE_PREDICTION_REGEX.exec(props.variant.text)
+    ? CHARACTER_LINE_PREDICTION_REGEX.exec(props.variant.writerUpdate.text)
     : undefined,
 );
 
@@ -135,6 +136,11 @@ const character = computed(() => {
     class="mt-0.5"
   )
     p.leading-snug
+      DirectorUpdateText.italic.opacity-50(
+        v-if="simulation.mode === Mode.Immersive && variant?.directorUpdate"
+        :simulation
+        :commands="variant.directorUpdate"
+      )
       RichText(
         v-if="live && bufferedText"
         :text="bufferedText"

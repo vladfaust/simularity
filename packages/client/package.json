@@ -30,6 +30,7 @@
     "duration-fns": "^3.0.2",
     "fast-equals": "^5.0.1",
     "floating-vue": "^5.2.2",
+    "incomplete-json-parser": "^1.1.2",
     "lucide-vue-next": "^0.399.0",
     "nanoid": "^5.0.7",
     "p-retry": "^6.2.0",

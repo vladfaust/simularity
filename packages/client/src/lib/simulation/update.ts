@@ -1,6 +1,6 @@
 import { d } from "@/lib/drizzle";
 import { ref, shallowRef, type Ref, type ShallowRef } from "vue";
-import type { StateDto } from "./state";
+import type { StateCommand, StateDto } from "./state";
 
 export class UpdateVariant {
   readonly directorUpdate: ShallowRef<
@@ -95,9 +95,12 @@ export class Update {
 
   readonly inProgressVariant = ref<
     | {
-        characterId?: string | null;
-        clockString?: string;
-        text: string;
+        writerUpdate: {
+          characterId?: string | null;
+          clockString?: string;
+          text: string;
+        };
+        directorUpdate?: StateCommand[];
       }
     | undefined
   >();

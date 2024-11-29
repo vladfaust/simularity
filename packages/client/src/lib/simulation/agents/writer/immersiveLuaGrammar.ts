@@ -145,7 +145,7 @@ function start()
   rules = merge(rules, character_line_rules())
 
   -- Define the root rule.
-  rules["root"] = "systemToken"
+  rules["root"] = "systemToken | characterLine"
 
   print "Debug: start()"
 
