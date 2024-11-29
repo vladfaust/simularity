@@ -27,6 +27,8 @@ steps:
 
   - label: "Build Core C++"
     artifact_paths:
+      - "packages/core-cpp/build/lua-cjson.lib"
+      - "packages/core-cpp/build/lua.lib"
       - "packages/core-cpp/build/simularity.lib"
       - "packages/core-cpp/build/xxhash.lib"
       - "packages/core-cpp/build/vendor/llama.cpp/src/llama.lib"
