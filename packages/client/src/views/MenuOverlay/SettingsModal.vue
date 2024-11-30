@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import RichTitle from "@/components/RichForm/RichTitle.vue";
+import { env } from "@/env";
 import { trackPageview } from "@/lib/plausible";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
@@ -25,7 +26,6 @@ import Writer from "./SettingsModal/Writer.vue";
 enum Tab {
   App,
   Writer,
-  Director,
   Voicer,
 }
 
@@ -86,7 +86,6 @@ const { t } = useI18n({
         gotChanges: "Some changes will be applied after close",
         application: "Application",
         writer: "Writer",
-        director: "Director",
         voicer: "Voicer",
       },
     },
@@ -96,7 +95,6 @@ const { t } = useI18n({
         gotChanges: "Некоторые изменения будут применены после закрытия",
         application: "Приложение",
         writer: "Писатель",
-        director: "Режиссер",
         voicer: "Озвучиватель",
       },
     },
@@ -153,6 +151,7 @@ const { t } = useI18n({
 
       //- Voicer agent tab.
       ._tab(
+        v-if="env.VITE_EXPERIMENTAL_VOICER"
         :class="{ _selected: tab === Tab.Voicer }"
         @click="tab = Tab.Voicer"
       )
