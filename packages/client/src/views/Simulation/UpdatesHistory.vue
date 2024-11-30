@@ -12,6 +12,7 @@ const { simulation } = defineProps<{
   canEdit: boolean;
   showVariantNavigation: boolean;
   hidePreference?: boolean;
+  hideTts?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -161,6 +162,7 @@ onMounted(() => {
       :update
       :can-regenerate
       :can-edit
+      :hide-tts
       :show-variant-navigation
       :hide-preference
       :is-single="false"

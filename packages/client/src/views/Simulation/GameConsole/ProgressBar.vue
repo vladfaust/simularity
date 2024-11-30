@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { env } from "@/env";
 import type { BaseLlmDriver } from "@/lib/ai/llm/BaseLlmDriver";
 import { LlmStatus } from "@/lib/ai/llm/BaseLlmDriver";
 import { VoicerJobStatus } from "@/lib/simulation/agents/voicer/job";
@@ -151,6 +152,7 @@ const voicerStatusText = computed<string | undefined>(() => {
 
   //- TTS status.
   AgentStatusVue(
+    v-if="env.VITE_EXPERIMENTAL_VOICER"
     key="tts"
     :status="voicerStatus"
     :status-text="voicerStatusText"

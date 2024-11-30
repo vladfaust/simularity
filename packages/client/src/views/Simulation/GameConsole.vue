@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { env } from "@/env";
 import { type CompletionOptions } from "@/lib/ai/llm/BaseLlmDriver";
 import * as api from "@/lib/api";
 import { trackEvent } from "@/lib/plausible";
@@ -568,6 +569,7 @@ onUnmounted(() => {
         :hide-preference="true"
         :can-regenerate="simulation.sandbox"
         :can-edit="simulation.sandbox"
+        :hide-tts="!env.VITE_EXPERIMENTAL_VOICER"
         :show-variant-navigation="simulation.sandbox"
         @trigger-edit-handler="triggerEditHandler = $event"
         @trigger-previous-variant-handler="triggerPreviousVariantHandler = $event"
@@ -589,6 +591,7 @@ onUnmounted(() => {
         :key="simulation.currentUpdate.value.parentId || 'root'"
         :can-regenerate="simulation.sandbox"
         :can-edit="simulation.sandbox"
+        :hide-tts="!env.VITE_EXPERIMENTAL_VOICER"
         :is-single="true"
         :show-variant-navigation="simulation.sandbox"
         :hide-preference="true"
