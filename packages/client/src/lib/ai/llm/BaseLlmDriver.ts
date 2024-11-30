@@ -73,6 +73,7 @@ export type CompletionResult = {
 
 export enum LlmStatus {
   Queued,
+  Initializing,
   Decoding,
   Inferring,
 }

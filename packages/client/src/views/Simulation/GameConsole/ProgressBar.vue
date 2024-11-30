@@ -37,7 +37,6 @@ function llmStatus(agent: LlmAgentId, llmDriver: BaseLlmDriver | null): Status {
   }
 }
 
-// TODO: Differentiate decoding, inferring.
 function llmStatusText(llmDriver: BaseLlmDriver | null): string | undefined {
   if (!llmDriver) {
     return;
@@ -45,6 +44,9 @@ function llmStatusText(llmDriver: BaseLlmDriver | null): string | undefined {
     let text = "";
 
     switch (llmDriver.status.value) {
+      case LlmStatus.Initializing:
+        text = "Initializing";
+        break;
       case LlmStatus.Decoding:
         text = "Decoding";
         break;
