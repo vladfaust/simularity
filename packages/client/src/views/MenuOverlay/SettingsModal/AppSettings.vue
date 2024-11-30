@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import RichRange from "@/components/RichForm/RichRange.vue";
 import RichSelect from "@/components/RichForm/RichSelect.vue";
 import * as storage from "@/lib/storage";
 import { SUPPORTED_LOCALE_SELECT_VALUES } from "@/logic/i18n";
-import { LanguagesIcon, MessagesSquareIcon } from "lucide-vue-next";
+import { LanguagesIcon, MessagesSquareIcon, TreesIcon } from "lucide-vue-next";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -28,6 +29,8 @@ const { t } = useI18n({
           interfaceLanguage: "Interface language",
           chatLanguage: "Default chat language",
           chatLanguageHelp: "Language support varies per scenario & model",
+          ambientVolume: "Ambient volume",
+          ambientVolumeHelp: "Adjust the volume of the ambient sounds",
         },
       },
     },
@@ -37,6 +40,8 @@ const { t } = useI18n({
           interfaceLanguage: "Язык интерфейса",
           chatLanguage: "Язык чата по умолчанию",
           chatLanguageHelp: "Поддержка языков зависит от сценария и модели",
+          ambientVolume: "Громкость фоновых звуков",
+          ambientVolumeHelp: "Отрегулируйте громкость фоновых звуков",
         },
       },
     },
@@ -64,4 +69,12 @@ const { t } = useI18n({
       )
         template(#icon)
           MessagesSquareIcon(:size="16")
+
+      RichRange#ambience-volume(
+        :title="t('settings.application.ambientVolume')"
+        v-model="storage.ambientVolumeStorage.value"
+        :help="t('settings.application.ambientVolumeHelp')"
+      )
+        template(#icon)
+          TreesIcon(:size="16")
 </template>
