@@ -1,7 +1,6 @@
 import { filterLocale } from "@/logic/i18n";
 import { StorageSerializers, useLocalStorage } from "@vueuse/core";
 import type { Simulation } from "./simulation";
-import { NARRATOR } from "./simulation/agents/writer";
 
 export * as llm from "./storage/llm";
 export * as tts from "./storage/tts";
@@ -55,7 +54,15 @@ export const chatLocale = useLocalStorage<Intl.Locale>(
 export function enabledCharacterIds(simulation: Simulation) {
   return useLocalStorage<Set<string>>(
     `simulation:${simulation.id}:enabledCharacterIds`,
-    new Set([...Object.keys(simulation.scenario.content.characters), NARRATOR]),
+
+    // By default, all characters are enabled except
+    // [the default one and the narrator].
+    new Set([
+      ...Object.keys(simulation.scenario.content.characters).filter(
+        (characterId) => characterId !== simulation.scenario.defaultCharacterId,
+      ),
+    ]),
+
     { serializer: StorageSerializers.set },
   );
 }
