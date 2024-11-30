@@ -1,7 +1,6 @@
 import * as baseLlmDriver from "@/lib/ai/llm/BaseLlmDriver";
 import { d } from "@/lib/drizzle";
 import * as resources from "@/lib/resources";
-import type { LocalScenario } from "@/lib/scenario";
 import { Mode, Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { Bug, clone } from "@/lib/utils";
@@ -15,6 +14,9 @@ import { UpdateVariant, type Update } from "../update";
 export class PredictUpdateVariantJob {
   private readonly _writerDone = ref<boolean>(false);
   private readonly _voicerJob = ref<voicer.VoicerJob | undefined | null>();
+  private readonly _enabledCharacterIds: ReturnType<
+    typeof storage.enabledCharacterIds
+  >;
 
   readonly writerDone = readonly(this._writerDone);
 
@@ -24,9 +26,7 @@ export class PredictUpdateVariantJob {
   readonly voicerJob = readonly(this._voicerJob);
 
   constructor(
-    readonly simulationId: number,
-    readonly scenario: LocalScenario,
-    readonly mode: Mode,
+    readonly simulation: Simulation,
     readonly agents: {
       writer: writer.Writer;
       voicer: voicer.Voicer;
@@ -46,9 +46,11 @@ export class PredictUpdateVariantJob {
       this._voicerJob.value = null;
     }
 
-    if (mode === Mode.Immersive && !state) {
+    if (simulation.mode === Mode.Immersive && !state) {
       throw new Bug("State is required in immersive mode");
     }
+
+    this._enabledCharacterIds = storage.enabledCharacterIds(simulation);
   }
 
   async run(abortSignal?: AbortSignal) {
@@ -85,6 +87,15 @@ export class PredictUpdateVariantJob {
           (this.update.inProgressVariant.value!.directorUpdate ||= []).push(
             command,
           );
+
+          switch (command.name) {
+            case "addCharacter":
+              this._enabledCharacterIds.value.add(command.args.characterId);
+              break;
+            case "removeCharacter":
+              this._enabledCharacterIds.value.delete(command.args.characterId);
+              break;
+          }
         },
       );
 
@@ -101,7 +112,7 @@ export class PredictUpdateVariantJob {
             break;
 
           // Main character.
-          case this.scenario.defaultCharacterId:
+          case this.simulation.scenario.defaultCharacterId:
             if (storage.tts.ttsConfig.value.mainCharacter) doTts = true;
             break;
 
@@ -126,7 +137,7 @@ export class PredictUpdateVariantJob {
       }
 
       const { writerUpdate, directorUpdate } =
-        await Simulation._saveUpdatesToDb(this.simulationId, {
+        await Simulation._saveUpdatesToDb(this.simulation.id, {
           writerUpdate: {
             parentUpdateId: this.update.parentId,
             checkpointId: this.checkpoint.id,
@@ -156,7 +167,7 @@ export class PredictUpdateVariantJob {
           console.debug("Saving TTS audio");
 
           ttsPath = await resources.tts.saveAudio(
-            this.simulationId,
+            this.simulation.id,
             writerUpdate.id,
             new Uint8Array(result),
             ".mp3",

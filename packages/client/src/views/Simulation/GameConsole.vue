@@ -8,10 +8,10 @@ import {
   NARRATOR,
   type PredictionOptions,
 } from "@/lib/simulation/agents/writer";
+import * as storage from "@/lib/storage";
 import { writerNEval } from "@/lib/storage/llm";
 import { translationWithFallback } from "@/logic/i18n";
 import { TransitionRoot } from "@headlessui/vue";
-import { StorageSerializers, useLocalStorage } from "@vueuse/core";
 import {
   CameraIcon,
   ChevronUpIcon,
@@ -113,13 +113,7 @@ const sendButtonState = computed<SendButtonState>(() => {
   }
 });
 
-const enabledCharacterIds = useLocalStorage<Set<string>>(
-  `simulation:${simulation.id}:enabledCharacterIds`,
-  new Set([...Object.keys(simulation.scenario.content.characters), NARRATOR]),
-  {
-    serializer: StorageSerializers.set,
-  },
-);
+const enabledCharacterIds = storage.enabledCharacterIds(simulation);
 
 const enabledCharacterIdsSortedArray = computed(() =>
   Array.from(enabledCharacterIds.value).sort(),

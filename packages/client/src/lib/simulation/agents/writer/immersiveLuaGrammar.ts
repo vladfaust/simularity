@@ -95,13 +95,21 @@ function rules_to_grammar(rules)
   return grammar
 end
 
+local characters_allowed_to_speak = {${characterIdsAllowedToSpeak
+    .map((id) => `"${id}"`)
+    .join(", ")}}
+
 -- Build character line rules.
 function character_line_rules()
   local rules = {}
 
-  rules["characterId"] = '${characterIdsAllowedToSpeak
-    .map((id) => `"${id}"`)
-    .join(" | ")}'
+  -- characterId ::= "alice" | "bob" | ...
+  rules["characterId"] = table.concat(
+    map(
+      characters_allowed_to_speak,
+      function(id) return '"' .. id .. '"' end
+    ),
+    " | ")
 
   rules["clock"] = '[0-9]{2} ":" [0-9]{2}'
   rules["characterTextRule"] = '${characterTextRule}'
@@ -217,10 +225,17 @@ function on_eos(generated_text)
         }
 
         added_characters[command.args.characterId] = true
+
+        -- Add the character to the list of characters allowed to speak.
+        table.insert(characters_allowed_to_speak, command.args.characterId)
       elseif (command.name == "removeCharacter") then
         print("Removing character: " .. command.args.characterId)
         simulation_state.stage.characters[command.args.characterId] = nil
         removed_characters[command.args.characterId] = true
+
+        -- Remove the character from the list of characters allowed to speak.
+        local index = find(characters_allowed_to_speak, command.args.characterId)
+        table.remove(characters_allowed_to_speak, index)
       elseif (command.name == "setExpression") then
         print("Setting expression ID: " .. command.args.expressionId)
         simulation_state.stage.characters[command.args.characterId].expression_id = command.args.expressionId

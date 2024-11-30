@@ -2030,9 +2030,7 @@ ${prefix}${d.writerUpdates.createdAt.name}`;
     try {
       this._currentJob.value = markRaw(
         new PredictUpdateVariantJob(
-          this.id,
-          this.scenario,
-          this.mode,
+          this,
           {
             writer: this.writer,
             voicer: this.voicer,
