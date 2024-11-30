@@ -14,7 +14,7 @@ import DirectorUpdateText from "./DirectorUpdateText.vue";
 import RichText from "./RichText.vue";
 
 const props = defineProps<{
-  variant: NonNullable<Update["inProgressVariant"]["value"]>;
+  variant?: NonNullable<Update["inProgressVariant"]["value"]>;
   isSingle: boolean;
   live: boolean;
   simulation: Simulation;
