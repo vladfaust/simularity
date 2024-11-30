@@ -923,6 +923,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
           allowedCharacterIds,
           allowedSceneIds,
           locale,
+          true,
         );
 
         return {

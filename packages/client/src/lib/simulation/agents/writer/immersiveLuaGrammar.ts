@@ -13,6 +13,7 @@ export function buildImmersiveLuaGnbfGrammar(
   characterIdsAllowedToSpeak: string[],
   allowedSceneIds: string[],
   locale: Intl.Locale,
+  requireSystemToken: boolean,
 ) {
   let characterTextRule: string;
 
@@ -153,7 +154,7 @@ function start()
   rules = merge(rules, character_line_rules())
 
   -- Define the root rule.
-  rules["root"] = "systemToken | characterLine"
+  rules["root"] = "${requireSystemToken ? "systemToken" : "systemToken | characterLine"}"
 
   print "Debug: start()"
 
