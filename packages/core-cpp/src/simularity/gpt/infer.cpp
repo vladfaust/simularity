@@ -128,8 +128,11 @@ int simularity_gpt_infer(
       return -8;
     }
 
-    lua_on_eos_function = lua["on_eos"];
-    lua_state           = std::move(lua);
+    // ADHOC: Need to extract to a variable in MSVC.
+    sol::function f     = lua["on_eos"];
+    lua_on_eos_function = f;
+
+    lua_state = std::move(lua);
   }
 
   // Create the sampling context.
