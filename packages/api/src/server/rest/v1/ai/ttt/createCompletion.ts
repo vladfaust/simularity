@@ -1,11 +1,15 @@
 import { d } from "@/lib/drizzle";
 import { konsole } from "@/lib/konsole";
 import {
+  CoreTttEndpoint,
+  CoreTttEndpointInputSchema,
+} from "@/lib/runpod/endpoints/core-ttt";
+import {
   VllmEndpoint,
   VllmEndpointInputSchema,
 } from "@/lib/runpod/endpoints/vllm";
 import * as schema from "@/lib/schema/rest/v1/ai/ttt/createCompletion";
-import { omit, pick } from "@/lib/utils";
+import { omit, unreachable } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 import { getAuthenticatedUserId } from "@/server/_common";
 import assert from "assert";
@@ -84,12 +88,33 @@ export default Router()
       }
     }
 
+    const workerConditions = [
+      eq(d.llmWorkers.enabled, true),
+      eq(d.llmWorkers.modelId, input.model),
+    ];
+
+    const grammarLang = input.options?.grammar?.lang;
+    switch (grammarLang) {
+      case "gbnf":
+      case "lua-gbnf":
+        konsole.log("Searching for a runpod-core worker", { grammarLang });
+        workerConditions.push(eq(d.llmWorkers.providerId, "runpod-core"));
+        break;
+      case "json-schema":
+      case "lark":
+      case "regex":
+        konsole.log("Searching for a runpod-vllm worker", { grammarLang });
+        workerConditions.push(eq(d.llmWorkers.providerId, "runpod-vllm"));
+        break;
+      case undefined:
+        konsole.log("Searching for any worker", { grammarLang });
+        break;
+      default:
+        throw unreachable(grammarLang);
+    }
+
     const worker = await d.db.query.llmWorkers.findFirst({
-      where: and(
-        eq(d.llmWorkers.providerId, "runpod"),
-        eq(d.llmWorkers.enabled, true),
-        eq(d.llmWorkers.modelId, input.model),
-      ),
+      where: and(...workerConditions),
     });
 
     if (!worker) {
@@ -103,7 +128,10 @@ export default Router()
       });
     }
 
-    const endpoint = VllmEndpoint.create(user.id, worker);
+    const endpointClass =
+      worker.providerId === "runpod-core" ? CoreTttEndpoint : VllmEndpoint;
+
+    const endpoint = endpointClass.create(user.id, worker);
     if (!endpoint) {
       konsole.error("Runpod endpoint unavailable", {
         endpointId: worker.providerExternalId,
@@ -161,6 +189,7 @@ export default Router()
           })
           .returning({
             id: d.llmSessions.id,
+            providerSessionId: d.llmSessions.providerSessionId,
           })
       )[0];
     }
@@ -168,38 +197,91 @@ export default Router()
     konsole.debug("Session", session);
     res.header("x-session-id", session.id);
 
-    const llmInput = {
-      prompt: input.prompt,
-      sampling_params: pick(input, [
-        // OpenAI-compatible.
-        "max_tokens",
-        "presence_penalty",
-        "stop",
-        "temperature",
-        "top_p",
+    let endpointInput;
+    switch (worker.providerId) {
+      case "runpod-core":
+        endpointInput = {
+          session_id: session.providerSessionId
+            ? parseInt(session.providerSessionId)
+            : undefined,
+          prompt: input.prompt,
+          n_eval: input.nEval,
+          options: {
+            ...input.options,
+            grammar:
+              input.options?.grammar?.lang === "gbnf"
+                ? input.options?.grammar.content
+                : undefined,
+            lua_grammar:
+              input.options?.grammar?.lang === "lua-gbnf"
+                ? input.options?.grammar.content
+                : undefined,
+          },
+        } satisfies v.InferInput<typeof CoreTttEndpointInputSchema>;
 
-        // vLLM-specific.
-        "top_k",
-        "min_p",
-        "repetition_penalty",
-        "stop_token_ids",
-        "include_stop_str_in_output",
-        "min_tokens",
-      ]),
+        konsole.debug(
+          "Core-TTT RunPod endpoint input",
+          omit(
+            {
+              ...endpointInput,
+              options: {
+                ...endpointInput.options,
+                grammar: endpointInput.options?.grammar?.length,
+                lua_grammar: endpointInput.options?.lua_grammar?.length,
+              },
+            },
+            ["prompt"],
+          ),
+        );
 
-      // vLLM-specific.
-      guided_options_request: pick(input, [
-        "guided_grammar",
-        "guided_regex",
-        "guided_json",
-      ]),
-    } satisfies v.InferInput<typeof VllmEndpointInputSchema>;
-    konsole.debug("vLLM endpoint input", omit(llmInput, ["prompt"]));
+        break;
+
+      case "runpod-vllm":
+        endpointInput = {
+          prompt: input.prompt,
+          sampling_params: {
+            max_tokens: input.nEval,
+            presence_penalty: input.options?.penalty?.present,
+            stop: input.options?.stopSequences,
+            temperature: input.options?.temp,
+            top_p: input.options?.topP,
+            top_k: input.options?.topK,
+            min_p: input.options?.minP,
+            repetition_penalty: input.options?.penalty?.repeat,
+          },
+          guided_options_request: input.options?.grammar
+            ? {
+                guided_grammar:
+                  input.options.grammar.lang === "lark"
+                    ? input.options.grammar.content
+                    : undefined,
+                guided_json:
+                  input.options.grammar.lang === "json-schema"
+                    ? input.options.grammar.content
+                    : undefined,
+                guided_regex:
+                  input.options.grammar.lang === "regex"
+                    ? input.options.grammar.content
+                    : undefined,
+              }
+            : undefined,
+        } satisfies v.InferInput<typeof VllmEndpointInputSchema>;
+
+        konsole.debug(
+          "vLLM RunPod endpoint input",
+          omit(endpointInput, ["prompt"]),
+        );
+
+        break;
+
+      default:
+        throw unreachable(worker.providerId);
+    }
 
     try {
       const llmCompletion = await endpoint.run(
         session.id,
-        llmInput,
+        endpointInput as any, // FIXME: Remove this cast.
         (tokens) => {
           res.write(
             JSON.stringify({

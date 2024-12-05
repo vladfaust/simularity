@@ -1,0 +1,9 @@
+{
+  "input": {
+    "prompt": "Tell me about yourself.",
+    "n_eval": 16,
+    "options": {
+      "temp": 0.1
+    }
+  }
+}

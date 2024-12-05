@@ -1,0 +1,175 @@
+# This Dockerfile builds core-cpp (C++),
+# then core-server (Rust + Python),
+# on an Ubuntu base image.
+#
+# NOTE: You must have `./packages/core-cpp/vendor` repositories cloned locally.
+#
+# ```sh
+# # Runpod handler:
+# DOCKER_HOST=ssh://user@host docker build \
+#   -f Dockerfile.core-server.cuda \
+#   --target core-server-runpod
+#   -t registry.simularity.ai/core-inference-runpod:latest
+#   .
+# ```
+#
+
+# core-cpp target.
+#
+
+FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04 AS core-cpp
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+    build-essential git wget ninja-build ccache && \
+    apt-get clean && apt-get -y autoremove
+
+# Install specific version of CMake.
+ADD https://github.com/Kitware/CMake/releases/download/v3.31.1/cmake-3.31.1-linux-x86_64.sh cmake-3.31.1-linux-x86_64.sh
+
+RUN mkdir /opt/cmake && \
+    sh cmake-3.31.1-linux-x86_64.sh --prefix=/opt/cmake --skip-license && \
+    ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake && \
+    cmake --version
+
+WORKDIR /app
+
+COPY ./packages/core-cpp/vendor ./vendor
+COPY ./packages/core-cpp/cmake ./cmake
+COPY ./packages/core-cpp/CMakeLists.txt ./CMakeLists.txt
+COPY ./packages/core-cpp/include ./include
+COPY ./packages/core-cpp/src ./src
+
+ARG THREADS=3
+ARG CONFIG=Release
+
+# NOTE: -DCMAKE_POSITION_INDEPENDENT_CODE for maturin to build.
+RUN --mount=type=cache,target=/root/.cache/ccache \
+    mkdir build && \
+    cd build && \
+    cmake \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_CUDA_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DGGML_CUDA=ON \
+        -DGGML_OPENMP=OFF \
+        -DGGML_NATIVE=OFF \
+        -GNinja .. && \
+    cmake --build . --config $CONFIG -j$THREADS
+
+# core-server-build target.
+#
+
+FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04 AS core-server-build
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt install software-properties-common -y && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get install --no-install-recommends -y \
+    curl wget git build-essential python3.10 python3.10-venv pip && \
+    apt-get clean && apt-get -y autoremove
+
+# Install Rust version 1.80.0.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.80.0
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustc --version && cargo --version
+
+RUN pip install pipenv
+
+WORKDIR /app/packages/core-server
+RUN python3 -m venv .venv
+RUN PIPENV_VENV_IN_PROJECT=1 pipenv install maturin[patchelf]
+
+WORKDIR /app/packages/core-cpp
+COPY --from=core-cpp /app/build ./build
+
+WORKDIR /app/packages/core-rs
+COPY ./packages/core-rs/src ./src
+COPY ./packages/core-rs/Cargo.toml \
+    ./packages/core-rs/Cargo.lock \
+    ./packages/core-rs/build.rs \
+    ./
+
+WORKDIR /app/packages/core-server
+COPY ./packages/core-server/src/lib.rs \
+    ./packages/core-server/src/main.rs \
+    ./src/
+COPY ./packages/core-server/Cargo.toml \
+    ./packages/core-server/Cargo.lock \
+    ./
+
+ENV LIBRARY_PATH=/usr/local/cuda-12.6/targets/x86_64-linux/lib/stubs:/usr/local/cuda-12.6/targets/x86_64-linux/lib
+ENV LD_LIBRARY_PATH=/usr/local/cuda-12.6/targets/x86_64-linux/lib/stubs:/usr/local/cuda-12.6/targets/x86_64-linux/lib
+
+# OPTIMIZE: Would rather call `maturin build`, but it has trouble finding libcuda.so.
+# NOTE: Some libraries (libcuda.so) only available when Docker is running with --gpus all.
+ARG CONFIG=Release
+RUN if [ "$CONFIG" = "Release" ]; then \
+    pipenv run maturin develop --features cuda --release; \
+    else \
+    pipenv run maturin develop --features cuda; \
+    fi
+
+# core-server-fastapi target.
+#
+
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04 AS core-server-fastapi
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt install software-properties-common -y && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get install --no-install-recommends -y \
+    curl wget git build-essential python3.10 pip && \
+    apt-get clean && apt-get -y autoremove
+
+RUN pip install pipenv
+
+WORKDIR /app
+COPY --from=core-server-build /app/packages/core-server/.venv ./.venv
+
+COPY ./packages/core-server/src/core_wrapper.py \
+    ./packages/core-server/src/fastapi_server.py \
+    ./src/
+
+COPY ./packages/core-server/Pipfile \
+    ./packages/core-server/Pipfile.lock \
+    ./
+
+RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --categories "packages,fastapi" --deploy
+
+EXPOSE 80
+CMD ["pipenv", "run", "uvicorn", "src.fastapi_server:app", "--host", "0.0.0.0", "--port", "80"]
+
+# core-server-runpod target.
+#
+
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04 AS core-server-runpod
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt install software-properties-common -y && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get install --no-install-recommends -y \
+    curl wget git build-essential python3.10 pip && \
+    apt-get clean && apt-get -y autoremove
+
+RUN pip install pipenv
+
+WORKDIR /app
+COPY --from=core-server-build /app/packages/core-server/.venv ./.venv
+
+COPY ./packages/core-server/src/core_wrapper.py \
+    ./packages/core-server/src/runpod_handler.py \
+    ./src/
+
+COPY ./packages/core-server/Pipfile \
+    ./packages/core-server/Pipfile.lock \
+    ./
+
+RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --categories "packages,runpod" --deploy
+
+CMD ["pipenv", "run", "python", "-m", "src.runpod_handler"]

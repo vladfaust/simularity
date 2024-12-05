@@ -1,7 +1,4 @@
-import {
-  LlmCompletionParamsSchema,
-  MultiCurrencyCostSchema,
-} from "@/lib/schema.js";
+import { MultiCurrencyCostSchema } from "@/lib/schema.js";
 import { v } from "@/lib/valibot.js";
 import {
   index,
@@ -29,9 +26,8 @@ export const llmCompletions = pgTable(
       .notNull()
       .references(() => llmWorkers.id, { onDelete: "restrict" }),
 
-    params: json("params")
-      .$type<v.InferOutput<typeof LlmCompletionParamsSchema>>()
-      .notNull(),
+    /** Provider-specific completion params. */
+    params: json("params").notNull(),
 
     input: text("input").notNull(),
     providerExternalId: varchar("provider_external_id"),

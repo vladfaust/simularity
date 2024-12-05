@@ -1,0 +1,24 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pydantic = "*"
+psutil = "*"
+asyncio = "*"
+
+[dev-packages]
+maturin = "*"
+
+[fastapi]
+fastapi = "*"
+uvicorn = "*"
+
+[runpod]
+runpod = "1.7.5"
+exceptiongroup = "*"
+async_timeout = "*"
+
+[requires]
+python_version = "3"

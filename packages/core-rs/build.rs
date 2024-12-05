@@ -38,9 +38,14 @@ fn main() {
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
         println!("cargo:rustc-link-lib=c++");
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        println!("cargo:rustc-link-lib=stdc++");
     }
 
     // See https://stackoverflow.com/questions/41917096/how-do-i-make-rustc-link-search-relative-to-the-project-location.

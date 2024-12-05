@@ -9,10 +9,11 @@ export class CompletionAbortError extends Error {
 }
 
 export enum LlmGrammarLang {
-  Gnbf,
-  Regex,
-  JsonSchema,
-  LuaGnbf,
+  Gnbf = "gbnf",
+  Lark = "lark",
+  Regex = "regex",
+  JsonSchema = "json-schema",
+  LuaGnbf = "lua-gbnf",
 }
 
 export type DecodeProgressEventPayload = {

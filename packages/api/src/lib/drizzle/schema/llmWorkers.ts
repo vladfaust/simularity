@@ -12,7 +12,10 @@ import {
 import { ProviderPricingModel } from "./common.js";
 import { llmModels } from "./llmModels.js";
 
-export const llmProviderId = pgEnum("llm_provider", ["runpod"]);
+export const llmProviderId = pgEnum("llm_provider", [
+  "runpod-vllm",
+  "runpod-core",
+]);
 
 export const llmWorkers = pgTable(
   "llm_workers",

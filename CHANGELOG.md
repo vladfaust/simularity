@@ -2,6 +2,11 @@
 
 ## History 📜
 
+### December 2024
+
+- [x] feat(infra): core-server (Fri 6)
+      Required for LuaGBNF cloud inference.
+
 ### November 2024
 
 - [x] feat: unified writer & director agent, dynamic Lua GBNF grammar (Fri 29)

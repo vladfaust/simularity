@@ -7,6 +7,11 @@ export const llmSessions = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
 
+    /**
+     * For some providers, this is the session ID in the provider's system.
+     */
+    providerSessionId: varchar("provider_session_id"),
+
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),

@@ -13,6 +13,10 @@
       "path": "packages/core-rs"
     },
     {
+      "name": "core-server",
+      "path": "packages/core-server"
+    },
+    {
       "name": "tauri",
       "path": "packages/tauri"
     },

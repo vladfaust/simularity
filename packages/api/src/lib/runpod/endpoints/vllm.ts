@@ -2,11 +2,8 @@ import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
 import { RunpodEndpoint } from "@/lib/runpod.js";
-import {
-  LlmCompletionParamsSchema,
-  MultiCurrencyCostSchema,
-} from "@/lib/schema.js";
-import { sleep } from "@/lib/utils.js";
+import { MultiCurrencyCostSchema } from "@/lib/schema.js";
+import { omit, sleep } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import assert from "assert";
 import { toMilliseconds } from "duration-fns";
@@ -56,7 +53,7 @@ export class VllmEndpoint {
     userId: string,
     worker: typeof d.llmWorkers.$inferSelect,
   ): VllmEndpoint | null {
-    assert(worker.providerId === "runpod");
+    assert(worker.providerId === "runpod-vllm");
 
     const runpod = runpodSdk(env.RUNPOD_API_KEY, {
       baseUrl: env.RUNPOD_BASE_URL,
@@ -78,12 +75,7 @@ export class VllmEndpoint {
     input: v.InferOutput<typeof VllmEndpointInputSchema>,
     onInference: (tokens: string[]) => void,
   ) {
-    const completionParams: v.InferOutput<typeof LlmCompletionParamsSchema> = {
-      ...input.sampling_params,
-      guided_grammar: input.guided_options_request?.guided_grammar,
-      guided_regex: input.guided_options_request?.guided_regex,
-      guided_json: input.guided_options_request?.guided_json,
-    };
+    const completionParams = omit(input, ["prompt"]);
 
     const timeout = toMilliseconds({ minutes: 1 });
 

@@ -89,8 +89,11 @@ export class RemoteLlmDriver implements BaseLlmDriver {
   }
 
   readonly supportedGrammarLangs = new Set([
+    LlmGrammarLang.Gnbf,
+    LlmGrammarLang.LuaGnbf,
     LlmGrammarLang.Regex,
     LlmGrammarLang.JsonSchema,
+    LlmGrammarLang.Lark,
   ]);
 
   readonly needsWarmup = false;
@@ -147,26 +150,9 @@ export class RemoteLlmDriver implements BaseLlmDriver {
           api.rest.v1.ai.ttt.createCompletion(
             {
               model: this.config.modelId,
-              prompt: prompt,
-              temperature: inferenceOptions.temp,
-
-              guided_regex:
-                inferenceOptions.grammar?.lang === LlmGrammarLang.Regex
-                  ? inferenceOptions.grammar?.content
-                  : undefined,
-
-              guided_json:
-                inferenceOptions.grammar?.lang === LlmGrammarLang.JsonSchema
-                  ? inferenceOptions.grammar?.content
-                  : undefined,
-
-              max_tokens: nEval,
-              min_p: inferenceOptions.minP,
-              presence_penalty: inferenceOptions.penalty?.present,
-              repetition_penalty: inferenceOptions.penalty?.repeat,
-              stop: inferenceOptions.stopSequences,
-              top_k: inferenceOptions.topK,
-              top_p: inferenceOptions.topP,
+              prompt,
+              nEval,
+              options: inferenceOptions,
             },
             {
               jwt: jwtStorage.value!,

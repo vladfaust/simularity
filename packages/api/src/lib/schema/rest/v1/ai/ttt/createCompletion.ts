@@ -1,10 +1,58 @@
 import * as v from "valibot";
-import { LlmCompletionParamsSchema } from "../../../../common";
 
 export const RequestBodySchema = v.object({
   model: v.string(),
   prompt: v.string(),
-  ...LlmCompletionParamsSchema.entries,
+  nEval: v.number(),
+  options: v.optional(
+    v.object({
+      nPrev: v.optional(v.number()),
+      nProbs: v.optional(v.number()),
+      minKeep: v.optional(v.number()),
+      topK: v.optional(v.number()),
+      topP: v.optional(v.number()),
+      minP: v.optional(v.number()),
+      tfsZ: v.optional(v.number()),
+      typicalP: v.optional(v.number()),
+      temp: v.optional(v.number()),
+      dynatemp: v.optional(
+        v.object({
+          range: v.optional(v.number()),
+          exponent: v.optional(v.number()),
+        }),
+      ),
+      penalty: v.optional(
+        v.object({
+          lastN: v.optional(v.number()),
+          repeat: v.optional(v.number()),
+          freq: v.optional(v.number()),
+          present: v.optional(v.number()),
+          penalizeNl: v.optional(v.boolean()),
+        }),
+      ),
+      mirostat: v.optional(
+        v.object({
+          version: v.picklist(["v1", "v2"]),
+          tau: v.optional(v.number()),
+          eta: v.optional(v.number()),
+        }),
+      ),
+      seed: v.optional(v.number()),
+      stopSequences: v.optional(v.array(v.string())),
+      grammar: v.optional(
+        v.object({
+          lang: v.union([
+            v.literal("gbnf"),
+            v.literal("lark"),
+            v.literal("regex"),
+            v.literal("json-schema"),
+            v.literal("lua-gbnf"),
+          ]),
+          content: v.string(),
+        }),
+      ),
+    }),
+  ),
 });
 
 export const InferenceChunkSchema = v.object({
