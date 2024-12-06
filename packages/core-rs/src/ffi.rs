@@ -91,6 +91,9 @@ extern "C" {
         progress_callback_user_data: *mut c_void,
     ) -> c_int;
 
+    // bool simularity_gpt_touch(unsigned session_id);
+    pub fn simularity_gpt_touch(session_id: c_uint) -> bool;
+
     // int simularity_gpt_decode(
     //     unsigned session_id,
     //     const char *prompt,

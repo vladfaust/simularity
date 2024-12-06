@@ -131,6 +131,13 @@ int simularity_gpt_create(
 );
 
 /**
+  Check if a session exists and is not expired.
+  If the session exists, prolong its expiration time.
+  @return true if the session exists and is not expired.
+ */
+bool simularity_gpt_touch(unsigned session_id);
+
+/**
   Warm up the KV session cache by decoding given prompt.
 
   @param session_id The session ID.
