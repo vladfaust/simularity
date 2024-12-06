@@ -295,7 +295,7 @@ int simularity_gpt_infer(
 
       // Decode the next token.
       auto err = llama_decode(session->context, batch.batch);
-      if (err == -1) return -2; // Could not find a KV slot (context overflow).
+      if (err == 1) return -2; // Could not find a KV slot (context overflow).
       else if (err) {
         spdlog::warn("Failed to decode -> {}", err);
         return -6; // Decoding error.
