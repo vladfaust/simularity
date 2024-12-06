@@ -41,7 +41,7 @@ int simularity_gpt_create(
       n_ctx,
       n_batch,
       initial_prompt ? "<Some>" : "<None>",
-      state_file_path,
+      state_file_path ? state_file_path : "<None>",
       progress_callback ? "<Some>" : "<None>"
   );
 
