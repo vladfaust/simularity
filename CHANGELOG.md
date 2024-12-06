@@ -2,6 +2,10 @@
 
 ## History 📜
 
+### November 2024
+
+- [x] feat: unified writer & director agent, dynamic Lua GBNF grammar (Fri 29)
+
 ### October 2024
 
 - [x] epic: migrate to tRPC (Thu 3)
