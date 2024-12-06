@@ -41,7 +41,7 @@ onMounted(async () => {
 
     switch (reason) {
       case "login": {
-        saveUser(result.userId!, result.cookieMaxAge!);
+        saveUser(result.jwt!);
         break;
       }
     }

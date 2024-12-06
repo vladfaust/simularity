@@ -1,3 +1,4 @@
+import { jwtStorage } from "@/store";
 import type { CommandsRouter } from "@simularity/api/trpc/commands/router";
 import {
   TRPCClientError,
@@ -17,6 +18,15 @@ export const commandsClient = createTRPCProxyClient<CommandsRouter>({
     httpBatchLink({
       url: import.meta.env.VITE_API_BASE_URL + "/trpc/commands",
       fetch(url, options) {
+        if (jwtStorage.value) {
+          (options ??= {}).headers ??= {};
+
+          options.headers = {
+            ...options.headers,
+            Authorization: `Bearer ${jwtStorage.value}`,
+          };
+        }
+
         return fetch(url, {
           ...options,
           credentials: "include",

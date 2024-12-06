@@ -56,7 +56,7 @@ async function login(code: string) {
         code,
       });
 
-    saveUser(response.userId, response.cookieMaxAge);
+    saveUser(response.jwt);
     emit("login", false);
   } catch (e: any) {
     error.value = e.message;

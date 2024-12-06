@@ -1,49 +1,53 @@
-import { useLocalStorage, useNow } from "@vueuse/core";
+import { useLocalStorage } from "@vueuse/core";
+import * as jose from "jose";
 import { computed } from "vue";
 import { filterLocale } from "./lib/logic/i18n";
 
-const userIdStorage = useLocalStorage<string | null>("userId", null, {
+export const jwtStorage = useLocalStorage<string | null>("jwt", null, {
   listenToStorageChanges: true,
-  writeDefaults: true,
 });
 
-const cookieExpiredAtStorage = useLocalStorage<Date | null>(
-  "cookieExpiredAt",
-  null,
-  {
-    listenToStorageChanges: true,
-    writeDefaults: false,
-    serializer: {
-      read: (x) => new Date(x),
-      write: (x) => x?.toString() || "",
-    },
-  },
-);
-
-export function saveUser(userId: string, cookieMaxAge: number) {
-  userIdStorage.value = userId;
-  cookieExpiredAtStorage.value = new Date(new Date().valueOf() + cookieMaxAge);
-}
-
-export function clearUser() {
-  userIdStorage.value = null;
-  cookieExpiredAtStorage.value = null;
-}
-
-const now = useNow();
-
+/**
+ * Extract `userId` value from the JWT payload.
+ * Returns `null` if the JWT is expired.
+ */
 export const userId = computed<string | null>(() => {
-  if (cookieExpiredAtStorage.value) {
-    if (cookieExpiredAtStorage.value > now.value) {
-      return userIdStorage.value;
-    } else {
-      clearUser();
-      return null;
-    }
+  if (
+    jwtStorage.value &&
+    jwtExpiredAt.value !== undefined &&
+    (!jwtExpiredAt.value || jwtExpiredAt.value > new Date())
+  ) {
+    const payload = jose.decodeJwt(jwtStorage.value) as {
+      userId: string;
+    };
+
+    return payload.userId;
   } else {
     return null;
   }
 });
+
+/**
+ * Extract `exp` value from the JWT payload.
+ * @returns `undefined` if the JWT is not set,
+ * `null` if there is no `exp` value in the payload.
+ */
+const jwtExpiredAt = computed<Date | undefined | null>(() => {
+  if (jwtStorage.value) {
+    const v = jose.decodeJwt(jwtStorage.value);
+    return v.exp ? new Date(v.exp * 1000) : null;
+  } else {
+    return undefined;
+  }
+});
+
+export function saveUser(jwt: string) {
+  jwtStorage.value = jwt;
+}
+
+export function clearUser() {
+  jwtStorage.value = null;
+}
 
 export const appLocale = useLocalStorage<Intl.Locale>(
   "app:locale",
