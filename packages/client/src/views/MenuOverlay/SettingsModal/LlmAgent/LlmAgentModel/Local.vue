@@ -8,7 +8,10 @@ import * as resources from "@/lib/resources";
 import * as storage from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { omit } from "@/lib/utils";
-import type { WellKnownModel } from "@/queries";
+import {
+  useLocalWellKnownLlmModelsQuery,
+  type WellKnownLocalModel,
+} from "@/queries";
 import { broom } from "@lucide/lab";
 import * as tauriPath from "@tauri-apps/api/path";
 import * as tauriDialog from "@tauri-apps/plugin-dialog";
@@ -72,9 +75,7 @@ const latestLocalModelConfig = storage.llm.useLatestLocalModelConfig(
   props.agentId,
 );
 
-const availableModels = asyncComputed<Record<string, WellKnownModel>>(() =>
-  fetch(`/available_models/${props.agentId}.json`).then((res) => res.json()),
-);
+const { data: wellKnownModels } = useLocalWellKnownLlmModelsQuery("writer");
 
 const allModels = asyncComputed<
   | {
@@ -83,7 +84,7 @@ const allModels = asyncComputed<
     }
   | undefined
 >(async () => {
-  if (!availableModels.value) return;
+  if (!wellKnownModels.value) return;
 
   const custom: storage.llm.CachedModel[] = [];
   const wellKnown: WellKnownModelProps[] = [];
@@ -92,7 +93,7 @@ const allModels = asyncComputed<
     let found = false;
 
     loop: for (const [availableModelId, availableModel] of Object.entries(
-      availableModels.value,
+      wellKnownModels.value,
     )) {
       for (const [quantId, quant] of Object.entries(availableModel.quants)) {
         if (cachedModel.modelHash.sha256 !== quant.hash.sha256) continue;
@@ -137,7 +138,7 @@ const allModels = asyncComputed<
   // Iterate through available models to create new
   // well-known models, and set downloads.
   for (const [availableModelId, availableModel] of Object.entries(
-    availableModels.value,
+    wellKnownModels.value,
   )) {
     const downloadsByQuant: Record<string, ShallowRef<Download>> = {};
 
@@ -374,7 +375,10 @@ async function cacheModel(modelPath: string, stat?: tauriFs.FileInfo) {
   return cachedModel;
 }
 
-function setDriverConfig(cachedModel: storage.llm.CachedModel) {
+function setDriverConfig(
+  wellKnownModel: WellKnownLocalModel | undefined,
+  cachedModel: storage.llm.CachedModel,
+) {
   const contextSize = Math.min(
     cachedModel.contextSize,
     props.recommendedContextSize ?? cachedModel.contextSize,
@@ -385,6 +389,7 @@ function setDriverConfig(cachedModel: storage.llm.CachedModel) {
     modelPath: cachedModel.path,
     contextSize,
     batchSize: cachedModel.batchSize,
+    completionOptions: wellKnownModel?.recommendedParameters,
   };
 
   console.log("Temp driver config set", props.agentId, {
@@ -392,10 +397,19 @@ function setDriverConfig(cachedModel: storage.llm.CachedModel) {
   });
 }
 
-function selectModel(cachedModel: storage.llm.CachedModel) {
+function selectModel(
+  wellKnownModelId: string | undefined,
+  cachedModel: storage.llm.CachedModel,
+) {
   if (selectedModelPath.value !== cachedModel.path) {
     selectedModelPath.value = cachedModel.path;
-    setDriverConfig(cachedModel);
+
+    const wellKnownModel = wellKnownModelId
+      ? wellKnownModels.value?.[wellKnownModelId]
+      : undefined;
+    console.debug("Selected model", wellKnownModel, cachedModel);
+
+    setDriverConfig(wellKnownModel, cachedModel);
   }
 }
 
@@ -427,7 +441,7 @@ async function openLocalModelSelectionDialog() {
       customModelsStorage.value.push(modelPath);
       triggerRef(cachedModels);
       if (!selectedModelPath.value) {
-        selectModel(cachedModel);
+        selectModel(undefined, cachedModel);
       }
       refresh();
     } catch (e: any) {
@@ -535,7 +549,7 @@ onMounted(async () => {
         );
       }
 
-      setDriverConfig(cachedModels.value[cachedModelIndex]);
+      setDriverConfig(undefined, cachedModels.value[cachedModelIndex]);
       selectedModelPath.value = latestLocalModelConfig.value.modelPath;
     }
   }
@@ -676,7 +690,7 @@ const { t } = useI18n({
       :base-path="modelsDirectoryRef"
       :key="recommended.recommendationModel.name"
       :show-uncached-quants="true"
-      @select="(quantId) => selectModel(recommended.cachedModelsByQuants[quantId].model)"
+      @select="(quantId) => selectModel(recommended.recommendationModelId, recommended.cachedModelsByQuants[quantId].model)"
       @remove="(quantId, deleteFile) => removeModel(recommended.cachedModelsByQuants[quantId].model.path, deleteFile)"
       @download-complete="() => refresh()"
     )
@@ -687,7 +701,7 @@ const { t } = useI18n({
       :key="customModel.path"
       :model="customModel"
       :selected="selectedModelPath === customModel.path"
-      @select="() => selectModel(customModel)"
+      @select="() => selectModel(undefined, customModel)"
       @remove="removeModel(customModel.path, false)"
     )
 

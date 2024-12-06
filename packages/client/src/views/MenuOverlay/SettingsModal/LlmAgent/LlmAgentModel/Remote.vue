@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import Alert from "@/components/Alert.vue";
 import * as storage from "@/lib/storage";
-import { useRemoteLlmModelsQuery } from "@/queries";
-import { onMounted, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
+import {
+  useRemoteLlmModelsQuery,
+  useRemoteWellKnownLlmModelsQuery,
+} from "@/queries";
+import { computed, onMounted, ref, watch } from "vue";
 import Model from "./Remote/Model.vue";
 
 const props = defineProps<{
@@ -14,7 +15,35 @@ const driverConfig = defineModel<storage.llm.LlmDriverConfig | null>(
   "driverConfig",
 );
 
-const { data: remoteModels } = useRemoteLlmModelsQuery(props.agentId);
+const { data: actualRemoteModels } = useRemoteLlmModelsQuery(props.agentId);
+const { data: wellKnownRemoteModels } =
+  useRemoteWellKnownLlmModelsQuery("writer");
+
+const matchingModels = computed(() =>
+  actualRemoteModels.value && wellKnownRemoteModels.value
+    ? (actualRemoteModels.value
+        .map((actualModel) => {
+          const wellKnownModel = Object.entries(
+            wellKnownRemoteModels.value!,
+          ).find(([id, _]) => id === actualModel.id);
+
+          if (wellKnownModel) {
+            return {
+              id: actualModel.id,
+              actual: actualModel,
+              wellKnown: wellKnownModel[1],
+            };
+          } else {
+            return null;
+          }
+        })
+        .filter((v) => v !== null) as {
+        id: string;
+        actual: (typeof actualRemoteModels.value)[number];
+        wellKnown: (typeof wellKnownRemoteModels.value)[number];
+      }[])
+    : undefined,
+);
 
 const selectedModelId = ref<string | null>(
   driverConfig.value?.type === "remote" ? driverConfig.value.modelId : null,
@@ -29,6 +58,8 @@ function setDriverConfig(modelId: string) {
     type: "remote",
     modelId,
     baseUrl: import.meta.env.VITE_API_BASE_URL,
+    completionOptions:
+      wellKnownRemoteModels.value?.[modelId]?.recommendedParameters,
   };
 
   console.log("Temp driver config set", props.agentId);
@@ -56,41 +87,16 @@ onMounted(async () => {
     selectedModelId.value = driverConfig.value.modelId;
   }
 });
-
-const { t } = useI18n({
-  messages: {
-    "en-US": {
-      settings: {
-        llmAgentModel: {
-          remote: {
-            delayAlert:
-              "At this moment inference may be slow at first due to server cold start. This will be improved in the future.",
-          },
-        },
-      },
-    },
-    "ru-RU": {
-      settings: {
-        llmAgentModel: {
-          remote: {
-            delayAlert:
-              "В данный момент инференс может быть медленным из-за холодного старта сервера. Это будет улучшено в будущем.",
-          },
-        },
-      },
-    },
-  },
-});
 </script>
 
 <template lang="pug">
-.grid.gap-2.overflow-y-scroll.bg-neutral-50.p-2.shadow-inner
-  Alert.bg-white(type="info") {{ t("settings.llmAgentModel.remote.delayAlert") }}
-  Model.rounded-lg.border.bg-white(
-    v-for="model in remoteModels"
+.flex.flex-col.gap-3.overflow-x-hidden.overflow-y-scroll.p-3
+  Model.w-full.rounded-lg.bg-white.shadow-lg(
+    v-for="model in matchingModels"
     :key="model.id"
     :class="{ 'border-primary-500': selectedModelId === model.id }"
-    :model
+    :actual="model.actual"
+    :well-known="model.wellKnown"
     :selected="selectedModelId === model.id"
     @select="selectedModelId = model.id"
   )

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { env } from "@/env";
-import { type CompletionOptions } from "@/lib/ai/llm/BaseLlmDriver";
 import * as api from "@/lib/api";
 import { trackEvent } from "@/lib/plausible";
 import { Mode, Simulation } from "@/lib/simulation";
@@ -57,20 +56,6 @@ const emit = defineEmits<{
   (event: "mainMenu"): void;
   (event: "devConsole"): void;
 }>();
-
-const modelSettings = ref<CompletionOptions>({
-  minP: 0.1,
-  mirostat: {
-    version: "v1",
-    tau: 5,
-    eta: 0.1,
-  },
-  penalty: {
-    lastN: 256,
-    repeat: 1.05,
-  },
-  temp: 0.8,
-});
 
 const userInput = ref("");
 const userInputEnabled = computed(
@@ -170,7 +155,7 @@ async function sendMessage() {
     await simulation.predictUpdate(
       writerNEval.value,
       predictionOptions.value,
-      modelSettings.value,
+      undefined,
       inferenceAbortController.value!.signal,
     );
 
@@ -237,7 +222,7 @@ async function advance() {
         await simulation.predictUpdate(
           writerNEval.value,
           predictionOptions.value,
-          modelSettings.value,
+          undefined,
           inferenceAbortController.value!.signal,
         );
 
@@ -339,7 +324,7 @@ async function regenerateUpdate(updateIndex: number) {
     await simulation.predictCurrentUpdateVariant(
       writerNEval.value,
       predictionOptions.value,
-      modelSettings.value,
+      undefined,
       inferenceAbortController.value!.signal,
     );
 

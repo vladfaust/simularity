@@ -328,6 +328,7 @@ export class TauriLlmDriver implements BaseLlmDriver {
         prompt,
         nEval,
         {
+          ...this.config.completionOptions,
           ...inferenceOptions,
           grammar:
             inferenceOptions.grammar?.lang === LlmGrammarLang.Gnbf

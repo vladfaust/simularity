@@ -19,6 +19,7 @@ export type RemoteLlmDriverConfig = {
   type: "remote";
   baseUrl: string;
   modelId: string;
+  completionOptions?: Omit<CompletionOptions, "grammar" | "stopSequences">;
 };
 
 export class RemoteLlmDriver implements BaseLlmDriver {
@@ -152,7 +153,10 @@ export class RemoteLlmDriver implements BaseLlmDriver {
               model: this.config.modelId,
               prompt,
               nEval,
-              options: inferenceOptions,
+              options: {
+                ...this.config.completionOptions,
+                ...inferenceOptions,
+              },
             },
             {
               jwt: jwtStorage.value!,

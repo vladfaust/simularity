@@ -1,7 +1,11 @@
 {
-  "kunoicihi-7b": {
-    "name": "Kunoichi 7B",
-    "description": "Model merge based on Silicon Maid with the goal of improved intelligence. Focused on creative, coherent roleplay.",
+  "kunoichi-7b": {
+    "name": "🥷 Kunoichi-7B",
+    "imgUrl": "/available_models/kunoichi.png",
+    "description": {
+      "en-US": "Model merge based on Silicon Maid with the goal of improved intelligence. Focused on creative, coherent roleplay.",
+      "ru-RU": "Специализируется на креативном, когерентном ролевом взаимодействии."
+    },
     "nParams": 7241732096,
     "contextSize": 8192,
     "locales": [
@@ -36,11 +40,27 @@
           "hf": "https://huggingface.co/TheBloke/Kunoichi-7B-GGUF/resolve/main/kunoichi-7b.Q6_K.gguf"
         }
       }
+    },
+    "recommendedParameters": {
+      "minP": 0.1,
+      "temp": 0.8,
+      "penalty": {
+        "repeat": 1.05,
+        "lastN": 256
+      },
+      "mirostat": {
+        "version": "v1",
+        "tau": 5,
+        "eta": 0.1
+      }
     }
   },
-  "Vikhr-Llama3.1-8B": {
-    "name": "Vikhr-Llama3.1-8B",
-    "description": "Русскоязычная модель из семейства Вихрь.",
+  "vikhr-lama-8B": {
+    "name": "🌪️ Vikhr-Llama3.1-8B",
+    "description": {
+      "en-US": "Russian-speaking model from the Vikhr family.",
+      "ru-RU": "Русскоязычная модель из семейства Вихрь."
+    },
     "nParams": 8622146847,
     "contextSize": 131072,
     "locales": [
@@ -66,6 +86,15 @@
         "urls": {
           "hf": "https://huggingface.co/NikolayKozloff/Vikhr-Llama3.1-8B-Instruct-R-21-09-24-Q8_0-GGUF/resolve/main/vikhr-llama3.1-8b-instruct-r-21-09-24-q8_0.gguf"
         }
+      }
+    },
+    "recommendedParameters": {
+      "minP": 0.1,
+      "temp": 0.4,
+      "topK": 40,
+      "penalty": {
+        "repeat": 1.05,
+        "lastN": 256
       }
     }
   }

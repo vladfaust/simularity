@@ -1,11 +1,11 @@
 import type { Download } from "@/lib/downloads";
 import * as storage from "@/lib/storage";
-import type { WellKnownModel } from "@/queries";
+import type { WellKnownLocalModel } from "@/queries";
 import type { Ref, ShallowRef } from "vue";
 
 export type WellKnownModelProps = {
   recommendationModelId: string;
-  recommendationModel: WellKnownModel;
+  recommendationModel: WellKnownLocalModel;
   cachedModelsByQuants: Record<
     string,
     {

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import RichTitle from "@/components/RichForm/RichTitle.vue";
 import { downloadManager } from "@/lib/downloads";
+import { appLocale } from "@/lib/storage";
 import * as tauri from "@/lib/tauri";
 import { prettyNumber } from "@/lib/utils";
-import { SUPPORTED_LOCALES } from "@/logic/i18n";
+import { SUPPORTED_LOCALES, translationWithFallback } from "@/logic/i18n";
 import * as tauriPath from "@tauri-apps/api/path";
 import * as tauriShell from "@tauri-apps/plugin-shell";
 import {
@@ -267,7 +268,7 @@ li.flex.flex-col.divide-y
       template(#extra v-if="recommendationModel.hfUrl")
         button.btn-pressable(@click="openHfUrl") 🤗
 
-    p.text-sm.leading-snug.opacity-80 {{ recommendationModel.description }}
+    p.text-sm.leading-snug.opacity-80 {{ translationWithFallback(recommendationModel.description, appLocale) }}
 
     //- Params.
     .mt-1.flex.flex-wrap.items-center.gap-x-2.text-sm

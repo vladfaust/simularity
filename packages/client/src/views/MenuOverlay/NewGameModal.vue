@@ -21,8 +21,8 @@ import * as storage from "@/lib/storage";
 import { localesToSelectValues, translationWithFallback } from "@/logic/i18n";
 import {
   allSavesQueryKey,
-  useWellKnownLlmModelsQuery,
-  type WellKnownModel,
+  useLocalWellKnownLlmModelsQuery,
+  type WellKnownLocalModel,
 } from "@/queries";
 import router, { routeLocation } from "@/router";
 import { useQueryClient } from "@tanstack/vue-query";
@@ -69,13 +69,14 @@ const detailsRef = ref<HTMLElement | null>(null);
 const detailsSize = useElementSize(detailsRef);
 const helperRef = ref<HTMLElement | null>(null);
 const helperSize = useElementSize(helperRef);
-const { data: wellKnownWriterModels } = useWellKnownLlmModelsQuery("writer");
+const { data: wellKnownWriterModels } =
+  useLocalWellKnownLlmModelsQuery("writer");
 const writerDriverConfig = storage.llm.useDriverConfig("writer");
 
 /**
  * If the selected model is a well-known model, return it.
  */
-const selectedWellKnownWriterModel = computed<WellKnownModel | undefined>(
+const selectedWellKnownWriterModel = computed<WellKnownLocalModel | undefined>(
   () => {
     if (!wellKnownWriterModels.value) return;
 

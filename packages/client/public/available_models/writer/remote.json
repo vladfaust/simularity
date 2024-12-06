@@ -1,0 +1,40 @@
+{
+  "kunoichi-7b": {
+    "imgUrl": "/available_models/kunoichi.png",
+    "locales": [
+      "en-US"
+    ],
+    "recommendedParameters": {
+      "minP": 0.1,
+      "temp": 0.8,
+      "penalty": {
+        "repeat": 1.05,
+        "lastN": 256
+      },
+      "mirostat": {
+        "version": "v1",
+        "tau": 5,
+        "eta": 0.1
+      }
+    }
+  },
+  "vikhr-nemo-12b": {
+    "locales": [
+      "en-US",
+      "ru-RU"
+    ],
+    "recommendedParameters": {
+      "minP": 0.1,
+      "topK": 40,
+      "temp": 0.5,
+      "penalty": {
+        "repeat": 1.05
+      },
+      "mirostat": {
+        "version": "v1",
+        "tau": 5,
+        "eta": 0.1
+      }
+    }
+  }
+}
