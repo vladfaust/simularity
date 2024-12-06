@@ -32,6 +32,8 @@ const env = v.parse(
     VITE_SENTRY_DSN: v.optional(v.string()),
     VITE_API_BASE_URL: v.pipe(v.string(), v.url()),
     VITE_WEB_BASE_URL: v.pipe(v.string(), v.url()),
+    VITE_COMMIT_HASH: v.optional(v.string()),
+    VITE_VERSION: v.optional(v.string()),
   }),
   import.meta.env,
 );
