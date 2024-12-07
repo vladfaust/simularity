@@ -139,7 +139,7 @@ extern "C" {
 // See https://stackoverflow.com/a/32270215/3645337.
 pub extern "C" fn progress_callback_wrapper(progress: c_float, user_data: *mut c_void) -> bool {
     #[allow(clippy::transmute_ptr_to_ref)]
-    let closure: &mut Box<dyn FnMut(f32) -> bool> = unsafe { std::mem::transmute(user_data) };
+    let closure: &mut &mut dyn FnMut(f32) -> bool = unsafe { std::mem::transmute(user_data) };
     closure(progress)
 }
 
@@ -149,7 +149,7 @@ pub extern "C" fn inference_callback_wrapper(
     user_data: *mut c_void,
 ) -> bool {
     #[allow(clippy::transmute_ptr_to_ref)]
-    let closure: &mut Box<dyn FnMut(&str) -> bool> = unsafe { std::mem::transmute(user_data) };
+    let closure: &mut &mut dyn FnMut(&str) -> bool = unsafe { std::mem::transmute(user_data) };
     let output = unsafe { std::ffi::CStr::from_ptr(output) };
     // FIXME: Utf8Error (invalid utf-8) handling.
     closure(output.to_str().unwrap())
