@@ -95,11 +95,6 @@ export class Writer {
       {
         initialPromptBuilder: () =>
           Writer.buildStaticPrompt(mode, scenario, locale),
-        localContextSizeModifier: (driverContextSize) =>
-          Math.max(
-            driverContextSize,
-            this.scenario.content.contextWindowSize + Writer.TASK_BUFFER_SIZE,
-          ),
       },
     );
   }
