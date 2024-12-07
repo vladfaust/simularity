@@ -39,7 +39,7 @@ steps:
       mkdir build
       cd build
       echo "--- Configuring"
-      cmake -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CUDA_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DGGML_CUDA=ON -GNinja ..
+      cmake -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CUDA_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DGGML_CUDA=ON -DGGML_OPENMP=OFF -DGGML_NATIVE=OFF -GNinja ..
       echo "--- Building"
       cmake --build . -j3
 
