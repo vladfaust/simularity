@@ -257,6 +257,8 @@ const { t } = useI18n({
 </template>
 
 <style lang="postcss" scoped>
+@import "@/style.scss";
+
 ._btn {
   @apply btn btn-md rounded-lg border bg-black/5 transition-transform pressable;
 

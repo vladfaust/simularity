@@ -334,6 +334,8 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
 </template>
 
 <style lang="postcss" scoped>
+@import "@/style.scss";
+
 ._mode-button {
   @apply btn btn-sm w-full p-2;
 
