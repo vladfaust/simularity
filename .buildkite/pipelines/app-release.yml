@@ -3,8 +3,8 @@ steps:
     artifact_paths:
       - "packages/client/dist/**/*"
     command: |
-      echo "--- Building API SDK"
-      cd packages\\api-sdk
+      echo "--- Building API"
+      cd packages\\api
       npm ci
       npm run build
       echo "--- Building Client"
@@ -14,7 +14,7 @@ steps:
       \$env:VITE_API_BASE_URL = "https://api.simularity.ai"
       \$env:VITE_WEB_BASE_URL = "https://simularity.ai"
       \$env:VITE_PATREON_CAMPAIGN_URL = "https://www.patreon.com/SimularityAI"
-      \$env:VITE_EXPERIMENTAL_IMMERSIVE_MODE = "false"
+      \$env:VITE_EXPERIMENTAL_IMMERSIVE_MODE = "true"
       \$env:VITE_PLAUSIBLE_API_HOST = "https://plausible.simularity.ai"
       \$env:VITE_SENTRY_DSN = 🚨UNSET🚨
       \$env:VITE_SENTRY_ORG = "simularity-ai"
