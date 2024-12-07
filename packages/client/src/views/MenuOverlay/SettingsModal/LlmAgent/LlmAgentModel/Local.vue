@@ -16,6 +16,7 @@ import { broom } from "@lucide/lab";
 import * as tauriPath from "@tauri-apps/api/path";
 import * as tauriDialog from "@tauri-apps/plugin-dialog";
 import * as tauriFs from "@tauri-apps/plugin-fs";
+import * as tauriOs from "@tauri-apps/plugin-os";
 import { asyncComputed } from "@vueuse/core";
 import {
   DatabaseZapIcon,
@@ -239,7 +240,11 @@ async function refresh() {
     }
 
     // ADHOC: See https://github.com/tauri-apps/tauri/issues/2233#issuecomment-2490331789.
-    const entryPath = entry.name.startsWith("/")
+    const entryPath = (
+      tauriOs.platform() === "windows"
+        ? tauriPath.isAbsolute(entry.name)
+        : entry.name.startsWith("/")
+    )
       ? entry.name
       : await tauriPath.join(modelsDir, entry.name);
 

@@ -43,6 +43,7 @@
     "shell:default",
     "fs:default",
     "cli:allow-cli-matches",
-    "core:window:allow-destroy"
+    "core:window:allow-destroy",
+    "os:default"
   ]
 }
