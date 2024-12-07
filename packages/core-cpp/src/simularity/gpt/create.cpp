@@ -216,7 +216,7 @@ int simularity_gpt_create(
         return e.code;
       }
 
-      if (state_file_path && !file_exists) {
+      if (state_file_path && !state_loaded) {
         spdlog::debug("Saving session state to file: {}", state_file_path);
 
         // Save the session to a file.
