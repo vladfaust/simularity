@@ -80,7 +80,7 @@
       {
         "fullscreen": false,
         "height": 600,
-        "resizable": false,
+        "resizable": true,
         "title": "Simularity",
         "width": 800,
         "minHeight": 600,
