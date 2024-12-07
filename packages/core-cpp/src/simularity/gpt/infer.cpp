@@ -107,7 +107,7 @@ int simularity_gpt_infer(
     luaopen_cjson(lua.lua_state());
 
     spdlog::info("Running Lua grammar script");
-    spdlog::debug(options.lua_grammar);
+    // spdlog::debug(options.lua_grammar);
 
     // Add the cjson library.
     lua.open_libraries(sol::lib::base, sol::lib::string, sol::lib::table);
