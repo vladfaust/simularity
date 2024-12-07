@@ -43,11 +43,19 @@ export type CachedModel = {
   ramSize: number;
 };
 
+function encodeModelPath(modelPath: string): string {
+  // On Windows, paths may contain non-Latin characters,
+  // therefore we need to encode them additionally.
+  return btoa(unescape(encodeURIComponent(modelPath)));
+}
+
 /**
  * Use to check if a model is cached.
  */
 export function getCachedModel(modelPath: string): CachedModel | null {
-  const fetched = localStorage.getItem(`llm:cachedModel:${btoa(modelPath)}`);
+  const fetched = localStorage.getItem(
+    `llm:cachedModel:${encodeModelPath(modelPath)}`,
+  );
   if (!fetched) return null;
   return JSON.parse(fetched);
 }
@@ -57,7 +65,7 @@ export function getCachedModel(modelPath: string): CachedModel | null {
  */
 export function setCachedModel(modelPath: string, value: CachedModel) {
   localStorage.setItem(
-    `llm:cachedModel:${btoa(modelPath)}`,
+    `llm:cachedModel:${encodeModelPath(modelPath)}`,
     JSON.stringify(value),
   );
 }
