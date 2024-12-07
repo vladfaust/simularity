@@ -155,11 +155,11 @@ static int decode_with_progress(
   auto end   = std::chrono::high_resolution_clock::now();
   spdlog::info(
       "Decoded {} tokens in {:.3f}s ({:.2f} tok/s) -> {}",
-      n_tokens,
+      batch.n_tokens,
       (float)std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
               .count() /
           1000,
-      (float)n_tokens /
+      (float)batch.n_tokens /
           std::chrono::duration_cast<std::chrono::seconds>(end - start).count(),
       result
   );
