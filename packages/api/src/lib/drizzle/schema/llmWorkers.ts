@@ -17,6 +17,16 @@ export const llmProviderId = pgEnum("llm_provider", [
   "runpod-core",
 ]);
 
+type ProviderMeta =
+  | {
+      /** Set for local RunPod workers. */
+      baseUrl: string;
+    }
+  | {
+      /** Set for remote (production) Runpod workers. */
+      endpointId: string;
+    };
+
 export const llmWorkers = pgTable(
   "llm_workers",
   {
@@ -30,9 +40,9 @@ export const llmWorkers = pgTable(
     providerId: llmProviderId("provider_id").notNull(),
 
     /**
-     * Worker ID in the provider's system.
+     * Worker metadata from the provider.
      */
-    providerExternalId: varchar("provider_external_id").notNull(),
+    providerMeta: json("provider_meta").$type<ProviderMeta>().notNull(),
 
     /**
      * How much the provider charges for this worker.
@@ -47,10 +57,6 @@ export const llmWorkers = pgTable(
       table.modelId,
       table.providerId,
       table.enabled,
-    ),
-    externalIdIndex: index("llm_workers_provider_external_id_index").on(
-      table.providerId,
-      table.providerExternalId,
     ),
   }),
 );

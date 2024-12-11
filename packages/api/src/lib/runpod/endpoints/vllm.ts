@@ -55,11 +55,16 @@ export class VllmEndpoint {
   ): VllmEndpoint | null {
     assert(worker.providerId === "runpod-vllm");
 
+    assert(
+      "endpointId" in worker.providerMeta,
+      "Local RunPod workers are not supported for vLLM",
+    );
+
     const runpod = runpodSdk(env.RUNPOD_API_KEY, {
       baseUrl: env.RUNPOD_BASE_URL,
     });
 
-    const endpoint = runpod.endpoint(worker.providerExternalId);
+    const endpoint = runpod.endpoint(worker.providerMeta.endpointId);
     if (!endpoint) {
       return null;
     } else {

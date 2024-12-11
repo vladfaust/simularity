@@ -134,7 +134,7 @@ export default Router()
     const endpoint = endpointClass.create(user.id, worker);
     if (!endpoint) {
       konsole.error("Runpod endpoint unavailable", {
-        endpointId: worker.providerExternalId,
+        meta: worker.providerMeta,
       });
 
       return res.status(503).json({

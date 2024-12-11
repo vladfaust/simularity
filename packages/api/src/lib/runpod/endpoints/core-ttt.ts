@@ -9,6 +9,7 @@ import assert from "assert";
 import { eq } from "drizzle-orm";
 import { toMilliseconds } from "duration-fns";
 import runpodSdk from "runpod-sdk";
+import { LocalRunpodEndpoint } from "../localEndpoint";
 import { IrrecoverableError, wrapRunpodRequest } from "./_common";
 
 const InferenceOptionsSchema = v.object({
@@ -80,14 +81,24 @@ export class CoreTttEndpoint {
   ): CoreTttEndpoint | null {
     assert(worker.providerId === "runpod-core");
 
-    const runpod = runpodSdk(env.RUNPOD_API_KEY, {
-      baseUrl: env.RUNPOD_BASE_URL,
-    });
+    if ("endpointId" in worker.providerMeta) {
+      const runpod = runpodSdk(env.RUNPOD_API_KEY, {
+        baseUrl: env.RUNPOD_BASE_URL,
+      });
 
-    const endpoint = runpod.endpoint(worker.providerExternalId);
-    if (!endpoint) {
-      return null;
+      const endpoint = runpod.endpoint(worker.providerMeta.endpointId);
+      if (!endpoint) {
+        return null;
+      } else {
+        return new CoreTttEndpoint(userId, worker, endpoint);
+      }
+    } else if (env.NODE_ENV !== "development") {
+      throw new Error(`Missing endpointId for worker ${worker.id}`);
     } else {
+      konsole.log(
+        `Using local Runpod endpoint at ${worker.providerMeta.baseUrl}`,
+      );
+      const endpoint = new LocalRunpodEndpoint(worker.providerMeta.baseUrl);
       return new CoreTttEndpoint(userId, worker, endpoint);
     }
   }
@@ -280,6 +291,6 @@ export class CoreTttEndpoint {
   private constructor(
     readonly userId: string,
     readonly worker: typeof d.llmWorkers.$inferSelect,
-    private readonly endpoint: RunpodEndpoint,
+    private readonly endpoint: RunpodEndpoint | LocalRunpodEndpoint,
   ) {}
 }

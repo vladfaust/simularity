@@ -39,7 +39,7 @@ maturin develop
 ```sh
 pipenv install --categories "packages,fastapi"
 \
-  MODEL_ID=kunoichi_7b \
+  MODEL_ID="🚨MODEL_ID🚨" \
   MODEL_PATH="/path/to/model.gguf" \
   CONTEXT_SIZE=8192 \
   pipenv run uvicorn src.fastapi_server:app --port 9090
@@ -60,3 +60,19 @@ curl -X POST \
 ```
 
 ### RunPod
+
+Run server locally:
+
+```sh
+MODEL_ID="🚨MODEL_ID🚨" \
+  MODEL_PATH="/path/to/model.gguf" \
+  pipenv run python -m src.runpod_handler --rp_serve_api --rp_api_port 8080
+```
+
+Run endpoint tests:
+
+```sh
+MODEL_ID="🚨MODEL_ID🚨" \
+  MODEL_PATH="/path/to/model.gguf" \
+  ./test/runpod.sh
+```
