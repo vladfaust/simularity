@@ -35,7 +35,7 @@ async function login() {
     loginInProgress.value = true;
 
     const nonce = nanoid();
-    const url = import.meta.env.VITE_WEB_BASE_URL + "/login?nonce=" + nonce;
+    const url = env.VITE_WEB_BASE_URL + "/login?nonce=" + nonce;
     console.log("Opening login page", url);
     await tauriShell.open(url);
 

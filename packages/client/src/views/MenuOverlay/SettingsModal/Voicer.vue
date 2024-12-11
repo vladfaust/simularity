@@ -3,6 +3,7 @@ import Alert from "@/components/Alert.vue";
 import InteractiveHelper from "@/components/InteractiveHelper.vue";
 import RichRange from "@/components/RichForm/RichRange.vue";
 import RichToggle from "@/components/RichForm/RichToggle.vue";
+import { env } from "@/env";
 import { Simulation } from "@/lib/simulation";
 import * as storage from "@/lib/storage";
 import { unreachable } from "@/lib/utils";
@@ -45,7 +46,7 @@ const selectedModelId = computed<string | undefined>({
       case "remote":
         ttsConfig.value.driver = {
           type: driverType.value,
-          baseUrl: import.meta.env.VITE_API_BASE_URL,
+          baseUrl: env.VITE_API_BASE_URL,
           modelId,
         };
         break;

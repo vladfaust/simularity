@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { env } from "@/env";
 import * as storage from "@/lib/storage";
 import {
   useRemoteLlmModelsQuery,
@@ -57,7 +58,7 @@ function setDriverConfig(modelId: string) {
   driverConfig.value = {
     type: "remote",
     modelId,
-    baseUrl: import.meta.env.VITE_API_BASE_URL,
+    baseUrl: env.VITE_API_BASE_URL,
     completionOptions:
       wellKnownRemoteModels.value?.[modelId]?.recommendedParameters,
   };

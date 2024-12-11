@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import type { CommandsRouter } from "@simularity/api/trpc/commands/router";
 import {
   TRPCClientError,
@@ -16,7 +17,7 @@ export const commandsClient = createTRPCProxyClient<CommandsRouter>({
         (opts.direction === "down" && opts.result instanceof Error),
     }),
     httpBatchLink({
-      url: import.meta.env.VITE_API_BASE_URL + "/trpc/commands",
+      url: env.VITE_API_BASE_URL + "/trpc/commands",
       fetch(url, options) {
         if (jwtStorage.value) {
           (options ??= {}).headers ??= {};

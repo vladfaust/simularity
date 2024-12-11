@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import * as api from "@/lib/api";
 
 export class RemoteScenario {
@@ -12,7 +13,7 @@ export class RemoteScenario {
 
   async resourceUrl(assetPath: string) {
     return (
-      import.meta.env.VITE_API_BASE_URL +
+      env.VITE_API_BASE_URL +
       `/rest/v1/scenarios/${this.id}/assets/?version=${this.version}&path=${assetPath}`
     );
   }

@@ -1,3 +1,4 @@
+import { env } from "@/env.js";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { type InferSelectModel } from "drizzle-orm";
 import { SQLiteTable, type TableConfig } from "drizzle-orm/sqlite-core";
@@ -12,10 +13,7 @@ import { pick } from "./utils";
 
 export type Transaction = Parameters<Parameters<typeof d.db.transaction>[0]>[0];
 
-const databaseUrl = await join(
-  await appLocalDataDir(),
-  import.meta.env.VITE_DATABASE_PATH,
-);
+const databaseUrl = await join(await appLocalDataDir(), env.VITE_DATABASE_PATH);
 
 /**
  * A raw SQLite database client.
