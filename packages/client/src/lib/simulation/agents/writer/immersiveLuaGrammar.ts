@@ -104,6 +104,11 @@ local characters_allowed_to_speak = {${characterIdsAllowedToSpeak
 function character_line_rules()
   local rules = {}
 
+  -- ADHOC: If characters_allowed_to_speak is empty, replace it with {'narrator'}.
+  if (#characters_allowed_to_speak == 0) then
+    characters_allowed_to_speak = {'narrator'}
+  end
+
   -- characterId ::= "alice" | "bob" | ...
   rules["characterId"] = table.concat(
     map(
