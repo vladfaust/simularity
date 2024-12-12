@@ -5,10 +5,8 @@ import {
   integer,
   json,
   pgTable,
-  text,
   timestamp,
   uuid,
-  varchar,
 } from "drizzle-orm/pg-core";
 import { llmSessions } from "./llmSessions.js";
 import { llmWorkers } from "./llmWorkers.js";
@@ -26,17 +24,16 @@ export const llmCompletions = pgTable(
       .notNull()
       .references(() => llmWorkers.id, { onDelete: "restrict" }),
 
-    /** Provider-specific completion params. */
-    params: json("params").notNull(),
+    input: json("input").notNull(),
 
-    input: text("input").notNull(),
-    providerExternalId: varchar("provider_external_id"),
+    // TODO: Rename to `queueTimeMs`.
     delayTimeMs: integer("delay_time_ms"),
+
     executionTimeMs: integer("execution_time_ms"),
-    output: text("output"),
+    output: json("output"),
     promptTokens: integer("prompt_tokens"),
     completionTokens: integer("completion_tokens"),
-    error: text("error"),
+    error: json("error"),
 
     /**
      * Estimated cost of the completion for the system, in multiple currencies.

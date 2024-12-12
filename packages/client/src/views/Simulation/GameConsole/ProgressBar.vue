@@ -45,6 +45,9 @@ function llmStatusText(llmDriver: BaseLlmDriver | null): string | undefined {
     let text = "";
 
     switch (llmDriver.status.value) {
+      case LlmStatus.Queued:
+        text = "Queued";
+        break;
       case LlmStatus.Initializing:
         text = "Initializing";
         break;

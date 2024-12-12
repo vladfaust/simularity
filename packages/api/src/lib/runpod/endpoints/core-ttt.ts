@@ -2,8 +2,11 @@ import { env } from "@/env";
 import { d } from "@/lib/drizzle";
 import { konsole } from "@/lib/konsole";
 import { RunpodEndpoint } from "@/lib/runpod";
-import { MultiCurrencyCostSchema } from "@/lib/schema";
-import { omit, safeParseJson, sleep } from "@/lib/utils";
+import {
+  MultiCurrencyCostSchema,
+  Text2TextCompletionOptions,
+} from "@/lib/schema";
+import { safeParseJson, sleep } from "@/lib/utils";
 import { v } from "@/lib/valibot";
 import assert from "assert";
 import { eq } from "drizzle-orm";
@@ -12,7 +15,7 @@ import runpodSdk from "runpod-sdk";
 import { LocalRunpodEndpoint } from "../localEndpoint";
 import { IrrecoverableError, wrapRunpodRequest } from "./_common";
 
-const InferenceOptionsSchema = v.object({
+const EndpointInputOptionsSchema = v.object({
   n_prev: v.optional(v.number()),
   n_probs: v.optional(v.number()),
   min_keep: v.optional(v.number()),
@@ -50,33 +53,34 @@ const InferenceOptionsSchema = v.object({
   lua_grammar: v.optional(v.string()),
 });
 
-export const CoreTttEndpointInputSchema = v.object({
+const EndpointInputSchema = v.object({
   session_id: v.optional(v.number()),
   prompt: v.string(),
   n_eval: v.number(),
-  options: InferenceOptionsSchema,
+  options: v.optional(EndpointInputOptionsSchema),
 });
 
-const CoreTttEndpointIncimpleteOutputSchema = v.object({
+type EndpointInput = v.InferOutput<typeof EndpointInputSchema>;
+
+const IncompleteEndpointOutputSchema = v.object({
   done: v.literal(false),
   tokens: v.string(),
 });
 
-const CoreTttEndpointCompleteOutputSchema = v.object({
+const CompleteEndpointOutputSchema = v.object({
   done: v.literal(true),
   session_id: v.number(),
   input_length: v.number(),
   context_length: v.number(),
 });
 
-const CoreTttEndpointOutputSchema = v.variant("done", [
-  CoreTttEndpointIncimpleteOutputSchema,
-  CoreTttEndpointCompleteOutputSchema,
+const EndpointOutputSchema = v.variant("done", [
+  IncompleteEndpointOutputSchema,
+  CompleteEndpointOutputSchema,
 ]);
 
 export class CoreTttEndpoint {
   static create(
-    userId: string,
     worker: typeof d.llmWorkers.$inferSelect,
   ): CoreTttEndpoint | null {
     assert(worker.providerId === "runpod-core");
@@ -90,7 +94,7 @@ export class CoreTttEndpoint {
       if (!endpoint) {
         return null;
       } else {
-        return new CoreTttEndpoint(userId, worker, endpoint);
+        return new CoreTttEndpoint(worker, endpoint);
       }
     } else if (env.NODE_ENV !== "development") {
       throw new Error(`Missing endpointId for worker ${worker.id}`);
@@ -99,19 +103,37 @@ export class CoreTttEndpoint {
         `Using local Runpod endpoint at ${worker.providerMeta.baseUrl}`,
       );
       const endpoint = new LocalRunpodEndpoint(worker.providerMeta.baseUrl);
-      return new CoreTttEndpoint(userId, worker, endpoint);
+      return new CoreTttEndpoint(worker, endpoint);
     }
   }
 
   /**
    * Run the vLLM endpoint asynchronously, streaming the output.
    */
+  // TODO: Implement `onDecoding`.
+  // TODO: Implement `abortSignal`.
   async run(
-    sessionId: string,
-    input: v.InferOutput<typeof CoreTttEndpointInputSchema>,
-    onInference: (tokens: string[]) => void,
-  ) {
-    const completionParams = omit(input, ["session_id", "prompt"]);
+    session: Pick<
+      typeof d.llmSessions.$inferSelect,
+      "id" | "providerSessionId"
+    >,
+    prompt: string,
+    nEval: number,
+    options?: Text2TextCompletionOptions,
+    onDecoding?: (progress: number) => void,
+    onInference?: (tokens: string[]) => void,
+    abortSignal?: AbortSignal,
+  ): Promise<typeof d.llmCompletions.$inferSelect> {
+    let coreSessionId = session.providerSessionId
+      ? parseInt(session.providerSessionId)
+      : undefined;
+
+    const input = CoreTttEndpoint._toEndpointInput(
+      coreSessionId,
+      prompt,
+      nEval,
+      options,
+    );
 
     const timeout = toMilliseconds({ minutes: 1 });
 
@@ -199,7 +221,7 @@ export class CoreTttEndpoint {
               throw new IrrecoverableError("Failed to parse JSON line");
             }
 
-            const output = v.safeParse(CoreTttEndpointOutputSchema, json);
+            const output = v.safeParse(EndpointOutputSchema, json);
             if (!output.success) {
               throw new IrrecoverableError(
                 `Failed to parse object: ${JSON.stringify(v.flatten(output.issues))}`,
@@ -216,7 +238,7 @@ export class CoreTttEndpoint {
               providerSessionId = output.output.session_id;
             } else {
               const tokens = output.output.tokens;
-              onInference([tokens]);
+              onInference?.([tokens]);
 
               outputText += tokens;
             }
@@ -229,7 +251,8 @@ export class CoreTttEndpoint {
         return this.endpoint.status(requestId, timeout);
       });
 
-      const executionTime = (finalStatus as any).executionTime;
+      konsole.debug({ finalStatus });
+      const executionTime = (finalStatus as any).executionTime ?? 0;
 
       let estimatedCost:
         | v.InferOutput<typeof MultiCurrencyCostSchema>
@@ -248,22 +271,23 @@ export class CoreTttEndpoint {
         await tx
           .update(d.llmSessions)
           .set({ providerSessionId: providerSessionId.toString() })
-          .where(eq(d.llmSessions.id, sessionId));
+          .where(eq(d.llmSessions.id, session.id));
 
         return (
           await tx
             .insert(d.llmCompletions)
             .values({
-              sessionId,
+              sessionId: session.id,
               workerId: this.worker.id,
-              params: completionParams,
-              input: input.prompt,
-              providerExternalId: requestId,
+              input,
               delayTimeMs: finalStatus.delayTime,
               executionTimeMs: executionTime,
-              output: outputText,
-              promptTokens: usage?.input,
-              completionTokens: usage?.output,
+              output: {
+                requestId,
+                text: outputText,
+              },
+              promptTokens: usage.input,
+              completionTokens: usage.output,
               estimatedCost,
             })
             .returning()
@@ -277,10 +301,9 @@ export class CoreTttEndpoint {
         await d.db
           .insert(d.llmCompletions)
           .values({
-            sessionId,
+            sessionId: session.id,
             workerId: this.worker.id,
-            params: completionParams,
-            input: input.prompt,
+            input,
             error: e.message,
           })
           .returning()
@@ -288,8 +311,46 @@ export class CoreTttEndpoint {
     }
   }
 
+  private static _toEndpointInput(
+    sessionId: number | undefined,
+    prompt: string,
+    nEval: number,
+    options?: Text2TextCompletionOptions,
+  ): EndpointInput {
+    return {
+      session_id: sessionId,
+      prompt,
+      n_eval: nEval,
+      options: options
+        ? {
+            n_prev: options.nPrev,
+            n_probs: options.nProbs,
+            min_keep: options.minKeep,
+            top_k: options.topK,
+            top_p: options.topP,
+            min_p: options.minP,
+            tfs_z: options.tfsZ,
+            typical_p: options.typicalP,
+            temp: options.temp,
+            dynatemp: options.dynatemp,
+            penalty: options.penalty,
+            mirostat: options.mirostat,
+            seed: options.seed,
+            grammar:
+              options.grammar?.lang === "gbnf"
+                ? options.grammar.content
+                : undefined,
+            stop_sequences: options.stopSequences,
+            lua_grammar:
+              options.grammar?.lang === "lua-gbnf"
+                ? options.grammar.content
+                : undefined,
+          }
+        : undefined,
+    };
+  }
+
   private constructor(
-    readonly userId: string,
     readonly worker: typeof d.llmWorkers.$inferSelect,
     private readonly endpoint: RunpodEndpoint | LocalRunpodEndpoint,
   ) {}

@@ -101,7 +101,6 @@ export class PredictUpdateVariantJob {
 
       console.log("Predicted writer response", writerResponse);
       this._writerDone.value = true;
-      // TODO: Check if abort signal was triggered.
 
       let doTts = false;
       if (this.agents.voicer.ttsDriver.value && storage.tts.ttsConfig.value) {

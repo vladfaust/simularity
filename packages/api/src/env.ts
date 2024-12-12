@@ -64,7 +64,11 @@ const parseResult = v.safeParse(
       v.array(v.pipe(v.string(), v.url())),
     ),
 
-    BASE_URL: v.pipe(v.string(), v.url()),
+    BASE_URL: v.pipe(
+      v.string(),
+      v.url(),
+      v.transform((x) => new URL(x)),
+    ),
 
     JWT_SECRET: v.pipe(
       v.string(),

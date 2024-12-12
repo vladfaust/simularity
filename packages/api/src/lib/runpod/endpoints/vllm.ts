@@ -2,15 +2,18 @@ import { env } from "@/env.js";
 import { d } from "@/lib/drizzle.js";
 import { konsole } from "@/lib/konsole.js";
 import { RunpodEndpoint } from "@/lib/runpod.js";
-import { MultiCurrencyCostSchema } from "@/lib/schema.js";
-import { omit, sleep } from "@/lib/utils.js";
+import {
+  MultiCurrencyCostSchema,
+  Text2TextCompletionOptions,
+} from "@/lib/schema.js";
+import { sleep } from "@/lib/utils.js";
 import { v } from "@/lib/valibot.js";
 import assert from "assert";
 import { toMilliseconds } from "duration-fns";
 import runpodSdk from "runpod-sdk";
 import { wrapRunpodRequest } from "./_common";
 
-export const VllmEndpointInputSchema = v.object({
+const EndpointInputSchema = v.object({
   prompt: v.string(),
   sampling_params: v.object({
     max_tokens: v.optional(v.number()),
@@ -34,7 +37,9 @@ export const VllmEndpointInputSchema = v.object({
   ),
 });
 
-const VllmEndpointOutputSchema = v.array(
+type EndpointInput = v.InferOutput<typeof EndpointInputSchema>;
+
+const EndpointOutputSchema = v.array(
   v.object({
     choices: v.array(
       v.object({
@@ -49,10 +54,7 @@ const VllmEndpointOutputSchema = v.array(
 );
 
 export class VllmEndpoint {
-  static create(
-    userId: string,
-    worker: typeof d.llmWorkers.$inferSelect,
-  ): VllmEndpoint | null {
+  static create(worker: typeof d.llmWorkers.$inferSelect): VllmEndpoint | null {
     assert(worker.providerId === "runpod-vllm");
 
     assert(
@@ -68,20 +70,28 @@ export class VllmEndpoint {
     if (!endpoint) {
       return null;
     } else {
-      return new VllmEndpoint(userId, worker, endpoint);
+      return new VllmEndpoint(worker, endpoint);
     }
   }
 
   /**
    * Run the vLLM endpoint asynchronously, streaming the output.
    */
+  // TODO: Implement `onDecoding`.
+  // TODO: Implement `abortSignal`.
   async run(
-    sessionId: string,
-    input: v.InferOutput<typeof VllmEndpointInputSchema>,
-    onInference: (tokens: string[]) => void,
-  ) {
-    const completionParams = omit(input, ["prompt"]);
-
+    session: Pick<
+      typeof d.llmSessions.$inferSelect,
+      "id" | "providerSessionId"
+    >,
+    prompt: string,
+    nEval: number,
+    options?: Text2TextCompletionOptions,
+    onDecoding?: (progress: number) => void,
+    onInference?: (tokens: string[]) => void,
+    abortSignal?: AbortSignal,
+  ): Promise<typeof d.llmCompletions.$inferSelect> {
+    const input = VllmEndpoint._toEndpointInput(prompt, nEval, options);
     const timeout = toMilliseconds({ minutes: 1 });
 
     try {
@@ -127,15 +137,12 @@ export class VllmEndpoint {
         }
       }
 
-      let usage:
-        | {
-            input: number;
-            output: number;
-          }
-        | undefined;
-      let outputText: string | undefined;
+      let usage: { input: number; output: number } | undefined;
+      let outputText = "";
 
       await wrapRunpodRequest(async () => {
+        outputText = "";
+
         for await (const rawOutput of this.endpoint.stream(
           requestId,
           timeout,
@@ -143,7 +150,7 @@ export class VllmEndpoint {
           konsole.debug(JSON.stringify(rawOutput.output));
 
           const output = v.safeParse(
-            VllmEndpointOutputSchema.item,
+            EndpointOutputSchema.item,
             rawOutput.output,
           );
 
@@ -156,18 +163,19 @@ export class VllmEndpoint {
           }
 
           const tokens = output.output.choices[0].tokens;
-          onInference(tokens);
+          onInference?.(tokens);
 
-          outputText ||= "";
           outputText += tokens.join("");
-
           usage = output.output.usage;
         }
       });
 
+      assert(usage);
+
       const finalStatus = await wrapRunpodRequest(() =>
         this.endpoint.status(requestId, timeout),
       );
+      konsole.debug({ finalStatus });
 
       const executionTime = (finalStatus as any).executionTime;
 
@@ -188,16 +196,17 @@ export class VllmEndpoint {
         await d.db
           .insert(d.llmCompletions)
           .values({
-            sessionId,
+            sessionId: session.id,
             workerId: this.worker.id,
-            params: completionParams,
-            input: input.prompt,
-            providerExternalId: requestId,
+            input,
             delayTimeMs: finalStatus.delayTime,
             executionTimeMs: executionTime,
-            output: outputText,
-            promptTokens: usage?.input,
-            completionTokens: usage?.output,
+            output: {
+              requestId,
+              text: outputText,
+            },
+            promptTokens: usage.input,
+            completionTokens: usage.output,
             estimatedCost,
           })
           .returning()
@@ -210,10 +219,9 @@ export class VllmEndpoint {
         await d.db
           .insert(d.llmCompletions)
           .values({
-            sessionId,
+            sessionId: session.id,
             workerId: this.worker.id,
-            params: completionParams,
-            input: input.prompt,
+            input,
             error: e.message,
           })
           .returning()
@@ -221,8 +229,43 @@ export class VllmEndpoint {
     }
   }
 
+  private static _toEndpointInput(
+    prompt: string,
+    nEval: number,
+    options: Text2TextCompletionOptions | undefined,
+  ): EndpointInput {
+    return {
+      prompt,
+      sampling_params: {
+        max_tokens: nEval,
+        presence_penalty: options?.penalty?.present,
+        stop: options?.stopSequences,
+        temperature: options?.temp,
+        top_p: options?.topP,
+        top_k: options?.topK,
+        min_p: options?.minP,
+        repetition_penalty: options?.penalty?.repeat,
+      },
+      guided_options_request: options?.grammar
+        ? {
+            guided_grammar:
+              options.grammar.lang === "lark"
+                ? options.grammar.content
+                : undefined,
+            guided_json:
+              options.grammar.lang === "json-schema"
+                ? options.grammar.content
+                : undefined,
+            guided_regex:
+              options.grammar.lang === "regex"
+                ? options.grammar.content
+                : undefined,
+          }
+        : undefined,
+    };
+  }
+
   private constructor(
-    readonly userId: string,
     readonly worker: typeof d.llmWorkers.$inferSelect,
     private readonly endpoint: RunpodEndpoint,
   ) {}

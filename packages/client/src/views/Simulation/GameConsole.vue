@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { env } from "@/env";
 import * as api from "@/lib/api";
+import { AbortError } from "@/lib/errors";
 import { trackEvent } from "@/lib/plausible";
 import { Mode, Simulation } from "@/lib/simulation";
 import {
@@ -16,6 +17,7 @@ import {
   ChevronUpIcon,
   Loader2Icon,
   MenuIcon,
+  PauseIcon,
   RedoDotIcon,
   SendHorizontalIcon,
   ShapesIcon,
@@ -179,6 +181,8 @@ async function sendMessage() {
     } else if (e instanceof api.PaymentRequiredError) {
       console.warn(e);
       toast.error("Not enough credits.");
+    } else if (e instanceof AbortError) {
+      console.debug(e);
     } else {
       throw e;
     }
@@ -246,6 +250,8 @@ async function advance() {
     } else if (e instanceof api.PaymentRequiredError) {
       console.warn(e);
       toast.error("Not enough credits.");
+    } else if (e instanceof AbortError) {
+      console.debug(e);
     } else {
       throw e;
     }
@@ -345,6 +351,8 @@ async function regenerateUpdate(updateIndex: number) {
     } else if (e instanceof api.PaymentRequiredError) {
       console.warn(e);
       toast.error("Not enough credits.");
+    } else if (e instanceof AbortError) {
+      console.debug(e);
     } else {
       throw e;
     }
@@ -649,11 +657,10 @@ onUnmounted(() => {
 
       button._button.group.relative.aspect-square.h-full(
         @click="onSendButtonClick"
-        :disabled="busy || (!simulation.ready.value && !simulation.shallAdvanceEpisode.value)"
+        :disabled="busy && !inferenceAbortController"
         :title="sendButtonState === SendButtonState.WillSendMessage ? 'Send message (enter)' : sendButtonState === SendButtonState.WillGoForward ? 'Go forward (enter)' : 'Predict (enter)'"
       )
         //- REFACTOR: Make a component for such multi-state animations.
-        //- TODO: Abort button.
         TransitionRoot.absolute(
           :show="sendButtonState === SendButtonState.Busy"
           enter="duration-100 ease-out"
@@ -663,7 +670,7 @@ onUnmounted(() => {
           leave-from="scale-100 opacity-100"
           leave-to="scale-0 opacity-0"
         )
-          Loader2Icon.animate-spin(:size="20")
+          PauseIcon(:size="20")
         TransitionRoot.absolute(
           :show="busy && sendButtonState !== SendButtonState.Busy"
           enter="duration-100 ease-out"

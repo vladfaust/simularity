@@ -5,6 +5,7 @@ import {
   type CompletionOptions,
 } from "@/lib/ai/llm/BaseLlmDriver";
 import { d } from "@/lib/drizzle";
+import { AbortError } from "@/lib/errors";
 import { LocalImmersiveScenario, type LocalScenario } from "@/lib/scenario";
 import { Mode } from "@/lib/simulation";
 import {
@@ -241,6 +242,10 @@ export class Writer {
       onInferenceProgress,
       inferenceAbortSignal,
     );
+
+    if (inferenceAbortSignal?.aborted) {
+      throw new AbortError();
+    }
 
     console.log(
       "Inference result",

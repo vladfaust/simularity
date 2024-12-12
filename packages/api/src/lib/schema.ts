@@ -24,27 +24,57 @@ export const TtsParamsSchema = v.strictObject({
 
 export const OAuthProviderIdSchema = v.picklist(["patreon"]);
 
-export type Text2TextCompletionEpilogue = {
-  type: "epilogue";
-  sessionId: string;
-  completionId: string;
-  usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    delayTime: number;
-    executionTime: number;
-  };
-};
+export const Text2TextCompletionOptionsSchema = v.strictObject({
+  nPrev: v.optional(v.number()),
+  nProbs: v.optional(v.number()),
+  minKeep: v.optional(v.number()),
+  topK: v.optional(v.number()),
+  topP: v.optional(v.number()),
+  minP: v.optional(v.number()),
+  tfsZ: v.optional(v.number()),
+  typicalP: v.optional(v.number()),
+  temp: v.optional(v.number()),
+  dynatemp: v.optional(
+    v.object({
+      range: v.optional(v.number()),
+      exponent: v.optional(v.number()),
+    }),
+  ),
+  penalty: v.optional(
+    v.object({
+      lastN: v.optional(v.number()),
+      repeat: v.optional(v.number()),
+      freq: v.optional(v.number()),
+      present: v.optional(v.number()),
+      penalizeNl: v.optional(v.boolean()),
+    }),
+  ),
+  mirostat: v.optional(
+    v.object({
+      version: v.picklist(["v1", "v2"]),
+      tau: v.optional(v.number()),
+      eta: v.optional(v.number()),
+    }),
+  ),
+  seed: v.optional(v.number()),
+  stopSequences: v.optional(v.array(v.string())),
+  grammar: v.optional(
+    v.object({
+      lang: v.union([
+        v.literal("gbnf"),
+        v.literal("lark"),
+        v.literal("regex"),
+        v.literal("json-schema"),
+        v.literal("lua-gbnf"),
+      ]),
+      content: v.string(),
+    }),
+  ),
+});
 
-export type Text2SpeechCompletionEpilogue = {
-  type: "epilogue";
-  inferenceId: string;
-  usage: {
-    delayTime: number | null;
-    executionTime: number;
-  };
-};
+export type Text2TextCompletionOptions = v.InferOutput<
+  typeof Text2TextCompletionOptionsSchema
+>;
 
 export const SubscriptionTierSchema = v.union([
   v.literal("basic"),

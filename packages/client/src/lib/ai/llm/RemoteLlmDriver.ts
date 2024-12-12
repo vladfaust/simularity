@@ -1,9 +1,10 @@
 import * as api from "@/lib/api";
+import type { Unsubscribable } from "@/lib/api/trpc";
 import { d } from "@/lib/drizzle";
 import { type LatestSession } from "@/lib/storage/llm";
 import { jwtStorage } from "@/lib/storage/user";
+import { Deferred } from "@/lib/utils";
 import { eq } from "drizzle-orm";
-import pRetry from "p-retry";
 import { ref, type Ref } from "vue";
 import {
   LlmGrammarLang,
@@ -133,73 +134,114 @@ export class RemoteLlmDriver implements BaseLlmDriver {
       throw new api.UnauthorizedError();
     }
 
-    const startedAt = Date.now();
+    let subscription: Unsubscribable | undefined;
 
     abortSignal?.addEventListener("abort", () => {
-      // TODO: Abort the inference.
-      console.warn("Aborting inference is not supported yet");
+      console.log("Aborting inference");
+      subscription?.unsubscribe();
     });
+
+    const startedAt = Date.now();
 
     try {
       this.busy.value = true;
-      this.status.value = LlmStatus.Inferring;
+      this.status.value = LlmStatus.Queued;
+      this.progress.value = undefined;
 
       let output = "";
+      let remoteSessionId: string | undefined;
+      let remoteCompletionId: string | undefined;
+      let usage:
+        | {
+            promptTokens: number;
+            completionTokens: number;
+            delayTime: number;
+            executionTime: number;
+          }
+        | undefined;
 
-      const { epilogue, sessionId: newSessionId } = await pRetry(
-        () =>
-          api.rest.v1.ai.ttt.createCompletion(
-            {
-              model: this.config.modelId,
-              prompt,
-              nEval,
-              options: {
-                ...this.config.completionOptions,
-                ...inferenceOptions,
-              },
+      const subscriptionDone = new Deferred<void>();
+      subscription =
+        api.trpc.subscriptionsClient.text2Text.createCompletion.subscribe(
+          {
+            modelId: this.config.modelId,
+            prompt,
+            jwt: jwtStorage.value,
+            sessionId: this._externalSessionId,
+            nEval,
+            options: {
+              ...this.config.completionOptions,
+              ...inferenceOptions,
             },
-            {
-              jwt: jwtStorage.value!,
-              sessionId: this._externalSessionId,
-              onInferenceChunk: (chunk) => {
-                output += chunk.tokens.join("");
+          },
+          {
+            onData: (data) => {
+              switch (data.kind) {
+                case "prologue": {
+                  remoteSessionId = data.sessionId;
+                  break;
+                }
 
-                completionCallback?.({
-                  content: chunk.tokens.join(""),
-                });
-              },
+                case "decoding": {
+                  this.status.value = LlmStatus.Decoding;
+                  this.progress.value = data.progress;
+                  break;
+                }
+
+                case "inference": {
+                  this.status.value = LlmStatus.Inferring;
+                  this.progress.value = undefined;
+
+                  output += data.tokens.join("");
+
+                  completionCallback?.({
+                    content: data.tokens.join(""),
+                  });
+
+                  break;
+                }
+
+                case "epilogue": {
+                  remoteCompletionId = data.completionId;
+
+                  usage = {
+                    promptTokens: data.inputTokens,
+                    completionTokens: data.outputTokens,
+                    delayTime: 0,
+                    executionTime: 0,
+                  };
+
+                  break;
+                }
+              }
             },
-          ),
-        {
-          onFailedAttempt: (error) => {
-            console.error("Failed attempt", error);
+            onComplete: () => {
+              console.debug("onComplete");
+              subscriptionDone.resolve();
+            },
+            onStopped: () => {
+              console.debug("onStopped");
+              subscriptionDone.resolve();
+            },
+            onError: (err) => {
+              subscriptionDone.reject(err);
+            },
           },
-          shouldRetry: (_) => {
-            if (output) {
-              console.warn(
-                "FIXME: Would not retry because output is not empty",
-              );
+        );
 
-              return false;
-            } else {
-              return true;
-            }
-          },
-        },
-      );
-
-      console.debug({ epilogue, newSessionId });
+      await subscriptionDone.promise;
+      console.debug({ remoteSessionId, remoteCompletionId, usage });
 
       // If the response contains a new session ID, store it in the database.
       // The old session seems to be invalidated after a while.
-      if (newSessionId !== this._externalSessionId) {
+      if (remoteSessionId && remoteSessionId !== this._externalSessionId) {
         this._latestSession.value = {
           driver: "remote",
           id: (
             await d.db
               .insert(d.llmRemoteSessions)
               .values({
-                externalId: newSessionId,
+                externalId: remoteSessionId,
                 baseUrl: this.config.baseUrl,
                 modelId: this.config.modelId,
                 contextSize: this.contextSize,
@@ -211,7 +253,7 @@ export class RemoteLlmDriver implements BaseLlmDriver {
         };
       }
 
-      this._externalSessionId = newSessionId;
+      this._externalSessionId = remoteSessionId;
       if (!(this._latestSession.value?.driver === "remote")) {
         throw new Error("[BUG] Latest session value is not set");
       }
@@ -223,12 +265,12 @@ export class RemoteLlmDriver implements BaseLlmDriver {
             remoteSessionId: this._latestSession.value.id,
             options: inferenceOptions,
             input: prompt,
-            inputLength: epilogue.usage.promptTokens,
+            inputLength: usage?.promptTokens,
             output,
-            outputLength: epilogue.usage.completionTokens,
+            outputLength: usage?.completionTokens,
             error: abortSignal?.aborted ? "Aborted" : undefined,
-            delayTime: epilogue.usage.delayTime,
-            executionTime: epilogue.usage.executionTime,
+            delayTime: usage?.delayTime,
+            executionTime: usage?.executionTime,
             realTime: Date.now() - startedAt,
           })
           .returning()
