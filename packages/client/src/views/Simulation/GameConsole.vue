@@ -144,7 +144,10 @@ async function sendMessage() {
   let wouldRestoreUserInput = true;
 
   busy.value = true;
-  inferenceAbortController.value = new AbortController();
+
+  // BUG: On Windows, `inferenceAbortController.value = new AbortController()` results in `inferenceAbortController.value` being `null`.
+  const abortController = new AbortController();
+  inferenceAbortController.value = abortController;
 
   try {
     await simulation.createUpdate(
@@ -158,7 +161,7 @@ async function sendMessage() {
       writerNEval.value,
       predictionOptions.value,
       undefined,
-      inferenceAbortController.value!.signal,
+      abortController.signal, // Here it fails.
     );
 
     trackEvent("simulations/sendUserUpdate", {
