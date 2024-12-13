@@ -174,7 +174,7 @@ export class Writer {
           inferencedSoFar += event.content;
           // console.debug("Inferenced so far", inferencedSoFar);
 
-          const match = inferencedSoFar.match(`<${SYSTEM}> (.+)`);
+          const match = inferencedSoFar.match(`^<${SYSTEM}> `);
           if (!match) {
             // console.debug("No system line yet");
             return;

@@ -187,7 +187,7 @@ function on_eos(generated_text)
     if (generated_text == "<${system}> [") then
       -- If it is, let's move to the next step, and respond with a JSON grammar.
       step = "system"
-      return system_command_grammar()
+      return system_command_grammar(true)
     else
       -- Otherwise, we've generated a character line.
       -- There is nothing left to do, so let's return nil.
@@ -273,14 +273,14 @@ function on_eos(generated_text)
       print "System line not complete"
 
       -- Otherwise, we're expecting yet another system command.
-      return system_command_grammar()
+      return system_command_grammar(false)
     end
   end
 end
 
 -- This function returns grammar for JSON commands,
 -- in accordance with the current simulation state.
-function system_command_grammar()
+function system_command_grammar(first)
   local rules = {}
   local commands = {}
 
@@ -455,8 +455,9 @@ function system_command_grammar()
   end
 
   -- Finally, let's define the root rule.
-  -- root ::= ((setScene | addCharacter | ...) ("," | "]\\n")) | ("]\\n")
-  rules["root"] = '((' .. table.concat(commands, " | ") .. ') ("," | "]\\\\n")) | ("]\\\\n")'
+  -- root ::= ((setScene | addCharacter | ...) "]\\n"?) | "]\\n"
+  -- root ::= ("," (setScene | addCharacter | ...) "]\\n"?) | "]\\n"
+  rules["root"] = '(' .. (first and '' or '"," ') .. '(' .. table.concat(commands, " | ") .. ') "]\\\\n"?) | "]\\\\n"'
 
   -- And return the resulting grammar.
   return rules_to_grammar(rules)
