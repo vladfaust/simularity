@@ -10,7 +10,7 @@ export function buildImmersiveLuaGnbfGrammar(
   system: string,
   scenario: LocalImmersiveScenario,
   currentState: StateDto,
-  characterIdsAllowedToSpeak: string[],
+  enabledCharacterIds: string[],
   allowedSceneIds: string[],
   locale: Intl.Locale,
   requireSystemToken: boolean,
@@ -96,7 +96,7 @@ function rules_to_grammar(rules)
   return grammar
 end
 
-local characters_allowed_to_speak = {${characterIdsAllowedToSpeak
+local enabled_character_ids = {${enabledCharacterIds
     .map((id) => `"${id}"`)
     .join(", ")}}
 
@@ -104,15 +104,15 @@ local characters_allowed_to_speak = {${characterIdsAllowedToSpeak
 function character_line_rules()
   local rules = {}
 
-  -- ADHOC: If characters_allowed_to_speak is empty, replace it with {'narrator'}.
-  if (#characters_allowed_to_speak == 0) then
-    characters_allowed_to_speak = {'narrator'}
+  -- ADHOC: If enabled_character_ids is empty, replace it with {'narrator'}.
+  if (#enabled_character_ids == 0) then
+    enabled_character_ids = {'narrator'}
   end
 
   -- characterId ::= "alice" | "bob" | ...
   rules["characterId"] = table.concat(
     map(
-      characters_allowed_to_speak,
+      enabled_character_ids,
       function(id) return '"' .. id .. '"' end
     ),
     " | ")
@@ -233,15 +233,15 @@ function on_eos(generated_text)
         added_characters[command.args.characterId] = true
 
         -- Add the character to the list of characters allowed to speak.
-        table.insert(characters_allowed_to_speak, command.args.characterId)
+        table.insert(enabled_character_ids, command.args.characterId)
       elseif (command.name == "removeCharacter") then
         print("Removing character: " .. command.args.characterId)
         simulation_state.stage.characters[command.args.characterId] = nil
         removed_characters[command.args.characterId] = true
 
         -- Remove the character from the list of characters allowed to speak.
-        local index = find(characters_allowed_to_speak, command.args.characterId)
-        table.remove(characters_allowed_to_speak, index)
+        local index = find(enabled_character_ids, command.args.characterId)
+        table.remove(enabled_character_ids, index)
       elseif (command.name == "setExpression") then
         print("Setting expression ID: " .. command.args.expressionId)
         simulation_state.stage.characters[command.args.characterId].expression_id = command.args.expressionId
@@ -363,11 +363,13 @@ function system_command_grammar()
 
   for _, character_id in ipairs(scenario_character_ids) do
     -- For each character currently absent on stage,
+    -- and in enabled_character_ids,
     -- we'll define a "<char>-addCharacter" rule,
     -- given that they're not in the added_characters table,
     -- and not in the removed_characters table.
     if (
       not simulation_state.stage.characters[character_id] and
+      enabled_character_ids[character_id] and
       not added_characters[character_id] and
       not removed_characters[character_id]
     ) then
