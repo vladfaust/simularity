@@ -239,9 +239,9 @@ function on_eos(generated_text)
         simulation_state.stage.characters[command.args.characterId] = nil
         removed_characters[command.args.characterId] = true
 
-        -- Remove the character from the list of characters allowed to speak.
-        local index = find(enabled_character_ids, command.args.characterId)
-        table.remove(enabled_character_ids, index)
+        -- Do not disable the character, they may have final words.
+        -- local index = find(enabled_character_ids, command.args.characterId)
+        -- table.remove(enabled_character_ids, index)
       elseif (command.name == "setExpression") then
         print("Setting expression ID: " .. command.args.expressionId)
         simulation_state.stage.characters[command.args.characterId].expression_id = command.args.expressionId
