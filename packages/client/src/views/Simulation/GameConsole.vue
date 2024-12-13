@@ -114,9 +114,9 @@ const inputPlaceholder = computed(
 const userInputElement = ref<HTMLInputElement | null>(null);
 
 // Thanks: https://stackoverflow.com/a/53059914/3645337.
-let triggerEditHandler: () => void | undefined;
-let triggerPreviousVariantHandler: () => void | undefined;
-let triggerNextVariantHandler: () => void | undefined;
+let triggerEditHandler: (() => void) | undefined;
+let triggerPreviousVariantHandler: (() => void) | undefined;
+let triggerNextVariantHandler: (() => void) | undefined;
 
 const isEditing = ref(false);
 
