@@ -101,7 +101,7 @@ const { t } = useI18n({
     )
     Placeholder.h-full.w-full.border-b(v-else)
 
-    ul.absolute.bottom-0.left-0.z-10.flex.h-full.w-full.flex-col-reverse.gap-1.overflow-y-scroll.p-2(
+    ul.absolute.bottom-0.left-0.z-10.flex.h-full.w-full.flex-col-reverse.gap-1.overflow-y-auto.p-2(
       v-if="scenario && latestMessage"
     )
       Message(:key="latestMessage.id" :scenario :message="latestMessage")

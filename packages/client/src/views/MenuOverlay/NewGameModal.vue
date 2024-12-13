@@ -246,7 +246,7 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
       :style="{ height: helperSize.height.value + 'px' }"
     )
       //- Episode selection.
-      .col-span-2.flex.h-full.flex-col.overflow-y-scroll.contain-size
+      .col-span-2.flex.h-full.flex-col.overflow-y-auto.contain-size
         .border-b.p-3
           ScenarioCard.overflow-hidden.rounded-lg.bg-white.shadow-lg.shadow-lg(
             :scenario
@@ -265,7 +265,7 @@ Modal.max-h-full.w-full.max-w-5xl.rounded-lg(
           )
 
       //- Episode details.
-      .col-span-3.h-full.overflow-y-scroll
+      .col-span-3.h-full.overflow-y-auto
         .flex.h-max.flex-col.divide-y(ref="detailsRef")
           .flex.flex-col.gap-2.p-3
             img.aspect-video.rounded-lg.border-4.border-white.object-cover.shadow-lg(

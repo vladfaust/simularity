@@ -126,7 +126,7 @@ const { t } = useI18n({
       )
 
   .flex.h-full.flex-col.overflow-hidden
-    .flex.w-full.divide-x.overflow-x-scroll.border-b
+    .flex.w-full.divide-x.overflow-x-auto.border-b
       //- Application settings tab.
       ._tab(:class="{ _selected: tab === Tab.App }" @click="tab = Tab.App")
         ._name
@@ -165,7 +165,7 @@ const { t } = useI18n({
         )
 
     //- Tab content.
-    .h-full.overflow-y-scroll
+    .h-full.overflow-y-auto
       //- Application settings tab.
       AppSettings(v-if="tab === Tab.App")
 

@@ -492,7 +492,7 @@ $breakpoint: 1280px;
 @media (max-width: $breakpoint) {
   ._main {
     grid-template-areas: "side" "content";
-    @apply overflow-y-scroll;
+    @apply overflow-y-auto;
   }
 
   ._side {
@@ -509,7 +509,7 @@ $breakpoint: 1280px;
   }
 
   ._side {
-    @apply flex flex-col overflow-y-scroll;
+    @apply flex flex-col overflow-y-auto;
   }
 }
 </style>

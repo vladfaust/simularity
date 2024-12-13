@@ -91,7 +91,7 @@ onMounted(async () => {
 </script>
 
 <template lang="pug">
-.flex.flex-col.gap-3.overflow-x-hidden.overflow-y-scroll.p-3
+.flex.flex-col.gap-3.overflow-y-auto.overflow-x-hidden.p-3
   Model.w-full.rounded-lg.bg-white.shadow-lg(
     v-for="model in matchingModels"
     :key="model.id"
