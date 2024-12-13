@@ -628,7 +628,7 @@ onUnmounted(() => {
             RedoDotIcon(:size="20")
 
     //- User input.
-    .flex.h-12.w-full.gap-2.rounded
+    .flex.h-12.w-full.shrink-0.gap-2.rounded
       .relative.w-full.rounded-lg.shadow-lg(
         :class="{ 'overflow-hidden': !!simulation.currentJob.value }"
       )
