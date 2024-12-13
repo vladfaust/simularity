@@ -371,7 +371,7 @@ export class Writer {
             characters: Object.fromEntries(
               Object.entries(scenario.content.characters).map(
                 ([_, character]) => [
-                  character.name,
+                  translationWithFallback(character.name, locale),
                   {
                     fullName: character.fullName
                       ? translationWithFallback(character.fullName, locale)
@@ -756,12 +756,13 @@ Simulation setup complete. Have fun!
   ): string {
     const historicalLines = historicalUpdate
       .slice(-maxHistoricalLines)
-      .map((update) => this._updateToLines(update, mode))
-      .join("\n");
+      .flatMap((update) => this._updateToLines(update, mode));
 
-    const recentLines = recentUpdates
-      .map((update) => this._updateToLines(update, mode))
-      .join("\n");
+    const recentLines = recentUpdates.flatMap((update) =>
+      this._updateToLines(update, mode),
+    );
+
+    const lines = historicalLines.concat(recentLines);
 
     return `
 [Summary]
@@ -774,7 +775,7 @@ ${
 ${JSON.stringify(checkpoint.state)}\n\n`
     : ``
 }[Transcription]
-${historicalLines ? historicalLines + "\n" : ""}${recentLines}`;
+${lines.join("\n")}`;
   }
 
   /**
@@ -869,7 +870,7 @@ A summary MUST NOT contain newline characters, but it can be split into multiple
     let lines: string[] = [];
 
     if (mode === Mode.Immersive && directorUpdate?.code.length) {
-      lines.push(`<${SYSTEM}> ${JSON.stringify(directorUpdate.code)}\n`);
+      lines.push(`<${SYSTEM}> ${JSON.stringify(directorUpdate.code)}`);
     }
 
     lines.push(
