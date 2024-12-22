@@ -38,7 +38,7 @@ export default Router().get(
           platform,
           {
             signature,
-            url: `${env.BASE_URL}/rest/v1/releases/${version}/${platform}`,
+            url: `${env.BASE_URL}rest/v1/releases/${version}/${platform}`,
           },
         ]),
       ),

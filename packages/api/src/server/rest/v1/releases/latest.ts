@@ -34,7 +34,7 @@ export default Router().get("/latest.json", async (req, res) => {
           platform,
           {
             signature,
-            url: `${env.BASE_URL}/rest/v1/releases/${version}/${platform}`,
+            url: `${env.BASE_URL}rest/v1/releases/${version}/${platform}`,
           },
         ],
       ),
