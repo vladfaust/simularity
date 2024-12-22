@@ -1,43 +1,42 @@
 {
-  "kunoichi-7b": {
-    "name": "🥷 Kunoichi-7B",
-    "imgUrl": "/available_models/kunoichi.png",
+  "smart-lemon-cookie": {
+    "name": "🍪 Smart-Lemon-Cookie-7B",
     "description": {
-      "en-US": "Model merge based on Silicon Maid with the goal of improved intelligence. Focused on creative, coherent roleplay.",
+      "en-US": "Focused on creative, coherent roleplay.",
       "ru-RU": "Специализируется на креативном, когерентном ролевом взаимодействии."
     },
     "nParams": 7241732096,
-    "contextSize": 8192,
+    "contextSize": 16384,
     "locales": [
       "en-US"
     ],
-    "hfUrl": "https://huggingface.co/SanjiWatsuki/Kunoichi-7B",
+    "hfUrl": "https://huggingface.co/FallenMerick/Smart-Lemon-Cookie-7B",
     "quants": {
       "q4km": {
         "hash": {
-          "sha256": "d784928f0796f5c75f4bec5b441868c72a063384f91a28267bde0b29f1d16358"
+          "sha256": "4438121678085628e9b35e5e15f7fad33771cecd9f997912a2c3ae6751d85a2e"
         },
-        "ramSize": 4367704064,
+        "ramSize": 4692251770,
         "urls": {
-          "hf": "https://huggingface.co/TheBloke/Kunoichi-7B-GGUF/resolve/main/kunoichi-7b.Q4_K_M.gguf"
+          "hf": "https://huggingface.co/backyardai/Smart-Lemon-Cookie-7B-GGUF/resolve/main/Smart-Lemon-Cookie-7B.Q4_K_M.gguf"
         }
       },
       "q5km": {
         "hash": {
-          "sha256": "f5289f555767ff7d6365b3b3d337f726972303c6e7f109795454065a52c6a071"
+          "sha256": "15a62da61e855af9b897a36b45f839263dc0c8e0a46f30d5048e709963113180"
         },
-        "ramSize": 5130000000,
+        "ramSize": 5508295557,
         "urls": {
-          "hf": "https://huggingface.co/TheBloke/Kunoichi-7B-GGUF/resolve/main/kunoichi-7b.Q5_K_M.gguf"
+          "hf": "https://huggingface.co/backyardai/Smart-Lemon-Cookie-7B-GGUF/resolve/main/Smart-Lemon-Cookie-7B.Q5_K_M.gguf"
         }
       },
       "q6k": {
         "hash": {
-          "sha256": "7de1a4e3406855596748c476cb4021862af415f3f1c87c9f8a3d10b64d0c3e9b"
+          "sha256": "029b228f699c05f9b7d8488af008ddaa1f51d26b25b04b3de03003443c801be3"
         },
         "ramSize": 6378026434,
         "urls": {
-          "hf": "https://huggingface.co/TheBloke/Kunoichi-7B-GGUF/resolve/main/kunoichi-7b.Q6_K.gguf"
+          "hf": "https://huggingface.co/backyardai/Smart-Lemon-Cookie-7B-GGUF/resolve/main/Smart-Lemon-Cookie-7B.Q6_K.gguf"
         }
       }
     },
@@ -62,7 +61,7 @@
       "ru-RU": "Русскоязычная модель из семейства Вихрь."
     },
     "nParams": 8622146847,
-    "contextSize": 131072,
+    "contextSize": 16384,
     "locales": [
       "en-US",
       "ru-RU"
