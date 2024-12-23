@@ -2,6 +2,7 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 import vue from "@vitejs/plugin-vue";
 import * as child from "child_process";
 import { defineConfig } from "vite";
+import svgLoader from "vite-svg-loader";
 import packageJson from "./package.json";
 
 const commitHash = child
@@ -22,6 +23,7 @@ export default defineConfig({
   },
   plugins: [
     vue(),
+    svgLoader(),
     process.env.VITE_SENTRY_AUTH_TOKEN &&
       sentryVitePlugin({
         org: requireEnv("VITE_SENTRY_ORG"),

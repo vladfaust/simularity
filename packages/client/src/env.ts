@@ -54,6 +54,10 @@ const safeParseOutput = v.safeParse(
 
     /** Human-readable version of the current build. */
     VITE_VERSION: v.optional(v.string()),
+
+    VITE_DISCORD_URL: v.optional(v.pipe(v.string(), v.url())),
+    VITE_REDDIT_URL: v.optional(v.pipe(v.string(), v.url())),
+    VITE_X_URL: v.optional(v.pipe(v.string(), v.url())),
   }),
   import.meta.env,
 );
