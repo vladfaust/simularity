@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import discordRaw from "@/assets/discord.svg?raw";
+import redditRaw from "@/assets/reddit.svg?raw";
+import xRaw from "@/assets/x.svg?raw";
+import { env } from "@/env";
 import { routeLocation } from "@/router";
 import { userId } from "@/store";
 import {
@@ -37,6 +41,35 @@ Menu(v-slot="{ open }")
             RouterLink._router-link(:to="routeLocation({ name: 'Download' })")
               DownloadIcon(:size="20")
               span Download
+
+          //- Social media links.
+          .flex.gap-2
+            //- Discord URL.
+            a(
+              v-if="env.VITE_DISCORD_URL"
+              :href="env.VITE_DISCORD_URL"
+              class="hover:text-[#5865F2]"
+              target="_blank"
+            )
+              svg.h-5.w-5.fill-current(v-html="discordRaw")
+
+            //- Reddit URL.
+            a(
+              v-if="env.VITE_REDDIT_URL"
+              :href="env.VITE_REDDIT_URL"
+              class="hover:text-[#FF4500]"
+              target="_blank"
+            )
+              svg.h-5.w-5.fill-current(v-html="redditRaw")
+
+            //- X (Twitter) URL.
+            a(
+              v-if="env.VITE_X_URL"
+              :href="env.VITE_X_URL"
+              class="hover:text-[#000000]"
+              target="_blank"
+            )
+              svg.h-5.w-5.fill-current(v-html="xRaw")
 
         .hidden.h-full.w-full.items-center.justify-end.gap-3(class="xs:flex")
           RouterLink._router-link(:to="routeLocation({ name: 'Pricing' })")
