@@ -17,7 +17,7 @@ const { data: scenarios } = useRemoteScenariosQuery(
 
 const { t } = useI18n({
   messages: {
-    "en-US": {
+    en: {
       scenarios: {
         label: "Library",
         showNsfwButton: {

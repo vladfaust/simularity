@@ -47,7 +47,7 @@ function logout() {
 
 const { t } = useI18n({
   messages: {
-    "en-US": {
+    en: {
       user: {
         account: {
           settings: {

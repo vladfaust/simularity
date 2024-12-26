@@ -23,7 +23,7 @@ const { data: scenario } = useRemoteScenarioQuery(scenarioId);
 
 const { t } = useI18n({
   messages: {
-    "en-US": {
+    en: {
       scenarioDetails: {
         context: "Context",
         contextHelp: "Minimum context size for a model",
@@ -34,19 +34,6 @@ const { t } = useI18n({
         scenes: "Scenes",
         version: "Version",
         diskSize: "Size",
-      },
-    },
-    "ru-RU": {
-      scenarioDetails: {
-        context: "Контекст",
-        contextHelp: "Минимальный размер контекста для модели",
-        languages: "Языки",
-        episodes: "Эпизоды",
-        achievements: "Достижения",
-        characters: "Персонажи",
-        scenes: "Сцены",
-        version: "Версия",
-        diskSize: "Размер",
       },
     },
   },

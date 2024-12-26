@@ -29,7 +29,7 @@ const { data: scenario } = useRemoteScenarioQuery(scenarioId);
 
 const { t } = useI18n({
   messages: {
-    "en-US": {
+    en: {
       scenario: {
         loading: "Loading...",
         requiresSubscription: {

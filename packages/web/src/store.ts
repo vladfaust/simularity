@@ -1,7 +1,6 @@
 import { useLocalStorage } from "@vueuse/core";
 import * as jose from "jose";
 import { computed } from "vue";
-import { filterLocale } from "./lib/logic/i18n";
 
 export const jwtStorage = useLocalStorage<string | null>("jwt", null, {
   listenToStorageChanges: true,
@@ -51,7 +50,7 @@ export function clearUser() {
 
 export const appLocale = useLocalStorage<Intl.Locale>(
   "app:locale",
-  filterLocale(new Intl.Locale(window.navigator.language)),
+  new Intl.Locale("en-US"),
   {
     deep: false,
     serializer: {

@@ -18,7 +18,7 @@ const { data: scenario } = useRemoteScenarioQuery(scenarioId);
 
 const { t } = useI18n({
   messages: {
-    "en-US": {
+    en: {
       scenarioCard: {
         nsfw: "This scenario is NSFW",
         requiresSubscription: {
